@@ -1,4 +1,4 @@
-package org.searlelab.timsjava.io;
+package org.searlelab.msrawjava.io.tims;
 
 import java.io.File;
 import java.io.IOException;
@@ -22,12 +22,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.searlelab.timsjava.model.FragmentScan;
-import org.searlelab.timsjava.model.PrecursorScan;
-import org.searlelab.timsjava.model.Range;
-import org.searlelab.timsjava.model.SpectrumRecord;
-import org.searlelab.timsjava.model.StripeFileInterface;
-import org.searlelab.timsjava.model.WindowData;
+import org.searlelab.msrawjava.model.FragmentScan;
+import org.searlelab.msrawjava.model.PrecursorScan;
+import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.SpectrumRecord;
+import org.searlelab.msrawjava.model.StripeFileInterface;
+import org.searlelab.msrawjava.model.WindowData;
 
 import gnu.trove.list.array.TIntArrayList;
 

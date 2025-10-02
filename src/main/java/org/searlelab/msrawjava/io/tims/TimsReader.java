@@ -1,4 +1,4 @@
-package org.searlelab.timsjava.io;
+package org.searlelab.msrawjava.io.tims;
 
 import java.nio.file.Path;
 

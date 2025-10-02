@@ -1,4 +1,4 @@
-package org.searlelab.timsjava.model;
+package org.searlelab.msrawjava.model;
 
 public class FragmentScan {
 

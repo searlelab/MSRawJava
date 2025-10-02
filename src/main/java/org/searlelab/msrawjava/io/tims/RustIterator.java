@@ -1,6 +1,6 @@
-package org.searlelab.timsjava.io;
+package org.searlelab.msrawjava.io.tims;
 
-import org.searlelab.timsjava.model.SpectrumRecord;
+import org.searlelab.msrawjava.model.SpectrumRecord;
 
 public final class RustIterator implements AutoCloseable {
     private final long iteratorHandle;

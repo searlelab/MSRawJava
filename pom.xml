@@ -4,12 +4,12 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.searlelab</groupId>
-  <artifactId>timsjava</artifactId>
+  <artifactId>msrawjava</artifactId>
   <version>0.1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
-  <name>timsjava</name>
-  <description>Java iterator bindings for timsrust DIA MS2 with per-peak IMS</description>
+  <name>msrawjava</name>
+  <description>Cross platform Java tools for reading Thermo Raw and timsTOF files</description>
 
   <properties>
     <maven.compiler.release>17</maven.compiler.release>

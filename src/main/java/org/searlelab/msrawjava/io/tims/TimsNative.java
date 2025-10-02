@@ -1,4 +1,4 @@
-package org.searlelab.timsjava.io;
+package org.searlelab.msrawjava.io.tims;
 
 /**
  * JNI façade for the Rust iterator.

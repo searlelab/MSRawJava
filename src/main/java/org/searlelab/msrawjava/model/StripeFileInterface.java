@@ -1,4 +1,4 @@
-package org.searlelab.timsjava.model;
+package org.searlelab.msrawjava.model;
 
 import java.io.File;
 import java.io.IOException;

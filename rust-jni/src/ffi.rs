@@ -13,7 +13,7 @@ fn throw(env: &mut JNIEnv, class: &str, msg: &str) {
 // JNI class: org.searlelab.timsjava.TimsNative
 
 #[no_mangle]
-pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_openDataset(
+pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_openDataset(
     mut env: JNIEnv, _cls: JClass, jpath: JString
 ) -> jlong {
     let path: String = match env.get_string(&jpath) {
@@ -27,7 +27,7 @@ pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_openDataset(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_closeDataset(
+pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_closeDataset(
     mut env: JNIEnv, _cls: JClass, handle: jlong
 ) {
     if handle == 0 { return; }
@@ -37,7 +37,7 @@ pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_closeDataset(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_createIterator(
+pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_createIterator(
     mut env: JNIEnv, _cls: JClass, handle: jlong, frame_indices: JIntArray,
     mz_lo: jni::sys::jdouble, mz_hi: jni::sys::jdouble,
     scan_lo: jni::sys::jint, scan_hi: jni::sys::jint
@@ -72,7 +72,7 @@ pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_createIterator(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_destroyIterator(
+pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_destroyIterator(
     _env: JNIEnv, _cls: JClass, iter_handle: jlong
 ) {
     if iter_handle == 0 { return; }
@@ -80,7 +80,7 @@ pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_destroyIterator
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_searlelab_timsjava_io_TimsNative_next(
+pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_next(
     mut env: JNIEnv, _cls: JClass, iter_handle: jlong
 ) -> jobject {
     if iter_handle == 0 {

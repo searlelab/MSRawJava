@@ -27,9 +27,9 @@ impl From<anyhow::Error> for NativeError {
 
 pub fn throw_java(env: &mut JNIEnv, err: &NativeError) {
     let (class, msg) = match err {
-        NativeError::Io(m)        => ("org/searlelab/timsjava/exceptions/TdfIOException", m.clone()),
-        NativeError::Sql(m)       => ("org/searlelab/timsjava/exceptions/TdfSQLException", m.clone()),
-        NativeError::Tims(m)      => ("org/searlelab/timsjava/exceptions/TdfFormatException", m.clone()),
+        NativeError::Io(m)        => ("org/searlelab/msrawjava/exceptions/TdfIOException", m.clone()),
+        NativeError::Sql(m)       => ("org/searlelab/msrawjava/exceptions/TdfSQLException", m.clone()),
+        NativeError::Tims(m)      => ("org/searlelab/msrawjava/exceptions/TdfFormatException", m.clone()),
         NativeError::Arg(m)       => ("java/lang/IllegalArgumentException", m.clone()),
         NativeError::Internal(m)  => ("java/lang/RuntimeException", m.clone()),
     };

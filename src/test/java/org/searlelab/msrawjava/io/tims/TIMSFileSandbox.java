@@ -1,4 +1,4 @@
-package org.searlelab.timsjava.io;
+package org.searlelab.msrawjava.io.tims;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,10 +10,10 @@ import java.util.Collections;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
-import org.searlelab.timsjava.model.FragmentScan;
-import org.searlelab.timsjava.model.PrecursorScan;
-import org.searlelab.timsjava.model.Range;
-import org.searlelab.timsjava.model.WindowData;
+import org.searlelab.msrawjava.model.FragmentScan;
+import org.searlelab.msrawjava.model.PrecursorScan;
+import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.WindowData;
 
 public class TIMSFileSandbox {
 

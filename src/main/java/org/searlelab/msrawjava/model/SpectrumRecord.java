@@ -1,4 +1,4 @@
-package org.searlelab.timsjava.model;
+package org.searlelab.msrawjava.model;
 
 public final class SpectrumRecord {
     public final double[] mz;
