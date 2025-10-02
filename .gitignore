@@ -19,6 +19,20 @@
 *.tar.gz
 *.rar
 
+# Rust files
+**/*.rs.bk
+**/*.rs.swp
+
+# Operating System and Editor files (common examples)
+.DS_Store
+.vscode/
+*.swp
+*~
+
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# target files
+/target/
+/rust-jni/target/
