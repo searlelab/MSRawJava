@@ -5,8 +5,8 @@ import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 
+import java.io.IOException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -16,26 +16,33 @@ import static org.junit.jupiter.api.Assertions.*;
  * and get sane counts and RT ranges without throwing?
  */
 public class ThermoRawFileSmokeIT {
+	private static final boolean printFullReport=false;
 
     @Test
-    void openAndReadExplorisDia() throws Exception {
-        // Use the file you staged in test resources
-        Path raw = Path.of("src/test/resources/rawdata/Stellar_DDA.raw");
-        //Path raw = Path.of("src/test/resources/rawdata/Stellar_DIA_4mz.raw");
-        //Path raw = Path.of("src/test/resources/rawdata/Exploris_DIA_16mzst.raw");
-        //Path raw = Path.of("src/test/resources/rawdata/Astral_GPFDIA_2mz.raw");
-
+    void openAndRead() throws Exception {
 		//raw=Paths.get("/Users/searle.brian/Downloads/adl_testing/HeLa_BCS_MAPMS_DIA_90min_01.raw");
 
 		long startTime=System.currentTimeMillis();
 
-        System.out.println("Setting up reader...");
-		ThermoServerPool.port();
-		
-        int expectedPrecursors=3;
-        int expectedMS2s=114;
+        try {
+	        System.out.println("Setting up reader...");
+			ThermoServerPool.port();
+	        System.out.println("Setup time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
+	        
+	        testFile(Path.of("src/test/resources/rawdata/Exploris_DIA_16mzst.raw"), 3, 114);
+	        testFile(Path.of("src/test/resources/rawdata/Astral_GPFDIA_2mz.raw"), 4, 134);
+	        testFile(Path.of("src/test/resources/rawdata/Stellar_DIA_4mz.raw"), 3, 375);
+	        testFile(Path.of("src/test/resources/rawdata/Stellar_DDA.raw"), 3, 60);
+        } finally {
+        	ThermoServerPool.shutdown();
+        }
         
-        System.out.println("Begin file reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
+        System.out.println("Total time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
+    }
+
+	private void testFile(Path raw, int expectedPrecursors, int expectedMS2s) throws Exception, IOException {
+		long startTime=System.currentTimeMillis();
+		System.out.println("Begin reading "+raw.toString()+"..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
         ThermoRawFile f=null;
         try {
         	f = new ThermoRawFile(raw);
@@ -44,7 +51,7 @@ public class ThermoRawFileSmokeIT {
 	        assertNotNull(ms1s, "MS1 list should not be null");
 	        assertTrue(ms1s.size() > 0, "Expected at least one MS1 spectrum");
 	
-	        //assertEquals(expectedPrecursors, ms1s.size(), "Expect "+expectedPrecursors+" MS2s");
+	        assertEquals(expectedPrecursors, ms1s.size(), "Expect "+expectedPrecursors+" MS2s");
 	        for (PrecursorScan ms1 : ms1s) {
 				assertTrue(sum(ms1.getIntensityArray())>0.0f, "Expect TIC>0");
 				for (double mz : ms1.getMassArray()) {
@@ -52,7 +59,7 @@ public class ThermoRawFileSmokeIT {
 				}
 				assertEquals(ms1.getMassArray().length, ms1.getIntensityArray().length);
 				
-				System.out.println("name: "+ms1.getSpectrumName()+", rtInSec: "+ms1.getScanStartTime()+", index: "+ms1.getSpectrumIndex()+", range: "+ms1.getIsolationWindowLower()+" to "+ms1.getIsolationWindowUpper()+", IIT: "+ms1.getIonInjectionTime()+", TIC: "+sum(ms1.getIntensityArray())+", N: "+ms1.getMassArray().length);
+				if (printFullReport) System.out.println("name: "+ms1.getSpectrumName()+", rtInSec: "+ms1.getScanStartTime()+", index: "+ms1.getSpectrumIndex()+", range: "+ms1.getIsolationWindowLower()+" to "+ms1.getIsolationWindowUpper()+", IIT: "+ms1.getIonInjectionTime()+", TIC: "+sum(ms1.getIntensityArray())+", N: "+ms1.getMassArray().length);
 			}
 	
 	        System.out.println("Begin MS2 reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
@@ -60,7 +67,7 @@ public class ThermoRawFileSmokeIT {
 	        assertNotNull(ms2s, "MS2 list should not be null");
 	        assertTrue(ms2s.size() > 0, "Expected at least one MS2 spectrum");
 	        
-	        //assertEquals(expectedMS2s, ms2s.size(), "Expect "+expectedPrecursors+" MS2s");
+	        assertEquals(expectedMS2s, ms2s.size(), "Expect "+expectedPrecursors+" MS2s");
 	        for (FragmentScan ms2 : ms2s) {
 				assertTrue(sum(ms2.getIntensityArray())>0.0f, "Expect TIC>0");
 				for (double mz : ms2.getMassArray()) {
@@ -68,17 +75,16 @@ public class ThermoRawFileSmokeIT {
 				}
 				assertEquals(ms2.getMassArray().length, ms2.getIntensityArray().length);
 				
-				System.out.println("name: "+ms2.getSpectrumName()+", rtInSec: "+ms2.getScanStartTime()+", precursor: "+ms2.getPrecursorName()+", index: "+ms2.getSpectrumIndex()+", range: "+ms2.getIsolationWindowLower()+" to "+ms2.getIsolationWindowUpper()+", z: "+ms2.getCharge()+", IIT: "+ms2.getIonInjectionTime()+", TIC: "+sum(ms2.getIntensityArray())+", N: "+ms2.getMassArray().length);
+				if (printFullReport) System.out.println("name: "+ms2.getSpectrumName()+", rtInSec: "+ms2.getScanStartTime()+", precursor: "+ms2.getPrecursorName()+", index: "+ms2.getSpectrumIndex()+", range: "+ms2.getIsolationWindowLower()+" to "+ms2.getIsolationWindowUpper()+", z: "+ms2.getCharge()+", IIT: "+ms2.getIonInjectionTime()+", TIC: "+sum(ms2.getIntensityArray())+", N: "+ms2.getMassArray().length);
 			}
-	        System.out.println("Finished! Closing down."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
+	        System.out.println("Finished! MS1:"+ms1s.size()+", MS2:"+ms2s.size()+" Closing down."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 	
         } finally {
 	        if (f!=null) f.close();
-        	ThermoServerPool.shutdown();
         }
         
         System.out.println("Closed! Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
-    }
+	}
     
 	public static float sum(float[] v) {
 		float sum=0.0f;

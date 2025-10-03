@@ -107,15 +107,27 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             var filter = raw.GetFilterForScanNumber(scan);
             if (filter.MSOrder != MSOrderType.Ms) continue; // MS1
             
-            double lo, hi;
+    		double lo = double.PositiveInfinity;
+    		double hi = double.NegativeInfinity;
+    		int found = 0;
+            
             var evt = raw.GetScanEventForScanNumber(scan);
-            try // FIXME this is a terrible way to do this!
-            {
-	            double center = evt.GetMass(0);
-	            double width  = evt.GetIsolationWidth(0);
-	             lo = center - 0.5 * width;
-	             hi = center + 0.5 * width;
-            }
+            try
+	        {
+	            int n = evt.MassRangeCount;
+	            for (int i = 0; i < n; i++)
+	            {
+	                var r = evt.GetMassRange(i);
+	                double l = r.Low, h = r.High;
+	                if (h > l && l > 0) { if (l < lo) lo = l; if (h > hi) hi = h; found++; }
+	            }
+	            
+	            if (found==0) 
+	            {
+					lo=0;
+					hi=Double.PositiveInfinity;
+				}
+	        }
             catch (Exception ex)
             {
 				lo=0;
