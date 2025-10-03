@@ -107,12 +107,20 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             var filter = raw.GetFilterForScanNumber(scan);
             if (filter.MSOrder != MSOrderType.Ms) continue; // MS1
             
+            double lo, hi;
             var evt = raw.GetScanEventForScanNumber(scan);
-            double center = evt.GetMass(0);
-            double width  = evt.GetIsolationWidth(0);
-            double lo = center - 0.5 * width;
-            double hi = center + 0.5 * width;
-
+            try // FIXME this is a terrible way to do this!
+            {
+	            double center = evt.GetMass(0);
+	            double width  = evt.GetIsolationWidth(0);
+	             lo = center - 0.5 * width;
+	             hi = center + 0.5 * width;
+            }
+            catch (Exception ex)
+            {
+				lo=0;
+				hi=Double.PositiveInfinity;
+			}
             var spec = BuildSpectrum(raw, scan, isMs1: true, isoLo: lo, isoHi: hi);
             await stream.WriteAsync(spec);
         }
@@ -158,15 +166,42 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             yield return scan;
         }
     }
+    
+    private static void ReadMzAndIntensity(IRawDataPlus raw, int scan, out double[] mz, out float[] intensity)
+	{
+	    // 1) Prefer centroided data. 'true' tells the reader to centroid profile/segmented scans.
+	    var cs = raw.GetCentroidStream(scan, true);
+	    if (cs != null && cs.Masses != null && cs.Intensities != null && cs.Intensities.Length > 0)
+	    {
+	        mz = cs.Masses;
+	        var intensD = cs.Intensities;
+	        intensity = new float[intensD.Length];
+	        for (int i = 0; i < intensD.Length; i++) intensity[i] = (float)intensD[i];
+	        return;
+	    }
+	
+	    // 2) Fallback for low-res ion-trap or cases where centroid stream is empty:
+	    //    use segmented data. This is vendor-decimated mass-intensity pairs.
+	    var seg = raw.GetSegmentedScanFromScanNumber(scan);
+	    if (seg != null && seg.Positions != null && seg.Intensities != null && seg.Intensities.Length > 0)
+	    {
+	        mz = seg.Positions;
+	        var intensD = seg.Intensities;
+	        intensity = new float[intensD.Length];
+	        for (int i = 0; i < intensD.Length; i++) intensity[i] = (float)intensD[i];
+	        return;
+	    }
+	
+	    // 3) Nothing usable
+	    mz = Array.Empty<double>();
+	    intensity = Array.Empty<float>();
+	}
 
     private static Spectrum BuildSpectrum(IRawDataPlus raw, int scan, bool isMs1, double isoLo, double isoHi)
     {
         var cs = raw.GetCentroidStream(scan, false);
-        double[] mz = cs?.Masses ?? Array.Empty<double>();
-        double[] intensD = cs?.Intensities ?? Array.Empty<double>();
-        float[]  intensF = new float[intensD.Length];
-        for (int i = 0; i < intensD.Length; i++) intensF[i] = (float)intensD[i];
-
+        ReadMzAndIntensity(raw, scan, out var mz, out var intensF);
+        
         double injS = 0;
         int charge = 0;
 
