@@ -111,10 +111,10 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
             for (int i = 0; i < intensity.length; i++) intensity[i] = s.getIntensity(i);
 
             out.add(new PrecursorScan(
-                    s.getSpectrumName(), s.getScanNumber(), (float) s.getRtSeconds()*60f, // FIXME actually in minutes!
-                    0, 0.0, Float.POSITIVE_INFINITY,
+                    s.getSpectrumName(), s.getScanNumber(), (float) s.getRtSeconds(),
+                    0, s.getIsoLower(), s.getIsoUpper(),
                     (float) s.getIonInjectionTimeS(),
-                    mz, null, intensity
+                    mz, intensity, null
             ));
         }
         out.sort(Comparator.comparingDouble(PrecursorScan::getScanStartTime));
@@ -145,10 +145,10 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
             }
             out.add(new FragmentScan(
                     s.getSpectrumName(), s.getPrecursorName(),
-                    s.getScanNumber(), (float) s.getRtSeconds()*60f, // FIXME actually in minutes!
+                    s.getScanNumber(), (float) s.getRtSeconds(),
                     0, (float) s.getIonInjectionTimeS(),
                     s.getIsoLower(), s.getIsoUpper(),
-                    mz, null, intensity, (byte) s.getCharge()
+                    mz, intensity, null, (byte) s.getCharge()
             ));
         }
         out.sort(Comparator.comparingDouble(FragmentScan::getScanStartTime));

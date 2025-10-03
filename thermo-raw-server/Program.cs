@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Net;
+using System.Text.RegularExpressions;
 using Grpc.Core;
 using MSRaw.Thermo.Proto;
 using ThermoFisher.CommonCore.Data.Business;
@@ -105,8 +106,14 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         {
             var filter = raw.GetFilterForScanNumber(scan);
             if (filter.MSOrder != MSOrderType.Ms) continue; // MS1
+            
+            var evt = raw.GetScanEventForScanNumber(scan);
+            double center = evt.GetMass(0);
+            double width  = evt.GetIsolationWidth(0);
+            double lo = center - 0.5 * width;
+            double hi = center + 0.5 * width;
 
-            var spec = BuildSpectrum(raw, scan, isMs1: true, isoLo: 0.0, isoHi: double.PositiveInfinity);
+            var spec = BuildSpectrum(raw, scan, isMs1: true, isoLo: lo, isoHi: hi);
             await stream.WriteAsync(spec);
         }
     }
@@ -120,20 +127,11 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             var filter = raw.GetFilterForScanNumber(scan);
             if (filter.MSOrder != MSOrderType.Ms2) continue;
 
-            double lo, hi;
-            if (filter.MassRangeCount > 0)
-            {
-                var r = filter.GetMassRange(0);
-                lo = r.Low; hi = r.High;
-            }
-            else
-            {
-                var evt = raw.GetScanEventForScanNumber(scan);
-                double center = evt.GetMass(0);
-                double width  = evt.GetIsolationWidth(0);
-                lo = center - 0.5 * width;
-                hi = center + 0.5 * width;
-            }
+            var evt = raw.GetScanEventForScanNumber(scan);
+            double center = evt.GetMass(0);
+            double width  = evt.GetIsolationWidth(0);
+            double lo = center - 0.5 * width;
+            double hi = center + 0.5 * width;
 
             if (!(lo < req.MzHi && hi > req.MzLo)) continue;
 
@@ -198,10 +196,10 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         var s = new Spectrum
         {
             ScanNumber = scan,
-            RtSeconds  = raw.RetentionTimeFromScanNumber(scan),
+            RtSeconds  = raw.RetentionTimeFromScanNumber(scan)*60f,
             MsLevel    = isMs1 ? 1 : 2,
-            IsoLower   = isMs1 ? 0.0 : isoLo,
-            IsoUpper   = isMs1 ? double.PositiveInfinity : isoHi,
+            IsoLower   = isoLo,
+            IsoUpper   = isoHi,
             Charge     = charge,
             SpectrumName    = scan.ToString(CultureInfo.InvariantCulture),
             PrecursorName   = scan.ToString(CultureInfo.InvariantCulture),
@@ -225,6 +223,11 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
     private static string ExtractInteger(string s)
     {
         if (string.IsNullOrEmpty(s)) return "0";
+        
+	    if (string.IsNullOrWhiteSpace(s)) return "0";
+	    s = s.Trim();
+	    if (!Regex.IsMatch(s, @"^[+-]?\d+$")) return "0";
+    
         var chars = s.Where(char.IsDigit).ToArray();
         return chars.Length == 0 ? "0" : new string(chars);
     }

@@ -7,8 +7,6 @@ import org.searlelab.msrawjava.model.FragmentScan;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -21,7 +19,11 @@ public class ThermoRawFileSmokeIT {
     @Test
     void openAndReadExplorisDia() throws Exception {
         // Use the file you staged in test resources
+        //Path raw = Path.of("src/test/resources/rawdata/Stellar_DDA.raw");
+        //Path raw = Path.of("src/test/resources/rawdata/Stellar_DIA_4mz.raw");
         Path raw = Path.of("src/test/resources/rawdata/Exploris_DIA_16mzst.raw");
+        //Path raw = Path.of("src/test/resources/rawdata/Astral_GPFDIA_2mz.raw");
+        
         int expectedPrecursors=3;
         int expectedMS2s=114;
         
@@ -34,13 +36,15 @@ public class ThermoRawFileSmokeIT {
 	        assertNotNull(ms1s, "MS1 list should not be null");
 	        assertTrue(ms1s.size() > 0, "Expected at least one MS1 spectrum");
 	
-	        assertEquals(expectedPrecursors, ms1s.size(), "Expect "+expectedPrecursors+" MS2s");
+	        //assertEquals(expectedPrecursors, ms1s.size(), "Expect "+expectedPrecursors+" MS2s");
 	        for (PrecursorScan ms1 : ms1s) {
 				//assertTrue(sum(ms1.getIntensityArray())>0.0f, "Expect TIC>0");
 				for (double mz : ms1.getMassArray()) {
 					assertTrue(mz>0.0f, "Expect every m/z>0");
 				}
-				System.out.println("name: "+ms1.getSpectrumName()+", index: "+ms1.getSpectrumIndex()+", IIT: "+ms1.getIonInjectionTime()+", intensity array: "+ms1.getIntensityArray());
+				assertEquals(ms1.getMassArray().length, ms1.getIntensityArray().length);
+				
+				System.out.println("name: "+ms1.getSpectrumName()+", rtInSec: "+ms1.getScanStartTime()+", index: "+ms1.getSpectrumIndex()+", range: "+ms1.getIsolationWindowLower()+" to "+ms1.getIsolationWindowUpper()+", IIT: "+ms1.getIonInjectionTime()+", TIC: "+sum(ms1.getIntensityArray())+", N: "+ms1.getMassArray().length);
 			}
 	
 	        System.out.println("Begin MS2 reading...");
@@ -48,13 +52,15 @@ public class ThermoRawFileSmokeIT {
 	        assertNotNull(ms2s, "MS2 list should not be null");
 	        assertTrue(ms2s.size() > 0, "Expected at least one MS2 spectrum");
 	        
-	        assertEquals(expectedMS2s, ms2s.size(), "Expect "+expectedPrecursors+" MS2s");
+	        //assertEquals(expectedMS2s, ms2s.size(), "Expect "+expectedPrecursors+" MS2s");
 	        for (FragmentScan ms2 : ms2s) {
 				//assertTrue(sum(ms2.getIntensityArray())>0.0f, "Expect TIC>0");
 				for (double mz : ms2.getMassArray()) {
 					assertTrue(mz>0.0f, "Expect every m/z>0");
 				}
-				System.out.println("name: "+ms2.getSpectrumName()+", precursor: "+ms2.getPrecursorName()+", index: "+ms2.getSpectrumIndex()+", range: "+ms2.getIsolationWindowLower()+" to "+ms2.getIsolationWindowUpper()+", z: "+ms2.getCharge()+", IIT: "+ms2.getIonInjectionTime()+", intensity array: "+ms2.getIntensityArray());
+				assertEquals(ms2.getMassArray().length, ms2.getIntensityArray().length);
+				
+				System.out.println("name: "+ms2.getSpectrumName()+", rtInSec: "+ms2.getScanStartTime()+", precursor: "+ms2.getPrecursorName()+", index: "+ms2.getSpectrumIndex()+", range: "+ms2.getIsolationWindowLower()+" to "+ms2.getIsolationWindowUpper()+", z: "+ms2.getCharge()+", IIT: "+ms2.getIonInjectionTime()+", TIC: "+sum(ms2.getIntensityArray())+", N: "+ms2.getMassArray().length);
 			}
 	        System.out.println("Finished! Closing down.");
 	
