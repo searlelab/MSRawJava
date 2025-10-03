@@ -6,6 +6,7 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,15 +24,22 @@ public class ThermoRawFileSmokeIT {
         //Path raw = Path.of("src/test/resources/rawdata/Stellar_DIA_4mz.raw");
         //Path raw = Path.of("src/test/resources/rawdata/Exploris_DIA_16mzst.raw");
         //Path raw = Path.of("src/test/resources/rawdata/Astral_GPFDIA_2mz.raw");
-        
+
+		//raw=Paths.get("/Users/searle.brian/Downloads/adl_testing/HeLa_BCS_MAPMS_DIA_90min_01.raw");
+
+		long startTime=System.currentTimeMillis();
+
+        System.out.println("Setting up reader...");
+		ThermoServerPool.port();
+		
         int expectedPrecursors=3;
         int expectedMS2s=114;
         
-        System.out.println("Begin file reading...");
+        System.out.println("Begin file reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
         ThermoRawFile f=null;
         try {
         	f = new ThermoRawFile(raw);
-	        System.out.println("Begin MS1 reading...");
+	        System.out.println("Begin MS1 reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 	        ArrayList<PrecursorScan> ms1s = f.getPrecursors(0, Float.POSITIVE_INFINITY);
 	        assertNotNull(ms1s, "MS1 list should not be null");
 	        assertTrue(ms1s.size() > 0, "Expected at least one MS1 spectrum");
@@ -47,7 +55,7 @@ public class ThermoRawFileSmokeIT {
 				System.out.println("name: "+ms1.getSpectrumName()+", rtInSec: "+ms1.getScanStartTime()+", index: "+ms1.getSpectrumIndex()+", range: "+ms1.getIsolationWindowLower()+" to "+ms1.getIsolationWindowUpper()+", IIT: "+ms1.getIonInjectionTime()+", TIC: "+sum(ms1.getIntensityArray())+", N: "+ms1.getMassArray().length);
 			}
 	
-	        System.out.println("Begin MS2 reading...");
+	        System.out.println("Begin MS2 reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 	        ArrayList<FragmentScan> ms2s = f.getStripes(new Range(0, Float.POSITIVE_INFINITY), 0, Float.POSITIVE_INFINITY, false);
 	        assertNotNull(ms2s, "MS2 list should not be null");
 	        assertTrue(ms2s.size() > 0, "Expected at least one MS2 spectrum");
@@ -62,13 +70,14 @@ public class ThermoRawFileSmokeIT {
 				
 				System.out.println("name: "+ms2.getSpectrumName()+", rtInSec: "+ms2.getScanStartTime()+", precursor: "+ms2.getPrecursorName()+", index: "+ms2.getSpectrumIndex()+", range: "+ms2.getIsolationWindowLower()+" to "+ms2.getIsolationWindowUpper()+", z: "+ms2.getCharge()+", IIT: "+ms2.getIonInjectionTime()+", TIC: "+sum(ms2.getIntensityArray())+", N: "+ms2.getMassArray().length);
 			}
-	        System.out.println("Finished! Closing down.");
+	        System.out.println("Finished! Closing down."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 	
         } finally {
 	        if (f!=null) f.close();
         	ThermoServerPool.shutdown();
         }
-        System.out.println("Closed!");
+        
+        System.out.println("Closed! Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
     }
     
 	public static float sum(float[] v) {
