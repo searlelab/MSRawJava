@@ -20,7 +20,7 @@ import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 
-public class TIMSfullDDAIntegrationTest {
+public class TIMSFullDIAandDDAIT {
 	@Test
     void endToEndDIATest() throws Exception {
 

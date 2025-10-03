@@ -36,3 +36,9 @@ replay_pid*
 # target files
 /target/
 /rust-jni/target/
+/publish/
+/thermo-raw-server/bin/
+/thermo-raw-server/obj/Release/
+
+# binary generation
+/src/main/resources/msraw/

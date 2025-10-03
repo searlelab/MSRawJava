@@ -83,7 +83,7 @@ public interface StripeFileInterface {
 	/**
 	 * closes file
 	 */
-	void close();
+	void close() throws IOException;
 	
 	boolean isOpen();
 

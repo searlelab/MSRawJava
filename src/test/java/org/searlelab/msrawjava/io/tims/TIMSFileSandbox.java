@@ -76,7 +76,6 @@ public class TIMSFileSandbox {
 		return 0;
 	}
 
-
 	public static float sum(float[] v) {
 		float sum=0.0f;
 		for (int i=0; i<v.length; i++) {

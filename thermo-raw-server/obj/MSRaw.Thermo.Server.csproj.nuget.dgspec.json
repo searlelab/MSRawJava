@@ -1,0 +1,124 @@
+{
+  "format": 1,
+  "restore": {
+    "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj": {}
+  },
+  "projects": {
+    "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj",
+        "projectName": "MSRaw.Thermo.Server",
+        "projectPath": "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj",
+        "packagesPath": "/Users/searle.brian/.nuget/packages/",
+        "outputPath": "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/Users/searle.brian/Documents/java/MSRawJava/NuGet.config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "/Users/searle.brian/Documents/java/MSRawJava/third_party/thermo/Net8": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Grpc.AspNetCore": {
+              "target": "Package",
+              "version": "[2.61.0, )"
+            },
+            "Grpc.AspNetCore.Server.Reflection": {
+              "target": "Package",
+              "version": "[2.61.0, )"
+            },
+            "Grpc.Tools": {
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[2.61.0, )"
+            },
+            "ThermoFisher.CommonCore.BackgroundSubtraction": {
+              "target": "Package",
+              "version": "[8.0.6, )"
+            },
+            "ThermoFisher.CommonCore.Data": {
+              "target": "Package",
+              "version": "[8.0.6, )"
+            },
+            "ThermoFisher.CommonCore.MassPrecisionEstimator": {
+              "target": "Package",
+              "version": "[8.0.6, )"
+            },
+            "ThermoFisher.CommonCore.RandomAccessReaderPlugin": {
+              "target": "Package",
+              "version": "[8.0.6, )"
+            },
+            "ThermoFisher.CommonCore.RawfileReader": {
+              "target": "Package",
+              "version": "[8.0.6, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
+              "version": "[8.0.20, 8.0.20]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.win-x64",
+              "version": "[8.0.20, 8.0.20]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Runtime.win-x64",
+              "version": "[8.0.20, 8.0.20]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.414/PortableRuntimeIdentifierGraph.json"
+        }
+      },
+      "runtimes": {
+        "win-x64": {
+          "#import": []
+        }
+      }
+    }
+  }
+}

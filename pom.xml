@@ -14,13 +14,16 @@
   <properties>
     <maven.compiler.release>17</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <grpc.version>1.64.0</grpc.version>
+    <protobuf.version>3.25.3</protobuf.version>
 
     <!-- Testing -->
     <junit.version>5.12.2</junit.version>
     <surefire.version>3.2.5</surefire.version>
 
     <!-- Paths -->
-    <build.script>${project.basedir}/scripts/build-all-natives.sh</build.script>
+    <build.rust.script>${project.basedir}/scripts/build-all-rust.sh</build.rust.script>
+    <build.net.script>${project.basedir}/scripts/build-all-net.sh</build.net.script>
 
     <!-- Toggle to skip native build script -->
     <skip.build.natives>false</skip.build.natives>
@@ -66,9 +69,43 @@
 	<artifactId>trove4j</artifactId>
 	<version>3.0.3</version>
     </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-netty-shaded</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-stub</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.grpc</groupId>
+      <artifactId>grpc-protobuf</artifactId>
+      <version>${grpc.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.protobuf</groupId>
+      <artifactId>protobuf-java</artifactId>
+      <version>${protobuf.version}</version>
+    </dependency>
+    <dependency>
+    <groupId>javax.annotation</groupId>
+    <artifactId>javax.annotation-api</artifactId>
+    <version>1.3.2</version>
+    <scope>compile</scope>
+  </dependency>
   </dependencies>
 
   <build>
+    <extensions>
+      <extension>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>1.7.1</version>
+      </extension>
+    </extensions>
+    
     <!-- Tell Eclipse m2e to actually run the exec-maven-plugin during workspace builds -->
     <pluginManagement>
       <plugins>
@@ -89,7 +126,7 @@
                     </goals>
                   </pluginExecutionFilter>
                   <action>
-                    <execute/> <!-- run scripts/build-all-natives.sh in Eclipse -->
+                    <execute/> <!-- run scripts/build-all-rust.sh in Eclipse -->
                   </action>
                 </pluginExecution>
               </pluginExecutions>
@@ -116,14 +153,52 @@
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.5.1</version>
         <executions>
+		<!-- 1) .NET Thermo server binaries -->
+		<execution>
+			<id>build-net-thermo</id>
+			<phase>generate-resources</phase>
+			<goals>
+				<goal>exec</goal>
+			</goals>
+			<configuration>
+				<skip>${skip.build.natives}</skip>
+				<executable>${build.net.script}</executable>
+				<workingDirectory>${project.basedir}</workingDirectory>
+			</configuration>
+		</execution>
+		
+   		  <!-- 2) Rust/JNI natives -->
           <execution>
-            <id>build-all-natives</id>
-            <phase>generate-resources</phase>
-            <goals><goal>exec</goal></goals>
-            <configuration>
-              <skip>${skip.build.natives}</skip>
-              <executable>${build.script}</executable>
-            </configuration>
+			<id>build-rust-natives</id>
+			<phase>generate-resources</phase>
+			<goals>
+				<goal>exec</goal>
+			</goals>
+			<configuration>
+				<skip>${skip.build.natives}</skip>
+				<executable>${build.rust.script}</executable>
+				<workingDirectory>${project.basedir}</workingDirectory>
+			</configuration>
+		</execution>
+        </executions>
+      </plugin>
+      
+      <plugin>
+        <groupId>org.xolstice.maven.plugins</groupId>
+        <artifactId>protobuf-maven-plugin</artifactId>
+        <version>0.6.1</version>
+        <configuration>
+          <protoSourceRoot>${project.basedir}/proto</protoSourceRoot>
+          <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
+          <pluginId>grpc-java</pluginId>
+          <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>compile</goal>
+              <goal>compile-custom</goal>
+            </goals>
           </execution>
         </executions>
       </plugin>

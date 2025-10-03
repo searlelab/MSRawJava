@@ -1,0 +1,41 @@
+syntax = "proto3";
+package msraw.thermo;
+
+// .NET namespace stays as-is
+option csharp_namespace = "MSRaw.Thermo.Proto";
+
+// Tell protoc how to generate Java
+option java_package = "org.searlelab.msrawjava.io.thermo.rpc";
+option java_outer_classname = "ThermoRawProto";
+option java_multiple_files = true;
+
+service ThermoRawService {
+  rpc Open(OpenRequest) returns (OpenReply);
+  rpc Close(CloseRequest) returns (CloseReply);
+  rpc GetPrecursors(PrecursorsRequest) returns (stream Spectrum);
+  rpc GetStripes(StripesRequest) returns (stream Spectrum);
+}
+
+message OpenRequest { string path = 1; }
+message OpenReply   { string session_id = 1; string instrument_model = 2; double start_time = 3; double end_time = 4; }
+message CloseRequest { string session_id = 1; }
+message CloseReply { bool ok = 1; }
+
+message PrecursorsRequest { string session_id = 1; double rt_min = 2; double rt_max = 3; bool profile = 4; }
+message StripesRequest    { string session_id = 1; double rt_min = 2; double rt_max = 3; double mz_lo = 4; double mz_hi = 5; bool profile = 6; }
+
+message Spectrum {
+  repeated double mz = 1;
+  repeated float  intensity = 2;
+  repeated float  ims = 3;
+
+  int32  scan_number = 10;
+  double rt_seconds  = 11;
+  int32  ms_level    = 12;
+  double iso_lower   = 13;
+  double iso_upper   = 14;
+  int32  charge      = 15;
+  string spectrum_name  = 16;
+  string precursor_name = 17;
+  double ion_injection_time_s = 18;
+}
