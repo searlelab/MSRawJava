@@ -204,6 +204,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         
         double injS = 0;
         int charge = 0;
+        int precursorScan=0;
 
         try
         {
@@ -224,6 +225,12 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
                     if (int.TryParse(ExtractInteger(value), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ch))
                         charge = ch;
                 }
+                if (precursorScan == 0 && (label.IndexOf("Master Scan Number", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            			label.IndexOf("Master Index", StringComparison.OrdinalIgnoreCase) >= 0))
+            	{
+                    if (int.TryParse(ExtractInteger(value), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ps))
+                        precursorScan = ps;
+				}
             }
         }
         catch { }
@@ -237,7 +244,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             IsoUpper   = isoHi,
             Charge     = charge,
             SpectrumName    = scan.ToString(CultureInfo.InvariantCulture),
-            PrecursorName   = scan.ToString(CultureInfo.InvariantCulture),
+            PrecursorName   = precursorScan.ToString(CultureInfo.InvariantCulture),
             IonInjectionTimeS = injS
         };
 
