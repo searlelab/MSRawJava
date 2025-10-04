@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -17,9 +18,9 @@ import org.searlelab.msrawjava.model.WindowData;
 
 public class TIMSFileSandbox {
 
-    private static final Path D_PATH =Path.of("src", "test", "resources", "rawdata", "230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
+    private static final Path D_PATH =//Path.of("src", "test", "resources", "rawdata", "230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
     		//Paths.get("/Users/searle.brian/Documents/temp/bruker/PIQ001_EVOSEP01_TIMS03_PRO_HT_BOB2_NP3_Pooled_Loading_Curve_100SPD_0065_S3-H2_1_644.d");
-            //Paths.get("/Users/searle.brian/Documents/temp/bruker/20181024_RFdemoPlasma110_100ng_100samplesday_S4-A11_1_2631.d");
+            Paths.get("/Users/searle.brian/Documents/temp/bruker/20181024_RFdemoPlasma110_100ng_100samplesday_S4-A11_1_2631.d");
 
     @Test
     public void smokeReadAllMS1ThenMS2() throws Exception {
@@ -36,6 +37,16 @@ public class TIMSFileSandbox {
         ArrayList<PrecursorScan> ms1s=file.getPrecursors(0, Float.MAX_VALUE);
         System.out.println("Found "+ms1s.size()+" MS1s");
         assertEquals(histogram.get(0), ms1s.size());
+        for (PrecursorScan ms1 : ms1s) {
+        	if (ms1.getSpectrumName().equals("2668")) {
+            	System.out.println(ms1.getSpectrumName()+" --> "+ms1.getScanStartTime()+"\t"+ms1.getMassArray().length);
+            	for (int i = 0; i < ms1.getMassArray().length; i++) {
+					System.out.println(ms1.getMassArray()[i]+","+ms1.getIonMobilityArray()[i]+","+ms1.getIntensityArray()[i]);
+				}
+            	
+            	System.exit(0);
+        	}
+		}
         
         Map<Range, WindowData> rangeMap = file.getRanges();
 		ArrayList<Range> ranges = new ArrayList<Range>(rangeMap.keySet());
@@ -50,6 +61,7 @@ public class TIMSFileSandbox {
             ArrayList<FragmentScan> ms2s=file.getStripes(range, 0.0f, Float.MAX_VALUE, false);
             for (FragmentScan ms2 : ms2s) {
             	assertTrue(range.contains((ms2.getIsolationWindowUpper()+ms2.getIsolationWindowLower())/2.0f), "Range: "+range.toString()+" does not match MS2: "+new Range(ms2.getIsolationWindowLower(), ms2.getIsolationWindowUpper()).toString());
+            	//System.out.println(ms2.getSpectrumName()+" --> "+ms2.getScanStartTime()+"\t"+ms2.getMassArray().length);
 			}
 
             count++;

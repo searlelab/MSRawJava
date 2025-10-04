@@ -1,5 +1,7 @@
 package org.searlelab.msrawjava.model;
 
+import java.util.ArrayList;
+
 public class FragmentScan {
 
 	private final String spectrumName;
@@ -31,6 +33,29 @@ public class FragmentScan {
 		this.intensityArray = intensityArray;
 		this.ionMobilityArray = ionMobilityArray;
 		this.charge = charge;
+	}
+	
+	public FragmentScan rebuild(int newSpectrumIndex, ArrayList<Peak> peaks) {
+		double[] newMassArray=new double[peaks.size()];
+		float[] newIntensityArray=new float[peaks.size()];
+		float[] newIonMobilityArray=new float[peaks.size()];
+		for (int i = 0; i < peaks.size(); i++) {
+			Peak peak = peaks.get(i);
+			newMassArray[i]=peak.mz;
+			newIntensityArray[i]=peak.intensity;
+			newIonMobilityArray[i]=peak.ims;
+		}
+		return new FragmentScan(spectrumName, precursorName, newSpectrumIndex, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper, newMassArray, newIntensityArray, newIonMobilityArray, charge);
+	}
+
+	public ArrayList<Peak> getPeaks(float minimumIntensity) {
+		ArrayList<Peak> peaks=new ArrayList<Peak>();
+		for (int i = 0; i < massArray.length; i++) {
+			if (intensityArray[i]>minimumIntensity) {
+				peaks.add(new Peak(massArray[i], intensityArray[i], ionMobilityArray[i]));
+			}
+		}
+		return peaks;
 	}
 
 	public String getSpectrumName() {

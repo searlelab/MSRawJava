@@ -2,12 +2,14 @@ package org.searlelab.msrawjava.io.tims;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,6 +32,8 @@ import org.searlelab.msrawjava.model.StripeFileInterface;
 import org.searlelab.msrawjava.model.WindowData;
 
 import gnu.trove.list.array.TIntArrayList;
+import gnu.trove.map.hash.TDoubleIntHashMap;
+import gnu.trove.map.hash.TFloatIntHashMap;
 
 /**
  * TIMS-backed implementation that reads frame metadata via sqlite-jdbc and
@@ -530,9 +534,11 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         ensureOpen();
         if (ms2Key == 9) {
             // DIA: select the single window per frame that contains targetMz
+
+        	final TDoubleIntHashMap windowGroups=getWindowGroups();
+        	
             final String sql =
-                "SELECT F.Id, F.Time, W.ScanNumBegin, W.ScanNumEnd, " +
-                "       W.IsolationMz, W.IsolationWidth, F.AccumulationTime " +
+                "SELECT F.Id, W.WindowGroup, F.Time,  W.IsolationMz, W.IsolationWidth, F.AccumulationTime " +
                 "FROM Frames F " +
                 "JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id " +
                 "JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup " +
@@ -541,7 +547,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                 "ORDER BY F.Time ASC, ABS(W.IsolationMz - ?) ASC";
 
             // Deduplicate by frame: keep the closest window to targetMz when multiple match
-            class Meta { int frameId; float rt; double isoLo; double isoHi; float acc; }
+            class Meta { int frameId; int windowGroup; float rt; double center; double width; float acc; }
             java.util.LinkedHashMap<Integer, Meta> byFrame = new java.util.LinkedHashMap<>();
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -553,14 +559,15 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                     while (rs.next()) {
                         int fid = rs.getInt(1);
                         if (byFrame.containsKey(fid)) continue; // keep the first (closest) per ordering
-                        double center = rs.getDouble(5);
-                        double width  = rs.getDouble(6);
+                        double center = rs.getDouble(4);
+                        double width  = rs.getDouble(5);
                         Meta m = new Meta();
                         m.frameId = fid;
-                        m.rt = (float) rs.getDouble(2);
-                        m.isoLo = center - 0.5 * width;
-                        m.isoHi = center + 0.5 * width;
-                        m.acc = (float) rs.getDouble(7);
+                        m.windowGroup=rs.getInt(2);
+                        m.rt = (float) rs.getDouble(3);
+                        m.center = center;
+                        m.width = width;
+                        m.acc = (float) rs.getDouble(6);
                         byFrame.put(fid, m);
                     }
                 }
@@ -572,7 +579,13 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
             java.util.ArrayList<Meta> metas = new java.util.ArrayList<>(byFrame.values());
             metas.sort(java.util.Comparator.comparingDouble(m -> m.rt));
             double globalLo = Double.POSITIVE_INFINITY, globalHi = Double.NEGATIVE_INFINITY;
-            for (Meta m : metas) { if (m.isoLo < globalLo) globalLo = m.isoLo; if (m.isoHi > globalHi) globalHi = m.isoHi; }
+            for (Meta m : metas) { 
+            	double low = m.center-m.width/2.0;
+				if (low < globalLo) globalLo = low; 
+				
+            	double high = m.center+m.width/2.0;
+				if (high > globalHi) globalHi = high; 
+            }
 
             int[] indices = new int[metas.size()];
             for (int i = 0; i < metas.size(); i++) indices[i] = metas.get(i).frameId - 1;
@@ -582,9 +595,10 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                 int k = 0;
                 for (SpectrumRecord s; (s = it.next()) != null; k++) {
                     Meta m = metas.get(k);
-                    String name = Integer.toString(m.frameId);
+                    String name = Integer.toString(m.frameId)+"_"+Integer.toString(m.windowGroup);
                     // Filter spectrum to the per-frame isolation bounds
-                    double lo = m.isoLo, hi = m.isoHi;
+                    double lo = m.center-m.width/2.0; 
+                    double hi = m.center+m.width/2.0;
                     java.util.ArrayList<Double> mzL = new java.util.ArrayList<>(s.mz.length);
                     java.util.ArrayList<Float>  imL = new java.util.ArrayList<>(s.ims.length);
                     java.util.ArrayList<Float>  inL = new java.util.ArrayList<>(s.intensity.length);
@@ -602,10 +616,13 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                     float[] inArr = new float[inL.size()];
                     for (int i = 0; i < mzL.size(); i++) { mzArr[i] = mzL.get(i); imArr[i] = imL.get(i); inArr[i] = inL.get(i); }
 
+                    int windowIndex=windowGroups.get(m.center);
+                    int scanID=m.frameId*windowGroups.size()+windowIndex; // build a spectrum index that goes in meaningful order
+
                     out.add(new FragmentScan(
                             name,              // spectrumName
                             name,              // precursorName (DIA → 0, use frame id string)
-                            m.frameId,         // spectrumIndex
+                            scanID,         // spectrumIndex
                             m.rt,              // scanStartTime
                             0,                 // fraction
                             1000f * m.acc,     // IonInjectionTime per spec
@@ -622,7 +639,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	        "SELECT F.Id, F.Time, " +
         	        "       I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, " +
         	        "       F.AccumulationTime, " +
-        	        "       COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent " +
+        	        "       COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id " +
         	        "FROM Frames F " +
         	        "JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id " +
         	        "LEFT JOIN Precursors P ON P.Id = I.Precursor " +
@@ -636,7 +653,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	        ps.setDouble(2, maxRT);
         	        try (ResultSet rs = ps.executeQuery()) {
         	            while (rs.next()) {
-        	                final int frameId = rs.getInt(1);
+        	                final int frameId  = rs.getInt(1);
         	                final float rt     = (float) rs.getDouble(2);
         	                final int scanLo   = rs.getInt(3);
         	                final int scanHi   = rs.getInt(4);
@@ -645,13 +662,14 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	                final float acc    = (float) rs.getDouble(7);
         	                final byte charge  = (byte) Math.max(0, rs.getInt(8));
         	                final String parent= Integer.toString(rs.getInt(9));
+        	                final int precursorID= rs.getInt(10); // use precursorID as the spectrumIndex
 
         	                final double isoLo = isoMz - 0.5 * isoW;
         	                final double isoHi = isoMz + 0.5 * isoW;
 
         	                // One frame at a time, restricted to this window’s scans
         	                final int[] indices = new int[]{ frameId - 1 };
-        	                final double mzLo = 150.0, mzHi = 1700.0; // broad fragment window
+        	                final double mzLo = 0.0, mzHi = Float.MAX_VALUE; 
         	                try (RustIterator it = reader.createIterator(indices, mzLo, mzHi, scanLo, scanHi)) {
         	                    final SpectrumRecord s = it.next();
         	                    if (s == null) continue;
@@ -666,11 +684,11 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	                        }
         	                    }
 
-        	                    final String name = Integer.toString(frameId); // spectrumName
+        	                    final String name = Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
         	                    out.add(new FragmentScan(
         	                            name,                   // spectrumName
         	                            parent,                 // precursorName from Precursors.Parent
-        	                            frameId,                // spectrumIndex
+        	                            precursorID,            // spectrumIndex (NOTE: THIS ISN'T UNIQUE, UNIQUE IS frameId and precursorID)
         	                            rt,                     // scanStartTime
         	                            0,                      // fraction
         	                            1000f * acc,            // IonInjectionTime (sec) = 1000 * AccumulationTime
@@ -688,6 +706,29 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
             return new ArrayList<>();
         }
     }
+    
+    private TDoubleIntHashMap globalWindowGroups=null;
+    private TDoubleIntHashMap getWindowGroups() throws IOException, SQLException {
+    	if (globalWindowGroups!=null) return globalWindowGroups;
+    	String sql="SELECT IsolationMz FROM DiaFrameMsMsWindows ORDER BY IsolationMz";
+    	
+    	Statement stmt=null;
+    	try {
+    		stmt=conn.createStatement();
+	    	ResultSet rs=stmt.executeQuery(sql);
+	    	int count=0;
+	    	TDoubleIntHashMap temp = new TDoubleIntHashMap();
+            while (rs.next()) {
+            	temp.put(rs.getDouble(1), count);
+            	count++;
+            }
+            globalWindowGroups=temp;
+			
+			return temp; // in case globalWindowGroupMax gets reset underneath me
+    	} finally {
+    		stmt.close();
+    	}
+    }
 
     @Override
     public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, final boolean sqrt)
@@ -700,8 +741,11 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
             // DIA: gather all windows overlapping the target range per frame,
             // iterate once across frames with mz filter = target range,
             // then split arrays per window intersection
+        	
+        	final TDoubleIntHashMap windowGroups=getWindowGroups();
+        	
             final String sql =
-                "SELECT F.Id, F.Time, W.IsolationMz, W.IsolationWidth, F.AccumulationTime " +
+                "SELECT F.Id, W.WindowGroup, F.Time, W.IsolationMz, W.IsolationWidth, F.AccumulationTime " +
                 "FROM Frames F " +
                 "JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id " +
                 "JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup " +
@@ -709,7 +753,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                 "AND ( W.IsolationMz <= ? AND W.IsolationMz >= ? ) " +
                 "ORDER BY F.Time ASC, W.IsolationMz ASC";
 
-            class Win { double lo, hi; }
+            class Win { double center, width; int windowGroup; }
             class Meta { int frameId; float rt; float acc; java.util.ArrayList<Win> wins = new java.util.ArrayList<>(); }
             java.util.LinkedHashMap<Integer, Meta> map = new java.util.LinkedHashMap<>();
 
@@ -725,15 +769,14 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                         if (m == null) {
                             m = new Meta();
                             m.frameId = fid;
-                            m.rt = (float) rs.getDouble(2);
-                            m.acc = (float) rs.getDouble(5);
+                            m.rt = (float) rs.getDouble(3);
+                            m.acc = (float) rs.getDouble(6);
                             map.put(fid, m);
                         }
-                        double center = rs.getDouble(3);
-                        double width  = rs.getDouble(4);
                         Win w = new Win();
-                        w.lo = center - 0.5 * width;
-                        w.hi = center + 0.5 * width;
+                        w.center=rs.getDouble(4);
+                        w.width = rs.getDouble(5);
+                        w.windowGroup = rs.getInt(2);
                         m.wins.add(w);
                     }
                 }
@@ -753,8 +796,8 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                     Meta m = metas.get(k);
                     for (Win w : m.wins) {
                         // intersect window with target range
-                        double lo = Math.max(rangeLo, w.lo);
-                        double hi = Math.min(rangeHi, w.hi);
+                        double lo = Math.max(rangeLo, w.center-w.width/2.0);
+                        double hi = Math.min(rangeHi, w.center+w.width/2.0);
                         if (lo > hi) continue;
 
                         // filter arrays to [lo, hi]
@@ -775,11 +818,13 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                         float[] inArr = new float[inL.size()];
                         for (int i = 0; i < mzL.size(); i++) { mzArr[i] = mzL.get(i); imArr[i] = imL.get(i); inArr[i] = inL.get(i); }
 
-                        String name = Integer.toString(m.frameId);
+                        int windowIndex=windowGroups.get(w.center);
+                        int scanID=m.frameId*windowGroups.size()+windowIndex; // build a spectrum index that goes in meaningful order
+                        String name = Integer.toString(m.frameId)+"_"+Integer.toString(w.windowGroup);
                         out.add(new FragmentScan(
                                 name, name,
-                                m.frameId, m.rt, 0, 1000f * m.acc,
-                                w.lo, w.hi,    // store the full DIA isolation window bounds
+                                scanID, m.rt, 0, 1000f * m.acc,
+                                w.center-w.width/2.0, w.center+w.width/2.0,    // store the full DIA isolation window bounds
                                 mzArr, inArr, imArr,
                                 (byte)0
                         ));
@@ -794,7 +839,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	        "SELECT F.Id, F.Time, " +
         	        "       I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, " +
         	        "       F.AccumulationTime, " +
-        	        "       COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent " +
+        	        "       COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id " +
         	        "FROM Frames F " +
         	        "JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id " +
         	        "LEFT JOIN Precursors P ON P.Id = I.Precursor " +
@@ -817,6 +862,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	                final float acc    = (float) rs.getDouble(7);
         	                final byte charge  = (byte) Math.max(0, rs.getInt(8));
         	                final String parent= Integer.toString(rs.getInt(9));
+        	                final int precursorID= rs.getInt(10); // use precursorID as the spectrumIndex
 
         	                final double isoLo = isoMz - 0.5 * isoW;
         	                final double isoHi = isoMz + 0.5 * isoW;
@@ -838,11 +884,11 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	                        }
         	                    }
 
-        	                    final String name = Integer.toString(frameId); // spectrumName
+        	                    final String name = Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
         	                    out.add(new FragmentScan(
         	                            name,                   // spectrumName
         	                            parent,                 // precursorName from Precursors.Parent
-        	                            frameId,                // spectrumIndex
+        	                            precursorID,            // spectrumIndex
         	                            rt,                     // scanStartTime
         	                            0,                      // fraction
         	                            1000f * acc,            // IonInjectionTime (sec) = 1000 * AccumulationTime
