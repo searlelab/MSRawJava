@@ -10,7 +10,7 @@ import org.searlelab.msrawjava.model.Range;
 
 public class TIMSPeakPicker {
 	
-	public static ArrayList<Peak> peakPickAcrossIMS(ArrayList<Peak> mzSortedPeaks) {
+	public static ArrayList<Peak> peakPickAcrossIMS(ArrayList<Peak> mzSortedPeaks, float minimumIntensity) {
 		MassTolerance tolerance=new TIMSMassTolerance();
     	MassTolerance lowTolerance=new TIMSMassTolerance(true);
     	Peak.PeakIMSComparator imsComparator=new Peak.PeakIMSComparator();
@@ -119,7 +119,9 @@ public class TIMSPeakPicker {
 	            
 	            if (!anyOffAlready) {
 	            	Peak centroidPeak=weightedAveragePeak(imsSortedSlice, leftBoundary, rightBoundary);
-	        		finalPeaks.add(centroidPeak);
+	            	if (centroidPeak.intensity>=minimumIntensity) {
+	            		finalPeaks.add(centroidPeak);
+	            	}
 	            }
 	        }
         }

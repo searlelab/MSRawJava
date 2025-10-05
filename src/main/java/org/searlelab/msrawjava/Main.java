@@ -45,7 +45,7 @@ public class Main {
         for (int i = 0; i < ms1s.size(); i++) {
         	ArrayList<Peak> peaks=ms1s.get(i).getPeaks(minimumMS1Intensity);
         	Collections.sort(peaks);
-        	peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks);
+        	peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*minimumMS1Intensity);
 			PrecursorScan ms1 = ms1s.get(i).rebuild(scanNumber, peaks);
 			sortedMS1s.add(ms1);
 			scanNumber++;
@@ -71,7 +71,7 @@ public class Main {
             for (int i = 0; i < ms2s.size(); i++) {
             	ArrayList<Peak> peaks=ms2s.get(i).getPeaks(minimumMS2Intensity);
             	Collections.sort(peaks);
-            	peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks);
+            	peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*minimumMS2Intensity);
     			FragmentScan ms2 = ms2s.get(i).rebuild(scanNumber, peaks);
     			if (ms2.getMassArray().length>0) {
     				sortedMS2s.add(ms2);
