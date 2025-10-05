@@ -611,36 +611,38 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	                final double isoLo = isoMz - 0.5 * isoW;
         	                final double isoHi = isoMz + 0.5 * isoW;
 
-        	                // One frame at a time, restricted to this window’s scans
-        	                final int[] indices = new int[]{ frameId - 1 };
         	                final double mzLo = 0.0, mzHi = Float.MAX_VALUE; 
-        	                try (RustIterator it = reader.createIterator(indices, mzLo, mzHi, scanLo, scanHi)) {
-        	                    final SpectrumRecord s = it.next();
-        	                    if (s == null) continue;
 
-        	                    // Optionally sqrt intensities
-        	                    float[] intens = s.intensity;
-        	                    if (sqrt) {
-        	                        intens = intens.clone();
-        	                        for (int i = 0; i < intens.length; i++) {
-        	                            final float v = intens[i];
-        	                            intens[i] = (float) Math.sqrt(v < 0f ? 0f : v);
-        	                        }
-        	                    }
-
-        	                    final String name = Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
-        	                    out.add(new FragmentScan(
-        	                            name,                   // spectrumName
-        	                            parent,                 // precursorName from Precursors.Parent
-        	                            precursorID,            // spectrumIndex (NOTE: THIS ISN'T UNIQUE, UNIQUE IS frameId and precursorID)
-        	                            rt,                     // scanStartTime
-        	                            0,                      // fraction
-        	                            1000f * acc,            // IonInjectionTime (sec) = 1000 * AccumulationTime
-        	                            isoLo, isoHi,           // isolation window bounds
-        	                            s.mz, intens, s.ims,
-        	                            charge                  // precursor charge
-        	                    ));
-        	                }
+        			        try {
+	        		        	SpectrumRecord s=reader.readSpectrum(frameId - 1, mzLo, mzHi, scanLo, scanHi);
+	    	                    if (s == null) continue;
+	
+	    	                    // Optionally sqrt intensities
+	    	                    float[] intens = s.intensity;
+	    	                    if (sqrt) {
+	    	                        intens = intens.clone();
+	    	                        for (int i = 0; i < intens.length; i++) {
+	    	                            final float v = intens[i];
+	    	                            intens[i] = (float) Math.sqrt(v < 0f ? 0f : v);
+	    	                        }
+	    	                    }
+	
+	    	                    final String name = Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
+	    	                    out.add(new FragmentScan(
+	    	                            name,                   // spectrumName
+	    	                            parent,                 // precursorName from Precursors.Parent
+	    	                            precursorID,            // spectrumIndex
+	    	                            rt,                     // scanStartTime
+	    	                            0,                      // fraction
+	    	                            1000f * acc,            // IonInjectionTime (sec) = 1000 * AccumulationTime
+	    	                            isoLo, isoHi,           // isolation window bounds
+	    	                            s.mz, intens, s.ims,
+	    	                            charge                  // precursor charge
+	    	                    ));
+        			        } catch (Exception ex) {
+        			            // propagate after closing iterator
+        			            throw new RuntimeException("Unexpected error in Rust", ex);
+        			        }
         	            }
         	        }
         	    }
@@ -753,36 +755,38 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         	                final double isoLo = isoMz - 0.5 * isoW;
         	                final double isoHi = isoMz + 0.5 * isoW;
 
-        	                // One frame at a time, restricted to this window’s scans
-        	                final int[] indices = new int[]{ frameId - 1 };
         	                final double mzLo = 0.0, mzHi = Float.MAX_VALUE; 
-        	                try (RustIterator it = reader.createIterator(indices, mzLo, mzHi, scanLo, scanHi)) {
-        	                    final SpectrumRecord s = it.next();
-        	                    if (s == null) continue;
 
-        	                    // Optionally sqrt intensities
-        	                    float[] intens = s.intensity;
-        	                    if (sqrt) {
-        	                        intens = intens.clone();
-        	                        for (int i = 0; i < intens.length; i++) {
-        	                            final float v = intens[i];
-        	                            intens[i] = (float) Math.sqrt(v < 0f ? 0f : v);
-        	                        }
-        	                    }
-
-        	                    final String name = Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
-        	                    out.add(new FragmentScan(
-        	                            name,                   // spectrumName
-        	                            parent,                 // precursorName from Precursors.Parent
-        	                            precursorID,            // spectrumIndex
-        	                            rt,                     // scanStartTime
-        	                            0,                      // fraction
-        	                            1000f * acc,            // IonInjectionTime (sec) = 1000 * AccumulationTime
-        	                            isoLo, isoHi,           // isolation window bounds
-        	                            s.mz, intens, s.ims,
-        	                            charge                  // precursor charge
-        	                    ));
-        	                }
+        			        try {
+	        		        	SpectrumRecord s=reader.readSpectrum(frameId - 1, mzLo, mzHi, scanLo, scanHi);
+	    	                    if (s == null) continue;
+	
+	    	                    // Optionally sqrt intensities
+	    	                    float[] intens = s.intensity;
+	    	                    if (sqrt) {
+	    	                        intens = intens.clone();
+	    	                        for (int i = 0; i < intens.length; i++) {
+	    	                            final float v = intens[i];
+	    	                            intens[i] = (float) Math.sqrt(v < 0f ? 0f : v);
+	    	                        }
+	    	                    }
+	
+	    	                    final String name = Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
+	    	                    out.add(new FragmentScan(
+	    	                            name,                   // spectrumName
+	    	                            parent,                 // precursorName from Precursors.Parent
+	    	                            precursorID,            // spectrumIndex
+	    	                            rt,                     // scanStartTime
+	    	                            0,                      // fraction
+	    	                            1000f * acc,            // IonInjectionTime (sec) = 1000 * AccumulationTime
+	    	                            isoLo, isoHi,           // isolation window bounds
+	    	                            s.mz, intens, s.ims,
+	    	                            charge                  // precursor charge
+	    	                    ));
+        			        } catch (Exception ex) {
+        			            // propagate after closing iterator
+        			            throw new RuntimeException("Unexpected error in Rust", ex);
+        			        }
         	            }
         	        }
         	    }
@@ -796,45 +800,42 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
 		ArrayList<FragmentScan> out = new ArrayList<>();
 		// For each frame, emit one FragmentScan per window using IM scan bounds if present
 		for (Meta m : metas) {
-		    final int[] frameIdx = new int[]{ m.frameId - 1 };  // iterator uses 0-based index
 		    for (Win w : m.wins) {
 		        // intersect m/z based on the window’s center/width and the user’s target range
 		        final double isoL = w.center - 0.5 * w.width;
 		        final double isoH = w.center + 0.5 * w.width;
 
 		        final double mzLo = 0.0, mzHi = Float.MAX_VALUE; 
-		        try (RustIterator it = reader.createIterator(frameIdx, mzLo, mzHi, w.scanLo, w.scanHi)) {
-		            for (SpectrumRecord s; (s = it.next()) != null; ) {
-		                final int n = s.mz.length;
+		        
+		        try {
+		        	SpectrumRecord s=reader.readSpectrum(m.frameId - 1, mzLo, mzHi, w.scanLo, w.scanHi);
+	                final int n = s.mz.length;
 
-		                // Copy arrays; apply sqrt to intensity if requested
-		                final double[] mzArr = Arrays.copyOf(s.mz, n);
-		                final float[]  imArr = Arrays.copyOf(s.ims, n);
-		                final float[]  inArr;
-		                if (sqrt) {
-		                	inArr=new float[n];
-		                    for (int i = 0; i < n; i++) {
-		                    	inArr[i] = (float) Math.sqrt(Math.max(s.intensity[i], 0f));
-		                    }
-		                } else {
-		                	inArr=Arrays.copyOf(s.intensity, n);
-		                }
-		                
-		                // Build a stable id and names
-		                final int scanID = m.frameId * 100 + w.windowGroup; // simple monotone id
-		                final String name = Integer.toString(m.frameId) + "_" + w.windowGroup;
+	                // Copy arrays; apply sqrt to intensity if requested
+	                final float[]  inArr;
+	                if (sqrt) {
+	                	inArr=new float[n];
+	                    for (int i = 0; i < n; i++) {
+	                    	inArr[i] = (float) Math.sqrt(Math.max(s.intensity[i], 0f));
+	                    }
+	                } else {
+	                	inArr=s.intensity;
+	                }
+	                
+	                // Build a stable id and names
+	                final int scanID = m.frameId * 100 + w.windowGroup; // simple monotone id
+	                final String name = Integer.toString(m.frameId) + "_" + w.windowGroup;
 
-		                out.add(new FragmentScan(
-		                        name, name,
-		                        scanID,
-		                        m.rt,
-		                        0,                              // charge unknown for DIA
-		                        1000f * m.acc,                  // IonInjectionTimeS := 1000*AccumulationTime
-		                        isoL, isoH,                     // store full DIA isolation window bounds
-		                        mzArr, inArr, imArr,
-		                        (byte) 0
-		                ));
-		            }
+	                out.add(new FragmentScan(
+	                        name, name,
+	                        scanID,
+	                        m.rt,
+	                        0,                              // charge unknown for DIA
+	                        1000f * m.acc,                  // IonInjectionTimeS := 1000*AccumulationTime
+	                        isoL, isoH,                     // store full DIA isolation window bounds
+	                        s.mz, inArr, s.ims,
+	                        (byte) 0
+	                ));
 		        } catch (Exception ex) {
 		            // propagate after closing iterator
 		            throw new RuntimeException("Unexpected error in Rust", ex);
