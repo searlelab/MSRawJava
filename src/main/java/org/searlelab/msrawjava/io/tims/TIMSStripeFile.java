@@ -2,17 +2,16 @@ package org.searlelab.msrawjava.io.tims;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -32,8 +31,6 @@ import org.searlelab.msrawjava.model.StripeFileInterface;
 import org.searlelab.msrawjava.model.WindowData;
 
 import gnu.trove.list.array.TIntArrayList;
-import gnu.trove.map.hash.TDoubleIntHashMap;
-import gnu.trove.map.hash.TFloatIntHashMap;
 
 /**
  * TIMS-backed implementation that reads frame metadata via sqlite-jdbc and
@@ -534,104 +531,51 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         ensureOpen();
         if (ms2Key == 9) {
             // DIA: select the single window per frame that contains targetMz
-
-        	final TDoubleIntHashMap windowGroups=getWindowGroups();
         	
             final String sql =
-                "SELECT F.Id, W.WindowGroup, F.Time,  W.IsolationMz, W.IsolationWidth, F.AccumulationTime " +
+                "SELECT F.Id, W.WindowGroup, F.Time,  W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd " +
                 "FROM Frames F " +
                 "JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id " +
                 "JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup " +
                 "WHERE F.MsMsType = " + ms2Key + " AND F.Time BETWEEN ? AND ? " +
                 "AND (? BETWEEN (W.IsolationMz - 0.5*W.IsolationWidth) AND (W.IsolationMz + 0.5*W.IsolationWidth)) " +
-                "ORDER BY F.Time ASC, ABS(W.IsolationMz - ?) ASC";
+                "ORDER BY F.Time ASC, W.IsolationMz ASC";
 
-            // Deduplicate by frame: keep the closest window to targetMz when multiple match
-            class Meta { int frameId; int windowGroup; float rt; double center; double width; float acc; }
-            java.util.LinkedHashMap<Integer, Meta> byFrame = new java.util.LinkedHashMap<>();
+            LinkedHashMap<Integer, Meta> map = new LinkedHashMap<>();
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setDouble(1, minRT);
                 ps.setDouble(2, maxRT);
                 ps.setDouble(3, targetMz);
-                ps.setDouble(4, targetMz);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
                         int fid = rs.getInt(1);
-                        if (byFrame.containsKey(fid)) continue; // keep the first (closest) per ordering
-                        double center = rs.getDouble(4);
-                        double width  = rs.getDouble(5);
-                        Meta m = new Meta();
-                        m.frameId = fid;
-                        m.windowGroup=rs.getInt(2);
-                        m.rt = (float) rs.getDouble(3);
-                        m.center = center;
-                        m.width = width;
-                        m.acc = (float) rs.getDouble(6);
-                        byFrame.put(fid, m);
-                    }
-                }
-            }
-
-            if (byFrame.isEmpty()) return new ArrayList<>();
-
-            // Build frame order by RT and compute a single mz filter that covers all chosen windows
-            java.util.ArrayList<Meta> metas = new java.util.ArrayList<>(byFrame.values());
-            metas.sort(java.util.Comparator.comparingDouble(m -> m.rt));
-            double globalLo = Double.POSITIVE_INFINITY, globalHi = Double.NEGATIVE_INFINITY;
-            for (Meta m : metas) { 
-            	double low = m.center-m.width/2.0;
-				if (low < globalLo) globalLo = low; 
-				
-            	double high = m.center+m.width/2.0;
-				if (high > globalHi) globalHi = high; 
-            }
-
-            int[] indices = new int[metas.size()];
-            for (int i = 0; i < metas.size(); i++) indices[i] = metas.get(i).frameId - 1;
-
-            ArrayList<FragmentScan> out = new ArrayList<>();
-            try (RustIterator it = reader.createIterator(indices, globalLo, globalHi, -1, -1)) {
-                int k = 0;
-                for (SpectrumRecord s; (s = it.next()) != null; k++) {
-                    Meta m = metas.get(k);
-                    String name = Integer.toString(m.frameId)+"_"+Integer.toString(m.windowGroup);
-                    // Filter spectrum to the per-frame isolation bounds
-                    double lo = m.center-m.width/2.0; 
-                    double hi = m.center+m.width/2.0;
-                    java.util.ArrayList<Double> mzL = new java.util.ArrayList<>(s.mz.length);
-                    java.util.ArrayList<Float>  imL = new java.util.ArrayList<>(s.ims.length);
-                    java.util.ArrayList<Float>  inL = new java.util.ArrayList<>(s.intensity.length);
-                    for (int i = 0; i < s.mz.length; i++) {
-                        double mz = s.mz[i];
-                        if (mz >= lo && mz <= hi) {
-                            mzL.add(mz);
-                            imL.add(s.ims[i]);
-                            float iz = s.intensity[i];
-                            inL.add(sqrt ? (float)Math.sqrt(Math.max(iz, 0f)) : iz);
+                        Meta m = map.get(fid);
+                        if (m == null) {
+                            m = new Meta();
+                            m.frameId = fid;
+                            m.rt = (float) rs.getDouble(3);
+                            m.acc = (float) rs.getDouble(6);
+                            map.put(fid, m);
                         }
+                        Win w = new Win();
+                        w.center=rs.getDouble(4);
+                        w.width = rs.getDouble(5);
+                        w.windowGroup = rs.getInt(2);
+                        w.scanLo = rs.getInt(7);
+                        w.scanHi = rs.getInt(8);
+                        m.wins.add(w);
                     }
-                    double[] mzArr = new double[mzL.size()];
-                    float[] imArr = new float[imL.size()];
-                    float[] inArr = new float[inL.size()];
-                    for (int i = 0; i < mzL.size(); i++) { mzArr[i] = mzL.get(i); imArr[i] = imL.get(i); inArr[i] = inL.get(i); }
-
-                    int windowIndex=windowGroups.get(m.center);
-                    int scanID=m.frameId*windowGroups.size()+windowIndex; // build a spectrum index that goes in meaningful order
-
-                    out.add(new FragmentScan(
-                            name,              // spectrumName
-                            name,              // precursorName (DIA → 0, use frame id string)
-                            scanID,         // spectrumIndex
-                            m.rt,              // scanStartTime
-                            0,                 // fraction
-                            1000f * m.acc,     // IonInjectionTime per spec
-                            lo, hi,            // isolation window for this frame
-                            mzArr, inArr, imArr,
-                            (byte)0            // charge for DIA is 0
-                    ));
                 }
             }
+            if (map.isEmpty()) return new ArrayList<>();
+
+            // Build time-ordered list of frames
+            ArrayList<Meta> metas = new ArrayList<>(map.values());
+            metas.sort(Comparator.comparingDouble(m -> m.rt));
+
+            ArrayList<FragmentScan> out = extractDIASpectra(metas, sqrt);
+            
             return out;
         } else if (ms2Key == 8) {
             // DDA: select frames whose isolation contains targetMz, pick closest per frame, include charge and parent
@@ -706,29 +650,17 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
             return new ArrayList<>();
         }
     }
-    
-    private TDoubleIntHashMap globalWindowGroups=null;
-    private TDoubleIntHashMap getWindowGroups() throws IOException, SQLException {
-    	if (globalWindowGroups!=null) return globalWindowGroups;
-    	String sql="SELECT IsolationMz FROM DiaFrameMsMsWindows ORDER BY IsolationMz";
-    	
-    	Statement stmt=null;
-    	try {
-    		stmt=conn.createStatement();
-	    	ResultSet rs=stmt.executeQuery(sql);
-	    	int count=0;
-	    	TDoubleIntHashMap temp = new TDoubleIntHashMap();
-            while (rs.next()) {
-            	temp.put(rs.getDouble(1), count);
-            	count++;
-            }
-            globalWindowGroups=temp;
-			
-			return temp; // in case globalWindowGroupMax gets reset underneath me
-    	} finally {
-    		stmt.close();
-    	}
-    }
+
+	private class Win {
+		double center, width;
+		int windowGroup, scanLo, scanHi;
+	}
+
+	private class Meta {
+		int frameId;
+		float rt, acc;
+		ArrayList<Win> wins = new ArrayList<>();
+	}
 
     @Override
     public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, final boolean sqrt)
@@ -738,14 +670,10 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         final double rangeHi = targetMzRange.getStop();
 
         if (ms2Key == 9) {
-            // DIA: gather all windows overlapping the target range per frame,
-            // iterate once across frames with mz filter = target range,
-            // then split arrays per window intersection
-        	
-        	final TDoubleIntHashMap windowGroups=getWindowGroups();
+            // DIA: gather all windows overlapping the target range per frame
         	
             final String sql =
-                "SELECT F.Id, W.WindowGroup, F.Time, W.IsolationMz, W.IsolationWidth, F.AccumulationTime " +
+                "SELECT F.Id, W.WindowGroup, F.Time, W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd " +
                 "FROM Frames F " +
                 "JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id " +
                 "JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup " +
@@ -753,9 +681,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                 "AND ( W.IsolationMz <= ? AND W.IsolationMz >= ? ) " +
                 "ORDER BY F.Time ASC, W.IsolationMz ASC";
 
-            class Win { double center, width; int windowGroup; }
-            class Meta { int frameId; float rt; float acc; java.util.ArrayList<Win> wins = new java.util.ArrayList<>(); }
-            java.util.LinkedHashMap<Integer, Meta> map = new java.util.LinkedHashMap<>();
+            LinkedHashMap<Integer, Meta> map = new LinkedHashMap<>();
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setDouble(1, minRT);
@@ -777,6 +703,8 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
                         w.center=rs.getDouble(4);
                         w.width = rs.getDouble(5);
                         w.windowGroup = rs.getInt(2);
+                        w.scanLo = rs.getInt(7);
+                        w.scanHi = rs.getInt(8);
                         m.wins.add(w);
                     }
                 }
@@ -784,53 +712,11 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
             if (map.isEmpty()) return new ArrayList<>();
 
             // Build time-ordered list of frames
-            java.util.ArrayList<Meta> metas = new java.util.ArrayList<>(map.values());
-            metas.sort(java.util.Comparator.comparingDouble(m -> m.rt));
-            int[] indices = new int[metas.size()];
-            for (int i = 0; i < metas.size(); i++) indices[i] = metas.get(i).frameId - 1;
+            ArrayList<Meta> metas = new ArrayList<>(map.values());
+            metas.sort(Comparator.comparingDouble(m -> m.rt));
 
-            ArrayList<FragmentScan> out = new ArrayList<>();
-            try (RustIterator it = reader.createIterator(indices, rangeLo, rangeHi, -1, -1)) {
-                int k = 0;
-                for (SpectrumRecord s; (s = it.next()) != null; k++) {
-                    Meta m = metas.get(k);
-                    for (Win w : m.wins) {
-                        // intersect window with target range
-                        double lo = Math.max(rangeLo, w.center-w.width/2.0);
-                        double hi = Math.min(rangeHi, w.center+w.width/2.0);
-                        if (lo > hi) continue;
-
-                        // filter arrays to [lo, hi]
-                        java.util.ArrayList<Double> mzL = new java.util.ArrayList<>(s.mz.length);
-                        java.util.ArrayList<Float>  imL = new java.util.ArrayList<>(s.ims.length);
-                        java.util.ArrayList<Float>  inL = new java.util.ArrayList<>(s.intensity.length);
-                        for (int i = 0; i < s.mz.length; i++) {
-                            double mz = s.mz[i];
-                            if (mz >= lo && mz <= hi) {
-                                mzL.add(mz);
-                                imL.add(s.ims[i]);
-                                float iz = s.intensity[i];
-                                inL.add(sqrt ? (float)Math.sqrt(Math.max(iz, 0f)) : iz);
-                            }
-                        }
-                        double[] mzArr = new double[mzL.size()];
-                        float[] imArr = new float[imL.size()];
-                        float[] inArr = new float[inL.size()];
-                        for (int i = 0; i < mzL.size(); i++) { mzArr[i] = mzL.get(i); imArr[i] = imL.get(i); inArr[i] = inL.get(i); }
-
-                        int windowIndex=windowGroups.get(w.center);
-                        int scanID=m.frameId*windowGroups.size()+windowIndex; // build a spectrum index that goes in meaningful order
-                        String name = Integer.toString(m.frameId)+"_"+Integer.toString(w.windowGroup);
-                        out.add(new FragmentScan(
-                                name, name,
-                                scanID, m.rt, 0, 1000f * m.acc,
-                                w.center-w.width/2.0, w.center+w.width/2.0,    // store the full DIA isolation window bounds
-                                mzArr, inArr, imArr,
-                                (byte)0
-                        ));
-                    }
-                }
-            }
+            ArrayList<FragmentScan> out = extractDIASpectra(metas, sqrt);
+            
             return out;
         } else if (ms2Key == 8) {
             // DDA: pick targets whose isolation window overlaps the target range.
@@ -869,7 +755,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
 
         	                // One frame at a time, restricted to this window’s scans
         	                final int[] indices = new int[]{ frameId - 1 };
-        	                final double mzLo = 150.0, mzHi = 1700.0; // broad fragment window
+        	                final double mzLo = 0.0, mzHi = Float.MAX_VALUE; 
         	                try (RustIterator it = reader.createIterator(indices, mzLo, mzHi, scanLo, scanHi)) {
         	                    final SpectrumRecord s = it.next();
         	                    if (s == null) continue;
@@ -905,5 +791,57 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
             return new ArrayList<>();
         }
     }
+
+	private ArrayList<FragmentScan> extractDIASpectra(ArrayList<Meta> metas, final boolean sqrt) {
+		ArrayList<FragmentScan> out = new ArrayList<>();
+		// For each frame, emit one FragmentScan per window using IM scan bounds if present
+		for (Meta m : metas) {
+		    final int[] frameIdx = new int[]{ m.frameId - 1 };  // iterator uses 0-based index
+		    for (Win w : m.wins) {
+		        // intersect m/z based on the window’s center/width and the user’s target range
+		        final double isoL = w.center - 0.5 * w.width;
+		        final double isoH = w.center + 0.5 * w.width;
+
+		        final double mzLo = 0.0, mzHi = Float.MAX_VALUE; 
+		        try (RustIterator it = reader.createIterator(frameIdx, mzLo, mzHi, w.scanLo, w.scanHi)) {
+		            for (SpectrumRecord s; (s = it.next()) != null; ) {
+		                final int n = s.mz.length;
+
+		                // Copy arrays; apply sqrt to intensity if requested
+		                final double[] mzArr = Arrays.copyOf(s.mz, n);
+		                final float[]  imArr = Arrays.copyOf(s.ims, n);
+		                final float[]  inArr;
+		                if (sqrt) {
+		                	inArr=new float[n];
+		                    for (int i = 0; i < n; i++) {
+		                    	inArr[i] = (float) Math.sqrt(Math.max(s.intensity[i], 0f));
+		                    }
+		                } else {
+		                	inArr=Arrays.copyOf(s.intensity, n);
+		                }
+		                
+		                // Build a stable id and names
+		                final int scanID = m.frameId * 100 + w.windowGroup; // simple monotone id
+		                final String name = Integer.toString(m.frameId) + "_" + w.windowGroup;
+
+		                out.add(new FragmentScan(
+		                        name, name,
+		                        scanID,
+		                        m.rt,
+		                        0,                              // charge unknown for DIA
+		                        1000f * m.acc,                  // IonInjectionTimeS := 1000*AccumulationTime
+		                        isoL, isoH,                     // store full DIA isolation window bounds
+		                        mzArr, inArr, imArr,
+		                        (byte) 0
+		                ));
+		            }
+		        } catch (Exception ex) {
+		            // propagate after closing iterator
+		            throw new RuntimeException("Unexpected error in Rust", ex);
+		        }
+		    }
+		}
+		return out;
+	}
 
 }
