@@ -91,6 +91,13 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         ms1Key=expectedMS1Key;
         ms2Key=expectedMS2Key;
     }
+    
+    public boolean isPASEFDIA() {
+    	return ms2Key==9;
+    }
+    public boolean isPASEFDDA() {
+    	return ms2Key==8;
+    }
 
     /** Histogram of MsMsType values present. */
     public Map<Integer, Integer> msmsTypeHistogram() throws SQLException {
@@ -615,7 +622,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
 
         			        try {
 	        		        	SpectrumRecord s=reader.readSpectrum(frameId - 1, mzLo, mzHi, scanLo, scanHi);
-	    	                    if (s == null) continue;
+	    	                    if (s == null||s.mz.length==0) continue;
 	
 	    	                    // Optionally sqrt intensities
 	    	                    float[] intens = s.intensity;
@@ -759,7 +766,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
 
         			        try {
 	        		        	SpectrumRecord s=reader.readSpectrum(frameId - 1, mzLo, mzHi, scanLo, scanHi);
-	    	                    if (s == null) continue;
+	    	                    if (s == null||s.mz.length==0) continue;
 	
 	    	                    // Optionally sqrt intensities
 	    	                    float[] intens = s.intensity;
@@ -809,33 +816,30 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
 		        
 		        try {
 		        	SpectrumRecord s=reader.readSpectrum(m.frameId - 1, mzLo, mzHi, w.scanLo, w.scanHi);
-	                final int n = s.mz.length;
-
-	                // Copy arrays; apply sqrt to intensity if requested
-	                final float[]  inArr;
-	                if (sqrt) {
-	                	inArr=new float[n];
-	                    for (int i = 0; i < n; i++) {
-	                    	inArr[i] = (float) Math.sqrt(Math.max(s.intensity[i], 0f));
-	                    }
-	                } else {
-	                	inArr=s.intensity;
-	                }
 	                
 	                // Build a stable id and names
 	                final int scanID = m.frameId * 100 + w.windowGroup; // simple monotone id
 	                final String name = Integer.toString(m.frameId) + "_" + w.windowGroup;
-
-	                out.add(new FragmentScan(
-	                        name, name,
-	                        scanID,
-	                        m.rt,
-	                        0,                              // charge unknown for DIA
-	                        1000f * m.acc,                  // IonInjectionTimeS := 1000*AccumulationTime
-	                        isoL, isoH,                     // store full DIA isolation window bounds
-	                        s.mz, inArr, s.ims,
-	                        (byte) 0
-	                ));
+	                
+	                final int n = s.mz==null?0:s.mz.length;
+	                if (n==0) {
+						out.add(new FragmentScan(name, name, scanID, m.rt, 0, 1000f * m.acc, isoL, isoH, new double[0],
+								new float[0], new float[0], (byte) 0));
+	                } else {
+		                // Copy arrays; apply sqrt to intensity if requested
+		                final float[]  inArr;
+		                if (sqrt) {
+		                	inArr=new float[n];
+		                    for (int i = 0; i < n; i++) {
+		                    	inArr[i] = (float) Math.sqrt(Math.max(s.intensity[i], 0f));
+		                    }
+		                } else {
+		                	inArr=s.intensity;
+		                }
+	
+						out.add(new FragmentScan(name, name, scanID, m.rt, 0, 1000f * m.acc, isoL, isoH, s.mz, inArr,
+								s.ims, (byte) 0));
+	                }
 		        } catch (Exception ex) {
 		            // propagate after closing iterator
 		            throw new RuntimeException("Unexpected error in Rust", ex);

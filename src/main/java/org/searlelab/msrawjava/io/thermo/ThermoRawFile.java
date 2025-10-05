@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -89,7 +90,7 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
     @Override
     public Map<String, String> getMetadata() throws IOException, SQLException {
     	// FIXME Auto-generated method stub
-    	return null;
+    	return new HashMap<String, String>();
     }
 
     @Override

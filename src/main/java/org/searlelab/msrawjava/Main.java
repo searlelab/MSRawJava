@@ -19,7 +19,7 @@ import org.searlelab.msrawjava.model.WindowData;
 public class Main {
 
 	public static void main(String[] args) throws Exception {
-		Path startingPath=Paths.get("/Users/searle.brian/Documents/temp/bruker/");
+		Path startingPath=Paths.get("/Users/searle.brian/Documents/temp/bruker/20181024_RFdemoPlasma110_100ng_100samplesday_S4-A11_1_2631.d/");
 		VendorFiles files=VendorFileFinder.collectRawAndD(startingPath);
 		
 		for (Path path : files.getdDirs()) {
@@ -72,11 +72,12 @@ public class Main {
             	ArrayList<Peak> peaks=ms2s.get(i).getPeaks(minimumMS2Intensity);
             	Collections.sort(peaks);
             	peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*minimumMS2Intensity);
+            	if (timsFile.isPASEFDDA()) {
+            		if (peaks.size()==0) continue;
+            	}
     			FragmentScan ms2 = ms2s.get(i).rebuild(scanNumber, peaks);
-    			if (ms2.getMassArray().length>0) {
-    				sortedMS2s.add(ms2);
-    				scanNumber++;
-    			}
+				sortedMS2s.add(ms2);
+				scanNumber++;
     		}
             outFile.addStripe(sortedMS2s);
 		}

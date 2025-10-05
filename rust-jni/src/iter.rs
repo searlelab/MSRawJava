@@ -67,7 +67,14 @@ impl RtIterator {
         // Clamp scan bounds to the frame
         let sc_count = frame.scan_offsets.len();
         if sc_count == 0 {
-            return Ok(None);
+			return Ok(Some(SpectrumArrays {
+			    mz: Vec::new(),
+			    im: Vec::new(),
+			    intensity: Vec::new(),
+			    ms_level,
+			    frame_index: frame_idx as u32,
+			    rt_seconds,
+			}));
         }
         let s_lo = min(max(scan_lo_inclusive, 0), sc_count.saturating_sub(1));
         let s_hi = min(max(scan_hi_inclusive, 0), sc_count.saturating_sub(1));
@@ -129,17 +136,8 @@ impl RtIterator {
             let frame_idx = self.frames_sorted_by_rt[self.i];
             self.i += 1;
 
-            // Compute clamped scan bounds for this frame once
-            let frame = self.ds.frames.get(frame_idx).map_err(|e| e.to_string())?;
-            let sc_count = frame.scan_offsets.len();
-            if sc_count == 0 { continue; }
-            let s_lo = min(max(self.scan_lo, 0), sc_count.saturating_sub(1));
-            let s_hi = min(max(self.scan_hi, 0), sc_count.saturating_sub(1));
-            let (s_lo, s_hi) = if s_lo <= s_hi { (s_lo, s_hi) } else { (s_hi, s_lo) };
-            drop(frame); // we only needed scan count
-
             // Delegate to the per-frame extractor
-            match RtIterator::extract_for_frame(self.ds.as_ref(), frame_idx, self.mz_lo, self.mz_hi, s_lo, s_hi)? {
+            match RtIterator::extract_for_frame(self.ds.as_ref(), frame_idx, self.mz_lo, self.mz_hi, self.scan_lo, self.scan_hi)? {
                 Some(sa) => return Ok(Some(sa)),
                 None => continue,
             }
