@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.zip.DataFormatException;
 
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -224,7 +225,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
     /** Read MS1 precursor scans within an RT window. */
     @Override
     public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd)
-            throws SQLException, IOException, java.util.zip.DataFormatException {
+            throws SQLException, IOException, DataFormatException {
         ensureOpen();
 
         final int[] frameIds = selectFramesByTypeAndRt(ms1Key, rtStart, rtEnd); // ms1Key = 0
@@ -232,16 +233,16 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         if (frameIds.length == 0) return out;
 
         // Zero-based indices for the native reader, parallel to frameIds order
-        final int[] indices = java.util.Arrays.stream(frameIds).map(id -> id - 1).toArray();
+        final int[] indices = Arrays.stream(frameIds).map(id -> id - 1).toArray();
 
         // Accumulation time and RT lookup by 1-based Id
-        final java.util.Map<Integer, Float> accTimes = fetchAccumulationTimes(frameIds);
-        final java.util.Map<Integer, Float> rtMap = new java.util.HashMap<>();
+        final Map<Integer, Float> accTimes = fetchAccumulationTimes(frameIds);
+        final Map<Integer, Float> rtMap = new HashMap<>();
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT Id, Time FROM Frames WHERE Id IN (" +
-                        java.util.Arrays.stream(frameIds)
+                        Arrays.stream(frameIds)
                                 .mapToObj(i -> "?")
-                                .collect(java.util.stream.Collectors.joining(",")) + ")")) {
+                                .collect(Collectors.joining(",")) + ")")) {
             int j = 1; for (int id : frameIds) ps.setInt(j++, id);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) rtMap.put(rs.getInt(1), (float) rs.getDouble(2));
@@ -249,7 +250,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
         }
 
         // Read all spectra once. Map by zero-based frame index returned from native.
-        final java.util.HashMap<Integer, SpectrumRecord> byIndex = new java.util.HashMap<>(frameIds.length * 2);
+        final HashMap<Integer, SpectrumRecord> byIndex = new HashMap<>(frameIds.length * 2);
         final double mzLo = 10.0, mzHi = 10000.0;
         try (RustIterator it = reader.createIterator(indices, mzLo, mzHi, -1, -1)) {
             for (SpectrumRecord s; (s = it.next()) != null; ) {

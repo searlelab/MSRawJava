@@ -115,8 +115,8 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
     public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws IOException {
         var req = PrecursorsRequest.newBuilder()
                 .setSessionId(sessionId)
-                .setRtMin(rtStart)
-                .setRtMax(rtEnd)
+                .setRtMin(rtStart/60f)
+                .setRtMax(rtEnd/60f)
                 .setProfile(false)
                 .build();
 
@@ -144,8 +144,8 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
     public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) throws IOException {
         var req = StripesRequest.newBuilder()
                 .setSessionId(sessionId)
-                .setRtMin(minRT)
-                .setRtMax(maxRT)
+                .setRtMin(minRT/60f)
+                .setRtMax(maxRT/60f)
                 .setMzLo(targetMzRange.getStart())
                 .setMzHi(targetMzRange.getStop())
                 .setProfile(false)

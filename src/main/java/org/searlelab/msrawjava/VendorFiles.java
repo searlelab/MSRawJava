@@ -23,10 +23,10 @@ public class VendorFiles {
 		dDirs.add(p);
 	}
 	
-	public ArrayList<Path> getdDirs() {
+	public ArrayList<Path> getBrukerDirs() {
 		return dDirs;
 	}
-	public ArrayList<Path> getRawFiles() {
+	public ArrayList<Path> getThermoFiles() {
 		return rawFiles;
 	}
 }

@@ -42,7 +42,6 @@ builder.Logging.AddFilter("Grpc", LogLevel.Error);
 builder.Services.Configure<ConsoleLifetimeOptions>(o => o.SuppressStatusMessages = true);
 
 builder.Services.AddGrpc();
-// builder.Services.AddGrpcReflection();
 
 var app = builder.Build();
 app.MapGrpcService<ThermoRawServiceImpl>();
@@ -210,10 +209,6 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	
 	                    var lo = center - width / 2.0;
 	                    var hi = center + width / 2.0;
-	
-	                    // Round to 0.01 m/z to suppress float jitter
-	                    lo = Math.Round(lo, 2, MidpointRounding.AwayFromZero);
-	                    hi = Math.Round(hi, 2, MidpointRounding.AwayFromZero);
 	
 	                    var key = (lo, hi);
 	                    if (!buckets.TryGetValue(key, out var times))
@@ -673,77 +668,16 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	                }
 	            } catch { }
 	        }
-	
-	        if (analyzers.Count > 0)  Add("acq.mass_analyzers",  string.Join(",", analyzers));
-	        if (polarities.Count > 0) Add("acq.polarities",      string.Join(",", polarities));
-	        if (frags.Count > 0)      Add("acq.fragmentations",  string.Join(",", frags));
-	        if (ms1Count > 0)         Add("acq.ms1_count",       ms1Count);
-	        if (ms2PlusCount > 0)     Add("acq.ms2_count",       ms2PlusCount);
-	
-	        // --- DIA overview (reuse your GetRanges logic cheaply here) ---
-	        try
+	        
+			try
 	        {
-	            var windows = new List<(double lo,double hi,double duty,int n)>();
-	            int start = firstScan, end = lastScan;
-	
-	            // lightweight reimplementation: same as your GetRanges but only to build a summary list
-	            var buckets = new Dictionary<(double lo,double hi), List<double>>();
-	            for (int scan = start; scan <= end; scan++)
-	            {
-	                IScanFilter f;
-	                try { f = raw.GetFilterForScanNumber(scan); } catch { continue; }
-	                if (f == null || f.MSOrder <= ThermoFisher.CommonCore.Data.FilterEnums.MSOrderType.Ms) continue;
-	
-	                IScanEvent evt;
-	                try { evt = raw.GetScanEventForScanNumber(scan); } catch { continue; }
-	                if (evt == null) continue;
-	
-	                int n = 0;
-	                try { n = (int)(evt.GetType().GetProperty("ReactionCount")?.GetValue(evt) ?? 0); } catch { }
-	                if (n <= 0) { for (;; n++) { try { if (evt.GetReaction(n) == null) break; } catch { break; } } }
-	
-	                double rtSec = raw.RetentionTimeFromScanNumber(scan) * 60.0;
-	                for (int i = 0; i < n; i++)
-	                {
-	                    double center = double.NaN, width = double.NaN;
-	                    try { center = evt.GetReaction(i)?.PrecursorMass ?? double.NaN; } catch { }
-	                    try
-	                    {
-	                        width = evt.GetIsolationWidth(i);
-	                        if (!(width > 0 && double.IsFinite(width))) width = evt.GetReaction(i)?.IsolationWidth ?? double.NaN;
-	                    } catch { }
-	
-	                    if (!(center > 0 && double.IsFinite(center) && width > 0 && double.IsFinite(width))) continue;
-	                    double lo = Math.Round(center - width/2.0, 2, MidpointRounding.AwayFromZero);
-	                    double hi = Math.Round(center + width/2.0, 2, MidpointRounding.AwayFromZero);
-	                    var key = (lo, hi);
-	                    if (!buckets.TryGetValue(key, out var times)) { times = new List<double>(64); buckets[key] = times; }
-	                    times.Add(rtSec);
-	                }
-	            }
-	
-	            foreach (var kvp in buckets)
-	            {
-	                var t = kvp.Value; t.Sort();
-	                double duty = 0.0; if (t.Count >= 2) { double sum=0; for (int i=1;i<t.Count;i++) sum += (t[i]-t[i-1]); duty = sum/(t.Count-1); }
-	                windows.Add((kvp.Key.lo, kvp.Key.hi, duty, t.Count));
-	            }
-	
-	            if (windows.Count > 0)
-	            {
-	                Add("acq.window_count", windows.Count);
-	                var dutyMean = windows.Where(w => w.duty > 0).DefaultIfEmpty().Average(w => w.duty);
-	                if (dutyMean > 0) Add("dia.mean_duty_cycle_seconds", dutyMean);
-	            }
-	        }
-	        catch { /* best-effort */ }
-	
-	        // --- LC method (best-effort placeholders; omit if not present) ---
-	        // If your build exposes a convenient API, plug it here later.
-	        // Add("lc.system", ...);
-	        // Add("lc.method_name", ...);
-	        // Add("lc.column", ...);
-	        // Add("lc.flow_rate", ...);
+		        if (analyzers.Count > 0)  Add("acq.mass_analyzers",  string.Join(",", analyzers));
+		        if (polarities.Count > 0) Add("acq.polarities",      string.Join(",", polarities));
+		        if (frags.Count > 0)      Add("acq.fragmentations",  string.Join(",", frags));
+		        if (ms1Count > 0)         Add("acq.ms1_count",       ms1Count);
+		        if (ms2PlusCount > 0)     Add("acq.ms2_count",       ms2PlusCount);
+		    }
+	        catch { }
 	
 	        var reply = new MetadataReply();
 	        reply.Kv.Add(kv);
