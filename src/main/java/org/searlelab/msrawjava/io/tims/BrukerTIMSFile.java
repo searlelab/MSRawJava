@@ -785,7 +785,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				final double mzLo=0.0, mzHi=Float.MAX_VALUE;
 
 				try {
-					SpectrumRecord s=reader.readSpectrum(m.frameId-1, mzLo, mzHi, w.scanLo, w.scanHi);
+					SpectrumRecord s=reader.readSpectrum(m.frameId, mzLo, mzHi, w.scanLo, w.scanHi);
 
 					// Build a stable id and names
 					final int scanID=m.frameId*100+w.windowGroup; // simple monotone id

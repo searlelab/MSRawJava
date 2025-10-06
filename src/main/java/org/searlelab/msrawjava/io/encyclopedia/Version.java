@@ -28,7 +28,6 @@ public class Version implements Comparable<Version> {
 			revision=0;
 			snapshot=true;
 		} else {
-			String[] vals=versionString.split("-");
 			StringTokenizer st=new StringTokenizer(versionString, ".");
 			major=Integer.parseInt(st.nextToken());
 			minor=Integer.parseInt(st.nextToken());

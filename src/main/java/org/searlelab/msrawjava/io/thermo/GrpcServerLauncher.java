@@ -1,6 +1,5 @@
 package org.searlelab.msrawjava.io.thermo;
 
-import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
