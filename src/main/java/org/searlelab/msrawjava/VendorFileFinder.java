@@ -16,7 +16,7 @@ public final class VendorFileFinder {
 	 * - If the path is a .d directory, it's added to dDirs and not descended into.
 	 * - Otherwise, recursively walks and collects both.
 	 */
-	public static VendorFiles collectRawAndD(Path start) throws IOException {
+	public static void findAndAddRawAndD(Path start, VendorFiles files) throws IOException {
 		Objects.requireNonNull(start, "start");
 
 		final ArrayList<Path> raw=new ArrayList<>();
@@ -32,12 +32,14 @@ public final class VendorFileFinder {
 		// Handle single-file or single-dir cases quickly
 		if (Files.isRegularFile(root)) {
 			if (hasExt(root, ".raw")) raw.add(root);
-			return new VendorFiles(raw, ddirs);
+			files.add(raw, ddirs);
+			return;
 		}
 		if (Files.isDirectory(root)) {
 			if (hasExt(root.getFileName(), ".d")) {
 				ddirs.add(root);
-				return new VendorFiles(raw, ddirs);
+				files.add(raw, ddirs);
+				return;
 			}
 		}
 
@@ -69,7 +71,8 @@ public final class VendorFileFinder {
 			}
 		});
 
-		return new VendorFiles(raw, ddirs);
+		files.add(raw, ddirs);
+		return;
 	}
 
 	private static boolean hasExt(Path p, String extLowerDot) {

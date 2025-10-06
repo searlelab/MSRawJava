@@ -1,16 +1,17 @@
 package org.searlelab.msrawjava;
 
+import java.io.File;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
-import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
+import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.Peak;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -20,8 +21,21 @@ import org.searlelab.msrawjava.model.WindowData;
 public class Main {
 
 	public static void main(String[] args) throws Exception {
-		Path startingPath=Paths.get("/Users/searle.brian/Documents/temp/thermo");
-		VendorFiles files=VendorFileFinder.collectRawAndD(startingPath);
+		System.out.println("Welcome to MSRawJava");
+		if (args.length==0||Arrays.asList(args).contains("-h")) {
+			System.out.println("Help (-h):");
+			System.out.println("  Specify Thermo .raw or Bruker .d files or any directories that contain those files.");
+			return;
+		}
+		
+		
+		VendorFiles files=new VendorFiles();
+		for (String arg : args) {
+			File f=new File(arg);
+			if (f.exists()&&f.canRead()) {
+				VendorFileFinder.findAndAddRawAndD(f.toPath(), files);
+			}
+		}
 
 		if (files.getThermoFiles().size()>0) {
 			Logger.logLine("Found "+files.getThermoFiles().size()+" total Thermo Raw files");
