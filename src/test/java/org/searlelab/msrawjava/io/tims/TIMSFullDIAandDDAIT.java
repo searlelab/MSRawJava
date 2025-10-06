@@ -17,7 +17,9 @@ import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.model.FragmentScan;
+import org.searlelab.msrawjava.model.FragmentScanInterface;
 import org.searlelab.msrawjava.model.PrecursorScan;
+import org.searlelab.msrawjava.model.PrecursorScanInterface;
 import org.searlelab.msrawjava.model.Range;
 
 public class TIMSFullDIAandDDAIT {
@@ -146,7 +148,7 @@ public class TIMSFullDIAandDDAIT {
 	}
 
 	private static void sanityCheckPrecursorScans(List<PrecursorScan> scans) {
-		for (PrecursorScan s : scans) {
+		for (PrecursorScanInterface s : scans) {
 			assertNotNull(s.getSpectrumName());
 			assertTrue(s.getIsolationWindowLower()<=s.getIsolationWindowUpper());
 			assertEquals(0.0, s.getIsolationWindowLower(), 0.0);
@@ -154,19 +156,19 @@ public class TIMSFullDIAandDDAIT {
 			float[] inten=s.getIntensityArray();
 			for (float v : inten)
 				assertTrue(v>=0.01f, "negative intensity");
-			assertArraysAligned(s.getMassArray(), s.getIonMobilityArray(), inten);
+			assertArraysAligned(s.getMassArray(), s.getIonMobilityArray().get(), inten);
 		}
 	}
 
 	private static void sanityCheckFragmentScans(List<FragmentScan> scans) {
-		for (FragmentScan s : scans) {
+		for (FragmentScanInterface s : scans) {
 			assertNotNull(s.getSpectrumName());
 			assertNotNull(s.getPrecursorName());
 			assertTrue(s.getIsolationWindowLower()<s.getIsolationWindowUpper());
 			float[] inten=s.getIntensityArray();
 			for (float v : inten)
 				assertTrue(v>=0.01f, "negative intensity");
-			assertArraysAligned(s.getMassArray(), s.getIonMobilityArray(), inten);
+			assertArraysAligned(s.getMassArray(), s.getIonMobilityArray().get(), inten);
 
 			final double lo=10;
 			final double hi=2000;
@@ -176,7 +178,7 @@ public class TIMSFullDIAandDDAIT {
 
 			final double imslo=0.1;
 			final double imshi=2.0;
-			for (double ims : s.getIonMobilityArray()) {
+			for (double ims : s.getIonMobilityArray().get()) {
 				assertTrue(ims>=imslo&&ims<=imshi, "ims outside isolation window: "+ims+" not in ["+imslo+","+imshi+"]");
 			}
 		}

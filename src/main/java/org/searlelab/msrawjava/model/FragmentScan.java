@@ -1,8 +1,9 @@
 package org.searlelab.msrawjava.model;
 
 import java.util.ArrayList;
+import java.util.Optional;
 
-public class FragmentScan {
+public class FragmentScan implements FragmentScanInterface {
 
 	private final String spectrumName;
 	private final String precursorName;
@@ -58,51 +59,51 @@ public class FragmentScan {
 		return peaks;
 	}
 
-	public String getSpectrumName() {
+	@Override public String getSpectrumName() {
 		return spectrumName;
 	}
 
-	public String getPrecursorName() {
+	@Override public String getPrecursorName() {
 		return precursorName;
 	}
 
-	public int getSpectrumIndex() {
+	@Override public int getSpectrumIndex() {
 		return spectrumIndex;
 	}
 
-	public float getScanStartTime() {
+	@Override public float getScanStartTime() {
 		return scanStartTime;
 	}
 
-	public int getFraction() {
+	@Override public int getFraction() {
 		return fraction;
 	}
 
-	public Float getIonInjectionTime() {
+	@Override public Float getIonInjectionTime() {
 		return ionInjectionTime;
 	}
 
-	public double getIsolationWindowLower() {
+	@Override public double getIsolationWindowLower() {
 		return isolationWindowLower;
 	}
 
-	public double getIsolationWindowUpper() {
+	@Override public double getIsolationWindowUpper() {
 		return isolationWindowUpper;
 	}
 
-	public double[] getMassArray() {
+	@Override public double[] getMassArray() {
 		return massArray;
 	}
 
-	public float[] getIntensityArray() {
+	@Override public float[] getIntensityArray() {
 		return intensityArray;
 	}
 
-	public float[] getIonMobilityArray() {
-		return ionMobilityArray;
+	@Override public Optional<float[]> getIonMobilityArray() {
+		return Optional.ofNullable(ionMobilityArray);
 	}
 
-	public byte getCharge() {
+	@Override public byte getCharge() {
 		return charge;
 	}
 

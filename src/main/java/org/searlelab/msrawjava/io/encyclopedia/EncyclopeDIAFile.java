@@ -21,7 +21,9 @@ import java.util.Map.Entry;
 
 import org.searlelab.msrawjava.Logger;
 import org.searlelab.msrawjava.model.FragmentScan;
+import org.searlelab.msrawjava.model.FragmentScanInterface;
 import org.searlelab.msrawjava.model.PrecursorScan;
+import org.searlelab.msrawjava.model.PrecursorScanInterface;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
@@ -256,7 +258,7 @@ public class EncyclopeDIAFile extends SQLFile {
 			PreparedStatement prep=c.prepareStatement(
 					"insert into precursor (SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC, Fraction, IsolationWindowLower, IsolationWindowUpper) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 			try {
-				for (PrecursorScan precursor : precursors) {
+				for (PrecursorScanInterface precursor : precursors) {
 					prep.setString(1, precursor.getSpectrumName());
 					prep.setInt(2, precursor.getSpectrumIndex());
 					prep.setFloat(3, precursor.getScanStartTime());
@@ -268,11 +270,11 @@ public class EncyclopeDIAFile extends SQLFile {
 					prep.setInt(7, intensityByteArray.length);
 					prep.setBytes(8, CompressionUtils.compress(intensityByteArray));
 
-					if (precursor.getIonMobilityArray()==null) {
+					if (!precursor.getIonMobilityArray().isPresent()) {
 						prep.setNull(9, Types.INTEGER);
 						prep.setNull(10, Types.BLOB);
 					} else {
-						byte[] ionMobilityByteArray=ByteConverter.toByteArray(precursor.getIonMobilityArray());
+						byte[] ionMobilityByteArray=ByteConverter.toByteArray(precursor.getIonMobilityArray().get());
 						prep.setInt(9, ionMobilityByteArray.length);
 						prep.setBytes(10, CompressionUtils.compress(ionMobilityByteArray));
 					}
@@ -316,7 +318,7 @@ public class EncyclopeDIAFile extends SQLFile {
 	}
 
 	private void internalAddStripeToStatement(List<FragmentScan> stripes, PreparedStatement prep) throws SQLException, IOException {
-		for (FragmentScan stripe : stripes) {
+		for (FragmentScanInterface stripe : stripes) {
 			int index=1;
 			prep.setString(index++, stripe.getSpectrumName());
 			prep.setString(index++, stripe.getPrecursorName());
@@ -334,11 +336,11 @@ public class EncyclopeDIAFile extends SQLFile {
 			byte[] intensityByteArray=ByteConverter.toByteArray(stripe.getIntensityArray());
 			prep.setInt(index++, intensityByteArray.length);
 			prep.setBytes(index++, CompressionUtils.compress(intensityByteArray));
-			if (stripe.getIonMobilityArray()==null) {
+			if (!stripe.getIonMobilityArray().isPresent()) {
 				prep.setNull(index++, Types.INTEGER);
 				prep.setNull(index++, Types.BLOB);
 			} else {
-				byte[] ionMobilityByteArray=ByteConverter.toByteArray(stripe.getIonMobilityArray());
+				byte[] ionMobilityByteArray = ByteConverter.toByteArray(stripe.getIonMobilityArray().get());
 				prep.setInt(index++, ionMobilityByteArray.length);
 				prep.setBytes(index++, CompressionUtils.compress(ionMobilityByteArray));
 			}

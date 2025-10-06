@@ -1,8 +1,9 @@
 package org.searlelab.msrawjava.model;
 
 import java.util.ArrayList;
+import java.util.Optional;
 
-public class PrecursorScan {
+public class PrecursorScan implements PrecursorScanInterface {
 
 	private final String spectrumName;
 	private final int spectrumIndex;
@@ -53,46 +54,57 @@ public class PrecursorScan {
 		return peaks;
 	}
 
+	@Override
 	public String getSpectrumName() {
 		return spectrumName;
 	}
 
+	@Override
 	public int getSpectrumIndex() {
 		return spectrumIndex;
 	}
 
+	@Override
 	public float getScanStartTime() {
 		return scanStartTime;
 	}
 
+	@Override
 	public int getFraction() {
 		return fraction;
 	}
 
+	@Override
 	public double getIsolationWindowLower() {
 		return isolationWindowLower;
 	}
 
+	@Override
 	public double getIsolationWindowUpper() {
 		return isolationWindowUpper;
 	}
 
+	@Override
 	public Float getIonInjectionTime() {
 		return ionInjectionTime;
 	}
 
+	@Override
 	public double[] getMassArray() {
 		return massArray;
 	}
 
+	@Override
 	public float[] getIntensityArray() {
 		return intensityArray;
 	}
 
-	public float[] getIonMobilityArray() {
-		return ionMobilityArray;
+	@Override
+	public Optional<float[]> getIonMobilityArray() {
+		return Optional.ofNullable(ionMobilityArray);
 	}
 
+	@Override
 	public float getTIC() {
 		float tic=0.0f;
 		for (int i=0; i<intensityArray.length; i++) {

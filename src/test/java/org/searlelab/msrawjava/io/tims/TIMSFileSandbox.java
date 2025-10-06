@@ -12,7 +12,9 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.model.FragmentScan;
+import org.searlelab.msrawjava.model.FragmentScanInterface;
 import org.searlelab.msrawjava.model.PrecursorScan;
+import org.searlelab.msrawjava.model.PrecursorScanInterface;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
@@ -38,11 +40,11 @@ public class TIMSFileSandbox {
 		ArrayList<PrecursorScan> ms1s=file.getPrecursors(0, Float.MAX_VALUE);
 		System.out.println("Found "+ms1s.size()+" MS1s");
 		assertEquals(histogram.get(0), ms1s.size());
-		for (PrecursorScan ms1 : ms1s) {
+		for (PrecursorScanInterface ms1 : ms1s) {
 			if (ms1.getSpectrumName().equals("2668")) {
 				System.out.println(ms1.getSpectrumName()+" --> "+ms1.getScanStartTime()+"\t"+ms1.getMassArray().length);
 				for (int i=0; i<ms1.getMassArray().length; i++) {
-					System.out.println(ms1.getMassArray()[i]+","+ms1.getIonMobilityArray()[i]+","+ms1.getIntensityArray()[i]);
+					System.out.println(ms1.getMassArray()[i]+","+ms1.getIonMobilityArray().get()[i]+","+ms1.getIntensityArray()[i]);
 				}
 
 				System.exit(0);
@@ -60,7 +62,7 @@ public class TIMSFileSandbox {
 		int count=0;
 		for (Range range : ranges) {
 			ArrayList<FragmentScan> ms2s=file.getStripes(range, 0.0f, Float.MAX_VALUE, false);
-			for (FragmentScan ms2 : ms2s) {
+			for (FragmentScanInterface ms2 : ms2s) {
 				assertTrue(range.contains((ms2.getIsolationWindowUpper()+ms2.getIsolationWindowLower())/2.0f),
 						"Range: "+range.toString()+" does not match MS2: "+new Range(ms2.getIsolationWindowLower(), ms2.getIsolationWindowUpper()).toString());
 				//System.out.println(ms2.getSpectrumName()+" --> "+ms2.getScanStartTime()+"\t"+ms2.getMassArray().length);
