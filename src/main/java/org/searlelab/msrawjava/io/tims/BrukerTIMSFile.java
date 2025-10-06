@@ -142,9 +142,12 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				return Collections.emptyMap();
 			}
 			// Gather all windows with their frame times
-			String sql="SELECT F.Id AS FrameId, F.Time AS RT, W.IsolationMz, W.IsolationWidth, "+"       W.ScanNumBegin, W.ScanNumEnd "+"FROM Frames F "
-					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "+"WHERE F.MsMsType = "+ms2Key
-					+" "+"ORDER BY W.IsolationMz ASC, F.Time ASC";
+			String sql="SELECT F.Id AS FrameId, F.Time AS RT, W.IsolationMz, W.IsolationWidth, W.ScanNumBegin, W.ScanNumEnd "
+					+"FROM Frames F "
+					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
+					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
+					+"WHERE F.MsMsType = "+ms2Key+" "
+					+"ORDER BY W.IsolationMz ASC, F.Time ASC";
 
 			Map<Range, List<Double>> rtByRange=new LinkedHashMap<>();
 			Map<Range, int[]> scanRangeByRange=new HashMap<>();
@@ -366,10 +369,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		out.put("file.name", originalFileName);
 
 		// --- Frames summary ---
-		try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(Time), MAX(Time), "+"       SUM(CASE WHEN MsMsType=0 THEN 1 ELSE 0 END), "+ // MS1
-				"       SUM(CASE WHEN MsMsType=8 THEN 1 ELSE 0 END), "+ // DDA MS2
-				"       SUM(CASE WHEN MsMsType=9 THEN 1 ELSE 0 END) "+ // DIA MS2
-				"FROM Frames")) {
+		try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(Time), MAX(Time), SUM(CASE WHEN MsMsType=0 THEN 1 ELSE 0 END), " // MS1
+				+"SUM(CASE WHEN MsMsType=8 THEN 1 ELSE 0 END), " // DDA MS2
+				+"SUM(CASE WHEN MsMsType=9 THEN 1 ELSE 0 END) " // DIA MS2
+				+"FROM Frames")) {
 			try (ResultSet rs=ps.executeQuery()) {
 				if (rs.next()) {
 					int total=rs.getInt(1);
@@ -392,7 +395,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		// Average accumulation time by class (seconds = 1000 * AccumulationTime, per your convention)
 		if (columnsOf("Frames").contains("AccumulationTime")) {
 			try (PreparedStatement ps=conn.prepareStatement("SELECT "+"AVG(CASE WHEN MsMsType=0 THEN AccumulationTime END), "
-					+"AVG(CASE WHEN MsMsType=8 THEN AccumulationTime END), "+"AVG(CASE WHEN MsMsType=9 THEN AccumulationTime END) "+"FROM Frames")) {
+					+"AVG(CASE WHEN MsMsType=8 THEN AccumulationTime END), AVG(CASE WHEN MsMsType=9 THEN AccumulationTime END) "
+					+"FROM Frames")) {
 				try (ResultSet rs=ps.executeQuery()) {
 					if (rs.next()) {
 						double ms1=rs.getDouble(1);
@@ -421,7 +425,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			if (hasIso) {
 				String cntSql="SELECT COUNT(*) FROM DiaFrameMsMsWindows";
 				String wgSql=hasWg?"SELECT COUNT(DISTINCT WindowGroup) FROM DiaFrameMsMsWindows":null;
-				String spanSql="SELECT "+"MIN(IsolationMz - 0.5*IsolationWidth), "+"MAX(IsolationMz + 0.5*IsolationWidth), "+"AVG(IsolationWidth) "
+				String spanSql="SELECT MIN(IsolationMz - 0.5*IsolationWidth), MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "
 						+"FROM DiaFrameMsMsWindows";
 				try (PreparedStatement ps1=conn.prepareStatement(cntSql); ResultSet r1=ps1.executeQuery()) {
 					if (r1.next()) out.put("dia.windows.count", Integer.toString(r1.getInt(1)));
@@ -443,8 +447,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		if (tableExists("PasefFrameMsMsInfo")) {
 			Set<String> cols=columnsOf("PasefFrameMsMsInfo");
 			if (cols.containsAll(Set.of("IsolationMz", "IsolationWidth"))) {
-				try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), "+"MIN(IsolationMz - 0.5*IsolationWidth), "
-						+"MAX(IsolationMz + 0.5*IsolationWidth), "+"AVG(IsolationWidth) "+"FROM PasefFrameMsMsInfo"); ResultSet rs=ps.executeQuery()) {
+				try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(IsolationMz - 0.5*IsolationWidth), "
+						+"MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "
+						+"FROM PasefFrameMsMsInfo"); ResultSet rs=ps.executeQuery()) {
 					if (rs.next()) {
 						out.put("dda.targets.count", Integer.toString(rs.getInt(1)));
 						out.put("dda.mz.min", Double.toString(rs.getDouble(2)));
@@ -519,7 +524,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			// DIA: select the single window per frame that contains targetMz
 
 			final String sql="SELECT F.Id, W.WindowGroup, F.Time,  W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd "
-					+"FROM Frames F "+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
+					+"FROM Frames F "
+					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
+					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
 					+"WHERE F.MsMsType = "+ms2Key+" AND F.Time BETWEEN ? AND ? "
 					+"AND (? BETWEEN (W.IsolationMz - 0.5*W.IsolationWidth) AND (W.IsolationMz + 0.5*W.IsolationWidth)) "
 					+"ORDER BY F.Time ASC, W.IsolationMz ASC";
@@ -562,10 +569,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			return out;
 		} else if (ms2Key==8) {
 			// DDA: select frames whose isolation contains targetMz, pick closest per frame, include charge and parent
-			final String sql="SELECT F.Id, F.Time, "+"       I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, "+"       F.AccumulationTime, "
-					+"       COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id "+"FROM Frames F "
-					+"JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id "+"LEFT JOIN Precursors P ON P.Id = I.Precursor "
-					+"WHERE F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "+"ORDER BY F.Time ASC, I.ScanNumBegin ASC";
+			final String sql="SELECT F.Id, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
+					+"COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id "
+					+"FROM Frames F "
+					+"JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id "
+					+"LEFT JOIN Precursors P ON P.Id = I.Precursor "
+					+"WHERE F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "
+					+"ORDER BY F.Time ASC, I.ScanNumBegin ASC";
 
 			final ArrayList<FragmentScan> out=new ArrayList<>();
 
@@ -649,7 +659,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			// DIA: gather all windows overlapping the target range per frame
 
 			final String sql="SELECT F.Id, W.WindowGroup, F.Time, W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd "
-					+"FROM Frames F "+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
+					+"FROM Frames F "
+					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
+					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
 					+"WHERE F.MsMsType = "+ms2Key+" AND F.Time BETWEEN ? AND ? "+"AND ( W.IsolationMz <= ? AND W.IsolationMz >= ? ) "
 					+"ORDER BY F.Time ASC, W.IsolationMz ASC";
 
@@ -693,10 +705,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		} else if (ms2Key==8) {
 			// DDA: pick targets whose isolation window overlaps the target range.
 			// Produce one FragmentScan per frame (closest isolation to the center of target range).
-			final String sql="SELECT F.Id, F.Time, "+"       I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, "+"       F.AccumulationTime, "
-					+"       COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id "+"FROM Frames F "
-					+"JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id "+"LEFT JOIN Precursors P ON P.Id = I.Precursor "
-					+"WHERE F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "+"ORDER BY F.Time ASC, I.ScanNumBegin ASC";
+			final String sql="SELECT F.Id, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
+					+"COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id "
+					+"FROM Frames F "
+					+"JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id "
+					+"LEFT JOIN Precursors P ON P.Id = I.Precursor "
+					+"WHERE F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "
+					+"ORDER BY F.Time ASC, I.ScanNumBegin ASC";
 
 			final ArrayList<FragmentScan> out=new ArrayList<>();
 
