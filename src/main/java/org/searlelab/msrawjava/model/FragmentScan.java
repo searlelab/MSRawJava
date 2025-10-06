@@ -17,40 +17,40 @@ public class FragmentScan {
 	private final float[] ionMobilityArray;
 	private final byte charge;
 
-	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, float scanStartTime, int fraction,
-			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double[] massArray,
-			float[] intensityArray, float[] ionMobilityArray, byte charge) {
+	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, float scanStartTime, int fraction, Float ionInjectionTime,
+			double isolationWindowLower, double isolationWindowUpper, double[] massArray, float[] intensityArray, float[] ionMobilityArray, byte charge) {
 		super();
-		this.spectrumName = spectrumName;
-		this.precursorName = precursorName;
-		this.spectrumIndex = spectrumIndex;
-		this.scanStartTime = scanStartTime;
-		this.fraction = fraction;
-		this.ionInjectionTime = ionInjectionTime;
-		this.isolationWindowLower = isolationWindowLower;
-		this.isolationWindowUpper = isolationWindowUpper;
-		this.massArray = massArray;
-		this.intensityArray = intensityArray;
-		this.ionMobilityArray = ionMobilityArray;
-		this.charge = charge;
+		this.spectrumName=spectrumName;
+		this.precursorName=precursorName;
+		this.spectrumIndex=spectrumIndex;
+		this.scanStartTime=scanStartTime;
+		this.fraction=fraction;
+		this.ionInjectionTime=ionInjectionTime;
+		this.isolationWindowLower=isolationWindowLower;
+		this.isolationWindowUpper=isolationWindowUpper;
+		this.massArray=massArray;
+		this.intensityArray=intensityArray;
+		this.ionMobilityArray=ionMobilityArray;
+		this.charge=charge;
 	}
-	
+
 	public FragmentScan rebuild(int newSpectrumIndex, ArrayList<Peak> peaks) {
 		double[] newMassArray=new double[peaks.size()];
 		float[] newIntensityArray=new float[peaks.size()];
 		float[] newIonMobilityArray=new float[peaks.size()];
-		for (int i = 0; i < peaks.size(); i++) {
-			Peak peak = peaks.get(i);
+		for (int i=0; i<peaks.size(); i++) {
+			Peak peak=peaks.get(i);
 			newMassArray[i]=peak.mz;
 			newIntensityArray[i]=peak.intensity;
 			newIonMobilityArray[i]=peak.ims;
 		}
-		return new FragmentScan(spectrumName, precursorName, newSpectrumIndex, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper, newMassArray, newIntensityArray, newIonMobilityArray, charge);
+		return new FragmentScan(spectrumName, precursorName, newSpectrumIndex, scanStartTime, fraction, ionInjectionTime, isolationWindowLower,
+				isolationWindowUpper, newMassArray, newIntensityArray, newIonMobilityArray, charge);
 	}
 
 	public ArrayList<Peak> getPeaks(float minimumIntensity) {
 		ArrayList<Peak> peaks=new ArrayList<Peak>();
-		for (int i = 0; i < massArray.length; i++) {
+		for (int i=0; i<massArray.length; i++) {
 			if (intensityArray[i]>minimumIntensity) {
 				peaks.add(new Peak(massArray[i], intensityArray[i], ionMobilityArray[i]));
 			}

@@ -9,22 +9,25 @@ public class Logger {
 	public static boolean PRINT_TO_SCREEN=true;
 	private static final SimpleDateFormat format=new SimpleDateFormat("[HH:mm:ss] ");
 	private static final ArrayList<LogRecorder> recorders=new ArrayList<LogRecorder>();
+
 	public static void addRecorder(LogRecorder recorder) {
 		recorders.add(recorder);
 	}
-	
+
 	public static void log(String s) {
 		if (PRINT_TO_SCREEN) System.out.print(s);
 		for (LogRecorder recorder : recorders) {
 			recorder.log(s);
 		}
 	}
+
 	public static void logLine(String s) {
 		if (PRINT_TO_SCREEN) System.out.println(format.format(new Date())+s);
 		for (LogRecorder recorder : recorders) {
 			recorder.logLine(s);
 		}
 	}
+
 	public static void timelessLogLine(String s) {
 		if (PRINT_TO_SCREEN) System.out.println(s);
 		for (LogRecorder recorder : recorders) {

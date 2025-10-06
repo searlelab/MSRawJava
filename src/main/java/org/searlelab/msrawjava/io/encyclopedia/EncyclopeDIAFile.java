@@ -33,8 +33,8 @@ import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.procedure.TIntObjectProcedure;
 
 public class EncyclopeDIAFile extends SQLFile {
-	public static final DateFormat m_ISO8601Local = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-	private static final Version MOST_RECENT_VERSION = new Version(0, 7, 0);
+	public static final DateFormat m_ISO8601Local=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+	private static final Version MOST_RECENT_VERSION=new Version(0, 7, 0);
 
 	private static final String UNKNOWN_VALUE="unknown";
 	public static final String FILELOCATION_ATTRIBUTE="filelocation";
@@ -42,10 +42,10 @@ public class EncyclopeDIAFile extends SQLFile {
 	public static final String FILENAME_ATTRIBUTE="filename";
 	public static final String TOTAL_PRECURSOR_TIC_ATTRIBUTE="totalPrecursorTIC";
 	public static final String GRADIENT_LENGTH_ATTRIBUTE="gradientLength";
-	public static final String SOFTWARE_VERSION_PREFIX = "SoftwareVersion_";
-	public static final String RUN_START_TIME = "runStartTime";
-	public static final String SOFTWARE_VERSIONS_DELIMITER = ";";
-	public static final String INSTRUMENT_CONFIGURATIONS = "InstrumentConfigurations";
+	public static final String SOFTWARE_VERSION_PREFIX="SoftwareVersion_";
+	public static final String RUN_START_TIME="runStartTime";
+	public static final String SOFTWARE_VERSIONS_DELIMITER=";";
+	public static final String INSTRUMENT_CONFIGURATIONS="InstrumentConfigurations";
 
 	public static final String DIA_EXTENSION=".dia";
 
@@ -68,16 +68,17 @@ public class EncyclopeDIAFile extends SQLFile {
 		this.ranges.clear();
 		this.ranges.putAll(ranges);
 	}
-	
+
 	public void setFractionNames(TIntObjectHashMap<String> fractionNames) {
 		this.fractionNames.clear();
 		this.fractionNames.putAll(fractionNames);
 	}
 
 	public void writeRanges() throws IOException, SQLException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
-			PreparedStatement prep=c.prepareStatement("insert into ranges (Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop) VALUES (?,?,?,?,?,?)");
+			PreparedStatement prep=c
+					.prepareStatement("insert into ranges (Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop) VALUES (?,?,?,?,?,?)");
 			try {
 				int rangeCount=0;
 				for (Entry<Range, WindowData> entry : ranges.entrySet()) {
@@ -90,7 +91,7 @@ public class EncyclopeDIAFile extends SQLFile {
 						prep.setFloat(2, range.getStop());
 						prep.setFloat(3, dutyCycle);
 						prep.setInt(4, numWindows);
-						
+
 						if (data.getIonMobilityRange().isPresent()) {
 							prep.setFloat(5, data.getIonMobilityRange().get().getStart());
 							prep.setFloat(6, data.getIonMobilityRange().get().getStop());
@@ -98,7 +99,7 @@ public class EncyclopeDIAFile extends SQLFile {
 							prep.setNull(5, Types.DOUBLE);
 							prep.setNull(6, Types.DOUBLE);
 						}
-						
+
 						prep.addBatch();
 						rangeCount++;
 					}
@@ -117,7 +118,7 @@ public class EncyclopeDIAFile extends SQLFile {
 	}
 
 	public void writeFractionNames() throws IOException, SQLException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			PreparedStatement prep=c.prepareStatement("insert into fractions (Fraction, Name) VALUES (?,?)");
 			try {
@@ -128,9 +129,9 @@ public class EncyclopeDIAFile extends SQLFile {
 							try {
 								prep.setInt(1, a);
 								prep.setString(2, b);
-	
+
 								prep.addBatch();
-								
+
 								return true;
 							} catch (SQLException e) {
 								Logger.logException(e);
@@ -181,16 +182,16 @@ public class EncyclopeDIAFile extends SQLFile {
 		map.put(FILELOCATION_ATTRIBUTE, fileLocation==null?UNKNOWN_VALUE:fileLocation);
 		addMetadata(map);
 	}
-	
+
 	public void setStartTime(Date startTime) throws IOException, SQLException {
 		addMetadata(RUN_START_TIME, m_ISO8601Local.format(startTime));
 	}
 
 	public void setSoftwareVersions(final Multimap<String, String> softwareAccessionIdToVersion) throws IOException, SQLException {
 		if (!softwareAccessionIdToVersion.isEmpty()) {
-			Map<String, String> toAdd = Maps.newHashMap();
+			Map<String, String> toAdd=Maps.newHashMap();
 			softwareAccessionIdToVersion.asMap().forEach((key, value) -> {
-				toAdd.put(SOFTWARE_VERSION_PREFIX + key, Joiner.on(SOFTWARE_VERSIONS_DELIMITER).join(value));
+				toAdd.put(SOFTWARE_VERSION_PREFIX+key, Joiner.on(SOFTWARE_VERSIONS_DELIMITER).join(value));
 			});
 			addMetadata(toAdd);
 		}
@@ -203,7 +204,7 @@ public class EncyclopeDIAFile extends SQLFile {
 	}
 
 	public HashMap<String, String> getMetadata() throws IOException, SQLException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			Statement s=c.createStatement();
 			try {
@@ -226,7 +227,7 @@ public class EncyclopeDIAFile extends SQLFile {
 	}
 
 	public void addMetadata(Map<String, String> data) throws IOException, SQLException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			PreparedStatement prep=c.prepareStatement("insert or replace into metadata (Key, Value) VALUES (?,?)");
 			try {
@@ -250,9 +251,10 @@ public class EncyclopeDIAFile extends SQLFile {
 	 * Add the given block of precursor scans to the file using a single prepared statement and commit.
 	 */
 	public void addPrecursor(ArrayList<PrecursorScan> precursors) throws IOException, SQLException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
-			PreparedStatement prep=c.prepareStatement("insert into precursor (SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC, Fraction, IsolationWindowLower, IsolationWindowUpper) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+			PreparedStatement prep=c.prepareStatement(
+					"insert into precursor (SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC, Fraction, IsolationWindowLower, IsolationWindowUpper) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 			try {
 				for (PrecursorScan precursor : precursors) {
 					prep.setString(1, precursor.getSpectrumName());
@@ -299,8 +301,10 @@ public class EncyclopeDIAFile extends SQLFile {
 	 * Add the given block of fragment scans to the file using a single prepared statement and commit.
 	 */
 	public void addStripe(ArrayList<FragmentScan> stripes) throws IOException, SQLException {
-		try (Connection c = getConnection()) {
-			try (PreparedStatement prep = c.prepareStatement("insert into spectra (SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, Fraction, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray)" + " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+		try (Connection c=getConnection()) {
+			try (PreparedStatement prep=c.prepareStatement(
+					"insert into spectra (SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, Fraction, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray)"
+							+" VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
 				// handle commits manually
 				c.setAutoCommit(false);
 
@@ -313,7 +317,7 @@ public class EncyclopeDIAFile extends SQLFile {
 
 	private void internalAddStripeToStatement(List<FragmentScan> stripes, PreparedStatement prep) throws SQLException, IOException {
 		for (FragmentScan stripe : stripes) {
-			int index = 1;
+			int index=1;
 			prep.setString(index++, stripe.getSpectrumName());
 			prep.setString(index++, stripe.getPrecursorName());
 			prep.setInt(index++, stripe.getSpectrumIndex());
@@ -324,17 +328,17 @@ public class EncyclopeDIAFile extends SQLFile {
 			prep.setDouble(index++, (stripe.getIsolationWindowLower()+stripe.getIsolationWindowUpper())/2.0);
 			prep.setDouble(index++, stripe.getIsolationWindowUpper());
 			prep.setInt(index++, stripe.getCharge());
-			byte[] massByteArray = ByteConverter.toByteArray(stripe.getMassArray());
+			byte[] massByteArray=ByteConverter.toByteArray(stripe.getMassArray());
 			prep.setInt(index++, massByteArray.length);
 			prep.setBytes(index++, CompressionUtils.compress(massByteArray));
-			byte[] intensityByteArray = ByteConverter.toByteArray(stripe.getIntensityArray());
+			byte[] intensityByteArray=ByteConverter.toByteArray(stripe.getIntensityArray());
 			prep.setInt(index++, intensityByteArray.length);
 			prep.setBytes(index++, CompressionUtils.compress(intensityByteArray));
 			if (stripe.getIonMobilityArray()==null) {
 				prep.setNull(index++, Types.INTEGER);
 				prep.setNull(index++, Types.BLOB);
 			} else {
-				byte[] ionMobilityByteArray = ByteConverter.toByteArray(stripe.getIonMobilityArray());
+				byte[] ionMobilityByteArray=ByteConverter.toByteArray(stripe.getIonMobilityArray());
 				prep.setInt(index++, ionMobilityByteArray.length);
 				prep.setBytes(index++, CompressionUtils.compress(ionMobilityByteArray));
 			}
@@ -344,14 +348,17 @@ public class EncyclopeDIAFile extends SQLFile {
 	}
 
 	private void createNewTables() throws IOException, SQLException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			Statement s=c.createStatement();
 			try {
 				s.execute("create table if not exists metadata ( Key string not null, Value string not null, primary key (Key) )");
-				s.execute("create table if not exists ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int, IonMobilityStart float, IonMobilityStop float )");
-				s.execute("create table if not exists spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
-				s.execute("create table if not exists precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, TIC float, primary key (SpectrumIndex) )");
+				s.execute(
+						"create table if not exists ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int, IonMobilityStart float, IonMobilityStop float )");
+				s.execute(
+						"create table if not exists spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
+				s.execute(
+						"create table if not exists precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, TIC float, primary key (SpectrumIndex) )");
 				s.execute("create table if not exists fractions ( Fraction int not null, Name string not null, primary key (Fraction) )");
 
 				c.commit();
@@ -363,8 +370,6 @@ public class EncyclopeDIAFile extends SQLFile {
 		}
 		setFileVersion();
 	}
-	
-
 
 	public void dropIndices() throws IOException, SQLException {
 		Connection c=getConnection();
@@ -395,7 +400,8 @@ public class EncyclopeDIAFile extends SQLFile {
 			try {
 				s.execute("create index if not exists \"spectra_index_isolation_window_lower\" on \"spectra\" (\"IsolationWindowLower\" ASC)");
 				s.execute("create index if not exists \"spectra_index_isolation_window_upper\" on \"spectra\" (\"IsolationWindowUpper\" ASC)");
-				s.execute("create index if not exists \"spectra_index_scan_start_time_and_windows\" on \"spectra\" (\"ScanStartTime\",\"IsolationWindowLower\",\"IsolationWindowUpper\" ASC)");
+				s.execute(
+						"create index if not exists \"spectra_index_scan_start_time_and_windows\" on \"spectra\" (\"ScanStartTime\",\"IsolationWindowLower\",\"IsolationWindowUpper\" ASC)");
 
 				s.execute("create index if not exists \"precursor_index_isolation_window_lower\" on \"precursor\" (\"IsolationWindowLower\" ASC)");
 				s.execute("create index if not exists \"precursor_index_isolation_window_upper\" on \"precursor\" (\"IsolationWindowUpper\" ASC)");

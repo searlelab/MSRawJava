@@ -17,6 +17,6 @@ class TIMSMassToleranceTest {
 		assertEquals(0.01031, tolerance.getToleranceInMz(1222, 1222), 0.0001);
 		assertEquals(0.01254, tolerance.getToleranceInMz(1500, 1500), 0.0001);
 		assertEquals(0.01654, tolerance.getToleranceInMz(2000, 2000), 0.0001);
-		assertEquals(0.02454, tolerance.getToleranceInMz(3000, 3000), 0.0001);	
+		assertEquals(0.02454, tolerance.getToleranceInMz(3000, 3000), 0.0001);
 	}
 }

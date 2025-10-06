@@ -6,26 +6,28 @@ import java.util.Collections;
 
 import gnu.trove.list.array.TIntArrayList;
 
-//@Immutable
+// @Immutable
 public abstract class MassTolerance {
-	
+
 	public abstract double getToleranceInMz(double m1, double m2);
-	
+
 	/**
 	 * if first is less, -1, if second is less 1, otherwise 0
+	 * 
 	 * @param m1
 	 * @param m2
 	 * @return
 	 */
 	public int compareTo(double m1, double m2) {
-		double tolerance = getToleranceInMz(m1, m2);
+		double tolerance=getToleranceInMz(m1, m2);
 		if (m1+tolerance<m2) return -1;
 		if (m1-tolerance>m2) return 1;
 		return 0;
 	}
-	
+
 	/**
-	 * @param peaks -- assumes sorted array of peaks
+	 * @param peaks
+	 *            -- assumes sorted array of peaks
 	 * @param target
 	 * @return all matching masses in range
 	 */
@@ -36,7 +38,7 @@ public abstract class MassTolerance {
 			// insertion point
 			value=-(value+1);
 		}
-		
+
 		TIntArrayList matches=new TIntArrayList();
 		// look below
 		int index=value;
@@ -54,9 +56,10 @@ public abstract class MassTolerance {
 
 		return matches.toArray();
 	}
-	
+
 	/**
-	 * @param peaks -- assumes sorted array of peaks
+	 * @param peaks
+	 *            -- assumes sorted array of peaks
 	 * @param target
 	 * @return all matching masses in range
 	 */
@@ -67,7 +70,7 @@ public abstract class MassTolerance {
 			// insertion point
 			value=-(value+1);
 		}
-		
+
 		TIntArrayList matches=new TIntArrayList();
 		// look below
 		int index=value;

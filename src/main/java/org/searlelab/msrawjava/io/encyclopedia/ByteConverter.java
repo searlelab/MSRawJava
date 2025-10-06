@@ -79,7 +79,7 @@ public class ByteConverter {
 	// wasteful boolean to byte array (assumes short arrays)
 	public static byte[] toByteArray(boolean[] a) {
 		byte[] b=new byte[a.length];
-		for (int i = 0; i < a.length; i++) {
+		for (int i=0; i<a.length; i++) {
 			if (a[i]) {
 				b[i]=1;
 			} else {
@@ -92,7 +92,7 @@ public class ByteConverter {
 	// wasteful boolean to byte array (assumes short arrays)
 	public static boolean[] toBooleanArray(byte[] b) {
 		boolean[] a=new boolean[b.length];
-		for (int i = 0; i < b.length; i++) {
+		for (int i=0; i<b.length; i++) {
 			a[i]=b[i]>0;
 		}
 		return a;

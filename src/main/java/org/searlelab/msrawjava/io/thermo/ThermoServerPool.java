@@ -6,7 +6,7 @@ public final class ThermoServerPool {
 	private static GrpcServerLauncher launcher;
 
 	private static synchronized GrpcServerLauncher getLauncher() throws IOException, InterruptedException {
-		if (launcher == null) launcher = new GrpcServerLauncher();
+		if (launcher==null) launcher=new GrpcServerLauncher();
 		return launcher;
 	}
 
@@ -16,9 +16,9 @@ public final class ThermoServerPool {
 
 	public static synchronized void shutdown() {
 		try {
-			if (launcher != null) launcher.close();
+			if (launcher!=null) launcher.close();
 		} finally {
-			launcher = null;
+			launcher=null;
 		}
 	}
 }

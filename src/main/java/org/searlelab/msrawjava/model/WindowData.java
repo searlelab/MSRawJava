@@ -9,13 +9,14 @@ public class WindowData {
 	private final Optional<Range> ionMobilityRange;
 
 	public WindowData(float averageDutyCycle, int numberOfMSMS) {
-		this.averageDutyCycle = averageDutyCycle;
-		this.numberOfMSMS = numberOfMSMS;
+		this.averageDutyCycle=averageDutyCycle;
+		this.numberOfMSMS=numberOfMSMS;
 		this.ionMobilityRange=Optional.empty();
 	}
+
 	public WindowData(float averageDutyCycle, int numberOfMSMS, Optional<Range> ionMobilityRange) {
-		this.averageDutyCycle = averageDutyCycle;
-		this.numberOfMSMS = numberOfMSMS;
+		this.averageDutyCycle=averageDutyCycle;
+		this.numberOfMSMS=numberOfMSMS;
 		this.ionMobilityRange=ionMobilityRange;
 	}
 
@@ -26,7 +27,7 @@ public class WindowData {
 	public int getNumberOfMSMS() {
 		return numberOfMSMS;
 	}
-	
+
 	public Optional<Range> getIonMobilityRange() {
 		return ionMobilityRange;
 	}

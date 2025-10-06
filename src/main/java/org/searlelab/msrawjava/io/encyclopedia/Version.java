@@ -13,7 +13,7 @@ public class Version implements Comparable<Version> {
 	public Version(int major, int minor, int revision) {
 		this(major, minor, revision, false);
 	}
-	
+
 	public Version(int major, int minor, int revision, boolean snapshot) {
 		this.major=major;
 		this.minor=minor;
@@ -35,7 +35,7 @@ public class Version implements Comparable<Version> {
 			if (st.hasMoreTokens()) {
 				String last=st.nextToken();
 				snapshot=last.endsWith("-SNAPSHOT");
-				
+
 				if (snapshot) {
 					revision=Integer.parseInt(last.substring(0, last.indexOf('-')));
 				} else {
@@ -62,13 +62,13 @@ public class Version implements Comparable<Version> {
 		sb.append(minor);
 		sb.append(".");
 		sb.append(revision);
-		
+
 		if (snapshot) {
 			sb.append("-SNAPSHOT");
 		}
 		return sb.toString();
 	}
-	
+
 	public boolean amIAbove(Version v) {
 		return compareTo(v)>0;
 	}

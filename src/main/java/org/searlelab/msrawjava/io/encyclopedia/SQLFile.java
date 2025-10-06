@@ -26,8 +26,8 @@ public abstract class SQLFile {
 		}
 	}
 
-	public final boolean doesTableExist(File file,  String table) throws IOException, SQLException {
-		Connection connection = getConnection(file);
+	public final boolean doesTableExist(File file, String table) throws IOException, SQLException {
+		Connection connection=getConnection(file);
 		try {
 			return doesTableExist(connection, table);
 		} finally {
@@ -60,7 +60,8 @@ public abstract class SQLFile {
 
 	/**
 	 *
-	 * @param c : an open connection. n.b. this method will not close the connection
+	 * @param c
+	 *            : an open connection. n.b. this method will not close the connection
 	 * @param table
 	 * @param column
 	 * @return whether the column exists in said table
