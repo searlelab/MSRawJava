@@ -40,16 +40,55 @@ import gnu.trove.list.array.TIntArrayList;
  */
 public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
-    private final Path dPath;
-    private final File fileObj;
-    private final String originalFileName;
-    private final Connection conn;
-    private final TimsReader reader;
-    private volatile boolean open = true;
-    private final int ms1Key;
-    private final int ms2Key;
+	private Path dPath=null;
+	private File fileObj=null;
+	private String originalFileName=null;
+	private Connection conn=null;
+	private TimsReader reader=null;
+	private volatile boolean open = true;
+	private int ms1Key=0;
+	private int ms2Key=-1; // unknown
 
-    public BrukerTIMSFile(Path dPath) throws SQLException {
+    public BrukerTIMSFile() {
+    }
+    
+    public boolean isPASEFDIA() {
+    	return ms2Key==9;
+    }
+    public boolean isPASEFDDA() {
+    	return ms2Key==8;
+    }
+
+    /** Histogram of MsMsType values present. */
+    public Map<Integer, Integer> msmsTypeHistogram() throws SQLException {
+        String sql = "SELECT MsMsType, COUNT(*) FROM Frames GROUP BY MsMsType ORDER BY MsMsType";
+        Map<Integer,Integer> out = new LinkedHashMap<>();
+        try (PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) out.put(rs.getInt(1), rs.getInt(2));
+        }
+        return out;
+    }
+    
+    public Range getRtRange() throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT MIN(Time), MAX(Time) FROM Frames");
+             ResultSet rs = ps.executeQuery()) {
+            if (!rs.next()) return new Range(0, Float.MAX_VALUE);
+            return new Range(rs.getDouble(1), rs.getDouble(2));
+        }
+    }
+    
+    @Override
+    public void openFile(File userFile) throws IOException, SQLException {
+    	if (conn!=null) {
+    		close();
+    	}
+    	openFile(userFile.toPath());
+    }
+    public void openFile(Path dPath) throws IOException, SQLException {
+    	if (conn!=null) {
+    		close();
+    	}
+
         Objects.requireNonNull(dPath, "dPath");
         this.dPath = dPath;
         this.fileObj = dPath.toFile();
@@ -91,36 +130,6 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
         if (expectedMS2==0) System.err.println("No MS2s found!");
         ms1Key=expectedMS1Key;
         ms2Key=expectedMS2Key;
-    }
-    
-    public boolean isPASEFDIA() {
-    	return ms2Key==9;
-    }
-    public boolean isPASEFDDA() {
-    	return ms2Key==8;
-    }
-
-    /** Histogram of MsMsType values present. */
-    public Map<Integer, Integer> msmsTypeHistogram() throws SQLException {
-        String sql = "SELECT MsMsType, COUNT(*) FROM Frames GROUP BY MsMsType ORDER BY MsMsType";
-        Map<Integer,Integer> out = new LinkedHashMap<>();
-        try (PreparedStatement ps = conn.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) out.put(rs.getInt(1), rs.getInt(2));
-        }
-        return out;
-    }
-    
-    public Range getRtRange() throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT MIN(Time), MAX(Time) FROM Frames");
-             ResultSet rs = ps.executeQuery()) {
-            if (!rs.next()) return new Range(0, Float.MAX_VALUE);
-            return new Range(rs.getDouble(1), rs.getDouble(2));
-        }
-    }
-    
-    @Override
-    public void openFile(File userFile) throws IOException, SQLException {
-    	// FIXME Auto-generated method stub
     }
 
     // ------------------------------------------------------------

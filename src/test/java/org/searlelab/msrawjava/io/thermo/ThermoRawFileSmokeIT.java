@@ -47,7 +47,9 @@ public class ThermoRawFileSmokeIT {
 		System.out.println("Begin reading "+raw.toString()+"..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
         ThermoRawFile f=null;
         try {
-        	f = new ThermoRawFile(raw);
+        	f = new ThermoRawFile();
+        	f.openFile(raw);
+        	
 	        assertEquals(raw.toString(), f.getOriginalFileName());
 	        assertTrue(f.getGradientLength()>0.0f);
 	        assertTrue(f.getRanges().size()>0);

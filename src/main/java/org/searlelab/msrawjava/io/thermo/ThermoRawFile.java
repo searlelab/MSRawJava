@@ -28,25 +28,12 @@ import io.grpc.ManagedChannel;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 
 public final class ThermoRawFile implements StripeFileInterface, Closeable {
-    private final Path rawPath;
-    private final ManagedChannel channel;
-    private final ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub;
-    private final String sessionId;
+	private Path rawPath=null;
+	private ManagedChannel channel=null;
+	private ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=null;
+	private String sessionId=null;
 
-    public ThermoRawFile(Path rawFile) throws Exception {
-        this.rawPath = rawFile;
-        int port = ThermoServerPool.port();
-
-        this.channel = NettyChannelBuilder.forAddress("127.0.0.1", port)
-                .usePlaintext()
-                .maxInboundMessageSize(64 * 1024 * 1024)
-                .build();
-        this.stub = ThermoRawServiceGrpc.newBlockingStub(channel);
-
-        var rep = stub.open(OpenRequest.newBuilder()
-                .setPath(rawFile.toAbsolutePath().toString())
-                .build());
-        this.sessionId = rep.getSessionId();
+    public ThermoRawFile() {
     }
     
     @Override
@@ -66,9 +53,34 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
     
     @Override
     public void openFile(File userFile) throws IOException, SQLException {
-    	// FIXME Auto-generated method stub
-    	
+    	this.openFile(userFile.toPath());
     }
+    public void openFile(Path rawFile) throws IOException, SQLException {
+    	if (stub!=null) {
+    		close();
+    	}
+    	
+        this.rawPath = rawFile;
+        
+        int port;
+        try {
+        	port = ThermoServerPool.port();
+        } catch (InterruptedException ie) { 
+        	throw new RuntimeException("Error setting up Thermo file reading server", ie);
+        }
+
+        this.channel = NettyChannelBuilder.forAddress("127.0.0.1", port)
+                .usePlaintext()
+                .maxInboundMessageSize(64 * 1024 * 1024)
+                .build();
+        this.stub = ThermoRawServiceGrpc.newBlockingStub(channel);
+
+        var rep = stub.open(OpenRequest.newBuilder()
+                .setPath(rawFile.toAbsolutePath().toString())
+                .build());
+        this.sessionId = rep.getSessionId();
+    }
+    
     public Map<String,String> getMetadata() throws IOException, SQLException {
         var req = Session.newBuilder().setSessionId(sessionId).build();
         var reply = stub.getMetadata(req);

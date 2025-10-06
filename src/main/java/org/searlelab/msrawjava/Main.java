@@ -59,7 +59,8 @@ public class Main {
 	public static void writeThermo(Path rawFilePath, Path outFilePath) throws Exception {
         ThermoRawFile rawFile=null;
 		try {
-	        rawFile=new ThermoRawFile(rawFilePath);
+	        rawFile=new ThermoRawFile();
+	        rawFile.openFile(rawFilePath);
 	        
 			String originalFileName = rawFilePath.getFileName().toString();
 			EncyclopeDIAFile outFile=new EncyclopeDIAFile(originalFileName);
@@ -102,7 +103,8 @@ public class Main {
 	}
 	
 	public static void writeTims(Path timsFilePath, Path outFilePath, float minimumMS1Intensity, float minimumMS2Intensity) throws Exception {
-        BrukerTIMSFile timsFile=new BrukerTIMSFile(timsFilePath);
+        BrukerTIMSFile timsFile=new BrukerTIMSFile();
+        timsFile.openFile(timsFilePath);
         
 		String originalFileName = timsFilePath.getFileName().toString();
 		EncyclopeDIAFile outFile=new EncyclopeDIAFile(originalFileName);
