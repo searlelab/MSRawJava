@@ -539,4 +539,220 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         var chars = s.Where(char.IsDigit).ToArray();
         return chars.Length == 0 ? "0" : new string(chars);
     }
+    
+    public override Task<MetadataReply> GetMetadata(Session request, ServerCallContext context)
+	{
+	    try
+	    {
+	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
+	            throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
+	
+	        var kv = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+	
+	        void Add(string k, object? v)
+			{
+			    if (v is null) return;
+			    var s = v.ToString();
+			    if (!string.IsNullOrWhiteSpace(s)) kv[k] = s;
+			}
+	
+	        // --- File / run header ---
+	        try { Add("file.path", raw.FileName); } catch { }
+	        try
+	        {
+	            var p = raw.FileName;
+	            if (!string.IsNullOrEmpty(p))
+	            {
+	                Add("file.name", Path.GetFileName(p));
+	                try { var fi = new FileInfo(p); Add("file.size_bytes", fi.Length); } catch { }
+	            }
+	        } catch { }
+	
+	        // Header minutes & scans
+	        double startMin, endMin;
+	        int firstScan, lastScan;
+	        if (raw.RunHeaderEx != null)
+	        {
+	            startMin = raw.RunHeaderEx.StartTime;
+	            endMin   = raw.RunHeaderEx.EndTime;
+	            firstScan = raw.RunHeaderEx.FirstSpectrum;
+	            lastScan  = raw.RunHeaderEx.LastSpectrum;
+	        }
+	        else
+	        {
+	            startMin = raw.RunHeader.StartTime;
+	            endMin   = raw.RunHeader.EndTime;
+	            firstScan = raw.RunHeader.FirstSpectrum;
+	            lastScan  = raw.RunHeader.LastSpectrum;
+	        }
+	        Add("run.start_time_min", startMin);
+	        Add("run.end_time_min",   endMin);
+	        Add("run.start_scan",     firstScan);
+	        Add("run.end_scan",       lastScan);
+	        Add("run.total_scans",    (lastScan >= firstScan) ? (lastScan - firstScan + 1) : 0);
+	
+	        // If you already compute these elsewhere, reuse them; otherwise:
+	        var gradientSeconds = Math.Max(0.0, (endMin - startMin) * 60.0);
+	        Add("run.gradient_length_seconds", gradientSeconds);
+	
+	        // Optional TIC total (same logic as GetRunSummary; okay to repeat)
+	        try
+	        {
+	            var ticTrace = new ChromatogramTraceSettings(TraceType.TIC) { Filter = "ms" };
+	            var chrom = raw.GetChromatogramData(new[] { ticTrace }, firstScan, lastScan);
+	            var signals = ChromatogramSignal.FromChromatogramData(chrom);
+	            double ticSum = 0.0;
+	            if (signals != null && signals.Length > 0)
+	            {
+	                var ints = signals[0].Intensities;
+	                if (ints != null) foreach (var v in ints) ticSum += v;
+	            }
+	            Add("run.tic_total", ticSum);
+	        }
+	        catch { /* ignore */ }
+	
+	        // --- Instrument block ---
+	        try
+	        {
+	            var inst = raw.GetInstrumentData();
+	            if (inst !=null)
+	            {
+		            if (inst?.Model!=null) Add("instrument.model", inst?.Model);
+		            if (inst?.Name!=null) Add("instrument.name", inst?.Name);
+		            if (inst?.SerialNumber!=null) Add("instrument.serial_number", inst?.SerialNumber);
+		            if (inst?.SoftwareVersion!=null) Add("instrument.software_version", inst?.SoftwareVersion);
+	            }
+	        }
+	        catch { }
+	
+	        // --- Acquisition summary (fast scan filter pass) ---
+	        var analyzers   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+	        var polarities  = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+	        var frags       = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+	        int ms1Count = 0, ms2PlusCount = 0;
+	
+	        for (int scan = firstScan; scan <= lastScan; scan++)
+	        {
+	            IScanFilter f;
+	            try { f = raw.GetFilterForScanNumber(scan); } catch { continue; }
+	            if (f == null) continue;
+	
+	            // MS level
+	            if (f.MSOrder == ThermoFisher.CommonCore.Data.FilterEnums.MSOrderType.Ms) ms1Count++;
+	            else ms2PlusCount++;
+	
+	            // Analyzer & polarity from filter (cheap)
+	            try { analyzers.Add(f.MassAnalyzer.ToString()); } catch { }
+	            try { polarities.Add(f.Polarity.ToString()); } catch { }
+	
+	            // Fragmentation types via scan event reactions (best-effort)
+	            try
+	            {
+	                var evt = raw.GetScanEventForScanNumber(scan);
+	                if (evt != null)
+	                {
+	                    int n = 0;
+	                    try { n = (int)(evt.GetType().GetProperty("ReactionCount")?.GetValue(evt) ?? 0); } catch { }
+	                    if (n <= 0)
+	                    {
+	                        // fallback probe
+	                        for (;; n++)
+	                        {
+	                            try { if (evt.GetReaction(n) == null) break; } catch { break; }
+	                        }
+	                    }
+	                    for (int i = 0; i < n; i++)
+	                    {
+	                        try
+	                        {
+	                            var r = evt.GetReaction(i);
+	                            var at = r?.ActivationType.ToString();
+	                            if (!string.IsNullOrEmpty(at)) frags.Add(at);
+	                        } catch { }
+	                    }
+	                }
+	            } catch { }
+	        }
+	
+	        if (analyzers.Count > 0)  Add("acq.mass_analyzers",  string.Join(",", analyzers));
+	        if (polarities.Count > 0) Add("acq.polarities",      string.Join(",", polarities));
+	        if (frags.Count > 0)      Add("acq.fragmentations",  string.Join(",", frags));
+	        if (ms1Count > 0)         Add("acq.ms1_count",       ms1Count);
+	        if (ms2PlusCount > 0)     Add("acq.ms2_count",       ms2PlusCount);
+	
+	        // --- DIA overview (reuse your GetRanges logic cheaply here) ---
+	        try
+	        {
+	            var windows = new List<(double lo,double hi,double duty,int n)>();
+	            int start = firstScan, end = lastScan;
+	
+	            // lightweight reimplementation: same as your GetRanges but only to build a summary list
+	            var buckets = new Dictionary<(double lo,double hi), List<double>>();
+	            for (int scan = start; scan <= end; scan++)
+	            {
+	                IScanFilter f;
+	                try { f = raw.GetFilterForScanNumber(scan); } catch { continue; }
+	                if (f == null || f.MSOrder <= ThermoFisher.CommonCore.Data.FilterEnums.MSOrderType.Ms) continue;
+	
+	                IScanEvent evt;
+	                try { evt = raw.GetScanEventForScanNumber(scan); } catch { continue; }
+	                if (evt == null) continue;
+	
+	                int n = 0;
+	                try { n = (int)(evt.GetType().GetProperty("ReactionCount")?.GetValue(evt) ?? 0); } catch { }
+	                if (n <= 0) { for (;; n++) { try { if (evt.GetReaction(n) == null) break; } catch { break; } } }
+	
+	                double rtSec = raw.RetentionTimeFromScanNumber(scan) * 60.0;
+	                for (int i = 0; i < n; i++)
+	                {
+	                    double center = double.NaN, width = double.NaN;
+	                    try { center = evt.GetReaction(i)?.PrecursorMass ?? double.NaN; } catch { }
+	                    try
+	                    {
+	                        width = evt.GetIsolationWidth(i);
+	                        if (!(width > 0 && double.IsFinite(width))) width = evt.GetReaction(i)?.IsolationWidth ?? double.NaN;
+	                    } catch { }
+	
+	                    if (!(center > 0 && double.IsFinite(center) && width > 0 && double.IsFinite(width))) continue;
+	                    double lo = Math.Round(center - width/2.0, 2, MidpointRounding.AwayFromZero);
+	                    double hi = Math.Round(center + width/2.0, 2, MidpointRounding.AwayFromZero);
+	                    var key = (lo, hi);
+	                    if (!buckets.TryGetValue(key, out var times)) { times = new List<double>(64); buckets[key] = times; }
+	                    times.Add(rtSec);
+	                }
+	            }
+	
+	            foreach (var kvp in buckets)
+	            {
+	                var t = kvp.Value; t.Sort();
+	                double duty = 0.0; if (t.Count >= 2) { double sum=0; for (int i=1;i<t.Count;i++) sum += (t[i]-t[i-1]); duty = sum/(t.Count-1); }
+	                windows.Add((kvp.Key.lo, kvp.Key.hi, duty, t.Count));
+	            }
+	
+	            if (windows.Count > 0)
+	            {
+	                Add("acq.window_count", windows.Count);
+	                var dutyMean = windows.Where(w => w.duty > 0).DefaultIfEmpty().Average(w => w.duty);
+	                if (dutyMean > 0) Add("dia.mean_duty_cycle_seconds", dutyMean);
+	            }
+	        }
+	        catch { /* best-effort */ }
+	
+	        // --- LC method (best-effort placeholders; omit if not present) ---
+	        // If your build exposes a convenient API, plug it here later.
+	        // Add("lc.system", ...);
+	        // Add("lc.method_name", ...);
+	        // Add("lc.column", ...);
+	        // Add("lc.flow_rate", ...);
+	
+	        var reply = new MetadataReply();
+	        reply.Kv.Add(kv);
+	        return Task.FromResult(reply);
+	    }
+	    catch (RpcException) { throw; }
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "GetMetadata failed: " + ex));
+	    }
+	}
 }

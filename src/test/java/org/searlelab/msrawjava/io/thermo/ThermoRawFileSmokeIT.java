@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -51,6 +52,7 @@ public class ThermoRawFileSmokeIT {
 	        assertEquals(raw.toString(), f.getOriginalFileName());
 	        assertTrue(f.getGradientLength()>0.0f);
 	        assertTrue(f.getRanges().size()>0);
+	        assertTrue(f.getMetadata().size()>0);
 	        
 	        System.out.println("Begin MS1 reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 	        ArrayList<PrecursorScan> ms1s = f.getPrecursors(0, Float.POSITIVE_INFINITY);

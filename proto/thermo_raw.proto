@@ -16,6 +16,7 @@ service ThermoRawService {
   rpc GetStripes(StripesRequest) returns (stream Spectrum);
   rpc GetRunSummary(Session) returns (RunSummary);
   rpc GetRanges(Session) returns (RangesReply);
+  rpc GetMetadata(Session) returns (MetadataReply);
 }
 
 message OpenRequest { string path = 1; }
@@ -28,6 +29,10 @@ message Session { string session_id = 1; }
 message RunSummary {
   double gradient_length_seconds = 1;
   double total_ion_current       = 2;
+}
+
+message MetadataReply {
+  map<string, string> kv = 1;
 }
 
 message WindowRange {
