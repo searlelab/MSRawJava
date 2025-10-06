@@ -1,15 +1,17 @@
 package org.searlelab.msrawjava.io.thermo;
 
-import org.junit.jupiter.api.Test;
-import org.searlelab.msrawjava.model.Range;
-import org.searlelab.msrawjava.model.PrecursorScan;
-import org.searlelab.msrawjava.model.FragmentScan;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.model.FragmentScan;
+import org.searlelab.msrawjava.model.PrecursorScan;
+import org.searlelab.msrawjava.model.Range;
 
 /**
  * Smoke test: can we open a Thermo RAW, read MS1s and MS2s in a few windows,
@@ -46,6 +48,10 @@ public class ThermoRawFileSmokeIT {
         ThermoRawFile f=null;
         try {
         	f = new ThermoRawFile(raw);
+	        assertEquals(raw.toString(), f.getOriginalFileName());
+	        assertTrue(f.getGradientLength()>0.0f);
+	        assertTrue(f.getRanges().size()>0);
+	        
 	        System.out.println("Begin MS1 reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 	        ArrayList<PrecursorScan> ms1s = f.getPrecursors(0, Float.POSITIVE_INFINITY);
 	        assertNotNull(ms1s, "MS1 list should not be null");
@@ -78,6 +84,7 @@ public class ThermoRawFileSmokeIT {
 				if (printFullReport) System.out.println("name: "+ms2.getSpectrumName()+", rtInSec: "+ms2.getScanStartTime()+", precursor: "+ms2.getPrecursorName()+", index: "+ms2.getSpectrumIndex()+", range: "+ms2.getIsolationWindowLower()+" to "+ms2.getIsolationWindowUpper()+", z: "+ms2.getCharge()+", IIT: "+ms2.getIonInjectionTime()+", TIC: "+sum(ms2.getIntensityArray())+", N: "+ms2.getMassArray().length);
 			}
 	        System.out.println("Finished! MS1:"+ms1s.size()+", MS2:"+ms2s.size()+" Closing down."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
+	  
 	
         } finally {
 	        if (f!=null) f.close();

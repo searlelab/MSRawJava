@@ -14,13 +14,34 @@ service ThermoRawService {
   rpc Close(CloseRequest) returns (CloseReply);
   rpc GetPrecursors(PrecursorsRequest) returns (stream Spectrum);
   rpc GetStripes(StripesRequest) returns (stream Spectrum);
+  rpc GetRunSummary(Session) returns (RunSummary);
+  rpc GetRanges(Session) returns (RangesReply);
 }
 
 message OpenRequest { string path = 1; }
 message OpenReply   { string session_id = 1; string instrument_model = 2; double start_time = 3; double end_time = 4; }
 message CloseRequest { string session_id = 1; }
 message CloseReply { bool ok = 1; }
+message Session { string session_id = 1; }
 
+// methods for getting metadata
+message RunSummary {
+  double gradient_length_seconds = 1;
+  double total_ion_current       = 2;
+}
+
+message WindowRange {
+  double lo = 1;
+  double hi = 2;
+  double average_duty_cycle_seconds = 3;
+  int32  number_of_msms = 4;
+}
+
+message RangesReply {
+  repeated WindowRange windows = 1;
+}
+
+// methods for getting spectra
 message PrecursorsRequest { string session_id = 1; double rt_min = 2; double rt_max = 3; bool profile = 4; }
 message StripesRequest    { string session_id = 1; double rt_min = 2; double rt_max = 3; double mz_lo = 4; double mz_hi = 5; bool profile = 6; }
 

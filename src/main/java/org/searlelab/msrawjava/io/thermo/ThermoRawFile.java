@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -17,6 +18,7 @@ import org.searlelab.msrawjava.io.thermo.rpc.PrecursorsRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.StripesRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
+import org.searlelab.msrawjava.io.thermo.rpc.Session;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
@@ -70,28 +72,45 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
     }
     
     @Override
-    public Map<Range, WindowData> getRanges() {
-    	// FIXME Auto-generated method stub
-    	return null;
-    }
-    
-    @Override
-    public float getTIC() throws IOException, SQLException {
-    	// FIXME Auto-generated method stub
-    	return 0;
-    }
-    
-    @Override
-    public float getGradientLength() throws IOException, SQLException {
-    	// FIXME Auto-generated method stub
-    	return 0;
-    }
-    
-    @Override
     public Map<String, String> getMetadata() throws IOException, SQLException {
     	// FIXME Auto-generated method stub
     	return new HashMap<String, String>();
     }
+    public static final class RunSummary {
+        public final double gradientLengthSeconds;
+        public final double totalIonCurrent;
+        public RunSummary(double gls, double tic) { this.gradientLengthSeconds = gls; this.totalIonCurrent = tic; }
+    }
+
+    public RunSummary getRunSummary() {
+        var req = Session.newBuilder().setSessionId(sessionId).build();
+        var resp = stub.getRunSummary(req);
+        return new RunSummary(resp.getGradientLengthSeconds(), resp.getTotalIonCurrent());
+    }
+
+	@Override
+	public float getTIC() {
+		return (float) getRunSummary().totalIonCurrent;
+	}
+
+	@Override
+	public float getGradientLength() {
+		return (float) getRunSummary().gradientLengthSeconds;
+	}
+
+	@Override
+	public Map<Range, WindowData> getRanges() {
+	    var req = Session.newBuilder().setSessionId(sessionId).build();
+	    var resp = stub.getRanges(req);
+	
+	    var out = new LinkedHashMap<Range, WindowData>(resp.getWindowsCount());
+	    for (var w : resp.getWindowsList()) {
+	        Range key = new Range(w.getLo(), w.getHi());
+	        WindowData val = new WindowData((float) w.getAverageDutyCycleSeconds(), w.getNumberOfMsms());
+	        out.put(key, val);
+	    }
+	    return out;
+	}
 
     @Override
     public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws IOException {

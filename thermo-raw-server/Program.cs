@@ -13,10 +13,6 @@ using ThermoFisher.CommonCore.Data.Interfaces;
 using ThermoFisher.CommonCore.RawFileReader;
 using Microsoft.AspNetCore.Server.Kestrel.Core;   // HttpProtocols
 
-//using Grpc.AspNetCore.Server.Reflection;
-//using Grpc.Reflection;
-//using Grpc.Reflection.V1Alpha;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Resolve listening URL (plaintext HTTP/2)
@@ -50,7 +46,6 @@ builder.Services.AddGrpc();
 
 var app = builder.Build();
 app.MapGrpcService<ThermoRawServiceImpl>();
-// app.MapGrpcReflectionService(); // enable reflection
 app.MapGet("/", () => "MSRaw Thermo gRPC ready (HTTP/2 plaintext)");
 Console.WriteLine($"LISTENING h2c on {ip}:{port}");
 app.Run();
@@ -63,7 +58,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
     {
 		try
     	{
-        var raw = RawFileReaderFactory.ReadFile(request.Path);
+	        var raw = RawFileReaderFactory.ReadFile(request.Path);
 	        if (!raw.IsOpen)
 	            throw new RpcException(new Status(StatusCode.Internal, $"Failed to open RAW: {request.Path}"));
 	
@@ -83,81 +78,340 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        });
 	    }
 	    
+	    catch (RpcException) { throw; } // preserve explicit statuses
 	    catch (Exception ex)
 	    {
-	        // Local dev only, return full context
 	        throw new RpcException(new Status(StatusCode.Internal, "Open failed: " + ex));
 	    }
     }
 
     public override Task<CloseReply> Close(CloseRequest request, ServerCallContext context)
     {
-        if (Sessions.TryRemove(request.SessionId, out var raw))
-            raw.Dispose();
-
-        return Task.FromResult(new CloseReply { Ok = true });
+		try 
+		{
+	        if (Sessions.TryRemove(request.SessionId, out var raw))
+	            raw.Dispose();
+	
+	        return Task.FromResult(new CloseReply { Ok = true });
+	    }  
+	    catch (RpcException) { throw; } // preserve explicit statuses
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "Close failed: " + ex));
+	    }
     }
+    
+    
+    public override Task<RunSummary> GetRunSummary(Session request, ServerCallContext context)
+    {
+	    try
+	    {
+	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
+	            throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
+	
+	        // Depending on RawFileReader version these are exposed via RunHeader or RunHeaderEx
+			double startMin = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.StartTime : raw.RunHeader.StartTime;
+			double endMin   = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.EndTime  : raw.RunHeader.EndTime;
+			int startScan = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
+			int endScan   = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum  : raw.RunHeader.LastSpectrum;
+
+			var gradientSeconds = Math.Max(0.0, (endMin - startMin) * 60.0);
+	
+	        // Some builds expose ChromatogramTraceSettings/TraceType directly in CommonCore.
+	        // If your package layout differs, the names are the same.
+	        var ticTrace = new ChromatogramTraceSettings(TraceType.TIC);
+	        ticTrace.Filter = "ms";
+	
+	        // Time range in minutes, inclusive; using header bounds
+	        var chromData = raw.GetChromatogramData(new[] { ticTrace }, startScan, endScan);
+	
+	        // Convert to signals, then sum intensities
+	        var signals = ChromatogramSignal.FromChromatogramData(chromData);
+	        double ticSum = 0.0;
+			if (signals != null && signals.Length > 0)
+			{
+			    var ints = signals[0].Intensities; // IList<double>
+			    if (ints != null && ints.Count > 0)
+			    {
+			        foreach (var v in ints) ticSum += v;
+			    }
+			}
+	
+	        var reply = new RunSummary
+	        {
+	            GradientLengthSeconds = gradientSeconds,
+	            TotalIonCurrent = ticSum
+	        };
+	        return Task.FromResult(reply);
+	    }
+	    catch (RpcException) { throw; } // preserve explicit statuses
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "GetRunSummary failed: " + ex));
+	    }
+    }
+    
+    public override Task<RangesReply> GetRanges(Session request, ServerCallContext context)
+    {
+	    try
+	    {
+	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
+	            throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
+	
+			int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
+			int last  = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum  : raw.RunHeader.LastSpectrum;
+	
+	        // key: tuple(lo, hi) after rounding to stabilize buckets
+	        var buckets = new Dictionary<(double lo, double hi), List<double>>();
+	
+	        for (int scan = first; scan <= last; scan++)
+	        {
+	            // Filter to MS/MS only
+	            IScanFilter flt;
+	            try { flt = raw.GetFilterForScanNumber(scan); }
+	            catch { continue; }
+	
+	            if (flt == null) continue;
+	            var order = flt.MSOrder;
+	            if (order <= MSOrderType.Ms) continue; // keep MS2, MS3,...
+	
+	            // Event with precursor isolation info
+	            IScanEvent evt;
+	            try { evt = raw.GetScanEventForScanNumber(scan); } catch { continue; }
+	            if (evt == null) continue;
+	
+	            // Some DIA modes multiplex multiple windows in one scan
+	            int rxnCount = GetReactionCount(evt);
+	
+	            var rtSec = raw.RetentionTimeFromScanNumber(scan) * 60.0;
+	
+	            if (rxnCount > 0)
+	            {
+	                for (int i = 0; i < rxnCount; i++)
+	                {
+	                    double center = double.NaN, width = double.NaN;
+	
+	                    try { center = evt.GetReaction(i)?.PrecursorMass ?? double.NaN; } catch { }
+	                    // Try to get width via API first
+	                    try
+	                    {
+	                        width = evt.GetIsolationWidth(i);
+	                        if (!(width > 0 && double.IsFinite(width))) width = double.NaN;
+	                    } catch { }
+	
+	                    // Fallback: some builds expose width on the reaction object
+	                    if (!(width > 0 && double.IsFinite(width)))
+	                    {
+	                        try { width = evt.GetReaction(i)?.IsolationWidth ?? double.NaN; } catch { }
+	                    }
+	
+	                    if (!(center > 0 && double.IsFinite(center) && width > 0 && double.IsFinite(width)))
+	                        continue;
+	
+	                    var lo = center - width / 2.0;
+	                    var hi = center + width / 2.0;
+	
+	                    // Round to 0.01 m/z to suppress float jitter
+	                    lo = Math.Round(lo, 2, MidpointRounding.AwayFromZero);
+	                    hi = Math.Round(hi, 2, MidpointRounding.AwayFromZero);
+	
+	                    var key = (lo, hi);
+	                    if (!buckets.TryGetValue(key, out var times))
+	                    {
+	                        times = new List<double>(64);
+	                        buckets[key] = times;
+	                    }
+	                    times.Add(rtSec);
+	                }
+	            }
+	            else
+	            {
+	                // If no reactions are reported, some instruments bake isolation in the filter text,
+	                // but this varies. You can parse flt.ToString() here if needed.
+	                // For now we skip to avoid false positives.
+	                continue;
+	            }
+	        }
+	
+	        var reply = new RangesReply();
+	
+	        foreach (var kv in buckets)
+	        {
+	            var times = kv.Value;
+	            times.Sort();
+	
+	            double avgDuty = 0.0;
+	            if (times.Count >= 2)
+	            {
+	                double sum = 0.0;
+	                for (int i = 1; i < times.Count; i++) sum += (times[i] - times[i - 1]);
+	                avgDuty = sum / (times.Count - 1);
+	            }
+	
+	            reply.Windows.Add(new WindowRange
+	            {
+	                Lo = kv.Key.lo,
+	                Hi = kv.Key.hi,
+	                AverageDutyCycleSeconds = avgDuty,
+	                NumberOfMsms = times.Count
+	            });
+	        }
+	
+	        return Task.FromResult(reply);
+        	    }
+	    catch (RpcException) { throw; } // preserve explicit statuses
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "GetRanges failed: " + ex));
+	    }
+    }
+    
+    private static int GetReactionCount(IScanEvent evt)
+	{
+	    if (evt == null) return 0;
+	
+	    try
+	    {
+	        var t = evt.GetType();
+	
+	        // Property: ReactionCount
+	        var p = t.GetProperty("ReactionCount");
+	        if (p != null)
+	        {
+	            var v = p.GetValue(evt);
+	            if (v is int c) return c;
+	        }
+	
+	        // Property: ReactionsCount (some older builds)
+	        var p2 = t.GetProperty("ReactionsCount");
+	        if (p2 != null)
+	        {
+	            var v = p2.GetValue(evt);
+	            if (v is int c) return c;
+	        }
+	
+	        // Property: Reactions (IList/ICollection) -> Count
+	        var p3 = t.GetProperty("Reactions");
+	        if (p3 != null)
+	        {
+	            var coll = p3.GetValue(evt) as System.Collections.ICollection;
+	            if (coll != null) return coll.Count;
+	        }
+	
+	        // Method: GetReactionCount()
+	        var m1 = t.GetMethod("GetReactionCount", Type.EmptyTypes);
+	        if (m1 != null)
+	        {
+	            var v = m1.Invoke(evt, null);
+	            if (v is int c) return c;
+	        }
+	
+	        // Method: GetNumberOfReactions()
+	        var m2 = t.GetMethod("GetNumberOfReactions", Type.EmptyTypes);
+	        if (m2 != null)
+	        {
+	            var v = m2.Invoke(evt, null);
+	            if (v is int c) return c;
+	        }
+	    }
+	    catch
+	    {
+	        // ignore and fall through to probing
+	    }
+	
+	    // Last-resort probe: iterate until GetReaction throws/returns null
+	    int i = 0;
+	    for (;; i++)
+	    {
+	        try
+	        {
+	            var r = evt.GetReaction(i);
+	            if (r == null) break;
+	        }
+	        catch
+	        {
+	            break;
+	        }
+	    }
+	    return i;
+	}
 
     public override async Task GetPrecursors(PrecursorsRequest req, IServerStreamWriter<Spectrum> stream, ServerCallContext ctx)
     {
-        var raw = Get(req.SessionId);
-
-        foreach (int scan in ScansInRt(raw, req.RtMin, req.RtMax))
-        {
-            var filter = raw.GetFilterForScanNumber(scan);
-            if (filter.MSOrder != MSOrderType.Ms) continue; // MS1
-            
-    		double lo = double.PositiveInfinity;
-    		double hi = double.NegativeInfinity;
-    		int found = 0;
-            
-            var evt = raw.GetScanEventForScanNumber(scan);
-            try
+		try 
+		{
+	        var raw = Get(req.SessionId);
+	
+	        foreach (int scan in ScansInRt(raw, req.RtMin, req.RtMax))
 	        {
-	            int n = evt.MassRangeCount;
-	            for (int i = 0; i < n; i++)
-	            {
-	                var r = evt.GetMassRange(i);
-	                double l = r.Low, h = r.High;
-	                if (h > l && l > 0) { if (l < lo) lo = l; if (h > hi) hi = h; found++; }
-	            }
+	            var filter = raw.GetFilterForScanNumber(scan);
+	            if (filter.MSOrder != MSOrderType.Ms) continue; // MS1
 	            
-	            if (found==0) 
+	    		double lo = double.PositiveInfinity;
+	    		double hi = double.NegativeInfinity;
+	    		int found = 0;
+	            
+	            var evt = raw.GetScanEventForScanNumber(scan);
+	            try
+		        {
+		            int n = evt.MassRangeCount;
+		            for (int i = 0; i < n; i++)
+		            {
+		                var r = evt.GetMassRange(i);
+		                double l = r.Low, h = r.High;
+		                if (h > l && l > 0) { if (l < lo) lo = l; if (h > hi) hi = h; found++; }
+		            }
+		            
+		            if (found==0) 
+		            {
+						lo=0;
+						hi=Double.PositiveInfinity;
+					}
+		        }
+	            catch 
 	            {
 					lo=0;
 					hi=Double.PositiveInfinity;
 				}
+	            var spec = BuildSpectrum(raw, scan, isMs1: true, isoLo: lo, isoHi: hi);
+	            await stream.WriteAsync(spec);
 	        }
-            catch (Exception ex)
-            {
-				lo=0;
-				hi=Double.PositiveInfinity;
-			}
-            var spec = BuildSpectrum(raw, scan, isMs1: true, isoLo: lo, isoHi: hi);
-            await stream.WriteAsync(spec);
         }
+	    catch (RpcException) { throw; } // preserve explicit statuses
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "GetPrecursors failed: " + ex));
+	    }
     }
 
     public override async Task GetStripes(StripesRequest req, IServerStreamWriter<Spectrum> stream, ServerCallContext ctx)
     {
-        var raw = Get(req.SessionId);
-
-        foreach (int scan in ScansInRt(raw, req.RtMin, req.RtMax))
-        {
-            var filter = raw.GetFilterForScanNumber(scan);
-            if (filter.MSOrder != MSOrderType.Ms2) continue;
-
-            var evt = raw.GetScanEventForScanNumber(scan);
-            double center = evt.GetMass(0);
-            double width  = evt.GetIsolationWidth(0);
-            double lo = center - 0.5 * width;
-            double hi = center + 0.5 * width;
-
-            if (!(lo < req.MzHi && hi > req.MzLo)) continue;
-
-            var spec = BuildSpectrum(raw, scan, isMs1: false, isoLo: lo, isoHi: hi);
-            await stream.WriteAsync(spec);
+		try
+		{
+	        var raw = Get(req.SessionId);
+	
+	        foreach (int scan in ScansInRt(raw, req.RtMin, req.RtMax))
+	        {
+	            var filter = raw.GetFilterForScanNumber(scan);
+	            if (filter.MSOrder != MSOrderType.Ms2) continue;
+	
+	            var evt = raw.GetScanEventForScanNumber(scan);
+	            double center = evt.GetMass(0);
+	            double width  = evt.GetIsolationWidth(0);
+	            double lo = center - 0.5 * width;
+	            double hi = center + 0.5 * width;
+	
+	            if (!(lo < req.MzHi && hi > req.MzLo)) continue;
+	
+	            var spec = BuildSpectrum(raw, scan, isMs1: false, isoLo: lo, isoHi: hi);
+	            await stream.WriteAsync(spec);
+	        }
         }
+	    catch (RpcException) { throw; } // preserve explicit statuses
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "GetStripes failed: " + ex));
+	    }
     }
 
     // ---------- helpers ----------
