@@ -31,7 +31,7 @@ public class TIMSFullDIAandDDAIT {
         assertTrue(Files.isRegularFile(tdfPath), "analysis.tdf missing: " + tdfPath.toAbsolutePath());
         
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + tdfPath.toString());
-             TIMSStripeFile stripe = new TIMSStripeFile(dataDir)) {
+             BrukerTIMSFile stripe = new BrukerTIMSFile(dataDir)) {
 
             // Ground truth from SQLite
             final int sqlMs1 = scalarInt(conn, "SELECT COUNT(*) FROM Frames WHERE MsMsType = 0");
@@ -81,7 +81,7 @@ public class TIMSFullDIAandDDAIT {
         assertTrue(Files.isRegularFile(tdfPath), "analysis.tdf missing: " + tdfPath.toAbsolutePath());
         
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + tdfPath.toString());
-             TIMSStripeFile stripe = new TIMSStripeFile(dataDir)) {
+             BrukerTIMSFile stripe = new BrukerTIMSFile(dataDir)) {
 
             // Ground truth from SQLite
             final int sqlMs1 = scalarInt(conn, "SELECT COUNT(*) FROM Frames WHERE MsMsType = 0");

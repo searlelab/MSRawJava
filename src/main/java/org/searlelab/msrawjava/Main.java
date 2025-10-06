@@ -10,7 +10,7 @@ import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
-import org.searlelab.msrawjava.io.tims.TIMSStripeFile;
+import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.Peak;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -102,7 +102,7 @@ public class Main {
 	}
 	
 	public static void writeTims(Path timsFilePath, Path outFilePath, float minimumMS1Intensity, float minimumMS2Intensity) throws Exception {
-        TIMSStripeFile timsFile=new TIMSStripeFile(timsFilePath);
+        BrukerTIMSFile timsFile=new BrukerTIMSFile(timsFilePath);
         
 		String originalFileName = timsFilePath.getFileName().toString();
 		EncyclopeDIAFile outFile=new EncyclopeDIAFile(originalFileName);

@@ -26,7 +26,7 @@ public class TIMSFileSandbox {
     public void smokeReadAllMS1ThenMS2() throws Exception {
     	long startTime=System.currentTimeMillis();
     	
-        TIMSStripeFile file=new TIMSStripeFile(D_PATH);
+        BrukerTIMSFile file=new BrukerTIMSFile(D_PATH);
         Map<Integer, Integer> histogram=file.msmsTypeHistogram();
         for (Map.Entry<Integer, Integer> entry : histogram.entrySet()) {
 			Integer key = entry.getKey();

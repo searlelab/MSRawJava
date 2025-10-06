@@ -38,7 +38,7 @@ import gnu.trove.list.array.TIntArrayList;
  * pulls peak arrays via the Rust JNI iterator. Java controls what to read.
  *
  */
-public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
+public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
     private final Path dPath;
     private final File fileObj;
@@ -49,7 +49,7 @@ public class TIMSStripeFile implements StripeFileInterface, AutoCloseable {
     private final int ms1Key;
     private final int ms2Key;
 
-    public TIMSStripeFile(Path dPath) throws SQLException {
+    public BrukerTIMSFile(Path dPath) throws SQLException {
         Objects.requireNonNull(dPath, "dPath");
         this.dPath = dPath;
         this.fileObj = dPath.toFile();
