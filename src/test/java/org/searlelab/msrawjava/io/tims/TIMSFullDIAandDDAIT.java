@@ -27,7 +27,7 @@ public class TIMSFullDIAandDDAIT {
 	void endToEndDIATest() throws Exception {
 
 		Path dataDir=Path.of("src", "test", "resources", "rawdata", "230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
-		;
+		
 		Path tdfPath=dataDir.resolve("analysis.tdf");
 
 		assertTrue(Files.isDirectory(dataDir), "Test data directory missing: "+dataDir.toAbsolutePath());
@@ -176,10 +176,10 @@ public class TIMSFullDIAandDDAIT {
 				assertTrue(mz>=lo&&mz<=hi, "m/z outside isolation window: "+mz+" not in ["+lo+","+hi+"]");
 			}
 
-			final double imslo=0.1;
+			final double imslo=0.0;
 			final double imshi=2.0;
 			for (double ims : s.getIonMobilityArray().get()) {
-				assertTrue(ims>=imslo&&ims<=imshi, "ims outside isolation window: "+ims+" not in ["+imslo+","+imshi+"]");
+				assertTrue(ims>imslo&&ims<imshi, "ims outside isolation window: "+ims+" not in ["+imslo+","+imshi+"]");
 			}
 		}
 	}

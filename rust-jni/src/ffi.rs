@@ -1,9 +1,9 @@
-use jni::objects::{JClass, JIntArray, JString, JObject};
-use jni::sys::{jlong, jobject};
+use jni::objects::{JClass, JString, JObject};
+use jni::sys::{jint, jlong, jobject};
 use jni::JNIEnv;
 
 use crate::state::{open_dataset, close_dataset, get_dataset};
-use crate::iter::RtIterator;
+use crate::extract;
 use crate::error::{NativeError, throw_java};
 
 fn throw(env: &mut JNIEnv, class: &str, msg: &str) {
@@ -36,217 +36,92 @@ pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_closeData
     }
 }
 
-#[no_mangle]
-pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_createIterator(
-    mut env: JNIEnv, _cls: JClass, handle: jlong, frame_indices: JIntArray,
-    mz_lo: jni::sys::jdouble, mz_hi: jni::sys::jdouble,
-    scan_lo: jni::sys::jint, scan_hi: jni::sys::jint
-) -> jlong {
-    let ds = match get_dataset(handle as u64) {
-        Some(ds) => ds,
-        None => { throw(&mut env, "java/lang/IllegalStateException", "invalid dataset handle"); return 0; }
-    };
+fn pack_arrays<'a>(
+    env: &mut JNIEnv<'a>,
+    mz: &[f64],
+    intensity: &[f64],
+    scan: &[i32],
+) -> Option<jobject> {
+    let obj_cls = env.find_class("java/lang/Object").ok()?;
+    let out = env.new_object_array(3, obj_cls, JObject::null()).ok()?;
 
-    let len = match env.get_array_length(&frame_indices) {
-        Ok(l) => l as usize,
-        Err(e) => { throw(&mut env, "java/lang/IllegalArgumentException", &format!("bad indices: {e}")); return 0; }
-    };
-    let mut indices = vec![0i32; len];
-    if let Err(e) = env.get_int_array_region(&frame_indices, 0, &mut indices) {
-        throw(&mut env, "java/lang/IllegalArgumentException", &format!("read indices failed: {e}"));
-        return 0;
-    }
-    let indices: Vec<usize> = indices.into_iter().filter(|&x| x >= 0).map(|x| x as usize).collect();
-    if indices.is_empty() {
-        throw(&mut env, "java/lang/IllegalArgumentException", "frameIndices is empty");
-        return 0;
-    }
-    if !(mz_lo.is_finite() && mz_hi.is_finite() && (mz_lo < mz_hi)) {
-        throw(&mut env, "java/lang/IllegalArgumentException", "invalid m/z window");
-        return 0;
-    }
+    let mz_arr = env.new_double_array(mz.len() as i32).ok()?;
+    env.set_double_array_region(&mz_arr, 0, mz).ok()?;
+    let iz_arr = env.new_double_array(intensity.len() as i32).ok()?;
+    env.set_double_array_region(&iz_arr, 0, intensity).ok()?;
+    let sc_arr = env.new_int_array(scan.len() as i32).ok()?;
+    env.set_int_array_region(&sc_arr, 0, scan).ok()?;
 
-    let iter = RtIterator::new(ds, indices, mz_lo as f64, mz_hi as f64, scan_lo, scan_hi);
-    let boxed = Box::new(iter);
-    Box::into_raw(boxed) as usize as jlong
+    let _ = env.set_object_array_element(&out, 0, JObject::from(mz_arr));
+    let _ = env.set_object_array_element(&out, 1, JObject::from(iz_arr));
+    let _ = env.set_object_array_element(&out, 2, JObject::from(sc_arr));
+    Some(out.into_raw())
 }
 
+/// Existing whole-frame reader stays as-is:
 #[no_mangle]
-pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_destroyIterator(
-    _env: JNIEnv, _cls: JClass, iter_handle: jlong
-) {
-    if iter_handle == 0 { return; }
-    unsafe { drop(Box::from_raw(iter_handle as usize as *mut RtIterator)); }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_next(
-    mut env: JNIEnv, _cls: JClass, iter_handle: jlong
-) -> jobject {
-    if iter_handle == 0 {
-        throw(&mut env, "java/lang/IllegalStateException", "iterator handle is 0");
-        return std::ptr::null_mut();
-    }
-    let iter = unsafe { &mut *(iter_handle as usize as *mut RtIterator) };
-    match iter.next() {
-        Ok(Some(arr)) => {
-            // Build primitive arrays
-            let mz = match env.new_double_array(arr.mz.len() as i32) {
-                Ok(a) => a,
-                Err(e) => { throw(&mut env, "java/lang/OutOfMemoryError", &format!("mz alloc: {e}")); return std::ptr::null_mut(); }
-            };
-            if let Err(e) = env.set_double_array_region(&mz, 0, &arr.mz) {
-                throw(&mut env, "java/lang/RuntimeException", &format!("mz fill: {e}"));
-                return std::ptr::null_mut();
-            }
-
-            let im = match env.new_float_array(arr.im.len() as i32) {
-                Ok(a) => a,
-                Err(e) => { throw(&mut env, "java/lang/OutOfMemoryError", &format!("im alloc: {e}")); return std::ptr::null_mut(); }
-            };
-            if let Err(e) = env.set_float_array_region(&im, 0, &arr.im) {
-                throw(&mut env, "java/lang/RuntimeException", &format!("im fill: {e}"));
-                return std::ptr::null_mut();
-            }
-
-            let inten = match env.new_float_array(arr.intensity.len() as i32) {
-                Ok(a) => a,
-                Err(e) => { throw(&mut env, "java/lang/OutOfMemoryError", &format!("intensity alloc: {e}")); return std::ptr::null_mut(); }
-            };
-            if let Err(e) = env.set_float_array_region(&inten, 0, &arr.intensity) {
-                throw(&mut env, "java/lang/RuntimeException", &format!("intensity fill: {e}"));
-                return std::ptr::null_mut();
-            }
-
-            // Create Object[]: [double[] mz, float[] ims, float[] intensity, Integer msLevel, Integer frameIndex, Double rtSeconds]
-            let obj_cls = match env.find_class("java/lang/Object") {
-                Ok(c) => c,
-                Err(e) => { throw(&mut env, "java/lang/RuntimeException", &format!("find Object: {e}")); return std::ptr::null_mut(); }
-            };
-            let out = match env.new_object_array(6, obj_cls, JObject::null()) {
-                Ok(a) => a,
-                Err(e) => { throw(&mut env, "java/lang/OutOfMemoryError", &format!("Object[] alloc: {e}")); return std::ptr::null_mut(); }
-            };
-
-            // IMPORTANT: pass references to avoid moving the handle types
-            let _ = env.set_object_array_element(&out, 0, JObject::from(mz));
-            let _ = env.set_object_array_element(&out, 1, JObject::from(im));
-            let _ = env.set_object_array_element(&out, 2, JObject::from(inten));
-
-            let ms = match env.new_object("java/lang/Integer", "(I)V", &[ (arr.ms_level as i32).into() ]) {
-                Ok(o) => o, Err(e) => { throw(&mut env, "java/lang/RuntimeException", &format!("box msLevel: {e}")); return std::ptr::null_mut(); }
-            };
-            let fi = match env.new_object("java/lang/Integer", "(I)V", &[ (arr.frame_index as i32).into() ]) {
-                Ok(o) => o, Err(e) => { throw(&mut env, "java/lang/RuntimeException", &format!("box frameIndex: {e}")); return std::ptr::null_mut(); }
-            };
-            let rt = match env.new_object("java/lang/Double", "(D)V", &[ arr.rt_seconds.into() ]) {
-                Ok(o) => o, Err(e) => { throw(&mut env, "java/lang/RuntimeException", &format!("box rtSeconds: {e}")); return std::ptr::null_mut(); }
-            };
-
-            let _ = env.set_object_array_element(&out, 3, ms);
-            let _ = env.set_object_array_element(&out, 4, fi);
-            let _ = env.set_object_array_element(&out, 5, rt);
-
-            out.into_raw()
-        }
-        Ok(None) => std::ptr::null_mut(),
-        Err(e) => {
-            let err = NativeError::Tims(e);
-            throw_java(&mut env, &err);
-            std::ptr::null_mut()
-        }
-    }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_readSpectrum(
-    mut env: JNIEnv, _cls: JClass, handle: jlong,
-    frame_id: jni::sys::jint,
-    mz_lo: jni::sys::jdouble, mz_hi: jni::sys::jdouble,
-    scan_lo: jni::sys::jint, scan_hi: jni::sys::jint
+#[allow(non_snake_case)]
+pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_readRawFrame(
+    mut env: JNIEnv,
+    _cls: JClass,
+    handle: jlong,
+    frame_index_zero_based: jint,
 ) -> jobject {
     let ds = match get_dataset(handle as u64) {
         Some(ds) => ds,
-        None => { throw(&mut env, "java/lang/IllegalStateException", "invalid dataset handle"); return std::ptr::null_mut(); }
+        None => { let _ = env.throw_new("java/lang/IllegalStateException", "invalid dataset handle"); return std::ptr::null_mut(); }
     };
-
-    if frame_id <= 0 {
-        throw(&mut env, "java/lang/IllegalArgumentException", "frameId must be >= 1");
+    if frame_index_zero_based < 0 {
+        let _ = env.throw_new("java/lang/IllegalArgumentException", "frameIndex must be >= 0");
         return std::ptr::null_mut();
     }
-    if !(mz_lo.is_finite() && mz_hi.is_finite() && (mz_lo < mz_hi)) {
-        throw(&mut env, "java/lang/IllegalArgumentException", "invalid m/z window");
+    let idx = frame_index_zero_based as usize;
+
+    let res = match extract::collect_frame_mz_int_scan(ds.as_ref(), idx) {
+        Ok(r) => r,
+        Err(e) => { let err = NativeError::Tims(e); throw_java(&mut env, &err); return std::ptr::null_mut(); }
+    };
+    pack_arrays(&mut env, &res.mz, &res.intensity, &res.scan).unwrap_or(std::ptr::null_mut())
+}
+
+/// New: scan-range (inclusive) reader.
+#[no_mangle]
+#[allow(non_snake_case)]
+pub extern "system" fn Java_org_searlelab_msrawjava_io_tims_TimsNative_readRawFrameRange(
+    mut env: JNIEnv,
+    _cls: JClass,
+    handle: jlong,
+    frame_index_zero_based: jint,
+    scan_lo_inclusive: jint,
+    scan_hi_inclusive: jint,
+) -> jobject {
+    let ds = match get_dataset(handle as u64) {
+        Some(ds) => ds,
+        None => { let _ = env.throw_new("java/lang/IllegalStateException", "invalid dataset handle"); return std::ptr::null_mut(); }
+    };
+    if frame_index_zero_based < 0 {
+        let _ = env.throw_new("java/lang/IllegalArgumentException", "frameIndex must be >= 0");
         return std::ptr::null_mut();
     }
+    let idx = frame_index_zero_based as usize;
 
-    let idx = (frame_id as i32 - 1) as usize;
-    let s_lo = if scan_lo < 0 { 0usize } else { scan_lo as usize };
-    let s_hi = if scan_hi < 0 { usize::MAX } else { scan_hi as usize };
+    // Clamp/interpret bounds
+    let frame = match ds.frames.get(idx) {
+        Ok(fr) => fr,
+        Err(e) => { let err = NativeError::Tims(e.to_string()); throw_java(&mut env, &err); return std::ptr::null_mut(); }
+    };
+    let sc_count = frame.scan_offsets.len();
 
-    match RtIterator::extract_for_frame(ds.as_ref(), idx, mz_lo as f64, mz_hi as f64, s_lo, s_hi) {
-        Ok(Some(arr)) => {
-            // Build primitive arrays (same layout as `next`)
-            let mz = match env.new_double_array(arr.mz.len() as i32) {
-                Ok(a) => a,
-                Err(e) => { throw(&mut env, "java/lang/OutOfMemoryError", &format!("mz alloc: {e}")); return std::ptr::null_mut(); }
-            };
-            if let Err(e) = env.set_double_array_region(&mz, 0, &arr.mz) {
-                throw(&mut env, "java/lang/RuntimeException", &format!("mz fill: {e}"));
-                return std::ptr::null_mut();
-            }
-
-            let im = match env.new_float_array(arr.im.len() as i32) {
-                Ok(a) => a,
-                Err(e) => { throw(&mut env, "java/lang/OutOfMemoryError", &format!("im alloc: {e}")); return std::ptr::null_mut(); }
-            };
-            if let Err(e) = env.set_float_array_region(&im, 0, &arr.im) {
-                throw(&mut env, "java/lang/RuntimeException", &format!("im fill: {e}"));
-                return std::ptr::null_mut();
-            }
-
-            let inten = match env.new_float_array(arr.intensity.len() as i32) {
-                Ok(a) => a,
-                Err(e) => { throw(&mut env, "java/lang/OutOfMemoryError", &format!("intensity alloc: {e}")); return std::ptr::null_mut(); }
-            };
-            if let Err(e) = env.set_float_array_region(&inten, 0, &arr.intensity) {
-                throw(&mut env, "java/lang/RuntimeException", &format!("intensity fill: {e}"));
-                return std::ptr::null_mut();
-            }
-
-            let obj_cls = match env.find_class("java/lang/Object") {
-                Ok(c) => c,
-                Err(e) => { throw(&mut env, "java/lang/RuntimeException", &format!("find Object: {e}")); return std::ptr::null_mut(); }
-            };
-            let out = match env.new_object_array(6, obj_cls, JObject::null()) {
-                Ok(a) => a,
-                Err(e) => { throw(&mut env, "java/lang/OutOfMemoryError", &format!("Object[] alloc: {e}")); return std::ptr::null_mut(); }
-            };
-
-            let _ = env.set_object_array_element(&out, 0, JObject::from(mz));
-            let _ = env.set_object_array_element(&out, 1, JObject::from(im));
-            let _ = env.set_object_array_element(&out, 2, JObject::from(inten));
-
-            let ms = match env.new_object("java/lang/Integer", "(I)V", &[ (arr.ms_level as i32).into() ]) {
-                Ok(o) => o, Err(e) => { throw(&mut env, "java/lang/RuntimeException", &format!("box msLevel: {e}")); return std::ptr::null_mut(); }
-            };
-            let fi = match env.new_object("java/lang/Integer", "(I)V", &[ (arr.frame_index as i32).into() ]) {
-                Ok(o) => o, Err(e) => { throw(&mut env, "java/lang/RuntimeException", &format!("box frameIndex: {e}")); return std::ptr::null_mut(); }
-            };
-            let rt = match env.new_object("java/lang/Double", "(D)V", &[ arr.rt_seconds.into() ]) {
-                Ok(o) => o, Err(e) => { throw(&mut env, "java/lang/RuntimeException", &format!("box rtSeconds: {e}")); return std::ptr::null_mut(); }
-            };
-
-            let _ = env.set_object_array_element(&out, 3, ms);
-            let _ = env.set_object_array_element(&out, 4, fi);
-            let _ = env.set_object_array_element(&out, 5, rt);
-
-            out.into_raw()
-        }
-        Ok(None) => std::ptr::null_mut(),
-        Err(e) => {
-            let err = NativeError::Tims(e);
-            throw_java(&mut env, &err);
-            std::ptr::null_mut()
-        }
+    if sc_count == 0 {
+        return pack_arrays(&mut env, &[], &[], &[]).unwrap_or(std::ptr::null_mut());
     }
+
+    let s_lo = if scan_lo_inclusive < 0 { 0 } else { scan_lo_inclusive as usize };
+    let s_hi = if scan_hi_inclusive < 0 { sc_count.saturating_sub(1) } else { scan_hi_inclusive as usize };
+
+    let res = match extract::collect_frame_mz_int_scan_range(ds.as_ref(), idx, s_lo, s_hi) {
+        Ok(r) => r,
+        Err(e) => { let err = NativeError::Tims(e); throw_java(&mut env, &err); return std::ptr::null_mut(); }
+    };
+    pack_arrays(&mut env, &res.mz, &res.intensity, &res.scan).unwrap_or(std::ptr::null_mut())
 }

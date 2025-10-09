@@ -18,13 +18,9 @@ public final class TimsNative {
 	public static native long openDataset(String pathToD);
 
 	public static native void closeDataset(long handle);
+	
+	public static native Object readRawFrame(long handle, int frameIndex);
 
-	// iterator
-	public static native long createIterator(long handle, int[] frameIndices, double mzLo, double mzHi, int scanLo, int scanHi);
+	public static native Object[] readRawFrameRange(long handle, int frameIndex, int scanLoInclusive, int scanHiInclusive);
 
-	public static native Object next(long iteratorHandle); // returns null when exhausted
-
-	public static native void destroyIterator(long iteratorHandle);
-
-	public static native Object readSpectrum(long handle, int frameId, double mzLo, double mzHi, int scanLo, int scanHi);
 }

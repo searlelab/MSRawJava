@@ -98,7 +98,7 @@ final class GrpcServerLauncher implements AutoCloseable {
 
 		// 3) Wait for port readiness
 		long start=System.nanoTime();
-		final long timeoutNs=20_000_000_000L;
+		final long timeoutNs=60_000_000_000L;
 		while (true) {
 			try (Socket s=new Socket()) {
 				s.connect(new InetSocketAddress("127.0.0.1", port), 250);
@@ -108,7 +108,7 @@ final class GrpcServerLauncher implements AutoCloseable {
 					throw new IOException("Thermo server exited early with code "+proc.exitValue(), e);
 				}
 				if (System.nanoTime()-start>timeoutNs) {
-					throw new IOException("Thermo server did not open port "+port+" within 20s", e);
+					throw new IOException("Thermo server did not open port "+port+" within 60s", e);
 				}
 				try {
 					Thread.sleep(150);

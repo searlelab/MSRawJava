@@ -89,11 +89,7 @@ public class Main {
 			String originalFileName=rawFilePath.getFileName().toString();
 			EncyclopeDIAFile outFile=new EncyclopeDIAFile(originalFileName);
 			outFile.openFile();
-
-			ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(0, Float.MAX_VALUE);
-			Logger.logLine("Found "+ms1s.size()+" MS1s");
-			outFile.addPrecursor(ms1s);
-
+			
 			float gradientLength=rawFile.getGradientLength();
 			int sections=getNumberOfSections(gradientLength);
 			float start=0.0f;
@@ -105,10 +101,14 @@ public class Main {
 				} else {
 					stop=start+sectionTime;
 				}
+
+				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, stop);
 				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, stop, false);
 				int percent=Math.round((i+1)*100f/sections);
-				Logger.logLine(percent+"% Found "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60)+" to "
+				Logger.logLine(percent+"% Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
 						+String.format("%.1f", (start+sectionTime)/60f)+" minutes");
+
+				outFile.addPrecursor(ms1s);
 				outFile.addStripe(ms2s);
 				start=stop;
 			}
@@ -245,7 +245,6 @@ public class Main {
 			pool.shutdown();
 			pool.awaitTermination(365, TimeUnit.DAYS);
 		}
-
 	}
 
 	public static Path changeExtension(Path f, String newExtension) {

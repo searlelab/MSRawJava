@@ -7,9 +7,6 @@ set -euo pipefail
 #   brew install zig
 #   cargo install cargo-zigbuild
 #
-# Static SQLite helps avoid missing libsqlite on target hosts used by timsrust via rusqlite.
-export LIBSQLITE3_SYS_BUNDLED=1
-export RUSQLITE_STATIC=1
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CRATE_DIR="$ROOT/rust-jni"

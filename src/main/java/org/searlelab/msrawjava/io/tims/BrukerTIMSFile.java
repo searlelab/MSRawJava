@@ -24,10 +24,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
-import org.searlelab.msrawjava.model.SpectrumRecord;
 import org.searlelab.msrawjava.model.StripeFileInterface;
 import org.searlelab.msrawjava.model.WindowData;
 
@@ -227,64 +227,6 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		}
 	}
 
-	/** Read MS1 precursor scans within an RT window. */
-	@Override
-	public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws SQLException, IOException, DataFormatException {
-		ensureOpen();
-
-		final int[] frameIds=selectFramesByTypeAndRt(ms1Key, rtStart, rtEnd); // ms1Key = 0
-		final ArrayList<PrecursorScan> out=new ArrayList<>(frameIds.length);
-		if (frameIds.length==0) return out;
-
-		// Zero-based indices for the native reader, parallel to frameIds order
-		final int[] indices=Arrays.stream(frameIds).map(id -> id-1).toArray();
-
-		// Accumulation time and RT lookup by 1-based Id
-		final Map<Integer, Float> accTimes=fetchAccumulationTimes(frameIds);
-		final Map<Integer, Float> rtMap=new HashMap<>();
-		try (PreparedStatement ps=conn.prepareStatement(
-				"SELECT Id, Time FROM Frames WHERE Id IN ("+Arrays.stream(frameIds).mapToObj(i -> "?").collect(Collectors.joining(","))+")")) {
-			int j=1;
-			for (int id : frameIds)
-				ps.setInt(j++, id);
-			try (ResultSet rs=ps.executeQuery()) {
-				while (rs.next())
-					rtMap.put(rs.getInt(1), (float)rs.getDouble(2));
-			}
-		}
-
-		// Read all spectra once. Map by zero-based frame index returned from native.
-		final HashMap<Integer, SpectrumRecord> byIndex=new HashMap<>(frameIds.length*2);
-		final double mzLo=10.0, mzHi=10000.0;
-		try (RustIterator it=reader.createIterator(indices, mzLo, mzHi, -1, -1)) {
-			for (SpectrumRecord s; (s=it.next())!=null;) {
-				// s.frameIndex is the zero-based frame index in the dataset
-				byIndex.put(s.frameIndex, s);
-			}
-		}
-
-		// Emit exactly one PrecursorScan per requested frame, preserving RT order
-		for (int k=0; k<frameIds.length; k++) {
-			final int frameId=frameIds[k]; // 1-based
-			final int frameIdx0=indices[k]; // 0-based
-			final String name=Integer.toString(frameId);
-			final float injTime=accTimes.getOrDefault(frameId, 0f)/1000f; //msec to sec
-			final float rt=rtMap.getOrDefault(frameId, Float.NaN);
-
-			final SpectrumRecord s=byIndex.get(frameIdx0);
-			if (s!=null) {
-				// Use the real spectrum
-				out.add(new PrecursorScan(name, frameId, (float)s.rtSeconds, 0, 0.0, Double.POSITIVE_INFINITY, injTime, s.mz, s.intensity, s.ims));
-			} else {
-				// Synthesize an empty spectrum for parity with Frames
-				out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, new double[0], new float[0], new float[0]));
-			}
-		}
-
-		// Already in RT order because selectFramesByTypeAndRt orders by Time
-		return out;
-	}
-
 	public boolean isOpen() {
 		return open;
 	}
@@ -321,38 +263,6 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			try (ResultSet rs=ps.executeQuery()) {
 				return rs.next();
 			}
-		}
-	}
-
-	private int[] selectFramesByTypeAndRt(int msmsType, double rtStart, double rtEnd) throws SQLException {
-		String sql="SELECT Id FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
-		TIntArrayList ids=new TIntArrayList();
-		try (PreparedStatement ps=conn.prepareStatement(sql)) {
-			ps.setInt(1, msmsType);
-			ps.setDouble(2, rtStart);
-			ps.setDouble(3, rtEnd);
-			try (ResultSet rs=ps.executeQuery()) {
-				while (rs.next())
-					ids.add(rs.getInt(1));
-			}
-		}
-		return ids.toArray();
-	}
-
-	private Map<Integer, Float> fetchAccumulationTimes(int[] frameIds) throws SQLException {
-		if (frameIds.length==0) return Map.of();
-		String inClause=Arrays.stream(frameIds).mapToObj(i -> "?").collect(Collectors.joining(","));
-		String sql="SELECT Id, AccumulationTime FROM Frames WHERE Id IN ("+inClause+")";
-		try (PreparedStatement ps=conn.prepareStatement(sql)) {
-			int idx=1;
-			for (int id : frameIds)
-				ps.setInt(idx++, id);
-			Map<Integer, Float> map=new HashMap<>();
-			try (ResultSet rs=ps.executeQuery()) {
-				while (rs.next())
-					map.put(rs.getInt(1), (float)rs.getDouble(2));
-			}
-			return map;
 		}
 	}
 
@@ -517,6 +427,81 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		return cols;
 	}
 
+	/** Read MS1 precursor scans within an RT window. */
+	@Override
+	public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws SQLException, IOException, DataFormatException {
+		ensureOpen();
+
+		final int[] frameIds=selectFramesByTypeAndRt(ms1Key, rtStart, rtEnd); // ms1Key = 0
+		final ArrayList<PrecursorScan> out=new ArrayList<>(frameIds.length);
+		if (frameIds.length==0) return out;
+
+		// Accumulation time and RT lookup by 1-based Id
+		final Map<Integer, Float> accTimes=fetchAccumulationTimes(frameIds);
+		final Map<Integer, Float> rtMap=new HashMap<>();
+		try (PreparedStatement ps=conn.prepareStatement(
+				"SELECT Id, Time FROM Frames WHERE Id IN ("+Arrays.stream(frameIds).mapToObj(i -> "?").collect(Collectors.joining(","))+")")) {
+			int j=1;
+			for (int id : frameIds)
+				ps.setInt(j++, id);
+			try (ResultSet rs=ps.executeQuery()) {
+				while (rs.next())
+					rtMap.put(rs.getInt(1), (float)rs.getDouble(2));
+			}
+		}
+		
+		for (int i=0; i<frameIds.length; i++) {
+			Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(frameIds[i]-1, 0, 99999); // ms1 reads all scans
+			
+			final String name=Integer.toString(frameIds[i]);
+			final float injTime=accTimes.getOrDefault(frameIds[i], 0f)/1000f; //msec to sec
+			final float rt=rtMap.getOrDefault(frameIds[i], -1.0f);
+
+			if (triplet==null||triplet.x.length==0) {
+				out.add(new PrecursorScan(name, frameIds[i], rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, new double[0], new float[0], new float[0]));
+			} else {
+				float[] ims=new float[triplet.z.length];
+				for (int j=0; j<ims.length; j++) {
+					ims[j]=getIMSFromScanNumber(triplet.z[j]);
+				}
+				out.add(new PrecursorScan(name, frameIds[i], rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, triplet.x, triplet.y, ims));
+			}
+		}
+		return out;
+	}
+
+	private int[] selectFramesByTypeAndRt(int msmsType, double rtStart, double rtEnd) throws SQLException {
+		String sql="SELECT Id FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
+		TIntArrayList ids=new TIntArrayList();
+		try (PreparedStatement ps=conn.prepareStatement(sql)) {
+			ps.setInt(1, msmsType);
+			ps.setDouble(2, rtStart);
+			ps.setDouble(3, rtEnd);
+			try (ResultSet rs=ps.executeQuery()) {
+				while (rs.next())
+					ids.add(rs.getInt(1));
+			}
+		}
+		return ids.toArray();
+	}
+
+	private Map<Integer, Float> fetchAccumulationTimes(int[] frameIds) throws SQLException {
+		if (frameIds.length==0) return Map.of();
+		String inClause=Arrays.stream(frameIds).mapToObj(i -> "?").collect(Collectors.joining(","));
+		String sql="SELECT Id, AccumulationTime FROM Frames WHERE Id IN ("+inClause+")";
+		try (PreparedStatement ps=conn.prepareStatement(sql)) {
+			int idx=1;
+			for (int id : frameIds)
+				ps.setInt(idx++, id);
+			Map<Integer, Float> map=new HashMap<>();
+			try (ResultSet rs=ps.executeQuery()) {
+				while (rs.next())
+					map.put(rs.getInt(1), (float)rs.getDouble(2));
+			}
+			return map;
+		}
+	}
+
 	@Override
 	public ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
 		ensureOpen();
@@ -598,20 +583,21 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						final double isoLo=isoMz-0.5*isoW;
 						final double isoHi=isoMz+0.5*isoW;
 
-						final double mzLo=0.0, mzHi=Float.MAX_VALUE;
-
 						try {
-							SpectrumRecord s=reader.readSpectrum(frameId-1, mzLo, mzHi, scanLo, scanHi);
-							if (s==null||s.mz.length==0) continue;
+							Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(frameId-1, scanLo, scanHi);
+							if (triplet==null||triplet.x.length==0) continue;
 
 							// Optionally sqrt intensities
-							float[] intens=s.intensity;
+							float[] intens=triplet.y;
 							if (sqrt) {
 								intens=intens.clone();
 								for (int i=0; i<intens.length; i++) {
-									final float v=intens[i];
-									intens[i]=(float)Math.sqrt(v<0f?0f:v);
+									intens[i]=(float)Math.sqrt(intens[i]);
 								}
+							}
+							float[] ims=new float[triplet.z.length];
+							for (int i=0; i<ims.length; i++) {
+								ims[i]=getIMSFromScanNumber(triplet.z[i]);
 							}
 
 							final String name=Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
@@ -622,7 +608,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 									0, // fraction
 									1000f*acc, // IonInjectionTime (sec) = 1000 * AccumulationTime
 									isoLo, isoHi, // isolation window bounds
-									s.mz, intens, s.ims, charge // precursor charge
+									triplet.x, intens, ims, charge // precursor charge
 							));
 						} catch (Exception ex) {
 							// propagate after closing iterator
@@ -704,53 +690,59 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			return out;
 		} else if (ms2Key==8) {
 			// DDA: pick targets whose isolation window overlaps the target range.
-			// Produce one FragmentScan per frame (closest isolation to the center of target range).
-			final String sql="SELECT F.Id, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
-					+"COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id "
-					+"FROM Frames F "
-					+"JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id "
-					+"LEFT JOIN Precursors P ON P.Id = I.Precursor "
-					+"WHERE F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "
-					+"ORDER BY F.Time ASC, I.ScanNumBegin ASC";
+			String sql="SELECT I.frame, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, "
+					+ "F.AccumulationTime, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor "
+					+ "FROM PasefFrameMsMsInfo I, Frames F,  Precursors P "
+					+ "WHERE I.frame = F.Id "
+					+ "AND I.Precursor = P.Id "
+					+ "AND F.MsMsType = 8 "
+					+ "AND F.Time BETWEEN ? AND ? "
+					+ "AND I.IsolationMz BETWEEN ? AND ? "
+					+ "ORDER BY F.Time ASC, I.IsolationMz ASC";
 
 			final ArrayList<FragmentScan> out=new ArrayList<>();
 
 			try (PreparedStatement ps=conn.prepareStatement(sql)) {
 				ps.setDouble(1, minRT);
 				ps.setDouble(2, maxRT);
+				ps.setDouble(3, targetMzRange.getStart());
+				ps.setDouble(4, targetMzRange.getStop());
+				
 				try (ResultSet rs=ps.executeQuery()) {
 					while (rs.next()) {
-						final int frameId=rs.getInt(1);
-						final float rt=(float)rs.getDouble(2);
-						final int scanLo=rs.getInt(3);
-						final int scanHi=rs.getInt(4);
-						final double isoMz=rs.getDouble(5);
-						final double isoW=rs.getDouble(6);
-						final float acc=(float)rs.getDouble(7);
-						final byte charge=(byte)Math.max(0, rs.getInt(8));
-						final String parent=Integer.toString(rs.getInt(9));
-						final int precursorID=rs.getInt(10); // use precursorID as the spectrumIndex
+						int frameId=rs.getInt(1);
+						float rt=(float)rs.getDouble(2);
+						int scanLo=rs.getInt(3);
+						int scanHi=rs.getInt(4);
+						double isoMz=rs.getDouble(5);
+						double isoW=rs.getDouble(6);
+						float acc=(float)rs.getDouble(7);
+						byte charge=(byte)Math.max(0, rs.getInt(8));
+						String parent=Integer.toString(rs.getInt(9));
+						int precursorID=rs.getInt(10); // use precursorID as the spectrumIndex
 
-						final double isoLo=isoMz-0.5*isoW;
-						final double isoHi=isoMz+0.5*isoW;
-
-						final double mzLo=0.0, mzHi=Float.MAX_VALUE;
+						double isoLo=isoMz-0.5*isoW;
+						double isoHi=isoMz+0.5*isoW;
 
 						try {
-							SpectrumRecord s=reader.readSpectrum(frameId-1, mzLo, mzHi, scanLo, scanHi);
-							if (s==null||s.mz.length==0) continue;
+							Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(frameId-1, scanLo, scanHi);
+							if (triplet==null||triplet.x.length==0) continue;
 
 							// Optionally sqrt intensities
-							float[] intens=s.intensity;
+							float[] intens=triplet.y;
 							if (sqrt) {
 								intens=intens.clone();
 								for (int i=0; i<intens.length; i++) {
-									final float v=intens[i];
-									intens[i]=(float)Math.sqrt(v<0f?0f:v);
+									intens[i]=(float)Math.sqrt(intens[i]);
 								}
 							}
+							float[] ims=new float[triplet.z.length];
+							for (int i=0; i<ims.length; i++) {
+								ims[i]=getIMSFromScanNumber(triplet.z[i]);
+							}
 
-							final String name=Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
+							final String name="frame="+Integer.toString(frameId)+" start="+scanLo+" stop="+scanHi;
+							
 							out.add(new FragmentScan(name, // spectrumName
 									parent, // precursorName from Precursors.Parent
 									precursorID, // spectrumIndex
@@ -758,7 +750,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 									0, // fraction
 									1000f*acc, // IonInjectionTime (sec) = 1000 * AccumulationTime
 									isoLo, isoHi, // isolation window bounds
-									s.mz, intens, s.ims, charge // precursor charge
+									triplet.x, intens, ims, charge // precursor charge
 							));
 						} catch (Exception ex) {
 							// propagate after closing iterator
@@ -772,6 +764,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			return new ArrayList<>();
 		}
 	}
+	
+	private static float getIMSFromScanNumber(int scanNumber) {
+		return 1.0f/scanNumber; // FIXME fill in with the real conversion
+	}
 
 	private ArrayList<FragmentScan> extractDIASpectra(ArrayList<Meta> metas, final boolean sqrt) {
 		ArrayList<FragmentScan> out=new ArrayList<>();
@@ -782,31 +778,31 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				final double isoL=w.center-0.5*w.width;
 				final double isoH=w.center+0.5*w.width;
 
-				final double mzLo=0.0, mzHi=Float.MAX_VALUE;
-
 				try {
-					SpectrumRecord s=reader.readSpectrum(m.frameId, mzLo, mzHi, w.scanLo, w.scanHi);
+					Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(m.frameId-1, w.scanLo, w.scanHi);
 
 					// Build a stable id and names
 					final int scanID=m.frameId*100+w.windowGroup; // simple monotone id
 					final String name=Integer.toString(m.frameId)+"_"+w.windowGroup;
 
-					final int n=s.mz==null?0:s.mz.length;
+					final int n=triplet.x==null?0:triplet.x.length;
 					if (n==0) {
 						out.add(new FragmentScan(name, name, scanID, m.rt, 0, 1000f*m.acc, isoL, isoH, new double[0], new float[0], new float[0], (byte)0));
 					} else {
-						// Copy arrays; apply sqrt to intensity if requested
-						final float[] inArr;
+						// Optionally sqrt intensities
+						float[] intens=triplet.y;
 						if (sqrt) {
-							inArr=new float[n];
-							for (int i=0; i<n; i++) {
-								inArr[i]=(float)Math.sqrt(Math.max(s.intensity[i], 0f));
+							intens=intens.clone();
+							for (int i=0; i<intens.length; i++) {
+								intens[i]=(float)Math.sqrt(intens[i]);
 							}
-						} else {
-							inArr=s.intensity;
+						}
+						float[] ims=new float[triplet.z.length];
+						for (int i=0; i<ims.length; i++) {
+							ims[i]=getIMSFromScanNumber(triplet.z[i]);
 						}
 
-						out.add(new FragmentScan(name, name, scanID, m.rt, 0, 1000f*m.acc, isoL, isoH, s.mz, inArr, s.ims, (byte)0));
+						out.add(new FragmentScan(name, name, scanID, m.rt, 0, 1000f*m.acc, isoL, isoH, triplet.x, intens, ims, (byte)0));
 					}
 				} catch (Exception ex) {
 					// propagate after closing iterator
@@ -817,4 +813,11 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		return out;
 	}
 
+	/**
+	 * for testing only!
+	 * @return
+	 */
+	public TimsReader getReader() {
+		return reader;
+	}
 }

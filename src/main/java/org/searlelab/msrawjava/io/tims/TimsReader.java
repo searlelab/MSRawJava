@@ -2,7 +2,8 @@ package org.searlelab.msrawjava.io.tims;
 
 import java.nio.file.Path;
 
-import org.searlelab.msrawjava.model.SpectrumRecord;
+import org.searlelab.msrawjava.exceptions.TdfFormatException;
+import org.searlelab.msrawjava.io.utils.Triplet;
 
 public final class TimsReader implements AutoCloseable {
 	private final long datasetHandle;
@@ -17,24 +18,32 @@ public final class TimsReader implements AutoCloseable {
 		return new TimsReader(h);
 	}
 
-	public RustIterator createIterator(int[] frameIdsSortedByRt, double mzLo, double mzHi, int scanLoInclusive, int scanHiInclusive) {
-		long it=TimsNative.createIterator(datasetHandle, frameIdsSortedByRt, mzLo, mzHi, scanLoInclusive, scanHiInclusive);
-		return new RustIterator(it);
-	}
-
-	public SpectrumRecord readSpectrum(int frameId, double mzLo, double mzHi, int scanLoInclusive, int scanHiInclusive) {
-		Object res=TimsNative.readSpectrum(this.datasetHandle, frameId, mzLo, mzHi, scanLoInclusive, scanHiInclusive);
+	public Triplet<double[], double[], int[]> readFrame(int frameId) {
+		Object res=TimsNative.readRawFrame(this.datasetHandle, frameId);
 		if (res==null) return null;
 		Object[] arr=(Object[])res;
-		double[] mz=(double[])arr[0];
-		float[] ims=(float[])arr[1];
-		float[] intensity=(float[])arr[2];
-		int msLevel=(Integer)arr[3];
-		int frameIndex=(Integer)arr[4];
-		double rtSeconds=(Double)arr[5];
-		return new SpectrumRecord(mz, ims, intensity, msLevel, frameIndex, rtSeconds);
+		return new Triplet<double[], double[], int[]>((double[])arr[0], (double[])arr[1], (int[])arr[2]);
 	}
 
+	public Triplet<double[], float[], int[]> readFrameWithRange(int frameId, int scanLoInclusive, int scanHiInclusive) {
+		try {
+			Object res=TimsNative.readRawFrameRange(this.datasetHandle, frameId, scanLoInclusive, scanHiInclusive);
+			
+			if (res==null) return null;
+			Object[] arr=(Object[])res;
+			
+			double[] intensityArrayDouble=(double[])arr[1];
+			float[] intensityArrayFloat=new float[intensityArrayDouble.length];
+			for (int i=0; i<intensityArrayDouble.length; i++) {
+				intensityArrayFloat[i]=(float)intensityArrayDouble[i];
+			}
+	
+			return new Triplet<double[], float[], int[]>((double[])arr[0], intensityArrayFloat, (int[])arr[2]);
+		} catch (TdfFormatException tdf) {
+			return null;
+		}
+	}
+	
 	@Override
 	public void close() {
 		TimsNative.closeDataset(datasetHandle);
