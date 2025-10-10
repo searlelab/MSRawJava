@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.Optional;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
+import org.searlelab.msrawjava.algorithms.QuickMedian;
 
 public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectrum> {
 
@@ -142,6 +143,14 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 
 	public String getPrecursorName() {
 		return precursorName;
+	}
+	
+	public Optional<Float> getMedianIonMobility() {
+		if (ionMobilityArray==null) {
+			return Optional.empty();
+		} else {
+			return Optional.of(QuickMedian.median(ionMobilityArray));
+		}
 	}
 
 }

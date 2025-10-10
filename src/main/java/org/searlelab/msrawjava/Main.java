@@ -17,9 +17,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.searlelab.msrawjava.gui.MobilogramHeatmap;
-import org.searlelab.msrawjava.gui.SpectrumChart;
-import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.io.OutputSpectrumFile;
+import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
@@ -34,12 +33,30 @@ public class Main {
 
 	public static void main(String[] args) throws Exception {
 		System.out.println("Welcome to MSRawJava");
-		if (args.length==0||Arrays.asList(args).contains("-h")) {
+		
+		ArrayList<String> argsList=new ArrayList<String>(Arrays.asList(args));
+		if (args.length==0||argsList.contains("-h")) {
 			System.out.println("Help (-h):");
 			System.out.println("  Specify Thermo .raw or Bruker .d files or any directories that contain those files.");
 			return;
 		}
 		
+		OutputType outType;
+		if (argsList.contains("-dia")||argsList.contains("-encyclopedia")) {
+			outType=OutputType.encyclopedia;
+			argsList.remove("-dia");
+			argsList.remove("-encyclopedia");
+			
+		} else if (argsList.contains("-mgf")) {
+			outType=OutputType.mgf;
+			argsList.remove("-mgf");
+			
+		} else if (argsList.contains("-mzml")) {
+			outType=OutputType.mzml;
+			argsList.remove("-mzml");
+		} else {
+			outType=OutputType.encyclopedia;
+		}
 		
 		VendorFiles files=new VendorFiles();
 		for (String arg : args) {
@@ -57,11 +74,10 @@ public class Main {
 
 				for (Path path : files.getThermoFiles()) {
 					Logger.logLine("Processing .raw "+path);
-					Path outFilePath=changeExtension(path, EncyclopeDIAFile.DIA_EXTENSION);
 
-					Logger.logLine("Writing "+outFilePath);
-					writeThermo(path, outFilePath);
-					Logger.logLine("Finished writing "+outFilePath);
+					Logger.logLine("Writing "+outType+" file");
+					writeThermo(path, path.getParent(), outType);
+					Logger.logLine("Finished writing "+outType+" file");
 				}
 
 			} finally {
@@ -73,24 +89,24 @@ public class Main {
 			Logger.logLine("Found "+files.getBrukerDirs().size()+" total timsTOF files");
 			for (Path path : files.getBrukerDirs()) {
 				Logger.logLine("Processing .d "+path);
-				Path outFilePath=changeExtension(path, EncyclopeDIAFile.DIA_EXTENSION);
 
-				Logger.logLine("Writing "+outFilePath);
-				writeTims(path, outFilePath, 1f, 0.5f);
-				Logger.logLine("Finished writing "+outFilePath);
+				Logger.logLine("Writing "+outType+" file");
+				writeTims(path, path.getParent(), outType, 1f, 0.5f);
+				Logger.logLine("Finished writing "+outType+" file");
 			}
 		}
 	}
 
-	public static void writeThermo(Path rawFilePath, Path outFilePath) throws Exception {
-		ThermoRawFile rawFile=null;
+	public static void writeThermo(Path rawFilePath, Path outputDirPath, OutputType outType) throws Exception {
+		ThermoRawFile rawFile=new ThermoRawFile();
 		try {
-			rawFile=new ThermoRawFile();
 			rawFile.openFile(rawFilePath);
 
 			String originalFileName=rawFilePath.getFileName().toString();
-			EncyclopeDIAFile outFile=new EncyclopeDIAFile(originalFileName);
-			outFile.openFile();
+			OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
+			outFile.setFileName(originalFileName, rawFilePath.toString());
+			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
+			outFile.addMetadata(rawFile.getMetadata());
 			
 			float gradientLength=rawFile.getGradientLength();
 			int sections=getNumberOfSections(gradientLength);
@@ -110,32 +126,24 @@ public class Main {
 				Logger.logLine(percent+"% Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
 						+String.format("%.1f", (start+sectionTime)/60f)+" minutes");
 
-				outFile.addPrecursor(ms1s);
-				outFile.addStripe(ms2s);
+				outFile.addSpectra(ms1s, ms2s);
 				start=stop;
 			}
 
-			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
-			outFile.setFileName(originalFileName, originalFileName, rawFilePath.toString());
-			outFile.addMetadata(rawFile.getMetadata());
-
-			rawFile.close();
-			outFile.createIndices();
-			outFile.saveAsFile(outFilePath.toFile());
+			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
 		} finally {
-			if (rawFile!=null) rawFile.close();
+			rawFile.close();
 		}
 	}
 
-	public static void writeTims(Path timsFilePath, Path outFilePath, float minimumMS1Intensity, float minimumMS2Intensity) throws Exception {
+	public static void writeTims(Path timsFilePath, Path outputDirPath, OutputType outType, float minimumMS1Intensity, float minimumMS2Intensity) throws Exception {
 		BrukerTIMSFile timsFile=new BrukerTIMSFile();
 		timsFile.openFile(timsFilePath);
 
 		String originalFileName=timsFilePath.getFileName().toString();
-		EncyclopeDIAFile outFile=new EncyclopeDIAFile(originalFileName);
-		outFile.openFile();
+		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
 		int workers=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
 		ExecutorService pool=Executors.newFixedThreadPool(workers, namedFactory("tims-worker"));
@@ -143,6 +151,10 @@ public class Main {
 
 		List<CompletableFuture<Void>> writeFutures=new ArrayList<>();
 		AtomicReference<Throwable> firstWriteError=new AtomicReference<>();
+
+		outFile.setRanges(new HashMap<Range, WindowData>(timsFile.getRanges()));
+		outFile.setFileName(originalFileName, timsFilePath.toString());
+		outFile.addMetadata(timsFile.getMetadata());
 
 		try {
 			int scanNumber=1;
@@ -211,8 +223,7 @@ public class Main {
 				// Serialize DB writes on a single writer thread 
 				writeFutures.add(CompletableFuture.runAsync(() -> {
 					try {
-						outFile.addPrecursor(sortedMS1s);
-						outFile.addStripe(sortedMS2s);
+						outFile.addSpectra(sortedMS1s, sortedMS2s);
 					} catch (Throwable t) {
 						firstWriteError.compareAndSet(null, t);
 						throw new CompletionException(t);
@@ -235,12 +246,7 @@ public class Main {
 				}
 			}
 
-			outFile.setRanges(new HashMap<Range, WindowData>(timsFile.getRanges()));
-			outFile.setFileName(originalFileName, originalFileName, timsFilePath.toString());
-			outFile.addMetadata(timsFile.getMetadata());
-
-			outFile.createIndices();
-			outFile.saveAsFile(outFilePath.toFile());
+			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 		} finally {
 			timsFile.close();

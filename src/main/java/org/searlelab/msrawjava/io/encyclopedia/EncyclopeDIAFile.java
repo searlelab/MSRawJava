@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.searlelab.msrawjava.Logger;
+import org.searlelab.msrawjava.io.OutputSpectrumFile;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
@@ -33,7 +34,7 @@ import com.google.common.collect.Multimap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.procedure.TIntObjectProcedure;
 
-public class EncyclopeDIAFile extends SQLFile {
+public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 	public static final DateFormat m_ISO8601Local=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 	private static final Version MOST_RECENT_VERSION=new Version(0, 7, 0);
 
@@ -49,23 +50,21 @@ public class EncyclopeDIAFile extends SQLFile {
 	public static final String INSTRUMENT_CONFIGURATIONS="InstrumentConfigurations";
 
 	public static final String DIA_EXTENSION=".dia";
-
-	private volatile String originalFileName=null;
 	private File tempFile;
 
 	private final HashMap<Range, WindowData> ranges=new HashMap<Range, WindowData>();
 
 	private final TIntObjectHashMap<String> fractionNames=new TIntObjectHashMap<String>();
 
-	public EncyclopeDIAFile(String originalFileName) throws IOException {
-		this.originalFileName=originalFileName;
+	public EncyclopeDIAFile() throws IOException {
+	}
+	
+	@Override
+	public String getFileExtension() {
+		return EncyclopeDIAFile.DIA_EXTENSION;
 	}
 
-	public String getOriginalFileName() {
-		return originalFileName;
-	}
-
-	public void setRanges(HashMap<Range, WindowData> ranges) {
+	@Override public void setRanges(HashMap<Range, WindowData> ranges) {
 		this.ranges.clear();
 		this.ranges.putAll(ranges);
 	}
@@ -158,7 +157,11 @@ public class EncyclopeDIAFile extends SQLFile {
 		createNewTables();
 	}
 
-	public void saveAsFile(File userFile) throws IOException, SQLException {
+	@Override public void saveAsFile(File userFile) throws IOException, SQLException {
+		HashMap<String, String> map=new HashMap<String, String>();
+		map.put(FILENAME_ATTRIBUTE, userFile.getName()==null?UNKNOWN_VALUE:userFile.getName());
+		addMetadata(map);
+		
 		writeRanges();
 		writeFractionNames();
 		createIndices();
@@ -176,9 +179,8 @@ public class EncyclopeDIAFile extends SQLFile {
 		addMetadata(map);
 	}
 
-	public void setFileName(String fileName, String sourceName, String fileLocation) throws IOException, SQLException {
+	@Override public void setFileName(String sourceName, String fileLocation) throws IOException, SQLException {
 		HashMap<String, String> map=new HashMap<String, String>();
-		map.put(FILENAME_ATTRIBUTE, fileName==null?UNKNOWN_VALUE:fileName);
 		map.put(SOURCENAME_ATTRIBUTE, sourceName==null?UNKNOWN_VALUE:sourceName);
 		map.put(FILELOCATION_ATTRIBUTE, fileLocation==null?UNKNOWN_VALUE:fileLocation);
 		addMetadata(map);
@@ -227,7 +229,7 @@ public class EncyclopeDIAFile extends SQLFile {
 		}
 	}
 
-	public void addMetadata(Map<String, String> data) throws IOException, SQLException {
+	@Override public void addMetadata(Map<String, String> data) throws IOException, SQLException {
 		Connection c=getConnection();
 		try {
 			PreparedStatement prep=c.prepareStatement("insert or replace into metadata (Key, Value) VALUES (?,?)");
@@ -246,6 +248,11 @@ public class EncyclopeDIAFile extends SQLFile {
 		} finally {
 			c.close();
 		}
+	}
+	
+	@Override public void addSpectra(ArrayList<PrecursorScan> precursors, ArrayList<FragmentScan> stripes) throws Exception {
+		addPrecursor(precursors);
+		addStripe(stripes);
 	}
 
 	/**
@@ -416,7 +423,7 @@ public class EncyclopeDIAFile extends SQLFile {
 		}
 	}
 
-	public void close() {
+	@Override public void close() {
 		if (tempFile.exists()&&!tempFile.delete()) {
 			Logger.errorLine("Error deleting temp DIA file!");
 		}
