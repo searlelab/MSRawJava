@@ -154,9 +154,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	public Optional<MzCalibrationParams> readCalibrationParams() {
 
 		try {
-			if (!tableExists("MzCalibration")) {
+			if (tableExists("MzCalibration")) {
 				final String sql="SELECT DigitizerTimebase, DigitizerDelay, T1, T2, dC1, dC2, C0, C1, C2, C3, C4 FROM MzCalibration ORDER BY Id LIMIT 1";
-		
+
 				try (PreparedStatement ps=conn.prepareStatement(sql)) {
 					try (ResultSet rs=ps.executeQuery()) {
 						if (!rs.next()) throw new SQLException("MzCalibration table is empty");
@@ -508,16 +508,11 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					if (triplet==null||triplet.x.length==0) {
 						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, new double[0], new float[0], new float[0]));
 					} else {
-						float[] intens=triplet.y;
-						for (int i=0; i<intens.length; i++) {
-							intens[i]=intens[i]/injTime;
-						}
-						
 						float[] ims=new float[triplet.z.length];
 						for (int j=0; j<ims.length; j++) {
 							ims[j]=getIMSFromScanNumber(triplet.z[j], numScans);
 						}
-						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, triplet.x, intens, ims));
+						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, triplet.x, triplet.y, ims));
 					}
 				}
 				Collections.sort(out);
@@ -612,9 +607,6 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 							// Optionally sqrt intensities
 							float[] intens=triplet.y;
-							for (int i=0; i<intens.length; i++) {
-								intens[i]=intens[i]/acc;
-							}
 							if (sqrt) {
 								intens=intens.clone();
 								for (int i=0; i<intens.length; i++) {
@@ -763,12 +755,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						try {
 							Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(frameId-1, scanLo, scanHi, t1);
 							if (triplet==null||triplet.x.length==0) continue;
-
+							
 							// Optionally sqrt intensities
 							float[] intens=triplet.y;
-							for (int i=0; i<intens.length; i++) {
-								intens[i]=intens[i]/acc;
-							}
 							if (sqrt) {
 								intens=intens.clone();
 								for (int i=0; i<intens.length; i++) {
@@ -835,9 +824,6 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					} else {
 						// Optionally sqrt intensities
 						float[] intens=triplet.y;
-						for (int i=0; i<intens.length; i++) {
-							intens[i]=intens[i]/(float)m.acc;
-						}
 						if (sqrt) {
 							intens=intens.clone();
 							for (int i=0; i<intens.length; i++) {

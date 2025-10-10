@@ -91,7 +91,7 @@ public class Main {
 				Logger.logLine("Processing .d "+path);
 
 				Logger.logLine("Writing "+outType+" file");
-				writeTims(path, path.getParent(), outType, 1f, 0.5f);
+				writeTims(path, path.getParent(), outType, 3.0f, 1.0f);
 				Logger.logLine("Finished writing "+outType+" file");
 			}
 		}

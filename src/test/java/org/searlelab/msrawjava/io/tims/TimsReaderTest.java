@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.gui.IMSChromatogramChart;
 import org.searlelab.msrawjava.gui.MobilogramHeatmap;
 import org.searlelab.msrawjava.gui.SpectrumChart;
@@ -57,6 +58,7 @@ class TimsReaderTest {
 				peaks.add(new Peak(triplet.x[i], (float)triplet.y[i], (float)ims[i]));
 			}
 		}
+		System.out.println(" --> "+MatrixMath.sum(triplet.y)+", "+triplet.y.length+", "+peaks.size());
 		
 		ArrayList<ArrayList<Peak>> chromatograms=TIMSPeakPicker.getIMSChromatograms(peaks, 2.0f*msmsIntensityThreshold);
 		var chart4 = IMSChromatogramChart.buildChart(chromatograms);
