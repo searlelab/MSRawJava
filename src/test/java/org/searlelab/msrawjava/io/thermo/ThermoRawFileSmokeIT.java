@@ -9,10 +9,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
-import org.searlelab.msrawjava.model.FragmentScanInterface;
 import org.searlelab.msrawjava.model.PrecursorScan;
-import org.searlelab.msrawjava.model.PrecursorScanInterface;
 import org.searlelab.msrawjava.model.Range;
 
 /**
@@ -63,7 +62,7 @@ public class ThermoRawFileSmokeIT {
 			assertTrue(ms1s.size()>0, "Expected at least one MS1 spectrum");
 
 			assertEquals(expectedPrecursors, ms1s.size(), "Expect "+expectedPrecursors+" MS2s");
-			for (PrecursorScanInterface ms1 : ms1s) {
+			for (AcquiredSpectrum ms1 : ms1s) {
 				assertTrue(sum(ms1.getIntensityArray())>0.0f, "Expect TIC>0");
 				for (double mz : ms1.getMassArray()) {
 					assertTrue(mz>0.0f, "Expect every m/z>0");
@@ -81,7 +80,7 @@ public class ThermoRawFileSmokeIT {
 			assertTrue(ms2s.size()>0, "Expected at least one MS2 spectrum");
 
 			assertEquals(expectedMS2s, ms2s.size(), "Expect "+expectedPrecursors+" MS2s");
-			for (FragmentScanInterface ms2 : ms2s) {
+			for (FragmentScan ms2 : ms2s) {
 				assertTrue(sum(ms2.getIntensityArray())>0.0f, "Expect TIC>0");
 				for (double mz : ms2.getMassArray()) {
 					assertTrue(mz>0.0f, "Expect every m/z>0");

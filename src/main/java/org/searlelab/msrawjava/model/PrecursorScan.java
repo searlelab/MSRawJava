@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Optional;
 
-public class PrecursorScan implements PrecursorScanInterface, Comparable<PrecursorScanInterface> {
+public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpectrum> {
 
 	private final String spectrumName;
 	private final int spectrumIndex;
@@ -57,7 +57,7 @@ public class PrecursorScan implements PrecursorScanInterface, Comparable<Precurs
 	}
 	
 	@Override
-	public int compareTo(PrecursorScanInterface o) {
+	public int compareTo(AcquiredSpectrum o) {
 		if (o==null) return 1;
 		int c=Float.compare(scanStartTime, o.getScanStartTime());
 		if (c!=0) return c;
@@ -67,6 +67,11 @@ public class PrecursorScan implements PrecursorScanInterface, Comparable<Precurs
 		if (c!=0) return c;
 		c=Double.compare(isolationWindowUpper, o.getIsolationWindowUpper());
 		return 0;
+	}
+	
+	@Override
+	public double getPrecursorMZ() {
+		return -1.0;
 	}
 
 	@Override

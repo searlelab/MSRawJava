@@ -6,7 +6,7 @@ import java.util.Optional;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 
-public class FragmentScan implements FragmentScanInterface, Comparable<FragmentScanInterface> {
+public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectrum> {
 
 	private final String spectrumName;
 	private final String precursorName;
@@ -64,7 +64,7 @@ public class FragmentScan implements FragmentScanInterface, Comparable<FragmentS
 	}
 	
 	@Override
-	public int compareTo(FragmentScanInterface o) {
+	public int compareTo(AcquiredSpectrum o) {
 		if (o==null) return 1;
 		int c=Float.compare(scanStartTime, o.getScanStartTime());
 		if (c!=0) return c;
@@ -76,52 +76,72 @@ public class FragmentScan implements FragmentScanInterface, Comparable<FragmentS
 		return 0;
 	}
 
-	@Override public String getSpectrumName() {
+	@Override
+	public float getTIC() {
+		return MatrixMath.sum(intensityArray);
+	}
+
+	@Override
+	public double getPrecursorMZ() {
+		return (isolationWindowLower+isolationWindowUpper)/2.0;
+	}
+
+	@Override
+	public String getSpectrumName() {
 		return spectrumName;
 	}
 
-	@Override public String getPrecursorName() {
-		return precursorName;
-	}
-
-	@Override public int getSpectrumIndex() {
+	@Override
+	public int getSpectrumIndex() {
 		return spectrumIndex;
 	}
 
-	@Override public float getScanStartTime() {
+	@Override
+	public float getScanStartTime() {
 		return scanStartTime;
 	}
 
-	@Override public int getFraction() {
+	@Override
+	public int getFraction() {
 		return fraction;
 	}
 
-	@Override public Float getIonInjectionTime() {
+	@Override
+	public Float getIonInjectionTime() {
 		return ionInjectionTime;
 	}
 
-	@Override public double getIsolationWindowLower() {
+	@Override
+	public double getIsolationWindowLower() {
 		return isolationWindowLower;
 	}
 
-	@Override public double getIsolationWindowUpper() {
+	@Override
+	public double getIsolationWindowUpper() {
 		return isolationWindowUpper;
 	}
 
-	@Override public double[] getMassArray() {
+	@Override
+	public double[] getMassArray() {
 		return massArray;
 	}
 
-	@Override public float[] getIntensityArray() {
+	@Override
+	public float[] getIntensityArray() {
 		return intensityArray;
 	}
 
-	@Override public Optional<float[]> getIonMobilityArray() {
+	@Override
+	public Optional<float[]> getIonMobilityArray() {
 		return Optional.ofNullable(ionMobilityArray);
 	}
 
-	@Override public byte getCharge() {
+	public byte getCharge() {
 		return charge;
+	}
+
+	public String getPrecursorName() {
+		return precursorName;
 	}
 
 }

@@ -5,14 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
-import org.searlelab.msrawjava.model.FragmentScanInterface;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
@@ -49,7 +48,7 @@ public class TIMSFileSandbox {
 		int count=0;
 		for (Range range : ranges) {
 			ArrayList<FragmentScan> ms2s=file.getStripes(range, 0.0f, Float.MAX_VALUE, false);
-			for (FragmentScanInterface ms2 : ms2s) {
+			for (AcquiredSpectrum ms2 : ms2s) {
 				assertTrue(range.contains((ms2.getIsolationWindowUpper()+ms2.getIsolationWindowLower())/2.0f),
 						"Range: "+range.toString()+" does not match MS2: "+new Range(ms2.getIsolationWindowLower(), ms2.getIsolationWindowUpper()).toString());
 				//System.out.println(ms2.getSpectrumName()+" --> "+ms2.getScanStartTime()+"\t"+ms2.getMassArray().length);

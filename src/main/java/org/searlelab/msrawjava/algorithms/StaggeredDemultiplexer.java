@@ -26,6 +26,9 @@ public class StaggeredDemultiplexer {
 				matrix[i][subRange.acquiredIndicies.get(j)]=1;
 			}
 		}
+		
+		// inverse requires square matrix, so this will truncate the last fractional window
+		// FIXME should we pad this?
 		matrix=MatrixMath.invert(MatrixMath.transpose(matrix));
 		
 		System.out.println(matrix.length+" rows by "+matrix[0].length+" columns");

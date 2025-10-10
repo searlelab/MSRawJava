@@ -2,7 +2,7 @@ package org.searlelab.msrawjava.model;
 
 import java.util.Optional;
 
-public interface PrecursorScanInterface {
+public interface AcquiredSpectrum {
 
 	String getSpectrumName();
 
@@ -26,4 +26,5 @@ public interface PrecursorScanInterface {
 
 	float getTIC();
 
+	public double getPrecursorMZ();
 }

@@ -16,10 +16,9 @@ import java.util.List;
 import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
-import org.searlelab.msrawjava.model.FragmentScanInterface;
 import org.searlelab.msrawjava.model.PrecursorScan;
-import org.searlelab.msrawjava.model.PrecursorScanInterface;
 import org.searlelab.msrawjava.model.Range;
 
 public class TIMSFullDIAandDDAIT {
@@ -135,20 +134,17 @@ public class TIMSFullDIAandDDAIT {
 		}
 	}
 
-	private static void assertIsNondecreasingRT(List<? extends Object> scans) {
+	private static void assertIsNondecreasingRT(List<? extends AcquiredSpectrum> scans) {
 		double prev=-Double.MAX_VALUE;
-		for (Object o : scans) {
-			double rt;
-			if (o instanceof PrecursorScan p) rt=p.getScanStartTime();
-			else if (o instanceof FragmentScan f) rt=f.getScanStartTime();
-			else throw new IllegalArgumentException("Unexpected scan type: "+o.getClass());
+		for (AcquiredSpectrum o : scans) {
+			double rt=o.getScanStartTime();
 			assertTrue(rt>=prev-1e-6, "RT not nondecreasing: "+prev+" then "+rt);
 			prev=rt;
 		}
 	}
 
 	private static void sanityCheckPrecursorScans(List<PrecursorScan> scans) {
-		for (PrecursorScanInterface s : scans) {
+		for (AcquiredSpectrum s : scans) {
 			assertNotNull(s.getSpectrumName());
 			assertTrue(s.getIsolationWindowLower()<=s.getIsolationWindowUpper());
 			assertEquals(0.0, s.getIsolationWindowLower(), 0.0);
@@ -161,7 +157,7 @@ public class TIMSFullDIAandDDAIT {
 	}
 
 	private static void sanityCheckFragmentScans(List<FragmentScan> scans) {
-		for (FragmentScanInterface s : scans) {
+		for (FragmentScan s : scans) {
 			assertNotNull(s.getSpectrumName());
 			assertNotNull(s.getPrecursorName());
 			assertTrue(s.getIsolationWindowLower()<s.getIsolationWindowUpper());

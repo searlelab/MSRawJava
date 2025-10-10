@@ -21,9 +21,8 @@ import java.util.Map.Entry;
 
 import org.searlelab.msrawjava.Logger;
 import org.searlelab.msrawjava.model.FragmentScan;
-import org.searlelab.msrawjava.model.FragmentScanInterface;
 import org.searlelab.msrawjava.model.PrecursorScan;
-import org.searlelab.msrawjava.model.PrecursorScanInterface;
+import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
@@ -258,7 +257,7 @@ public class EncyclopeDIAFile extends SQLFile {
 			PreparedStatement prep=c.prepareStatement(
 					"insert into precursor (SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC, Fraction, IsolationWindowLower, IsolationWindowUpper) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 			try {
-				for (PrecursorScanInterface precursor : precursors) {
+				for (AcquiredSpectrum precursor : precursors) {
 					prep.setString(1, precursor.getSpectrumName());
 					prep.setInt(2, precursor.getSpectrumIndex());
 					prep.setFloat(3, precursor.getScanStartTime());
@@ -318,7 +317,7 @@ public class EncyclopeDIAFile extends SQLFile {
 	}
 
 	private void internalAddStripeToStatement(List<FragmentScan> stripes, PreparedStatement prep) throws SQLException, IOException {
-		for (FragmentScanInterface stripe : stripes) {
+		for (FragmentScan stripe : stripes) {
 			int index=1;
 			prep.setString(index++, stripe.getSpectrumName());
 			prep.setString(index++, stripe.getPrecursorName());
