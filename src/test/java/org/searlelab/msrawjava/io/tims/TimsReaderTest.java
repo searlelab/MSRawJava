@@ -6,9 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.stream.IntStream;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.gui.IMSChromatogramChart;
@@ -32,7 +30,7 @@ class TimsReaderTest {
 		float OneOverK0AcqRangeUpper=1.534496f;
 		int scanMax=918;
 		
-		TimsReader reader=TimsReader.open(dPath, params);
+		TimsReader reader=TimsReader.open(dPath, Optional.of(params));
 		// NOTE -1 required now!
 		double realT1=25.6515312405121;
 		Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(2676-1, 831, 856, realT1); // MS2
@@ -94,7 +92,7 @@ class TimsReaderTest {
 			    27, 0,
 			    315.351730103478, 157256.258704659, 0.0, 0.0, 0.0
 			);
-		TimsReader reader=TimsReader.open(dPath, params);
+		TimsReader reader=TimsReader.open(dPath, Optional.of(params));
 		long startTime=System.currentTimeMillis();
 
 		for (int i=0; i<130; i++) {

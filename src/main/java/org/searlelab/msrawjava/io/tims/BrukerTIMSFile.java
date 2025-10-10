@@ -98,7 +98,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		String url="jdbc:sqlite:"+dPath.resolve("analysis.tdf").toAbsolutePath();
 		this.conn=DriverManager.getConnection(url);
 		this.conn.setAutoCommit(false);
-		MzCalibrationParams params=readCalibrationParams();
+		Optional<MzCalibrationParams> params=readCalibrationParams();
 		
 		this.reader=TimsReader.open(dPath, params);
 
@@ -151,30 +151,38 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		
 	}
 	
-	public MzCalibrationParams readCalibrationParams() throws SQLException {
-		final String sql="SELECT DigitizerTimebase, DigitizerDelay, T1, T2, dC1, dC2, C0, C1, C2, C3, C4 FROM MzCalibration ORDER BY Id LIMIT 1";
+	public Optional<MzCalibrationParams> readCalibrationParams() {
 
-		try (PreparedStatement ps=conn.prepareStatement(sql)) {
-			try (ResultSet rs=ps.executeQuery()) {
-				if (!rs.next()) throw new SQLException("MzCalibration table is empty");
-	
-				// Required fields
-				double tbNs=rs.getDouble(1);
-				double delayNs=rs.getDouble(2);
-				double T1=rs.getDouble(3);
-				double T2=rs.getDouble(4);
-				double dC1=rs.getDouble(5);
-				double dC2=rs.getDouble(6);
-	
-				// Nullable C0..C4 → default to 0.0 if null
-				double C0=getNullableDouble(rs, 7, 0.0);
-				double C1=getNullableDouble(rs, 8, 0.0);
-				double C2=getNullableDouble(rs, 9, 0.0);
-				double C3=getNullableDouble(rs, 10, 0.0);
-				double C4=getNullableDouble(rs, 11, 0.0);
-	
-				return new MzCalibrationParams(tbNs, delayNs, T1, T2, dC1, dC2, C0, C1, C2, C3, C4);
+		try {
+			if (!tableExists("MzCalibration")) {
+				final String sql="SELECT DigitizerTimebase, DigitizerDelay, T1, T2, dC1, dC2, C0, C1, C2, C3, C4 FROM MzCalibration ORDER BY Id LIMIT 1";
+		
+				try (PreparedStatement ps=conn.prepareStatement(sql)) {
+					try (ResultSet rs=ps.executeQuery()) {
+						if (!rs.next()) throw new SQLException("MzCalibration table is empty");
+			
+						// Required fields
+						double tbNs=rs.getDouble(1);
+						double delayNs=rs.getDouble(2);
+						double T1=rs.getDouble(3);
+						double T2=rs.getDouble(4);
+						double dC1=rs.getDouble(5);
+						double dC2=rs.getDouble(6);
+			
+						// Nullable C0..C4 → default to 0.0 if null
+						double C0=getNullableDouble(rs, 7, 0.0);
+						double C1=getNullableDouble(rs, 8, 0.0);
+						double C2=getNullableDouble(rs, 9, 0.0);
+						double C3=getNullableDouble(rs, 10, 0.0);
+						double C4=getNullableDouble(rs, 11, 0.0);
+			
+						return Optional.of(new MzCalibrationParams(tbNs, delayNs, T1, T2, dC1, dC2, C0, C1, C2, C3, C4));
+					}
+				}
 			}
+			return Optional.empty();
+		} catch (SQLException e) {
+			return Optional.empty();
 		}
 	}
 
@@ -301,8 +309,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	}
 
 	private boolean tableExists(String name) throws SQLException {
-		try (PreparedStatement ps=conn.prepareStatement("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?")) {
-			ps.setString(1, name);
+		try (PreparedStatement ps=conn.prepareStatement("SELECT 1 FROM sqlite_master WHERE type='table' AND name=\""+name+"\"")) {
 			try (ResultSet rs=ps.executeQuery()) {
 				return rs.next();
 			}
@@ -501,11 +508,16 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					if (triplet==null||triplet.x.length==0) {
 						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, new double[0], new float[0], new float[0]));
 					} else {
+						float[] intens=triplet.y;
+						for (int i=0; i<intens.length; i++) {
+							intens[i]=intens[i]/injTime;
+						}
+						
 						float[] ims=new float[triplet.z.length];
 						for (int j=0; j<ims.length; j++) {
 							ims[j]=getIMSFromScanNumber(triplet.z[j], numScans);
 						}
-						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, triplet.x, triplet.y, ims));
+						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, triplet.x, intens, ims));
 					}
 				}
 				Collections.sort(out);
@@ -600,6 +612,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 							// Optionally sqrt intensities
 							float[] intens=triplet.y;
+							for (int i=0; i<intens.length; i++) {
+								intens[i]=intens[i]/acc;
+							}
 							if (sqrt) {
 								intens=intens.clone();
 								for (int i=0; i<intens.length; i++) {
@@ -751,6 +766,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 							// Optionally sqrt intensities
 							float[] intens=triplet.y;
+							for (int i=0; i<intens.length; i++) {
+								intens[i]=intens[i]/acc;
+							}
 							if (sqrt) {
 								intens=intens.clone();
 								for (int i=0; i<intens.length; i++) {
@@ -817,6 +835,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					} else {
 						// Optionally sqrt intensities
 						float[] intens=triplet.y;
+						for (int i=0; i<intens.length; i++) {
+							intens[i]=intens[i]/(float)m.acc;
+						}
 						if (sqrt) {
 							intens=intens.clone();
 							for (int i=0; i<intens.length; i++) {

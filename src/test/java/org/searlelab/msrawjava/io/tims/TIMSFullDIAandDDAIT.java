@@ -167,7 +167,7 @@ public class TIMSFullDIAandDDAIT {
 			assertTrue(s.getIsolationWindowLower()<s.getIsolationWindowUpper());
 			float[] inten=s.getIntensityArray();
 			for (float v : inten)
-				assertTrue(v>=0.01f, "negative intensity");
+				assertTrue(v>0.00f, "negative intensity");
 			assertArraysAligned(s.getMassArray(), s.getIonMobilityArray().get(), inten);
 
 			final double lo=10;

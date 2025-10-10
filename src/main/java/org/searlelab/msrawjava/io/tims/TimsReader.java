@@ -1,21 +1,22 @@
 package org.searlelab.msrawjava.io.tims;
 
 import java.nio.file.Path;
+import java.util.Optional;
 
 import org.searlelab.msrawjava.exceptions.TdfFormatException;
 import org.searlelab.msrawjava.io.utils.Triplet;
 
 public final class TimsReader implements AutoCloseable {
 	private final long datasetHandle;
-	private final MzCalibrationParams params;
+	private final Optional<MzCalibrationParams> params;
 
-	private TimsReader(long datasetHandle, MzCalibrationParams params) {
+	private TimsReader(long datasetHandle, Optional<MzCalibrationParams> params) {
 		if (datasetHandle==0) throw new IllegalStateException("dataset handle is 0");
 		this.datasetHandle=datasetHandle;
 		this.params=params;
 	}
 
-	public static TimsReader open(Path dPath, MzCalibrationParams params) {
+	public static TimsReader open(Path dPath, Optional<MzCalibrationParams> params) {
 		long h=TimsNative.openDataset(dPath.toString());
 		return new TimsReader(h, params);
 	}
@@ -47,6 +48,10 @@ public final class TimsReader implements AutoCloseable {
 	}
 	
 	public Triplet<double[], float[], int[]> readRawFrameAndCalibrate(int frameId, int scanLoInclusive, int scanHiInclusive, double realT1) {
+		if (params.isEmpty()) {
+			return readFrameWithRange(frameId, scanLoInclusive, scanHiInclusive);
+		}
+		
 		try {
 			Object res=TimsNative.readRawFrameTofIntRange(this.datasetHandle, frameId, scanLoInclusive, scanHiInclusive);
 			
@@ -57,7 +62,7 @@ public final class TimsReader implements AutoCloseable {
 			int[] intensRaw = (int[]) raw[1];
 			int[] scan = (int[]) raw[2];
 			
-			double[] mz = MzCalibrationPoly.tofToMz(tofRaw, params, realT1);
+			double[] mz = MzCalibrationPoly.tofToMz(tofRaw, params.get(), realT1);
 	
 			float[] intensityArrayFloat=new float[intensRaw.length];
 			for (int i=0; i<intensRaw.length; i++) {

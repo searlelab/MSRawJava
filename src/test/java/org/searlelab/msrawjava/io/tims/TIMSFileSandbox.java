@@ -19,7 +19,7 @@ import org.searlelab.msrawjava.model.WindowData;
 
 public class TIMSFileSandbox {
 
-	private static final Path D_PATH=Paths.get("/Users/searle.brian/Documents/temp/bruker/20181024_RFdemoPlasma110_100ng_100samplesday_S4-A11_1_2631.d");
+	private static final Path D_PATH=Path.of("src", "test", "resources", "rawdata", "230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");;
 
 	@Test
 	public void smokeReadAllMS1ThenMS2() throws Exception {
