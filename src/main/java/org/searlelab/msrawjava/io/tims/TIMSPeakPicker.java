@@ -9,7 +9,58 @@ import org.searlelab.msrawjava.model.Peak;
 import org.searlelab.msrawjava.model.Range;
 
 public class TIMSPeakPicker {
+	/**
+	 * all peaks need to be "on", this will toggle some "off"
+	 * @param mzSortedPeaks
+	 * @param minimumIntensity
+	 * @return
+	 */
+	public static ArrayList<ArrayList<Peak>> getIMSChromatograms(ArrayList<Peak> mzSortedPeaks, float minimumIntensity) {
+		MassTolerance tolerance=new TIMSMassTolerance();
+		Peak.PeakIMSComparator imsComparator=new Peak.PeakIMSComparator();
 
+		ArrayList<Peak> intensitySortedPeaks=new ArrayList<Peak>(mzSortedPeaks);
+
+		mzSortedPeaks.sort(null); // sorted on m/z
+		intensitySortedPeaks.sort(new Peak.PeakIntensityComparator()); // sorted on intensity
+
+		ArrayList<ArrayList<Peak>> finalPeaks=new ArrayList<ArrayList<Peak>>();
+		int lastPeakConsidered=intensitySortedPeaks.size();
+		EACHPEAK: while (true) {
+			Peak targetPeak=null;
+			for (int i=lastPeakConsidered-1; i>0; i--) {
+				if (intensitySortedPeaks.get(i).isAvailable()) {
+					targetPeak=intensitySortedPeaks.get(i);
+					lastPeakConsidered=i;
+					break;
+				}
+			}
+
+			if (targetPeak==null) {
+				break EACHPEAK;
+			} else {
+				int[] indicies=tolerance.getIndicies(mzSortedPeaks, targetPeak);
+				ArrayList<Peak> imsSortedSlice=new ArrayList<Peak>();
+				for (int i=0; i<indicies.length; i++) {
+					imsSortedSlice.add(mzSortedPeaks.get(indicies[i]));
+				}
+				Collections.sort(imsSortedSlice, imsComparator);
+				finalPeaks.add(imsSortedSlice);
+				
+				for (Peak peak : imsSortedSlice) {
+					peak.turnOff();
+				}
+			}
+		}
+		return finalPeaks;
+	}
+
+	/**
+	 * all peaks need to be "on", this will toggle some "off"
+	 * @param mzSortedPeaks
+	 * @param minimumIntensity
+	 * @return
+	 */
 	public static ArrayList<Peak> peakPickAcrossIMS(ArrayList<Peak> mzSortedPeaks, float minimumIntensity) {
 		MassTolerance tolerance=new TIMSMassTolerance();
 		MassTolerance lowTolerance=new TIMSMassTolerance(true);

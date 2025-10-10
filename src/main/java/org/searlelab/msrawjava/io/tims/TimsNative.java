@@ -22,5 +22,7 @@ public final class TimsNative {
 	public static native Object readRawFrame(long handle, int frameIndex);
 
 	public static native Object[] readRawFrameRange(long handle, int frameIndex, int scanLoInclusive, int scanHiInclusive);
+	
+    public static native Object[] readRawFrameTofIntRange(long handle, int frameIndex, int scanLoInclusive, int scanHiInclusive);
 
 }

@@ -17,6 +17,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.searlelab.msrawjava.algorithms.MatrixMath;
+import org.searlelab.msrawjava.gui.MobilogramHeatmap;
+import org.searlelab.msrawjava.gui.SpectrumChart;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
@@ -185,8 +188,23 @@ public class Main {
 					final int sn=baseMs2Scan+j;
 					ms2Futures.add(pool.submit(() -> {
 						ArrayList<Peak> peaks=ms2s.get(idx).getPeaks(minimumMS2Intensity);
-						Collections.sort(peaks);
+
+						if (ms2s.get(idx).getSpectrumName().equals("frame=2676 start=831 stop=856")) {
+
+							var chart1=MobilogramHeatmap.buildChart(ms2s.get(idx).getIonMobilityArray().get(), ms2s.get(idx).getMassArray(), ms2s.get(idx).getIntensityArray(), 800);
+							MobilogramHeatmap.show(chart1);
+							
+							var chart3 = SpectrumChart.buildChart(peaks);
+							SpectrumChart.show(chart3);
+						}
+						
 						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*minimumMS2Intensity);
+						
+
+						if (ms2s.get(idx).getSpectrumName().equals("frame=2676 start=831 stop=856")) {
+							var chart3 = SpectrumChart.buildChart(peaks);
+							SpectrumChart.show(chart3);
+						}
 						if (timsFile.isPASEFDDA()&&peaks.isEmpty()) return null; // don't worry about scan gaps
 						return ms2s.get(idx).rebuild(sn, peaks);
 					}));

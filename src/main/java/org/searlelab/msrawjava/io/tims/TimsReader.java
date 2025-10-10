@@ -7,15 +7,17 @@ import org.searlelab.msrawjava.io.utils.Triplet;
 
 public final class TimsReader implements AutoCloseable {
 	private final long datasetHandle;
+	private final MzCalibrationParams params;
 
-	private TimsReader(long datasetHandle) {
+	private TimsReader(long datasetHandle, MzCalibrationParams params) {
 		if (datasetHandle==0) throw new IllegalStateException("dataset handle is 0");
 		this.datasetHandle=datasetHandle;
+		this.params=params;
 	}
 
-	public static TimsReader open(Path dPath) {
+	public static TimsReader open(Path dPath, MzCalibrationParams params) {
 		long h=TimsNative.openDataset(dPath.toString());
-		return new TimsReader(h);
+		return new TimsReader(h, params);
 	}
 
 	public Triplet<double[], double[], int[]> readFrame(int frameId) {
@@ -44,6 +46,30 @@ public final class TimsReader implements AutoCloseable {
 		}
 	}
 	
+	public Triplet<double[], float[], int[]> readRawFrameAndCalibrate(int frameId, int scanLoInclusive, int scanHiInclusive, double realT1) {
+		try {
+			Object res=TimsNative.readRawFrameTofIntRange(this.datasetHandle, frameId, scanLoInclusive, scanHiInclusive);
+			
+			if (res==null) return null;
+			Object[] raw=(Object[])res;
+
+			int[] tofRaw = (int[]) raw[0];
+			int[] intensRaw = (int[]) raw[1];
+			int[] scan = (int[]) raw[2];
+			
+			double[] mz = MzCalibrationPoly.tofToMz(tofRaw, params, realT1);
+	
+			float[] intensityArrayFloat=new float[intensRaw.length];
+			for (int i=0; i<intensRaw.length; i++) {
+				intensityArrayFloat[i]=(float)intensRaw[i];
+			}
+		
+			return new Triplet<double[], float[], int[]>(mz, intensityArrayFloat, scan);
+		} catch (TdfFormatException tdf) {
+			return null;
+		}
+	}
+
 	@Override
 	public void close() {
 		TimsNative.closeDataset(datasetHandle);

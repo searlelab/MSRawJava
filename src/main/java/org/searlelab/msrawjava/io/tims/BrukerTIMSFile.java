@@ -9,7 +9,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -21,7 +20,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.zip.DataFormatException;
 
 import org.searlelab.msrawjava.io.utils.Triplet;
@@ -30,8 +28,6 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.StripeFileInterface;
 import org.searlelab.msrawjava.model.WindowData;
-
-import gnu.trove.list.array.TIntArrayList;
 
 /**
  * TIMS-backed implementation that reads frame metadata via sqlite-jdbc and
@@ -48,6 +44,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	private volatile boolean open=true;
 	private int ms1Key=0;
 	private int ms2Key=-1; // unknown
+	
+	private float OneOverK0AcqRangeLower=0;
+	private float OneOverK0AcqRangeUpper=0;
+
 
 	public BrukerTIMSFile() {
 	}
@@ -98,7 +98,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		String url="jdbc:sqlite:"+dPath.resolve("analysis.tdf").toAbsolutePath();
 		this.conn=DriverManager.getConnection(url);
 		this.conn.setAutoCommit(false);
-		this.reader=TimsReader.open(dPath);
+		MzCalibrationParams params=readCalibrationParams();
+		
+		this.reader=TimsReader.open(dPath, params);
 
 		String sql="SELECT MsMsType, COUNT(*) FROM Frames GROUP BY MsMsType ORDER BY MsMsType";
 		Map<Integer, Integer> hist=new LinkedHashMap<>();
@@ -133,6 +135,47 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		if (expectedMS2==0) System.err.println("No MS2s found!");
 		ms1Key=expectedMS1Key;
 		ms2Key=expectedMS2Key;
+		
+
+		sql="SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeLower\"";
+		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
+			rs.next();
+			OneOverK0AcqRangeLower=rs.getFloat(1);
+		}
+		
+		sql="SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeUpper\"";
+		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
+			rs.next();
+			OneOverK0AcqRangeUpper=rs.getFloat(1);
+		}
+		
+	}
+	
+	public MzCalibrationParams readCalibrationParams() throws SQLException {
+		final String sql="SELECT DigitizerTimebase, DigitizerDelay, T1, T2, dC1, dC2, C0, C1, C2, C3, C4 FROM MzCalibration ORDER BY Id LIMIT 1";
+
+		try (PreparedStatement ps=conn.prepareStatement(sql)) {
+			try (ResultSet rs=ps.executeQuery()) {
+				if (!rs.next()) throw new SQLException("MzCalibration table is empty");
+	
+				// Required fields
+				double tbNs=rs.getDouble(1);
+				double delayNs=rs.getDouble(2);
+				double T1=rs.getDouble(3);
+				double T2=rs.getDouble(4);
+				double dC1=rs.getDouble(5);
+				double dC2=rs.getDouble(6);
+	
+				// Nullable C0..C4 → default to 0.0 if null
+				double C0=getNullableDouble(rs, 7, 0.0);
+				double C1=getNullableDouble(rs, 8, 0.0);
+				double C2=getNullableDouble(rs, 9, 0.0);
+				double C3=getNullableDouble(rs, 10, 0.0);
+				double C4=getNullableDouble(rs, 11, 0.0);
+	
+				return new MzCalibrationParams(tbNs, delayNs, T1, T2, dC1, dC2, C0, C1, C2, C3, C4);
+			}
+		}
 	}
 
 	/** Return DIA stripe boundaries and stats; empty for datasets without DIA. */
@@ -412,6 +455,11 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		return out;
 	}
 
+    private static double getNullableDouble(ResultSet rs, int col, double def) throws SQLException {
+        double v = rs.getDouble(col);
+        return rs.wasNull() ? def : v;
+    }
+
 	/** Return the set of column names for a table, empty if table missing. */
 	private Set<String> columnsOf(String table) throws SQLException {
 		LinkedHashSet<String> cols=new LinkedHashSet<>();
@@ -432,73 +480,37 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws SQLException, IOException, DataFormatException {
 		ensureOpen();
 
-		final int[] frameIds=selectFramesByTypeAndRt(ms1Key, rtStart, rtEnd); // ms1Key = 0
-		final ArrayList<PrecursorScan> out=new ArrayList<>(frameIds.length);
-		if (frameIds.length==0) return out;
-
-		// Accumulation time and RT lookup by 1-based Id
-		final Map<Integer, Float> accTimes=fetchAccumulationTimes(frameIds);
-		final Map<Integer, Float> rtMap=new HashMap<>();
-		try (PreparedStatement ps=conn.prepareStatement(
-				"SELECT Id, Time FROM Frames WHERE Id IN ("+Arrays.stream(frameIds).mapToObj(i -> "?").collect(Collectors.joining(","))+")")) {
-			int j=1;
-			for (int id : frameIds)
-				ps.setInt(j++, id);
-			try (ResultSet rs=ps.executeQuery()) {
-				while (rs.next())
-					rtMap.put(rs.getInt(1), (float)rs.getDouble(2));
-			}
-		}
-		
-		for (int i=0; i<frameIds.length; i++) {
-			Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(frameIds[i]-1, 0, 99999); // ms1 reads all scans
-			
-			final String name=Integer.toString(frameIds[i]);
-			final float injTime=accTimes.getOrDefault(frameIds[i], 0f)/1000f; //msec to sec
-			final float rt=rtMap.getOrDefault(frameIds[i], -1.0f);
-
-			if (triplet==null||triplet.x.length==0) {
-				out.add(new PrecursorScan(name, frameIds[i], rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, new double[0], new float[0], new float[0]));
-			} else {
-				float[] ims=new float[triplet.z.length];
-				for (int j=0; j<ims.length; j++) {
-					ims[j]=getIMSFromScanNumber(triplet.z[j]);
-				}
-				out.add(new PrecursorScan(name, frameIds[i], rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, triplet.x, triplet.y, ims));
-			}
-		}
-		return out;
-	}
-
-	private int[] selectFramesByTypeAndRt(int msmsType, double rtStart, double rtEnd) throws SQLException {
-		String sql="SELECT Id FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
-		TIntArrayList ids=new TIntArrayList();
+		String sql="SELECT Id, Time, AccumulationTime, t1, NumScans FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
 		try (PreparedStatement ps=conn.prepareStatement(sql)) {
-			ps.setInt(1, msmsType);
+			ps.setInt(1, ms1Key);
 			ps.setDouble(2, rtStart);
 			ps.setDouble(3, rtEnd);
 			try (ResultSet rs=ps.executeQuery()) {
-				while (rs.next())
-					ids.add(rs.getInt(1));
-			}
-		}
-		return ids.toArray();
-	}
+				
+				final ArrayList<PrecursorScan> out=new ArrayList<>();
+				while (rs.next()) {
+					int frameId=rs.getInt(1);
+					float rt=rs.getFloat(2);
+					float injTime=rs.getFloat(3)/1000f; //msec to sec
+					double t1=rs.getDouble(4);
+					int numScans=rs.getInt(5);
+					
+					Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(frameId-1, 0, 99999, t1); // ms1 reads all scans
 
-	private Map<Integer, Float> fetchAccumulationTimes(int[] frameIds) throws SQLException {
-		if (frameIds.length==0) return Map.of();
-		String inClause=Arrays.stream(frameIds).mapToObj(i -> "?").collect(Collectors.joining(","));
-		String sql="SELECT Id, AccumulationTime FROM Frames WHERE Id IN ("+inClause+")";
-		try (PreparedStatement ps=conn.prepareStatement(sql)) {
-			int idx=1;
-			for (int id : frameIds)
-				ps.setInt(idx++, id);
-			Map<Integer, Float> map=new HashMap<>();
-			try (ResultSet rs=ps.executeQuery()) {
-				while (rs.next())
-					map.put(rs.getInt(1), (float)rs.getDouble(2));
+					final String name=Integer.toString(frameId);
+					if (triplet==null||triplet.x.length==0) {
+						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, new double[0], new float[0], new float[0]));
+					} else {
+						float[] ims=new float[triplet.z.length];
+						for (int j=0; j<ims.length; j++) {
+							ims[j]=getIMSFromScanNumber(triplet.z[j], numScans);
+						}
+						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, triplet.x, triplet.y, ims));
+					}
+				}
+				Collections.sort(out);
+				return out;
 			}
-			return map;
 		}
 	}
 
@@ -508,7 +520,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		if (ms2Key==9) {
 			// DIA: select the single window per frame that contains targetMz
 
-			final String sql="SELECT F.Id, W.WindowGroup, F.Time,  W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd "
+			final String sql="SELECT F.Id, W.WindowGroup, F.Time,  W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd, F.t1, F.NumScans "
 					+"FROM Frames F "
 					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
 					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
@@ -527,10 +539,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						int fid=rs.getInt(1);
 						Meta m=map.get(fid);
 						if (m==null) {
-							m=new Meta();
-							m.frameId=fid;
-							m.rt=(float)rs.getDouble(3);
-							m.acc=(float)rs.getDouble(6);
+							m=new Meta(fid, rs.getDouble(3), rs.getDouble(6), rs.getDouble(9), rs.getInt(10));
 							map.put(fid, m);
 						}
 						Win w=new Win();
@@ -554,7 +563,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			return out;
 		} else if (ms2Key==8) {
 			// DDA: select frames whose isolation contains targetMz, pick closest per frame, include charge and parent
-			final String sql="SELECT F.Id, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
+			final String sql="SELECT F.Id, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, F.t1, F.NumScans "
 					+"COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id "
 					+"FROM Frames F "
 					+"JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id "
@@ -579,12 +588,14 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						final byte charge=(byte)Math.max(0, rs.getInt(8));
 						final String parent=Integer.toString(rs.getInt(9));
 						final int precursorID=rs.getInt(10); // use precursorID as the spectrumIndex
+						float t1=(float)rs.getDouble(11);
+						int numScans=rs.getInt(12);
 
 						final double isoLo=isoMz-0.5*isoW;
 						final double isoHi=isoMz+0.5*isoW;
 
 						try {
-							Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(frameId-1, scanLo, scanHi);
+							Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(frameId-1, scanLo, scanHi, t1);
 							if (triplet==null||triplet.x.length==0) continue;
 
 							// Optionally sqrt intensities
@@ -597,7 +608,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 							}
 							float[] ims=new float[triplet.z.length];
 							for (int i=0; i<ims.length; i++) {
-								ims[i]=getIMSFromScanNumber(triplet.z[i]);
+								ims[i]=getIMSFromScanNumber(triplet.z[i], numScans);
 							}
 
 							final String name=Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
@@ -617,6 +628,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					}
 				}
 			}
+			Collections.sort(out);
 			return out;
 		} else {
 			// Unknown MS2 key, return empty
@@ -630,9 +642,19 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	}
 
 	private class Meta {
-		int frameId;
-		float rt, acc;
+		private final int frameId, scanMax;
+		private final double rt, acc, t1;
 		ArrayList<Win> wins=new ArrayList<>();
+		
+		public Meta(int frameId, double rt, double acc, double t1, int scanMax) {
+			super();
+			this.frameId=frameId;
+			this.rt=rt;
+			this.acc=acc;
+			this.t1=t1;
+			this.scanMax=scanMax;
+		}
+
 	}
 
 	@Override
@@ -644,7 +666,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		if (ms2Key==9) {
 			// DIA: gather all windows overlapping the target range per frame
 
-			final String sql="SELECT F.Id, W.WindowGroup, F.Time, W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd "
+			final String sql="SELECT F.Id, W.WindowGroup, F.Time, W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd, F.t1, F.NumScans "
 					+"FROM Frames F "
 					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
 					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
@@ -663,10 +685,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						int fid=rs.getInt(1);
 						Meta m=map.get(fid);
 						if (m==null) {
-							m=new Meta();
-							m.frameId=fid;
-							m.rt=(float)rs.getDouble(3);
-							m.acc=(float)rs.getDouble(6);
+							m=new Meta(fid, rs.getDouble(3), rs.getDouble(6), rs.getDouble(9), rs.getInt(10));
 							map.put(fid, m);
 						}
 						Win w=new Win();
@@ -691,7 +710,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		} else if (ms2Key==8) {
 			// DDA: pick targets whose isolation window overlaps the target range.
 			String sql="SELECT I.frame, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, "
-					+ "F.AccumulationTime, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor "
+					+ "F.AccumulationTime, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor, F.t1, F.NumScans "
 					+ "FROM PasefFrameMsMsInfo I, Frames F,  Precursors P "
 					+ "WHERE I.frame = F.Id "
 					+ "AND I.Precursor = P.Id "
@@ -720,12 +739,14 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						byte charge=(byte)Math.max(0, rs.getInt(8));
 						String parent=Integer.toString(rs.getInt(9));
 						int precursorID=rs.getInt(10); // use precursorID as the spectrumIndex
+						float t1=(float)rs.getDouble(11);
+						int numScans=rs.getInt(12);
 
 						double isoLo=isoMz-0.5*isoW;
 						double isoHi=isoMz+0.5*isoW;
 
 						try {
-							Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(frameId-1, scanLo, scanHi);
+							Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(frameId-1, scanLo, scanHi, t1);
 							if (triplet==null||triplet.x.length==0) continue;
 
 							// Optionally sqrt intensities
@@ -738,7 +759,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 							}
 							float[] ims=new float[triplet.z.length];
 							for (int i=0; i<ims.length; i++) {
-								ims[i]=getIMSFromScanNumber(triplet.z[i]);
+								ims[i]=getIMSFromScanNumber(triplet.z[i], numScans);
 							}
 
 							final String name="frame="+Integer.toString(frameId)+" start="+scanLo+" stop="+scanHi;
@@ -759,14 +780,19 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					}
 				}
 			}
+			Collections.sort(out);
 			return out;
 		} else {
 			return new ArrayList<>();
 		}
 	}
 	
-	private static float getIMSFromScanNumber(int scanNumber) {
-		return 1.0f/scanNumber; // FIXME fill in with the real conversion
+	private float getIMSFromScanNumber(int scanNumber, int scanMax) {
+		if (OneOverK0AcqRangeUpper-OneOverK0AcqRangeLower>0) {
+			return OneOverK0AcqRangeUpper+(OneOverK0AcqRangeLower-OneOverK0AcqRangeUpper)*((scanNumber-1.0f)/scanMax);
+		} else {
+			return scanNumber;
+		}
 	}
 
 	private ArrayList<FragmentScan> extractDIASpectra(ArrayList<Meta> metas, final boolean sqrt) {
@@ -779,7 +805,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				final double isoH=w.center+0.5*w.width;
 
 				try {
-					Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(m.frameId-1, w.scanLo, w.scanHi);
+					Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(m.frameId-1, w.scanLo, w.scanHi, m.t1);
 
 					// Build a stable id and names
 					final int scanID=m.frameId*100+w.windowGroup; // simple monotone id
@@ -787,7 +813,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 					final int n=triplet.x==null?0:triplet.x.length;
 					if (n==0) {
-						out.add(new FragmentScan(name, name, scanID, m.rt, 0, 1000f*m.acc, isoL, isoH, new double[0], new float[0], new float[0], (byte)0));
+						out.add(new FragmentScan(name, name, scanID, (float)m.rt, 0, 1000f*(float)m.acc, isoL, isoH, new double[0], new float[0], new float[0], (byte)0));
 					} else {
 						// Optionally sqrt intensities
 						float[] intens=triplet.y;
@@ -799,10 +825,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						}
 						float[] ims=new float[triplet.z.length];
 						for (int i=0; i<ims.length; i++) {
-							ims[i]=getIMSFromScanNumber(triplet.z[i]);
+							ims[i]=getIMSFromScanNumber(triplet.z[i], m.scanMax);
 						}
 
-						out.add(new FragmentScan(name, name, scanID, m.rt, 0, 1000f*m.acc, isoL, isoH, triplet.x, intens, ims, (byte)0));
+						out.add(new FragmentScan(name, name, scanID, (float)m.rt, 0, 1000f*(float)m.acc, isoL, isoH, triplet.x, intens, ims, (byte)0));
 					}
 				} catch (Exception ex) {
 					// propagate after closing iterator
@@ -810,6 +836,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				}
 			}
 		}
+		Collections.sort(out);
 		return out;
 	}
 

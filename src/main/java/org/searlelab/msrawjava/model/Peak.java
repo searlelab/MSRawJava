@@ -6,7 +6,7 @@ public class Peak implements Comparable<Peak> {
 	public final double mz;
 	public final float intensity;
 	public final float ims;
-	private boolean toggle=true;
+	private volatile boolean toggle=true;
 
 	public Peak(double mz, float intensity, float ims) {
 		this.mz=mz;
@@ -25,6 +25,10 @@ public class Peak implements Comparable<Peak> {
 
 	public void turnOff() {
 		this.toggle=false;
+	}
+
+	public void turnOn() {
+		this.toggle=true;
 	}
 
 	@Override

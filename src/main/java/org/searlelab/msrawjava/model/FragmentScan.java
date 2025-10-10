@@ -1,9 +1,12 @@
 package org.searlelab.msrawjava.model;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Optional;
 
-public class FragmentScan implements FragmentScanInterface {
+import org.searlelab.msrawjava.algorithms.MatrixMath;
+
+public class FragmentScan implements FragmentScanInterface, Comparable<FragmentScanInterface> {
 
 	private final String spectrumName;
 	private final String precursorName;
@@ -36,6 +39,7 @@ public class FragmentScan implements FragmentScanInterface {
 	}
 
 	public FragmentScan rebuild(int newSpectrumIndex, ArrayList<Peak> peaks) {
+		Collections.sort(peaks);
 		double[] newMassArray=new double[peaks.size()];
 		float[] newIntensityArray=new float[peaks.size()];
 		float[] newIonMobilityArray=new float[peaks.size()];
@@ -57,6 +61,19 @@ public class FragmentScan implements FragmentScanInterface {
 			}
 		}
 		return peaks;
+	}
+	
+	@Override
+	public int compareTo(FragmentScanInterface o) {
+		if (o==null) return 1;
+		int c=Float.compare(scanStartTime, o.getScanStartTime());
+		if (c!=0) return c;
+		c=Integer.compare(spectrumIndex, o.getSpectrumIndex());
+		if (c!=0) return c;
+		c=Double.compare(isolationWindowLower, o.getIsolationWindowLower());
+		if (c!=0) return c;
+		c=Double.compare(isolationWindowUpper, o.getIsolationWindowUpper());
+		return 0;
 	}
 
 	@Override public String getSpectrumName() {

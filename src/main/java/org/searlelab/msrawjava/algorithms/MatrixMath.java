@@ -14,6 +14,14 @@ public class MatrixMath {
 		}
 	}
 
+	public static void print(float[] m) {
+		System.out.print("[");
+		for (int i=0; i<m.length; i++) {
+			if (i>0) System.out.print(", ");
+			System.out.print(m[i]);
+		}
+		System.out.println("]");
+	}
 	public static void print(double[] m) {
 		System.out.print("[");
 		for (int i=0; i<m.length; i++) {

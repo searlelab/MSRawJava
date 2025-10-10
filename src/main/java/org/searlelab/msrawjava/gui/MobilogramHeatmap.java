@@ -29,6 +29,13 @@ public final class MobilogramHeatmap {
     public static JFreeChart buildChart(int[] scan, double[] mz, float[] intensity) {
         return buildChart(scan, mz, intensity, 600);
     }
+    public static JFreeChart buildChart(float[] ims, double[] mz, float[] intensity, int mzBins) {
+    	int[] scan=new int[ims.length];
+    	for (int i=0; i<scan.length; i++) {
+			scan[i]=Math.round(ims[i]*500);
+		}
+    	return buildChart(scan, mz, intensity, mzBins);
+    }
 
     /**
      * Build a mobilogram with the requested number of m/z bins.
