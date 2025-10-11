@@ -13,13 +13,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.zip.DataFormatException;
 
 import org.searlelab.msrawjava.io.utils.Triplet;
@@ -315,6 +313,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			}
 		}
 	}
+	
+	private LinkedHashMap<String, String> metadata=null;
 
 	/**
 	 * metadata map for experiment
@@ -322,142 +322,99 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	@Override
 	public Map<String, String> getMetadata() throws IOException, SQLException {
 		ensureOpen();
+		if (metadata!=null) return metadata;
 		LinkedHashMap<String, String> out=new LinkedHashMap<>();
 
 		// File basics
 		out.put("file.path", dPath.toAbsolutePath().toString());
 		out.put("file.name", originalFileName);
 
-		// --- Frames summary ---
-		try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(Time), MAX(Time), SUM(CASE WHEN MsMsType=0 THEN 1 ELSE 0 END), " // MS1
-				+"SUM(CASE WHEN MsMsType=8 THEN 1 ELSE 0 END), " // DDA MS2
-				+"SUM(CASE WHEN MsMsType=9 THEN 1 ELSE 0 END) " // DIA MS2
+		try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(Time), MAX(Time), SUM(CASE WHEN MsMsType=0 THEN 1 ELSE 0 END), "
+				+"SUM(CASE WHEN MsMsType=8 THEN 1 ELSE 0 END), SUM(CASE WHEN MsMsType=9 THEN 1 ELSE 0 END) " 
 				+"FROM Frames")) {
 			try (ResultSet rs=ps.executeQuery()) {
 				if (rs.next()) {
-					int total=rs.getInt(1);
-					double tMin=rs.getDouble(2);
-					double tMax=rs.getDouble(3);
-					int nMS1=rs.getInt(4);
-					int nDDA=rs.getInt(5);
-					int nDIA=rs.getInt(6);
-					out.put("frames.total", Integer.toString(total));
-					out.put("rt.start.s", Double.toString(tMin));
-					out.put("rt.end.s", Double.toString(tMax));
-					out.put("rt.length.s", Double.toString(Math.max(0.0, tMax-tMin)));
-					out.put("frames.ms1", Integer.toString(nMS1));
-					out.put("frames.ms2.dda", Integer.toString(nDDA));
-					out.put("frames.ms2.dia", Integer.toString(nDIA));
+					out.put("frames.total", Integer.toString(rs.getInt(1)));
+					out.put("rt.start.s", Double.toString(rs.getDouble(2)));
+					out.put("rt.end.s", Double.toString(rs.getDouble(3)));
+					out.put("frames.ms1", Integer.toString(rs.getInt(4)));
+					out.put("frames.ms2.dda", Integer.toString(rs.getInt(5)));
+					out.put("frames.ms2.dia", Integer.toString(rs.getInt(6)));
 				}
 			}
 		}
 
-		// Average accumulation time by class (seconds = 1000 * AccumulationTime, per your convention)
-		if (columnsOf("Frames").contains("AccumulationTime")) {
-			try (PreparedStatement ps=conn.prepareStatement("SELECT "+"AVG(CASE WHEN MsMsType=0 THEN AccumulationTime END), "
-					+"AVG(CASE WHEN MsMsType=8 THEN AccumulationTime END), AVG(CASE WHEN MsMsType=9 THEN AccumulationTime END) "
-					+"FROM Frames")) {
-				try (ResultSet rs=ps.executeQuery()) {
-					if (rs.next()) {
-						double ms1=rs.getDouble(1);
-						double dda=rs.getDouble(2);
-						double dia=rs.getDouble(3);
-						out.put("accTime.avg.ms1.s", Double.toString(1000.0*ms1));
-						out.put("accTime.avg.ms2.dda.s", Double.toString(1000.0*dda));
-						out.put("accTime.avg.ms2.dia.s", Double.toString(1000.0*dia));
-					}
+		try (PreparedStatement ps=conn.prepareStatement("SELECT MIN(t1), AVG(t1), MAX(t1), MIN(t2), AVG(t2), MAX(t2) FROM Frames")) {
+			try (ResultSet rs=ps.executeQuery()) {
+				if (rs.next()) {
+					out.put("temp.min.t1", Double.toString(rs.getDouble(1)));
+					out.put("temp.avg.t1", Double.toString(rs.getDouble(2)));
+					out.put("temp.max.t1", Double.toString(rs.getDouble(3)));
+					out.put("temp.min.t2", Double.toString(rs.getDouble(4)));
+					out.put("temp.avg.t2", Double.toString(rs.getDouble(5)));
+					out.put("temp.max.t2", Double.toString(rs.getDouble(6)));
 				}
 			}
 		}
 
-		// Distinct TIMS stacks (useful to know multiplexing or merged acquisitions)
-		if (columnsOf("Frames").contains("TimsId")) {
-			try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(DISTINCT TimsId) FROM Frames"); ResultSet rs=ps.executeQuery()) {
-				if (rs.next()) out.put("tims.distinctIds", Integer.toString(rs.getInt(1)));
+		try (PreparedStatement ps=conn.prepareStatement("SELECT AVG(CASE WHEN MsMsType=0 THEN AccumulationTime END), "
+				+"AVG(CASE WHEN MsMsType=8 THEN AccumulationTime END), AVG(CASE WHEN MsMsType=9 THEN AccumulationTime END) "
+				+"FROM Frames")) {
+			try (ResultSet rs=ps.executeQuery()) {
+				if (rs.next()) {
+					out.put("accTime.avg.ms1.s", Double.toString(1000.0*rs.getDouble(1)));
+					out.put("accTime.avg.ms2.dda.s", Double.toString(1000.0*rs.getDouble(2)));
+					out.put("accTime.avg.ms2.dia.s", Double.toString(1000.0*rs.getDouble(3)));
+				}
 			}
 		}
 
-		// --- DIA window summary (if present) ---
 		if (tableExists("DiaFrameMsMsWindows")) {
-			Set<String> cols=columnsOf("DiaFrameMsMsWindows");
-			boolean hasWg=cols.contains("WindowGroup");
-			boolean hasIso=cols.contains("IsolationMz")&&cols.contains("IsolationWidth");
-			if (hasIso) {
-				String cntSql="SELECT COUNT(*) FROM DiaFrameMsMsWindows";
-				String wgSql=hasWg?"SELECT COUNT(DISTINCT WindowGroup) FROM DiaFrameMsMsWindows":null;
-				String spanSql="SELECT MIN(IsolationMz - 0.5*IsolationWidth), MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "
-						+"FROM DiaFrameMsMsWindows";
-				try (PreparedStatement ps1=conn.prepareStatement(cntSql); ResultSet r1=ps1.executeQuery()) {
-					if (r1.next()) out.put("dia.windows.count", Integer.toString(r1.getInt(1)));
-				}
-				if (wgSql!=null) try (PreparedStatement ps2=conn.prepareStatement(wgSql); ResultSet r2=ps2.executeQuery()) {
-					if (r2.next()) out.put("dia.windowGroups.count", Integer.toString(r2.getInt(1)));
-				}
-				try (PreparedStatement ps3=conn.prepareStatement(spanSql); ResultSet r3=ps3.executeQuery()) {
-					if (r3.next()) {
-						out.put("dia.mz.min", Double.toString(r3.getDouble(1)));
-						out.put("dia.mz.max", Double.toString(r3.getDouble(2)));
-						out.put("dia.window.avgWidth", Double.toString(r3.getDouble(3)));
-					}
+			String cntSql="SELECT COUNT(*) FROM DiaFrameMsMsWindows";
+			String wgSql="SELECT COUNT(DISTINCT WindowGroup) FROM DiaFrameMsMsWindows";
+			String spanSql="SELECT MIN(IsolationMz - 0.5*IsolationWidth), MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "
+					+"FROM DiaFrameMsMsWindows";
+			try (PreparedStatement ps1=conn.prepareStatement(cntSql); ResultSet r1=ps1.executeQuery()) {
+				if (r1.next()) out.put("dia.windows.count", Integer.toString(r1.getInt(1)));
+			}
+			try (PreparedStatement ps2=conn.prepareStatement(wgSql); ResultSet r2=ps2.executeQuery()) {
+				if (r2.next()) out.put("dia.windowGroups.count", Integer.toString(r2.getInt(1)));
+			}
+			try (PreparedStatement ps3=conn.prepareStatement(spanSql); ResultSet r3=ps3.executeQuery()) {
+				if (r3.next()) {
+					out.put("dia.mz.min", Double.toString(r3.getDouble(1)));
+					out.put("dia.mz.max", Double.toString(r3.getDouble(2)));
+					out.put("dia.window.avgWidth", Double.toString(r3.getDouble(3)));
 				}
 			}
 		}
 
-		// --- DDA isolation summary (if present) ---
 		if (tableExists("PasefFrameMsMsInfo")) {
-			Set<String> cols=columnsOf("PasefFrameMsMsInfo");
-			if (cols.containsAll(Set.of("IsolationMz", "IsolationWidth"))) {
-				try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(IsolationMz - 0.5*IsolationWidth), "
-						+"MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "
-						+"FROM PasefFrameMsMsInfo"); ResultSet rs=ps.executeQuery()) {
-					if (rs.next()) {
-						out.put("dda.targets.count", Integer.toString(rs.getInt(1)));
-						out.put("dda.mz.min", Double.toString(rs.getDouble(2)));
-						out.put("dda.mz.max", Double.toString(rs.getDouble(3)));
-						out.put("dda.window.avgWidth", Double.toString(rs.getDouble(4)));
-					}
+			try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(IsolationMz - 0.5*IsolationWidth), "
+					+"MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "
+					+"FROM PasefFrameMsMsInfo"); ResultSet rs=ps.executeQuery()) {
+				if (rs.next()) {
+					out.put("dda.targets.count", Integer.toString(rs.getInt(1)));
+					out.put("dda.mz.min", Double.toString(rs.getDouble(2)));
+					out.put("dda.mz.max", Double.toString(rs.getDouble(3)));
+					out.put("dda.window.avgWidth", Double.toString(rs.getDouble(4)));
 				}
 			}
 		}
 
-		// --- Global key/value stores (if present) ---
 		if (tableExists("GlobalMetadata")) {
-			Set<String> cols=columnsOf("GlobalMetadata");
-			String keyCol=cols.contains("Key")?"Key":cols.contains("Tag")?"Tag":cols.contains("Name")?"Name":null;
-			String valCol=cols.contains("Value")?"Value":null;
-			if (keyCol!=null&&valCol!=null) {
-				String sql="SELECT "+keyCol+", "+valCol+" FROM GlobalMetadata";
-				try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
-					int added=0;
-					while (rs.next()&&added<200) { // cap to keep the map reasonable
-						String k=rs.getString(1);
-						String v=rs.getString(2);
-						if (k!=null&&v!=null&&!out.containsKey("meta."+k)) {
-							out.put("meta."+k, v);
-							added++;
-						}
+			String sql="SELECT Key, Value FROM GlobalMetadata";
+			try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
+				while (rs.next()) {
+					String k=rs.getString(1);
+					String v=rs.getString(2);
+					if (k!=null&&v!=null) {
+						out.put("meta."+k, v);
 					}
 				}
 			}
 		}
-
-		if (tableExists("Properties")) {
-			Set<String> cols=columnsOf("Properties");
-			if (cols.contains("Name")&&cols.contains("Value")) {
-				String sql="SELECT Name, Value FROM Properties";
-				try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
-					int added=0;
-					while (rs.next()&&added<200) {
-						String k=rs.getString(1);
-						String v=rs.getString(2);
-						if (k!=null&&v!=null&&!out.containsKey("prop."+k)) {
-							out.put("prop."+k, v);
-							added++;
-						}
-					}
-				}
-			}
-		}
+		metadata=out;
 
 		return out;
 	}
@@ -467,25 +424,20 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
         return rs.wasNull() ? def : v;
     }
 
-	/** Return the set of column names for a table, empty if table missing. */
-	private Set<String> columnsOf(String table) throws SQLException {
-		LinkedHashSet<String> cols=new LinkedHashSet<>();
-		if (!tableExists(table)) return cols;
-		// PRAGMA table_info() cannot take a bound parameter, compose carefully.
-		String sql="PRAGMA table_info("+table+")";
-		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
-			while (rs.next()) {
-				String name=rs.getString("name");
-				if (name!=null) cols.add(name);
-			}
-		}
-		return cols;
-	}
-
 	/** Read MS1 precursor scans within an RT window. */
 	@Override
 	public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws SQLException, IOException, DataFormatException {
 		ensureOpen();
+
+		double isolationWindowLower;
+		double isolationWindowUpper;
+		try {
+			isolationWindowLower=Double.parseDouble(getMetadata().get("meta.MzAcqRangeLower"));
+			isolationWindowUpper=Double.parseDouble(getMetadata().get("meta.MzAcqRangeUpper"));
+		} catch (Exception e) {
+			isolationWindowLower=0;
+			isolationWindowUpper=2000;
+		}
 
 		String sql="SELECT Id, Time, AccumulationTime, t1, NumScans FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
 		try (PreparedStatement ps=conn.prepareStatement(sql)) {
@@ -506,13 +458,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 					final String name=Integer.toString(frameId);
 					if (triplet==null||triplet.x.length==0) {
-						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, new double[0], new float[0], new float[0]));
+						out.add(new PrecursorScan(name, frameId, rt, 0, isolationWindowLower, isolationWindowUpper, injTime, new double[0], new float[0], new float[0]));
 					} else {
 						float[] ims=new float[triplet.z.length];
 						for (int j=0; j<ims.length; j++) {
 							ims[j]=getIMSFromScanNumber(triplet.z[j], numScans);
 						}
-						out.add(new PrecursorScan(name, frameId, rt, 0, 0.0, Double.POSITIVE_INFINITY, injTime, triplet.x, triplet.y, ims));
+						out.add(new PrecursorScan(name, frameId, rt, 0, isolationWindowLower, isolationWindowUpper, injTime, triplet.x, triplet.y, ims));
 					}
 				}
 				Collections.sort(out);

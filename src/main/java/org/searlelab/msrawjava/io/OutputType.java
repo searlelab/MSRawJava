@@ -19,6 +19,11 @@ public enum OutputType {
 				MGFOutputFile mgf=new MGFOutputFile();
 				mgf.openFile();
 				return mgf;
+				
+			case mzml:
+				MZMLOutputFile mzml=new MZMLOutputFile();
+				mzml.openFile();
+				return mzml;
 
 			default:
 				throw new UnexpectedException("Unknown file type "+this);
@@ -31,6 +36,8 @@ public enum OutputType {
 				return outputDirPath.resolve(changeExtension(filename, EncyclopeDIAFile.DIA_EXTENSION));
 			case mgf:
 				return outputDirPath.resolve(changeExtension(filename, MGFOutputFile.MGF_EXTENSION));
+			case mzml:
+				return outputDirPath.resolve(changeExtension(filename, MZMLOutputFile.MZML_EXTENSION));
 
 			default:
 				throw new RuntimeException("Unknown file type "+this);

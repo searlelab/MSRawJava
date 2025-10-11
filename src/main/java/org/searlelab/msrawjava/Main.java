@@ -54,6 +54,7 @@ public class Main {
 		} else if (argsList.contains("-mzml")) {
 			outType=OutputType.mzml;
 			argsList.remove("-mzml");
+			
 		} else {
 			outType=OutputType.encyclopedia;
 		}

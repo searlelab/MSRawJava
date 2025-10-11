@@ -9,7 +9,6 @@ import java.nio.file.StandardCopyOption;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -95,12 +94,11 @@ public class MGFOutputFile implements OutputSpectrumFile {
 				writer.println("CHARGE="+Integer.toString(abs)+(z>0?"+":"-"));
 			}
 
-			System.out.println(msms.getMassArray().length+", "+msms.getIntensityArray().length);
 			double[] mz=msms.getMassArray();
 			float[] intensity=msms.getIntensityArray();
 			for (int i=0; i<Math.min(mz.length, intensity.length); i++) {
 				if (intensity[i]>0f) {
-					writer.println(String.format("%.6f", mz[i])+"\t"+String.format("%.3f", intensity[i]));
+					writer.println(String.format("%.6f", mz[i])+"\t"+String.format("%.1f", intensity[i]));
 				}
 			}
 
