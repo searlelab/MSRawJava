@@ -2,11 +2,11 @@ name: publish
 
 on:
   push:
-    tags: [ 'v*' ]            # e.g. v0.5.286
-  workflow_dispatch:           # manual run button
+    tags: [ 'v*' ]   
+  workflow_dispatch:
     inputs:
       version_override:
-        description: 'Optional: override POM version shown in the release name'
+        description: 'Optional: override POM version shown in release notes'
         required: false
         default: ''
 
@@ -15,9 +15,6 @@ permissions:
   packages: write
 
 jobs:
-  # --------------------------
-  # 1) Build Rust JNI on macOS
-  # --------------------------
   rust-macos:
     runs-on: macos-latest
     steps:
@@ -30,15 +27,11 @@ jobs:
           cargo build --manifest-path rust-jni/Cargo.toml --release
           mkdir -p dist/META-INF/lib/osx-aarch64
           cp rust-jni/target/release/libtimsrust_jni.dylib dist/META-INF/lib/osx-aarch64/
-      - name: Upload JNI macOS
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: jni-macos
           path: dist
 
-  # ---------------------------
-  # 2) Build Rust JNI on Linux
-  # ---------------------------
   rust-linux:
     runs-on: ubuntu-latest
     steps:
@@ -55,15 +48,11 @@ jobs:
           cargo build --manifest-path rust-jni/Cargo.toml --release
           mkdir -p dist/META-INF/lib/linux-x86_64
           cp rust-jni/target/release/libtimsrust_jni.so dist/META-INF/lib/linux-x86_64/
-      - name: Upload JNI linux
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: jni-linux
           path: dist
 
-  # -----------------------------
-  # 3) Build Rust JNI on Windows
-  # -----------------------------
   rust-windows:
     runs-on: windows-latest
     steps:
@@ -77,15 +66,11 @@ jobs:
           cargo build --manifest-path rust-jni/Cargo.toml --release
           New-Item -ItemType Directory -Force -Path dist\META-INF\lib\windows-x86_64 | Out-Null
           Copy-Item rust-jni\target\release\timsrust_jni.dll dist\META-INF\lib\windows-x86_64\
-      - name: Upload JNI windows
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: jni-windows
           path: dist
 
-  # ---------------------------------
-  # 4) Build .NET Thermo servers (mac)
-  # ---------------------------------
   dotnet-macos:
     runs-on: macos-latest
     env:
@@ -95,12 +80,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-
-      - name: Set up .NET 8 SDK
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-
       - name: Generate NuGet.config from secrets (optional)
         shell: bash
         run: |
@@ -108,43 +90,36 @@ jobs:
           if [[ -f NuGet.config ]]; then
             echo "NuGet.config present; skipping."
           elif [[ -n "${NUGET_FEED_URL}" && -n "${NUGET_USERNAME}" && -n "${NUGET_PASSWORD}" ]]; then
-            cat > NuGet.config <<EOF
-          <?xml version="1.0" encoding="utf-8"?>
-          <configuration>
-            <packageSources>
-              <add key="thermo" value="${NUGET_FEED_URL}" />
-            </packageSources>
-            <packageSourceCredentials>
-              <thermo>
-                <add key="Username" value="${NUGET_USERNAME}" />
-                <add key="ClearTextPassword" value="${NUGET_PASSWORD}" />
-              </thermo>
-            </packageSourceCredentials>
-          </configuration>
-          EOF
+cat > NuGet.config <<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="thermo" value="${NUGET_FEED_URL}" />
+  </packageSources>
+  <packageSourceCredentials>
+    <thermo>
+      <add key="Username" value="${NUGET_USERNAME}" />
+      <add key="ClearTextPassword" value="${NUGET_PASSWORD}" />
+    </thermo>
+  </packageSourceCredentials>
+</configuration>
+EOF
           else
-            echo "No NuGet secrets provided; assuming NuGet.config is committed or feeds are public."
+            echo "No NuGet secrets; assuming NuGet.config is committed or feeds are public."
           fi
-
-      - name: Build .NET servers (your script)
+      - name: Build .NET servers
         run: bash scripts/build-all-net.sh
-
-      - name: Upload Thermo server trees
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: thermo-servers
           path: src/main/resources/msraw/thermo/bin
 
-  # -------------------------------------------
-  # 5) Assemble, package, and deploy from macOS
-  # -------------------------------------------
   publish:
     runs-on: macos-latest
-    needs:
-      - rust-macos
-      - rust-linux
-      - rust-windows
-      - dotnet-macos
+    needs: [rust-macos, rust-linux, rust-windows, dotnet-macos]
+    env:
+      GH_PACKAGES_USER:   ${{ secrets.GH_PACKAGES_USER }}
+      GH_PACKAGES_TOKEN:  ${{ secrets.GH_PACKAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -154,17 +129,14 @@ jobs:
         with:
           path: artifacts
 
-      # Put everything under src/main/resources so Maven includes it in the JAR.
       - name: Stage JNI libs into resources
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p src/main/resources/META-INF/lib
-          # Copy META-INF/lib trees from each artifact
-          rsync -a artifacts/jni-macos/ src/main/resources/
-          rsync -a artifacts/jni-linux/ src/main/resources/
+          rsync -a artifacts/jni-macos/   src/main/resources/
+          rsync -a artifacts/jni-linux/   src/main/resources/
           rsync -a artifacts/jni-windows/ src/main/resources/
-          echo "Staged JNI under src/main/resources/META-INF/lib:"
           find src/main/resources/META-INF/lib -type f -maxdepth 3 -print
 
       - name: Stage Thermo servers into resources
@@ -174,20 +146,39 @@ jobs:
           rm -rf src/main/resources/msraw/thermo/bin
           mkdir -p src/main/resources/msraw/thermo
           rsync -a artifacts/thermo-servers/ src/main/resources/msraw/thermo/bin/
-          echo "Thermo servers staged:"
           find src/main/resources/msraw/thermo/bin -type f -maxdepth 3 -print
 
-      - name: Set up Java 17 (Temurin) + Maven deploy credentials
+      - name: Set up Java 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: maven
-          server-id: github
-          server-username: GITHUB_ACTOR
-          server-password: ${{ secrets.GITHUB_TOKEN }}
 
-      # We already staged natives, so skip your native build scripts.
+      - name: Write Maven settings.xml (uses PAT)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<EOF
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                              https://maven.apache.org/xsd/settings-1.0.0.xsd">
+  <servers>
+    <server>
+      <id>github</id>
+      <username>${GH_PACKAGES_USER}</username>
+      <password>${GH_PACKAGES_TOKEN}</password>
+    </server>
+  </servers>
+</settings>
+EOF
+
+      - name: Sanity print Maven version
+        run: mvn -v
+
+      # We already staged natives; skip the shell scripts in your POM
       - name: Maven clean deploy (skip native scripts)
         run: mvn -B -DskipTests -Dskip.build.natives=true clean deploy
 
