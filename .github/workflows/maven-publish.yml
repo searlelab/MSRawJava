@@ -1,0 +1,122 @@
+name: publish
+
+on:
+  # Tag → publish (e.g., v0.5.286)
+  push:
+    tags: [ 'v*' ]
+  # Manual trigger with an option to skip native builds while you iterate
+  workflow_dispatch:
+    inputs:
+      skip_natives:
+        description: 'Skip Rust/.NET native builds (sets -Dskip.build.natives=true)'
+        type: boolean
+        default: false
+
+jobs:
+  publish:
+    # macOS is your best “one box” for: Rust (arm64 mac dylib),
+    # dotnet cross-publish (osx-x64/linux-x64/win-x64),
+    # and cargo-zigbuild (linux/windows).
+    runs-on: macos-latest
+
+    permissions:
+      contents: read
+      packages: write   # needed to push to GitHub Packages
+
+    env:
+      # Maven will deploy to the <distributionManagement> repo with id 'github'
+      MAVEN_CLI_OPTS: "-B -DskipTests"
+      SKIP_NATIVES: ${{ inputs.skip_natives }} # "true"/"false" string for our run script
+
+      # If you need to generate NuGet.config from secrets, we’ll use these:
+      NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
+      NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
+      NUGET_PASSWORD: ${{ secrets.NUGET_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 17 (Temurin) + Maven server creds
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          # This wires <server id="github"> for deploy to https://maven.pkg.github.com/...
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---------- Rust toolchain & cross-compilers ----------
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust targets for cross-compile
+        run: |
+          rustup target add x86_64-unknown-linux-gnu
+          rustup target add x86_64-pc-windows-gnu
+
+      - name: Install Zig and cargo-zigbuild
+        run: |
+          brew update
+          brew install zig
+          cargo install --locked cargo-zigbuild
+
+      # ---------- .NET SDK for Thermo server ----------
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # Optional: generate NuGet.config from secrets *if you don’t want a real one in the repo*.
+      # If you already committed NuGet.config (the script references $ROOT/NuGet.config),
+      # delete this step.
+      - name: Generate NuGet.config from secrets (optional)
+        if: env.NUGET_FEED_URL != '' && env.NUGET_USERNAME != '' && env.NUGET_PASSWORD != ''
+        run: |
+          cat > NuGet.config <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <add key="thermo" value="${NUGET_FEED_URL}" />
+            </packageSources>
+            <packageSourceCredentials>
+              <thermo>
+                <add key="Username" value="${NUGET_USERNAME}" />
+                <add key="ClearTextPassword" value="${NUGET_PASSWORD}" />
+              </thermo>
+            </packageSourceCredentials>
+          </configuration>
+          EOF
+
+      # ---------- Build & Deploy ----------
+      # Your POM runs:
+      #   scripts/build-all-net.sh   (dotnet publish self-contained for osx-x64, linux-x64, win-x64)
+      #   scripts/build-all-rust.sh  (cargo + cargo-zigbuild → osx-aarch64, linux-x86_64, windows-x86_64)
+      # Those land under src/main/resources/msraw/thermo/bin/... and META-INF/lib/...
+      - name: Build & Deploy to GitHub Packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Optionally flip off native builds from the UI while you tune toolchains
+          if [[ "${SKIP_NATIVES:-false}" == "true" ]]; then
+            echo ">> Running Maven with -Dskip.build.natives=true"
+            mvn ${MAVEN_CLI_OPTS} -Dskip.build.natives=true clean deploy
+          else
+            echo ">> Running Maven with native builds enabled"
+            mvn ${MAVEN_CLI_OPTS} clean deploy
+          fi
+
+      # Handy artifact to peek at the produced JAR on failures/success
+      - name: Upload built jar (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: msrawjava-artifacts
+          path: |
+            target/*.jar
+            target/lib/*.jar
