@@ -21,12 +21,13 @@ jobs:
     env:
       MAVEN_CLI_OPTS: "-B -DskipTests"
       SKIP_NATIVES: ${{ inputs.skip_natives }}
+
       # Optional NuGet secrets (only used if you didn't commit NuGet.config)
       NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
       NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
       NUGET_PASSWORD: ${{ secrets.NUGET_PASSWORD }}
 
-      # Predeclare paths we’ll force into PATH later
+      # Paths we’ll append via GITHUB_PATH
       BREW_MINGW_BIN_AARCH64: /opt/homebrew/opt/mingw-w64/bin
       BREW_MINGW_BIN_INTEL:   /usr/local/opt/mingw-w64/bin
       BREW_LLVM_BIN_AARCH64:  /opt/homebrew/opt/llvm/bin
@@ -109,7 +110,7 @@ jobs:
           brew install llvm
           cargo install --locked cargo-zigbuild
 
-          # Ensure bin dirs available across Apple Silicon / Intel runners
+          # Expose Homebrew bins to subsequent steps
           echo "$BREW_MINGW_BIN_AARCH64" >> "$GITHUB_PATH"
           echo "$BREW_MINGW_BIN_INTEL"   >> "$GITHUB_PATH"
           echo "$BREW_LLVM_BIN_AARCH64"  >> "$GITHUB_PATH"
@@ -122,8 +123,6 @@ jobs:
           set -euo pipefail
           mkdir -p "$LOCAL_BIN"
 
-          # If the exact-prefixed dlltool is missing but llvm-dlltool exists,
-          # create a shim named x86_64-w64-mingw32-dlltool that forwards to llvm-dlltool.
           if ! command -v x86_64-w64-mingw32-dlltool >/dev/null 2>&1; then
             if command -v llvm-dlltool >/dev/null 2>&1; then
               cat > "$LOCAL_BIN/x86_64-w64-mingw32-dlltool" <<'EOSH'
@@ -133,32 +132,30 @@ jobs:
               chmod +x "$LOCAL_BIN/x86_64-w64-mingw32-dlltool"
               echo "Created shim for x86_64-w64-mingw32-dlltool -> llvm-dlltool"
             else
-              echo "llvm-dlltool not found; will rely on mingw-w64 providing dlltool."
+              echo "Neither x86_64-w64-mingw32-dlltool nor llvm-dlltool found!" >&2
+              exit 1
             fi
           fi
 
-          echo "PATH at this point:"
-          echo "$PATH"
-          which x86_64-w64-mingw32-dlltool && x86_64-w64-mingw32-dlltool --version || true
-          which llvm-dlltool && llvm-dlltool --version || true
+          echo "PATH now: $PATH"
+          command -v x86_64-w64-mingw32-dlltool && x86_64-w64-mingw32-dlltool --version || true
+          command -v llvm-dlltool && llvm-dlltool --version || true
           zig version
 
       # ---------- Build & deploy ----------
       - name: Build & deploy to GitHub Packages
         shell: bash
         env:
-          # Belt-and-suspenders: force PATH for the Maven step, in case subprocess env differs
-          PATH: ${{ env.LOCAL_BIN }}:${{ env.BREW_MINGW_BIN_AARCH64 }}:${{ env.BREW_MINGW_BIN_INTEL }}:${{ env.BREW_LLVM_BIN_AARCH64 }}:${{ env.BREW_LLVM_BIN_INTEL }}:${{ env.PATH }}
-          # Help cc/rustc find cross tools explicitly
+          # Helpful hints for the windows-gnu target (tools are on PATH already)
           AR_x86_64_pc_windows_gnu: x86_64-w64-mingw32-ar
           CC_x86_64_pc_windows_gnu: x86_64-w64-mingw32-gcc
           DLLTOOL_x86_64_pc_windows_gnu: x86_64-w64-mingw32-dlltool
         run: |
           set -euo pipefail
-          echo "Tool sanity before build:"
-          which x86_64-w64-mingw32-dlltool || { echo "dlltool still not on PATH"; exit 1; }
-          which x86_64-w64-mingw32-gcc || true
-          which x86_64-w64-mingw32-ar || true
+          echo "Tool sanity:"
+          command -v x86_64-w64-mingw32-dlltool || { echo "dlltool missing at build step"; exit 1; }
+          command -v x86_64-w64-mingw32-gcc || true
+          command -v x86_64-w64-mingw32-ar || true
 
           if [[ "${SKIP_NATIVES:-false}" == "true" ]]; then
             echo ">> Running Maven with -Dskip.build.natives=true"
