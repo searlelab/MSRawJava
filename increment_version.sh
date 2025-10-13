@@ -19,9 +19,10 @@ echo `find thermo-raw-server/Program.cs -name '*.cs' -exec wc {} \; | awk '{sum=
 TAG=${program}-${branch}-${current}
 
 mvn versions:set -DnewVersion="${current}"
+
 git commit -am "Update to version for release ${program}-${branch}-${current}."
 git tag "${TAG}" # optional
-mvn clean package -DbuildJars;
+mvn clean package;
 mvn versions:set -DnewVersion="${next}-SNAPSHOT"
 git commit -am "Update to next SNAPSHOT version."
 

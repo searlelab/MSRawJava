@@ -5,7 +5,7 @@
 
 	<groupId>org.searlelab</groupId>
 	<artifactId>msrawjava</artifactId>
-	<version>0.6.0-SNAPSHOT</version>
+	<version>0.5.286</version>
 	<packaging>jar</packaging>
 
 	<name>msrawjava</name>
@@ -26,6 +26,14 @@
 
 		<skip.build.natives>false</skip.build.natives>
 	</properties>
+
+	<distributionManagement>
+		<repository>
+			<id>github</id>
+			<name>GitHub Packages</name>
+			<url>https://maven.pkg.github.com/searlelab/MSRawJava</url>
+		</repository>
+	</distributionManagement>
 
 	<dependencyManagement>
 		<dependencies>
@@ -240,6 +248,34 @@
 
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>3.3.1</version>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>3.10.0</version>
+				<executions>
+					<execution>
+						<id>attach-javadocs</id>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+    		</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-dependency-plugin</artifactId>
 				<version>3.6.1</version>
 				<executions>
@@ -280,8 +316,7 @@
 								<configuration>
 									<artifacts>
 										<artifact>
-											<file>
-												${project.build.directory}/${project.build.finalName}.jar</file>
+											<file>${project.build.directory}/${project.build.finalName}.jar</file>
 											<type>jar</type>
 											<classifier>all-natives</classifier>
 										</artifact>

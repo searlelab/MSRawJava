@@ -42,3 +42,4 @@ replay_pid*
 
 # binary generation
 /src/main/resources/msraw/
+*.versionsBackup
