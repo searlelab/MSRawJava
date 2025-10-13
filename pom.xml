@@ -5,7 +5,7 @@
 
 	<groupId>org.searlelab</groupId>
 	<artifactId>msrawjava</artifactId>
-	<version>0.5.286</version>
+	<version>v0.5.286</version>
 	<packaging>jar</packaging>
 
 	<name>msrawjava</name>

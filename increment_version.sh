@@ -16,11 +16,11 @@ echo `find src -name '*.java' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}
 echo `find rust-jni/src -name '*.rs' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of Rust code"
 echo `find thermo-raw-server/Program.cs -name '*.cs' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of C# code"
 
-TAG=${program}-${branch}-${current}
+TAG=v${current}
 
 mvn versions:set -DnewVersion="${current}"
 
-git commit -am "Update to version for release ${program}-${branch}-${current}."
+git commit -am "Update to version for release ${TAG}."
 git tag "${TAG}" # optional
 mvn clean package;
 mvn versions:set -DnewVersion="${next}-SNAPSHOT"

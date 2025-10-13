@@ -37,6 +37,10 @@ public class Version implements Comparable<Version> {
 			revision=0;
 			snapshot=true;
 		} else {
+			if (versionString.charAt(0)=='v') {
+				// trim off version indicator for tagged versions
+				versionString=versionString.substring(1);
+			}
 			StringTokenizer st=new StringTokenizer(versionString, ".");
 			major=Integer.parseInt(st.nextToken());
 			minor=Integer.parseInt(st.nextToken());
@@ -65,6 +69,9 @@ public class Version implements Comparable<Version> {
 
 	public String toString() {
 		StringBuilder sb=new StringBuilder();
+		if (!snapshot) {
+			sb.append("v");
+		}
 		sb.append(major);
 		sb.append(".");
 		sb.append(minor);
