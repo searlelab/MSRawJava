@@ -429,14 +429,15 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws SQLException, IOException, DataFormatException {
 		ensureOpen();
 
-		double isolationWindowLower;
-		double isolationWindowUpper;
+		Map<String, String> meta=getMetadata();
+		double scanWindowLower;
+		double scanWindowUpper;
 		try {
-			isolationWindowLower=Double.parseDouble(getMetadata().get("meta.MzAcqRangeLower"));
-			isolationWindowUpper=Double.parseDouble(getMetadata().get("meta.MzAcqRangeUpper"));
+			scanWindowLower=Double.parseDouble(meta.get("meta.MzAcqRangeLower"));
+			scanWindowUpper=Double.parseDouble(meta.get("meta.MzAcqRangeUpper"));
 		} catch (Exception e) {
-			isolationWindowLower=0;
-			isolationWindowUpper=2000;
+			scanWindowLower=0.0;
+			scanWindowUpper=2000.0;
 		}
 
 		String sql="SELECT Id, Time, AccumulationTime, t1, NumScans FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
@@ -458,13 +459,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 					final String name=Integer.toString(frameId);
 					if (triplet==null||triplet.x.length==0) {
-						out.add(new PrecursorScan(name, frameId, rt, 0, isolationWindowLower, isolationWindowUpper, injTime, new double[0], new float[0], new float[0]));
+						out.add(new PrecursorScan(name, frameId, rt, 0, scanWindowLower, scanWindowUpper, injTime, new double[0], new float[0], new float[0]));
 					} else {
 						float[] ims=new float[triplet.z.length];
 						for (int j=0; j<ims.length; j++) {
 							ims[j]=getIMSFromScanNumber(triplet.z[j], numScans);
 						}
-						out.add(new PrecursorScan(name, frameId, rt, 0, isolationWindowLower, isolationWindowUpper, injTime, triplet.x, triplet.y, ims));
+						out.add(new PrecursorScan(name, frameId, rt, 0, scanWindowLower, scanWindowUpper, injTime, triplet.x, triplet.y, ims));
 					}
 				}
 				Collections.sort(out);
@@ -476,6 +477,18 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	@Override
 	public ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
 		ensureOpen();
+		
+		Map<String, String> meta=getMetadata();
+		double scanWindowLower;
+		double scanWindowUpper;
+		try {
+			scanWindowLower=Double.parseDouble(meta.get("meta.MzAcqRangeLower"));
+			scanWindowUpper=Double.parseDouble(meta.get("meta.MzAcqRangeUpper"));
+		} catch (Exception e) {
+			scanWindowLower=0.0;
+			scanWindowUpper=2000.0;
+		}
+		
 		if (ms2Key==9) {
 			// DIA: select the single window per frame that contains targetMz
 
@@ -517,7 +530,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			ArrayList<Meta> metas=new ArrayList<>(map.values());
 			metas.sort(Comparator.comparingDouble(m -> m.rt));
 
-			ArrayList<FragmentScan> out=extractDIASpectra(metas, sqrt);
+			ArrayList<FragmentScan> out=extractDIASpectra(metas, sqrt, scanWindowLower, scanWindowUpper);
 
 			return out;
 		} else if (ms2Key==8) {
@@ -578,7 +591,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 									0, // fraction
 									1000f*acc, // IonInjectionTime (sec) = 1000 * AccumulationTime
 									isoLo, isoHi, // isolation window bounds
-									triplet.x, intens, ims, charge // precursor charge
+									triplet.x, intens, ims, charge, // precursor charge
+									scanWindowLower, scanWindowUpper
 							));
 						} catch (Exception ex) {
 							// propagate after closing iterator
@@ -619,6 +633,18 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	@Override
 	public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, final boolean sqrt) throws IOException, SQLException {
 		ensureOpen();
+		
+		Map<String, String> meta=getMetadata();
+		double scanWindowLower;
+		double scanWindowUpper;
+		try {
+			scanWindowLower=Double.parseDouble(meta.get("meta.MzAcqRangeLower"));
+			scanWindowUpper=Double.parseDouble(meta.get("meta.MzAcqRangeUpper"));
+		} catch (Exception e) {
+			scanWindowLower=0.0;
+			scanWindowUpper=2000.0;
+		}
+		
 		final double rangeLo=targetMzRange.getStart();
 		final double rangeHi=targetMzRange.getStop();
 
@@ -663,7 +689,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			ArrayList<Meta> metas=new ArrayList<>(map.values());
 			metas.sort(Comparator.comparingDouble(m -> m.rt));
 
-			ArrayList<FragmentScan> out=extractDIASpectra(metas, sqrt);
+			ArrayList<FragmentScan> out=extractDIASpectra(metas, sqrt, scanWindowLower, scanWindowUpper);
 
 			return out;
 		} else if (ms2Key==8) {
@@ -730,7 +756,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 									0, // fraction
 									1000f*acc, // IonInjectionTime (sec) = 1000 * AccumulationTime
 									isoLo, isoHi, // isolation window bounds
-									triplet.x, intens, ims, charge // precursor charge
+									triplet.x, intens, ims, charge, // precursor charge
+									scanWindowLower, scanWindowUpper
 							));
 						} catch (Exception ex) {
 							// propagate after closing iterator
@@ -754,7 +781,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		}
 	}
 
-	private ArrayList<FragmentScan> extractDIASpectra(ArrayList<Meta> metas, final boolean sqrt) {
+	private ArrayList<FragmentScan> extractDIASpectra(ArrayList<Meta> metas, final boolean sqrt, double scanWindowLower, double scanWindowUpper) {
 		ArrayList<FragmentScan> out=new ArrayList<>();
 		// For each frame, emit one FragmentScan per window using IM scan bounds if present
 		for (Meta m : metas) {
@@ -772,7 +799,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 					final int n=triplet.x==null?0:triplet.x.length;
 					if (n==0) {
-						out.add(new FragmentScan(name, name, scanID, (float)m.rt, 0, 1000f*(float)m.acc, isoL, isoH, new double[0], new float[0], new float[0], (byte)0));
+						out.add(new FragmentScan(name, name, scanID, (float)m.rt, 0, 1000f*(float)m.acc, isoL, isoH, new double[0], new float[0], new float[0], (byte)0, scanWindowLower, scanWindowUpper));
 					} else {
 						// Optionally sqrt intensities
 						float[] intens=triplet.y;
@@ -787,7 +814,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 							ims[i]=getIMSFromScanNumber(triplet.z[i], m.scanMax);
 						}
 
-						out.add(new FragmentScan(name, name, scanID, (float)m.rt, 0, 1000f*(float)m.acc, isoL, isoH, triplet.x, intens, ims, (byte)0));
+						out.add(new FragmentScan(name, name, scanID, (float)m.rt, 0, 1000f*(float)m.acc, isoL, isoH, triplet.x, intens, ims, (byte)0, scanWindowLower, scanWindowUpper));
 					}
 				} catch (Exception ex) {
 					// propagate after closing iterator
@@ -805,5 +832,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	 */
 	public TimsReader getReader() {
 		return reader;
+	}
+
+	private static double parseDoubleOr(String s, double fallback) {
+		try {
+			return (s==null?fallback:Double.parseDouble(s));
+		} catch (Exception e) {
+			return fallback;
+		}
 	}
 }

@@ -12,6 +12,10 @@ public interface AcquiredSpectrum {
 
 	int getFraction();
 
+	double getScanWindowLower();
+
+	double getScanWindowUpper();
+
 	double getIsolationWindowLower();
 
 	double getIsolationWindowUpper();

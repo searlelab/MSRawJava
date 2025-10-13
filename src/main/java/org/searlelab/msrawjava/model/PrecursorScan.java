@@ -10,21 +10,21 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 	private final int spectrumIndex;
 	private final float scanStartTime;
 	private final int fraction;
-	private final double isolationWindowLower;
-	private final double isolationWindowUpper;
+	private final double scanWindowLower;
+	private final double scanWindowUpper;
 	private final Float ionInjectionTime;
 	private final double[] massArray;
 	private final float[] intensityArray;
 	private final float[] ionMobilityArray;
 
-	public PrecursorScan(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double isolationWindowLower, double isolationWindowUpper,
+	public PrecursorScan(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double scanWindowLower, double scanWindowUpper,
 			Float ionInjectionTime, double[] massArray, float[] intensityArray, float[] ionMobilityArray) {
 		this.spectrumName=spectrumName;
 		this.spectrumIndex=spectrumIndex;
 		this.scanStartTime=scanStartTime;
 		this.fraction=fraction;
-		this.isolationWindowLower=isolationWindowLower;
-		this.isolationWindowUpper=isolationWindowUpper;
+		this.scanWindowLower=scanWindowLower;
+		this.scanWindowUpper=scanWindowUpper;
 		this.ionInjectionTime=ionInjectionTime;
 		this.massArray=massArray;
 		this.intensityArray=intensityArray;
@@ -42,7 +42,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 			newIntensityArray[i]=peak.intensity;
 			newIonMobilityArray[i]=peak.ims;
 		}
-		return new PrecursorScan(spectrumName, newSpectrumIndex, scanStartTime, fraction, isolationWindowLower, isolationWindowUpper, ionInjectionTime,
+		return new PrecursorScan(spectrumName, newSpectrumIndex, scanStartTime, fraction, scanWindowLower, scanWindowUpper, ionInjectionTime,
 				newMassArray, newIntensityArray, newIonMobilityArray);
 	}
 
@@ -63,9 +63,9 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 		if (c!=0) return c;
 		c=Integer.compare(spectrumIndex, o.getSpectrumIndex());
 		if (c!=0) return c;
-		c=Double.compare(isolationWindowLower, o.getIsolationWindowLower());
+		c=Double.compare(scanWindowLower, o.getIsolationWindowLower());
 		if (c!=0) return c;
-		c=Double.compare(isolationWindowUpper, o.getIsolationWindowUpper());
+		c=Double.compare(scanWindowUpper, o.getIsolationWindowUpper());
 		return 0;
 	}
 	
@@ -96,12 +96,20 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 
 	@Override
 	public double getIsolationWindowLower() {
-		return isolationWindowLower;
+		return scanWindowLower;
 	}
 
 	@Override
 	public double getIsolationWindowUpper() {
-		return isolationWindowUpper;
+		return scanWindowUpper;
+	}
+	
+	@Override
+	public double getScanWindowLower() {
+		return scanWindowLower;
+	}
+	public double getScanWindowUpper() {
+		return scanWindowUpper;
 	}
 
 	@Override
@@ -131,5 +139,21 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 			tic+=intensityArray[i];
 		}
 		return tic;
+	}
+	
+	public Peak getBasePeak() {
+		float maxIntensity=0.0f;
+		double maxMz=0.0;
+		float maxIMS=0.0f;
+		for (int i=0; i<intensityArray.length; i++) {
+			if (intensityArray[i]>maxIntensity) {
+				maxIntensity=intensityArray[i];
+				maxMz=massArray[i];
+				if (ionMobilityArray!=null&&ionMobilityArray.length>i) {
+					maxIMS=ionMobilityArray[i];
+				}
+			}
+		}
+		return new Peak(maxMz, maxIntensity, maxIMS);
 	}
 }

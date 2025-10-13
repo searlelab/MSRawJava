@@ -2,6 +2,26 @@ package org.searlelab.msrawjava.algorithms;
 
 
 public class MatrixMath {
+	
+	public static double max(double[] v) {
+		double max=-Double.MAX_VALUE;
+		for (int i=0; i<v.length; i++) {
+			if (v[i]>max) {
+				max=v[i];
+			}
+		}
+		return max;
+	}
+	
+	public static double min(double[] v) {
+		double min=Double.MAX_VALUE;
+		for (int i=0; i<v.length; i++) {
+			if (v[i]<min) {
+				min=v[i];
+			}
+		}
+		return min;
+	}
 
 	public static void print(double[][] m) {
 		for (int i=0; i<m.length; i++) {

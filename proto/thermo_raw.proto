@@ -64,4 +64,6 @@ message Spectrum {
   string spectrum_name  = 16;
   string precursor_name = 17;
   double ion_injection_time_s = 18;
+  double scan_window_lower = 19;
+  double scan_window_upper = 20;
 }

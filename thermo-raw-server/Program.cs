@@ -466,6 +466,35 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         double injS = 0;
         int charge = 0;
         int precursorScan=0;
+        
+        double swLo = double.PositiveInfinity;
+	    double swHi = double.NegativeInfinity;
+	    try
+	    {
+	        var evt2 = raw.GetScanEventForScanNumber(scan);
+	        if (evt2 != null)
+	        {
+	            int n = 0;
+	            try { n = evt2.MassRangeCount; } catch { n = 0; }
+	            for (int i = 0; i < n; i++)
+	            {
+	                var r = evt2.GetMassRange(i);
+	                double l = r.Low, h = r.High;
+	                if (h > l && l > 0)
+	                {
+	                    if (l < swLo) swLo = l;
+	                    if (h > swHi) swHi = h;
+	                }
+	            }
+	        }
+	    }
+	    catch { }
+	    if (!(swHi > swLo) || !double.IsFinite(swLo) || !double.IsFinite(swHi))
+	    {
+	        // fallback when no range is reported
+	        swLo = 0.0;
+	        swHi = double.PositiveInfinity;
+	    }
 
         try
         {
@@ -506,7 +535,9 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             Charge     = charge,
             SpectrumName    = scan.ToString(CultureInfo.InvariantCulture),
             PrecursorName   = precursorScan.ToString(CultureInfo.InvariantCulture),
-            IonInjectionTimeS = injS
+            IonInjectionTimeS = injS,
+	        ScanWindowLower = swLo,
+	        ScanWindowUpper = swHi
         };
 
         s.Mz.AddRange(mz);
