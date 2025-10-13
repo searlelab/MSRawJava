@@ -1,10 +1,11 @@
 name: publish
 
 on:
-  # Tag → publish (e.g., v0.5.286)
+  # Tag -> publish (e.g., v0.5.286)
   push:
     tags: [ 'v*' ]
-  # Manual trigger with an option to skip native builds while you iterate
+
+  # Manual trigger so you can test without tagging
   workflow_dispatch:
     inputs:
       skip_natives:
@@ -14,21 +15,19 @@ on:
 
 jobs:
   publish:
-    # macOS is your best “one box” for: Rust (arm64 mac dylib),
-    # dotnet cross-publish (osx-x64/linux-x64/win-x64),
-    # and cargo-zigbuild (linux/windows).
     runs-on: macos-latest
 
     permissions:
       contents: read
-      packages: write   # needed to push to GitHub Packages
+      packages: write   # required to push to GitHub Packages
 
     env:
-      # Maven will deploy to the <distributionManagement> repo with id 'github'
+      # Maven flags (batch + skip tests)
       MAVEN_CLI_OPTS: "-B -DskipTests"
-      SKIP_NATIVES: ${{ inputs.skip_natives }} # "true"/"false" string for our run script
+      # From workflow_dispatch; empty during tag builds
+      SKIP_NATIVES: ${{ inputs.skip_natives }}
 
-      # If you need to generate NuGet.config from secrets, we’ll use these:
+      # Optional secrets for generating NuGet.config if you don't keep one in the repo
       NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
       NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
       NUGET_PASSWORD: ${{ secrets.NUGET_PASSWORD }}
@@ -39,31 +38,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Java 17 (Temurin) + Maven server creds
+      - name: Set up Java 17 (Temurin) + Maven deploy credentials
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: maven
-          # This wires <server id="github"> for deploy to https://maven.pkg.github.com/...
+          # This wires <server id="github"> for <distributionManagement>
           server-id: github
           server-username: GITHUB_ACTOR
           server-password: ${{ secrets.GITHUB_TOKEN }}
-
-      # ---------- Rust toolchain & cross-compilers ----------
-      - name: Set up Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Add Rust targets for cross-compile
-        run: |
-          rustup target add x86_64-unknown-linux-gnu
-          rustup target add x86_64-pc-windows-gnu
-
-      - name: Install Zig and cargo-zigbuild
-        run: |
-          brew update
-          brew install zig
-          cargo install --locked cargo-zigbuild
 
       # ---------- .NET SDK for Thermo server ----------
       - name: Set up .NET 8 SDK
@@ -71,13 +55,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # Optional: generate NuGet.config from secrets *if you don’t want a real one in the repo*.
-      # If you already committed NuGet.config (the script references $ROOT/NuGet.config),
-      # delete this step.
+      # If you DON'T have NuGet.config committed, generate one from secrets.
+      # Safe no-op if secrets are blank or file already exists.
       - name: Generate NuGet.config from secrets (optional)
-        if: env.NUGET_FEED_URL != '' && env.NUGET_USERNAME != '' && env.NUGET_PASSWORD != ''
+        shell: bash
         run: |
-          cat > NuGet.config <<'EOF'
+          set -euo pipefail
+          if [[ -f NuGet.config ]]; then
+            echo "NuGet.config already present; skipping generation."
+            exit 0
+          fi
+          if [[ -n "${NUGET_FEED_URL}" && -n "${NUGET_USERNAME}" && -n "${NUGET_PASSWORD}" ]]; then
+            cat > NuGet.config <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <configuration>
             <packageSources>
@@ -91,18 +80,62 @@ jobs:
             </packageSourceCredentials>
           </configuration>
           EOF
+            echo "Generated NuGet.config from secrets."
+          else
+            echo "NuGet secrets not provided; assuming NuGet.config in repo or public feeds."
+          fi
 
-      # ---------- Build & Deploy ----------
-      # Your POM runs:
-      #   scripts/build-all-net.sh   (dotnet publish self-contained for osx-x64, linux-x64, win-x64)
-      #   scripts/build-all-rust.sh  (cargo + cargo-zigbuild → osx-aarch64, linux-x86_64, windows-x86_64)
-      # Those land under src/main/resources/msraw/thermo/bin/... and META-INF/lib/...
-      - name: Build & Deploy to GitHub Packages
+      # ---------- Rust toolchain & cross-compilers ----------
+      - name: Set up Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add Rust cross targets
+        run: |
+          rustup target add x86_64-unknown-linux-gnu
+          rustup target add x86_64-pc-windows-gnu
+
+      - name: Cache Cargo registry and build dirs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust-jni/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cross tools (mingw-w64, zig, llvm) and cargo-zigbuild
         shell: bash
         run: |
           set -euo pipefail
+          brew update
+          # Needed for x86_64-w64-mingw32-dlltool when targeting windows-gnu
+          brew install mingw-w64
+          # Zig is the cross-linker used by cargo-zigbuild
+          brew install zig
+          # Optional but handy: llvm provides llvm-dlltool as a fallback
+          brew install llvm
+          # Install cargo-zigbuild
+          cargo install --locked cargo-zigbuild
 
-          # Optionally flip off native builds from the UI while you tune toolchains
+          # Ensure Homebrew bin paths are available on both Apple Silicon and Intel runners
+          echo "/opt/homebrew/opt/mingw-w64/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/opt/mingw-w64/bin" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/opt/llvm/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/opt/llvm/bin" >> "$GITHUB_PATH"
+
+          # Sanity checks
+          which x86_64-w64-mingw32-dlltool || { echo "dlltool not found on PATH"; exit 1; }
+          x86_64-w64-mingw32-dlltool --version || true
+          zig version
+
+      # ---------- Build & Deploy ----------
+      # Your POM triggers:
+      #   scripts/build-all-net.sh   (dotnet publish for osx-x64, linux-x64, win-x64)
+      #   scripts/build-all-rust.sh  (mac arm64 + linux/Windows via cargo-zigbuild)
+      - name: Build & deploy to GitHub Packages
+        shell: bash
+        run: |
+          set -euo pipefail
           if [[ "${SKIP_NATIVES:-false}" == "true" ]]; then
             echo ">> Running Maven with -Dskip.build.natives=true"
             mvn ${MAVEN_CLI_OPTS} -Dskip.build.natives=true clean deploy
@@ -111,8 +144,8 @@ jobs:
             mvn ${MAVEN_CLI_OPTS} clean deploy
           fi
 
-      # Handy artifact to peek at the produced JAR on failures/success
-      - name: Upload built jar (debug)
+      # Debug/inspection helper: capture the produced jars even on failure
+      - name: Upload built jars (debug)
         if: always()
         uses: actions/upload-artifact@v4
         with:
