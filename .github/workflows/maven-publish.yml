@@ -2,52 +2,99 @@ name: publish
 
 on:
   push:
-    tags: [ 'v*' ]   # e.g. v0.5.286
-  workflow_dispatch:
+    tags: [ 'v*' ]            # e.g. v0.5.286
+  workflow_dispatch:           # manual run button
     inputs:
-      skip_natives:
-        description: 'Skip Rust/.NET native builds (sets -Dskip.build.natives=true)'
-        type: boolean
-        default: false
+      version_override:
+        description: 'Optional: override POM version shown in the release name'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  publish:
+  # --------------------------
+  # 1) Build Rust JNI on macOS
+  # --------------------------
+  rust-macos:
     runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build JNI (macOS aarch64)
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path rust-jni/Cargo.toml --release
+          mkdir -p dist/META-INF/lib/osx-aarch64
+          cp rust-jni/target/release/libtimsrust_jni.dylib dist/META-INF/lib/osx-aarch64/
+      - name: Upload JNI macOS
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-macos
+          path: dist
 
-    permissions:
-      contents: read
-      packages: write
+  # ---------------------------
+  # 2) Build Rust JNI on Linux
+  # ---------------------------
+  rust-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Toolchain deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build JNI (Linux x86_64)
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path rust-jni/Cargo.toml --release
+          mkdir -p dist/META-INF/lib/linux-x86_64
+          cp rust-jni/target/release/libtimsrust_jni.so dist/META-INF/lib/linux-x86_64/
+      - name: Upload JNI linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-linux
+          path: dist
 
+  # -----------------------------
+  # 3) Build Rust JNI on Windows
+  # -----------------------------
+  rust-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build JNI (Windows x64, MSVC)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          cargo build --manifest-path rust-jni/Cargo.toml --release
+          New-Item -ItemType Directory -Force -Path dist\META-INF\lib\windows-x86_64 | Out-Null
+          Copy-Item rust-jni\target\release\timsrust_jni.dll dist\META-INF\lib\windows-x86_64\
+      - name: Upload JNI windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-windows
+          path: dist
+
+  # ---------------------------------
+  # 4) Build .NET Thermo servers (mac)
+  # ---------------------------------
+  dotnet-macos:
+    runs-on: macos-latest
     env:
-      MAVEN_CLI_OPTS: "-B -DskipTests"
-      SKIP_NATIVES: ${{ inputs.skip_natives }}
-
-      # Optional NuGet secrets (only used if you didn't commit NuGet.config)
       NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
       NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
       NUGET_PASSWORD: ${{ secrets.NUGET_PASSWORD }}
-
-      # Paths we’ll append via GITHUB_PATH
-      BREW_MINGW_BIN_AARCH64: /opt/homebrew/opt/mingw-w64/bin
-      BREW_MINGW_BIN_INTEL:   /usr/local/opt/mingw-w64/bin
-      BREW_LLVM_BIN_AARCH64:  /opt/homebrew/opt/llvm/bin
-      BREW_LLVM_BIN_INTEL:    /usr/local/opt/llvm/bin
-      LOCAL_BIN:              $HOME/.local/bin
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-
-      - name: Set up Java 17 (Temurin) + Maven deploy credentials
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-          server-id: github
-          server-username: GITHUB_ACTOR
-          server-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up .NET 8 SDK
         uses: actions/setup-dotnet@v4
@@ -60,9 +107,7 @@ jobs:
           set -euo pipefail
           if [[ -f NuGet.config ]]; then
             echo "NuGet.config present; skipping."
-            exit 0
-          fi
-          if [[ -n "${NUGET_FEED_URL}" && -n "${NUGET_USERNAME}" && -n "${NUGET_PASSWORD}" ]]; then
+          elif [[ -n "${NUGET_FEED_URL}" && -n "${NUGET_USERNAME}" && -n "${NUGET_PASSWORD}" ]]; then
             cat > NuGet.config <<EOF
           <?xml version="1.0" encoding="utf-8"?>
           <configuration>
@@ -77,93 +122,74 @@ jobs:
             </packageSourceCredentials>
           </configuration>
           EOF
-            echo "Generated NuGet.config."
           else
-            echo "No NuGet secrets; assuming NuGet.config exists or feeds are public."
+            echo "No NuGet secrets provided; assuming NuGet.config is committed or feeds are public."
           fi
 
-      # ---------- Rust toolchain & cross-compilers ----------
-      - name: Set up Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Build .NET servers (your script)
+        run: bash scripts/build-all-net.sh
 
-      - name: Add Rust cross targets
-        run: |
-          rustup target add x86_64-unknown-linux-gnu
-          rustup target add x86_64-pc-windows-gnu
-
-      - name: Cache Cargo registry and build dirs
-        uses: actions/cache@v4
+      - name: Upload Thermo server trees
+        uses: actions/upload-artifact@v4
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            rust-jni/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          name: thermo-servers
+          path: src/main/resources/msraw/thermo/bin
 
-      - name: Install cross tools (mingw-w64, zig, llvm) and cargo-zigbuild
+  # -------------------------------------------
+  # 5) Assemble, package, and deploy from macOS
+  # -------------------------------------------
+  publish:
+    runs-on: macos-latest
+    needs:
+      - rust-macos
+      - rust-linux
+      - rust-windows
+      - dotnet-macos
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # Put everything under src/main/resources so Maven includes it in the JAR.
+      - name: Stage JNI libs into resources
         shell: bash
         run: |
           set -euo pipefail
-          brew update
-          brew install mingw-w64
-          brew install zig
-          brew install llvm
-          cargo install --locked cargo-zigbuild
+          mkdir -p src/main/resources/META-INF/lib
+          # Copy META-INF/lib trees from each artifact
+          rsync -a artifacts/jni-macos/ src/main/resources/
+          rsync -a artifacts/jni-linux/ src/main/resources/
+          rsync -a artifacts/jni-windows/ src/main/resources/
+          echo "Staged JNI under src/main/resources/META-INF/lib:"
+          find src/main/resources/META-INF/lib -type f -maxdepth 3 -print
 
-          # Expose Homebrew bins to subsequent steps
-          echo "$BREW_MINGW_BIN_AARCH64" >> "$GITHUB_PATH"
-          echo "$BREW_MINGW_BIN_INTEL"   >> "$GITHUB_PATH"
-          echo "$BREW_LLVM_BIN_AARCH64"  >> "$GITHUB_PATH"
-          echo "$BREW_LLVM_BIN_INTEL"    >> "$GITHUB_PATH"
-          echo "$LOCAL_BIN"              >> "$GITHUB_PATH"
-
-      - name: Create dlltool shim if needed
+      - name: Stage Thermo servers into resources
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$LOCAL_BIN"
+          rm -rf src/main/resources/msraw/thermo/bin
+          mkdir -p src/main/resources/msraw/thermo
+          rsync -a artifacts/thermo-servers/ src/main/resources/msraw/thermo/bin/
+          echo "Thermo servers staged:"
+          find src/main/resources/msraw/thermo/bin -type f -maxdepth 3 -print
 
-          if ! command -v x86_64-w64-mingw32-dlltool >/dev/null 2>&1; then
-            if command -v llvm-dlltool >/dev/null 2>&1; then
-              cat > "$LOCAL_BIN/x86_64-w64-mingw32-dlltool" <<'EOSH'
-          #!/usr/bin/env bash
-          exec llvm-dlltool "$@"
-          EOSH
-              chmod +x "$LOCAL_BIN/x86_64-w64-mingw32-dlltool"
-              echo "Created shim for x86_64-w64-mingw32-dlltool -> llvm-dlltool"
-            else
-              echo "Neither x86_64-w64-mingw32-dlltool nor llvm-dlltool found!" >&2
-              exit 1
-            fi
-          fi
+      - name: Set up Java 17 (Temurin) + Maven deploy credentials
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: ${{ secrets.GITHUB_TOKEN }}
 
-          echo "PATH now: $PATH"
-          command -v x86_64-w64-mingw32-dlltool && x86_64-w64-mingw32-dlltool --version || true
-          command -v llvm-dlltool && llvm-dlltool --version || true
-          zig version
-
-      # ---------- Build & deploy ----------
-      - name: Build & deploy to GitHub Packages
-        shell: bash
-        env:
-          # Helpful hints for the windows-gnu target (tools are on PATH already)
-          AR_x86_64_pc_windows_gnu: x86_64-w64-mingw32-ar
-          CC_x86_64_pc_windows_gnu: x86_64-w64-mingw32-gcc
-          DLLTOOL_x86_64_pc_windows_gnu: x86_64-w64-mingw32-dlltool
-        run: |
-          set -euo pipefail
-          echo "Tool sanity:"
-          command -v x86_64-w64-mingw32-dlltool || { echo "dlltool missing at build step"; exit 1; }
-          command -v x86_64-w64-mingw32-gcc || true
-          command -v x86_64-w64-mingw32-ar || true
-
-          if [[ "${SKIP_NATIVES:-false}" == "true" ]]; then
-            echo ">> Running Maven with -Dskip.build.natives=true"
-            mvn ${MAVEN_CLI_OPTS} -Dskip.build.natives=true clean deploy
-          else
-            echo ">> Running Maven with native builds enabled"
-            mvn ${MAVEN_CLI_OPTS} clean deploy
-          fi
+      # We already staged natives, so skip your native build scripts.
+      - name: Maven clean deploy (skip native scripts)
+        run: mvn -B -DskipTests -Dskip.build.natives=true clean deploy
 
       - name: Upload built jars (debug)
         if: always()
