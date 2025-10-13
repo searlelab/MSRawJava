@@ -1,11 +1,8 @@
 name: publish
 
 on:
-  # Tag -> publish (e.g., v0.5.286)
   push:
-    tags: [ 'v*' ]
-
-  # Manual trigger so you can test without tagging
+    tags: [ 'v*' ]   # e.g. v0.5.286
   workflow_dispatch:
     inputs:
       skip_natives:
@@ -19,24 +16,27 @@ jobs:
 
     permissions:
       contents: read
-      packages: write   # required to push to GitHub Packages
+      packages: write
 
     env:
-      # Maven flags (batch + skip tests)
       MAVEN_CLI_OPTS: "-B -DskipTests"
-      # From workflow_dispatch; empty during tag builds
       SKIP_NATIVES: ${{ inputs.skip_natives }}
-
-      # Optional secrets for generating NuGet.config if you don't keep one in the repo
+      # Optional NuGet secrets (only used if you didn't commit NuGet.config)
       NUGET_FEED_URL: ${{ secrets.NUGET_FEED_URL }}
       NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
       NUGET_PASSWORD: ${{ secrets.NUGET_PASSWORD }}
 
+      # Predeclare paths we’ll force into PATH later
+      BREW_MINGW_BIN_AARCH64: /opt/homebrew/opt/mingw-w64/bin
+      BREW_MINGW_BIN_INTEL:   /usr/local/opt/mingw-w64/bin
+      BREW_LLVM_BIN_AARCH64:  /opt/homebrew/opt/llvm/bin
+      BREW_LLVM_BIN_INTEL:    /usr/local/opt/llvm/bin
+      LOCAL_BIN:              $HOME/.local/bin
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Set up Java 17 (Temurin) + Maven deploy credentials
         uses: actions/setup-java@v4
@@ -44,25 +44,21 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
-          # This wires <server id="github"> for <distributionManagement>
           server-id: github
           server-username: GITHUB_ACTOR
           server-password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ---------- .NET SDK for Thermo server ----------
       - name: Set up .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # If you DON'T have NuGet.config committed, generate one from secrets.
-      # Safe no-op if secrets are blank or file already exists.
       - name: Generate NuGet.config from secrets (optional)
         shell: bash
         run: |
           set -euo pipefail
           if [[ -f NuGet.config ]]; then
-            echo "NuGet.config already present; skipping generation."
+            echo "NuGet.config present; skipping."
             exit 0
           fi
           if [[ -n "${NUGET_FEED_URL}" && -n "${NUGET_USERNAME}" && -n "${NUGET_PASSWORD}" ]]; then
@@ -80,9 +76,9 @@ jobs:
             </packageSourceCredentials>
           </configuration>
           EOF
-            echo "Generated NuGet.config from secrets."
+            echo "Generated NuGet.config."
           else
-            echo "NuGet secrets not provided; assuming NuGet.config in repo or public feeds."
+            echo "No NuGet secrets; assuming NuGet.config exists or feeds are public."
           fi
 
       # ---------- Rust toolchain & cross-compilers ----------
@@ -108,34 +104,62 @@ jobs:
         run: |
           set -euo pipefail
           brew update
-          # Needed for x86_64-w64-mingw32-dlltool when targeting windows-gnu
           brew install mingw-w64
-          # Zig is the cross-linker used by cargo-zigbuild
           brew install zig
-          # Optional but handy: llvm provides llvm-dlltool as a fallback
           brew install llvm
-          # Install cargo-zigbuild
           cargo install --locked cargo-zigbuild
 
-          # Ensure Homebrew bin paths are available on both Apple Silicon and Intel runners
-          echo "/opt/homebrew/opt/mingw-w64/bin" >> "$GITHUB_PATH"
-          echo "/usr/local/opt/mingw-w64/bin" >> "$GITHUB_PATH"
-          echo "/opt/homebrew/opt/llvm/bin" >> "$GITHUB_PATH"
-          echo "/usr/local/opt/llvm/bin" >> "$GITHUB_PATH"
+          # Ensure bin dirs available across Apple Silicon / Intel runners
+          echo "$BREW_MINGW_BIN_AARCH64" >> "$GITHUB_PATH"
+          echo "$BREW_MINGW_BIN_INTEL"   >> "$GITHUB_PATH"
+          echo "$BREW_LLVM_BIN_AARCH64"  >> "$GITHUB_PATH"
+          echo "$BREW_LLVM_BIN_INTEL"    >> "$GITHUB_PATH"
+          echo "$LOCAL_BIN"              >> "$GITHUB_PATH"
 
-          # Sanity checks
-          which x86_64-w64-mingw32-dlltool || { echo "dlltool not found on PATH"; exit 1; }
-          x86_64-w64-mingw32-dlltool --version || true
-          zig version
-
-      # ---------- Build & Deploy ----------
-      # Your POM triggers:
-      #   scripts/build-all-net.sh   (dotnet publish for osx-x64, linux-x64, win-x64)
-      #   scripts/build-all-rust.sh  (mac arm64 + linux/Windows via cargo-zigbuild)
-      - name: Build & deploy to GitHub Packages
+      - name: Create dlltool shim if needed
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "$LOCAL_BIN"
+
+          # If the exact-prefixed dlltool is missing but llvm-dlltool exists,
+          # create a shim named x86_64-w64-mingw32-dlltool that forwards to llvm-dlltool.
+          if ! command -v x86_64-w64-mingw32-dlltool >/dev/null 2>&1; then
+            if command -v llvm-dlltool >/dev/null 2>&1; then
+              cat > "$LOCAL_BIN/x86_64-w64-mingw32-dlltool" <<'EOSH'
+          #!/usr/bin/env bash
+          exec llvm-dlltool "$@"
+          EOSH
+              chmod +x "$LOCAL_BIN/x86_64-w64-mingw32-dlltool"
+              echo "Created shim for x86_64-w64-mingw32-dlltool -> llvm-dlltool"
+            else
+              echo "llvm-dlltool not found; will rely on mingw-w64 providing dlltool."
+            fi
+          fi
+
+          echo "PATH at this point:"
+          echo "$PATH"
+          which x86_64-w64-mingw32-dlltool && x86_64-w64-mingw32-dlltool --version || true
+          which llvm-dlltool && llvm-dlltool --version || true
+          zig version
+
+      # ---------- Build & deploy ----------
+      - name: Build & deploy to GitHub Packages
+        shell: bash
+        env:
+          # Belt-and-suspenders: force PATH for the Maven step, in case subprocess env differs
+          PATH: ${{ env.LOCAL_BIN }}:${{ env.BREW_MINGW_BIN_AARCH64 }}:${{ env.BREW_MINGW_BIN_INTEL }}:${{ env.BREW_LLVM_BIN_AARCH64 }}:${{ env.BREW_LLVM_BIN_INTEL }}:${{ env.PATH }}
+          # Help cc/rustc find cross tools explicitly
+          AR_x86_64_pc_windows_gnu: x86_64-w64-mingw32-ar
+          CC_x86_64_pc_windows_gnu: x86_64-w64-mingw32-gcc
+          DLLTOOL_x86_64_pc_windows_gnu: x86_64-w64-mingw32-dlltool
+        run: |
+          set -euo pipefail
+          echo "Tool sanity before build:"
+          which x86_64-w64-mingw32-dlltool || { echo "dlltool still not on PATH"; exit 1; }
+          which x86_64-w64-mingw32-gcc || true
+          which x86_64-w64-mingw32-ar || true
+
           if [[ "${SKIP_NATIVES:-false}" == "true" ]]; then
             echo ">> Running Maven with -Dskip.build.natives=true"
             mvn ${MAVEN_CLI_OPTS} -Dskip.build.natives=true clean deploy
@@ -144,7 +168,6 @@ jobs:
             mvn ${MAVEN_CLI_OPTS} clean deploy
           fi
 
-      # Debug/inspection helper: capture the produced jars even on failure
       - name: Upload built jars (debug)
         if: always()
         uses: actions/upload-artifact@v4
