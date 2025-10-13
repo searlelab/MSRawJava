@@ -3,7 +3,6 @@ package org.searlelab.msrawjava;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -32,36 +31,90 @@ import org.searlelab.msrawjava.model.WindowData;
 public class Main {
 
 	public static void main(String[] args) throws Exception {
-		System.out.println("Welcome to MSRawJava");
+		System.out.println("Welcome to MSRawJava version "+Version.getVersion());
+
+		ArrayList<File> fileList=new ArrayList<File>();
+		OutputType outType=OutputType.EncyclopeDIA; // default
+		Path outputDirPath=null;
+		float minimumMS1Intensity=3.0f;
+		float minimumMS2Intensity=1.0f;
 		
-		ArrayList<String> argsList=new ArrayList<String>(Arrays.asList(args));
-		if (args.length==0||argsList.contains("-h")) {
-			System.out.println("Help (-h):");
-			System.out.println("  Specify Thermo .raw or Bruker .d files or any directories that contain those files.");
+        for (int i = 0; i < args.length; i++) {
+        	switch (args[i].toLowerCase()) {
+        		case "-h":
+        			System.out.println("Help (-h):");
+        			System.out.println("  Specify Thermo .raw or Bruker .d files or any directories that contain those files.");
+        			System.out.println("  You can specify files or directories. Paths can be relative.");
+        			System.out.println();
+        			System.out.println("Options:");
+        			System.out.println("  -dia                  Produces EncyclopeDIA .DIA files (default)");
+        			System.out.println("  -mgf                  Produces MGF files");
+        			System.out.println("  -mzml                 Produces mzML files");
+        			System.out.println("  -outputDirPath [path] Where new files get written (default same directory as input)");
+        			System.out.println("  -minMS1Threshold [#]  Sets a minimum MS1 intensity threshold for timsTOF (default 3.0)");
+        			System.out.println("  -minMS2Threshold [#]  Sets a minimum MS2 intensity threshold for timsTOF (default 1.0)");
+        			System.out.println();
+        			System.out.println("Examples:");
+        			System.out.println("> java -jar MSRawJava path/to/raws/");
+        			System.out.println("> java -jar MSRawJava -mgf ../../path/to/raws/");
+        			System.out.println("> java -jar MSRawJava -mzml /mnt/vol1/path/to/raws/ -minMS1Threshold 10.0 -minMS2Threshold 5.0");
+        			
+        			return;
+        			
+        		case "-dia":
+        		case "-encyclopedia":
+        			outType=OutputType.EncyclopeDIA;
+        			continue;
+        			
+        		case "-mgf":
+        			outType=OutputType.mgf;
+        			continue;
+        			
+        		case "-mzml":
+        			outType=OutputType.mzml;
+        			continue;
+        			
+        		case "-minms1threshold":
+        			if (i + 1 < args.length) {
+            			minimumMS1Intensity=Float.parseFloat(args[++i]);
+        			} else {
+        				Logger.errorLine("The option \"-minMS1Threshold\" requires a number afterwards.");
+        				return;
+        			}
+        			continue;
+        			
+        		case "-minms2threshold":
+        			if (i + 1 < args.length) {
+        				minimumMS2Intensity=Float.parseFloat(args[++i]);
+        			} else {
+        				Logger.errorLine("The option \"-minMS2Threshold\" requires a number afterwards.");
+        				return;
+        			}
+        			continue;
+        			
+        		case "-outputdirpath":
+        			if (i + 1 < args.length) {
+        				outputDirPath=new File(args[++i]).toPath();
+        			} else {
+        				Logger.errorLine("The option \"-outputDirPath\" requires a path afterwards.");
+        				return;
+        			}
+        			continue;
+        			
+        		default:
+        			fileList.add(new File(args[i]));
+        			continue;
+        	}
+        }
+        System.out.println("Found "+fileList.size()+" starting paths, export format: "+outType);
+		
+		if (fileList.size()==0) {
+			System.out.println("Access help through (-h).");
 			return;
 		}
 		
-		OutputType outType;
-		if (argsList.contains("-dia")||argsList.contains("-encyclopedia")) {
-			outType=OutputType.encyclopedia;
-			argsList.remove("-dia");
-			argsList.remove("-encyclopedia");
-			
-		} else if (argsList.contains("-mgf")) {
-			outType=OutputType.mgf;
-			argsList.remove("-mgf");
-			
-		} else if (argsList.contains("-mzml")) {
-			outType=OutputType.mzml;
-			argsList.remove("-mzml");
-			
-		} else {
-			outType=OutputType.encyclopedia;
-		}
-		
 		VendorFiles files=new VendorFiles();
-		for (String arg : args) {
-			File f=new File(arg);
+		for (File f : fileList) {
 			if (f.exists()&&f.canRead()) {
 				VendorFileFinder.findAndAddRawAndD(f.toPath(), files);
 			}
@@ -76,8 +129,10 @@ public class Main {
 				for (Path path : files.getThermoFiles()) {
 					Logger.logLine("Processing .raw "+path);
 
-					Logger.logLine("Writing "+outType+" file");
-					writeThermo(path, path.getParent(), outType);
+					Path outputPath=outputDirPath==null?path.getParent():outputDirPath;
+					Logger.logLine("Writing "+outType+" file to "+outputPath.toString());
+					
+					writeThermo(path, outputPath, outType);
 					Logger.logLine("Finished writing "+outType+" file");
 				}
 
@@ -91,11 +146,15 @@ public class Main {
 			for (Path path : files.getBrukerDirs()) {
 				Logger.logLine("Processing .d "+path);
 
-				Logger.logLine("Writing "+outType+" file");
-				writeTims(path, path.getParent(), outType, 3.0f, 1.0f);
+				Path outputPath=outputDirPath==null?path.getParent():outputDirPath;
+				Logger.logLine("Writing "+outType+" file to "+outputPath.toString());
+				
+				writeTims(path, outputPath, outType, minimumMS1Intensity, minimumMS2Intensity);
 				Logger.logLine("Finished writing "+outType+" file");
 			}
 		}
+
+		Logger.logLine("Finished processing, bye!");
 	}
 
 	public static void writeThermo(Path rawFilePath, Path outputDirPath, OutputType outType) throws Exception {

@@ -1,14 +1,23 @@
-package org.searlelab.msrawjava.io.encyclopedia;
+package org.searlelab.msrawjava;
 
 import java.util.StringTokenizer;
 
-import org.searlelab.msrawjava.Logger;
-
 public class Version implements Comparable<Version> {
+	private static final String UNKNOWN_VERSION="0.0.0";
 	private final int major;
 	private final int minor;
 	private final int revision;
 	private final boolean snapshot;
+
+	public static String getVersion() {
+		Package p=Version.class.getPackage();
+		String version=(p!=null)?p.getImplementationVersion():UNKNOWN_VERSION;
+		if (version!=null) {
+			return version;
+		} else {
+			return UNKNOWN_VERSION;
+		}
+	}
 
 	public Version(int major, int minor, int revision) {
 		this(major, minor, revision, false);

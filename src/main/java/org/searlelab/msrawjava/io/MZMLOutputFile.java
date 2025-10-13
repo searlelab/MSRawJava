@@ -8,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.sql.SQLException;
@@ -20,6 +19,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import org.searlelab.msrawjava.Version;
+import org.searlelab.msrawjava.io.utils.StreamCopy;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -27,6 +28,8 @@ import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
 public class MZMLOutputFile implements OutputSpectrumFile {
+
+	private static final String SPECTRUM_LIST_COUNT_PLACEHOLDER="SPECTRUM_LIST_COUNT_PLACEHOLDER";
 
 	public static final String MZML_EXTENSION=".mzML";
 
@@ -84,11 +87,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		}
 
 		// Replace placeholder with spectrumList count
-		String xml=Files.readString(tempPath, StandardCharsets.UTF_8);
-		xml=xml.replace("SPECTRUM_LIST_COUNT_PLACEHOLDER", Long.toString(spectrumCount));
-		Files.writeString(tempPath, xml, StandardCharsets.UTF_8);
-
-		Files.move(tempPath, userFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+	    StreamCopy.streamReplace(tempPath, userFile.toPath(), SPECTRUM_LIST_COUNT_PLACEHOLDER, Long.toString(spectrumCount));
 	}
 
 	@Override
@@ -233,7 +232,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 			out.write("    </software>\n");
 		}
 
-		out.write("    <software id=\"msrawjava\" version=\""+escapeXml(meta.getOrDefault("version", "0.0.0"))+"\">\n");
+		out.write("    <software id=\"msrawjava\" version=\""+escapeXml(Version.getVersion())+"\">\n");
 		out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1000799\" name=\"custom unreleased software tool\" value=\"msrawjava\"/>\n");
 		out.write("    </software>\n");
 		out.write("  </softwareList>\n");
@@ -294,7 +293,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 
 	private void openSpectrumList() throws IOException {
 		// ★ Write a stable placeholder we’ll replace at saveAsFile(...)
-		out.write("    <spectrumList count=\"SPECTRUM_LIST_COUNT_PLACEHOLDER\" defaultDataProcessingRef=\"msrawjava_processing\">\n");
+		out.write("    <spectrumList count=\""+SPECTRUM_LIST_COUNT_PLACEHOLDER+"\" defaultDataProcessingRef=\"msrawjava_processing\">\n");
 		spectrumListOpen=true;
 	}
 

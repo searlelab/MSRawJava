@@ -22,7 +22,7 @@ mvn versions:set -DnewVersion="${current}"
 git commit -am "Update to version for release ${program}-${branch}-${current}."
 git tag "${TAG}" # optional
 mvn clean package -DbuildJars;
-mvn versions:set -DnewVersion="${next}-${branch}-SNAPSHOT"
+mvn versions:set -DnewVersion="${next}-SNAPSHOT"
 git commit -am "Update to next SNAPSHOT version."
 
 echo "Finished updating from [${current}] to [${next}]";

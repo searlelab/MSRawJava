@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.searlelab.msrawjava.Logger;
+import org.searlelab.msrawjava.Version;
 import org.searlelab.msrawjava.io.OutputSpectrumFile;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;

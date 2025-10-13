@@ -10,8 +10,6 @@ import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.model.Range;
 
-import gnu.trove.list.array.TDoubleArrayList;
-
 class StaggeredDemultiplexerTest {
 	public static void main(String[] args) throws Exception {
 		ThermoRawFile file=new ThermoRawFile();
@@ -25,6 +23,7 @@ class StaggeredDemultiplexerTest {
 		
 		//ThermoServerPool.shutdown(); // keep open to speed up tests
 	}
+	
 	@Test
 	void testSubRanges() throws Exception {
 		ArrayList<Range> ranges=new ArrayList<Range>();

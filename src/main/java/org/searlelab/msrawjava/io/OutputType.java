@@ -6,11 +6,11 @@ import java.rmi.UnexpectedException;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 
 public enum OutputType {
-	encyclopedia, mgf, mzml;
+	EncyclopeDIA, mgf, mzml;
 
 	public OutputSpectrumFile getOutputSpectrumFile() throws Exception {
 		switch (this) {
-			case encyclopedia:
+			case EncyclopeDIA:
 				EncyclopeDIAFile dia=new EncyclopeDIAFile();
 				dia.openFile();
 				return dia;
@@ -32,7 +32,7 @@ public enum OutputType {
 	
 	public Path getOutputFilePath(Path outputDirPath, String filename) {
 		switch (this) {
-			case encyclopedia:
+			case EncyclopeDIA:
 				return outputDirPath.resolve(changeExtension(filename, EncyclopeDIAFile.DIA_EXTENSION));
 			case mgf:
 				return outputDirPath.resolve(changeExtension(filename, MGFOutputFile.MGF_EXTENSION));
