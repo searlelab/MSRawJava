@@ -35,7 +35,7 @@ public class StaggeredDemultiplexer {
 		MatrixMath.print(matrix);
 	}
 	
-	private static ArrayList<RangeCounter> getSubRanges(ArrayList<Range> acquiredWindows) {
+	public static ArrayList<RangeCounter> getSubRanges(ArrayList<Range> acquiredWindows) {
 		TFloatArrayList boundaries=new TFloatArrayList();
 		for (Range range : acquiredWindows) {
 			boundaries.add(range.getStart());
@@ -67,23 +67,6 @@ public class StaggeredDemultiplexer {
 			}
 		}
 		return subRanges;
-	}
-
-	private static final class RangeCounter {
-		public final Range range;
-		private ArrayList<Range> acquiredRanges;
-		private TIntArrayList acquiredIndicies;
-
-		public RangeCounter(Range r) {
-			this.range=r;
-			acquiredRanges=new ArrayList<Range>();
-			acquiredIndicies=new TIntArrayList();
-		}
-		
-		private void addRange(Range acquired, int index) {
-			acquiredRanges.add(acquired);
-			acquiredIndicies.add(index);
-		}
 	}
 
 	public static int[] getIndicies(float[] centers, Range target) {

@@ -37,7 +37,7 @@ public class ThermoRawFileSmokeIT {
 			testFile(Path.of("src/test/resources/rawdata/Stellar_DIA_4mz.raw"), 3, 375);
 			testFile(Path.of("src/test/resources/rawdata/Stellar_DDA.raw"), 3, 60);
 		} finally {
-			ThermoServerPool.shutdown();
+			//ThermoServerPool.shutdown(); // keep open to speed up tests
 		}
 
 		System.out.println("Total time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");

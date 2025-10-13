@@ -59,7 +59,7 @@ public class TIMSFullDIAandDDAIT {
 
 			// MS1 ordering and quick array sanity
 			assertIsNondecreasingRT(ms1);
-			sanityCheckPrecursorScans(ms1);
+			sanityCheckPrecursorScansDIA(ms1);
 
 			// MS2 ordering and quick array sanity
 			assertIsNondecreasingRT(ms2);
@@ -104,7 +104,7 @@ public class TIMSFullDIAandDDAIT {
 
 			// MS1 ordering and quick array sanity
 			assertIsNondecreasingRT(ms1);
-			sanityCheckPrecursorScans(ms1);
+			sanityCheckPrecursorScansDDA(ms1);
 
 			// MS2 ordering and quick array sanity
 			assertIsNondecreasingRT(ms2);
@@ -143,12 +143,24 @@ public class TIMSFullDIAandDDAIT {
 		}
 	}
 
-	private static void sanityCheckPrecursorScans(List<PrecursorScan> scans) {
+	private static void sanityCheckPrecursorScansDIA(List<PrecursorScan> scans) {
 		for (AcquiredSpectrum s : scans) {
 			assertNotNull(s.getSpectrumName());
 			assertTrue(s.getIsolationWindowLower()<=s.getIsolationWindowUpper());
-			assertEquals(0.0, s.getIsolationWindowLower(), 0.0);
-			assertTrue(Double.isInfinite(s.getIsolationWindowUpper()));
+			assertEquals(100.0, s.getIsolationWindowLower(), 0.01);
+			assertEquals(1600.0, s.getIsolationWindowUpper(), 0.01);
+			float[] inten=s.getIntensityArray();
+			for (float v : inten)
+				assertTrue(v>=0.01f, "negative intensity");
+			assertArraysAligned(s.getMassArray(), s.getIonMobilityArray().get(), inten);
+		}
+	}
+	private static void sanityCheckPrecursorScansDDA(List<PrecursorScan> scans) {
+		for (AcquiredSpectrum s : scans) {
+			assertNotNull(s.getSpectrumName());
+			assertTrue(s.getIsolationWindowLower()<=s.getIsolationWindowUpper());
+			assertEquals(0.0, s.getIsolationWindowLower(), 0.01);
+			assertEquals(2000.0, s.getIsolationWindowUpper(), 0.01);
 			float[] inten=s.getIntensityArray();
 			for (float v : inten)
 				assertTrue(v>=0.01f, "negative intensity");

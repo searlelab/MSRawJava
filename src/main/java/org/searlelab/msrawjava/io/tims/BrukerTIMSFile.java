@@ -325,7 +325,6 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		if (metadata!=null) return metadata;
 		LinkedHashMap<String, String> out=new LinkedHashMap<>();
 
-		// File basics
 		out.put("file.path", dPath.toAbsolutePath().toString());
 		out.put("file.name", originalFileName);
 
@@ -342,6 +341,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					out.put("frames.ms2.dia", Integer.toString(rs.getInt(6)));
 				}
 			}
+		} catch (SQLException sqle) {
+			// ignore
 		}
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT MIN(t1), AVG(t1), MAX(t1), MIN(t2), AVG(t2), MAX(t2) FROM Frames")) {
@@ -355,6 +356,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					out.put("temp.max.t2", Double.toString(rs.getDouble(6)));
 				}
 			}
+		} catch (SQLException sqle) {
+			// ignore
 		}
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT AVG(CASE WHEN MsMsType=0 THEN AccumulationTime END), "
@@ -367,6 +370,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					out.put("accTime.avg.ms2.dia.s", Double.toString(1000.0*rs.getDouble(3)));
 				}
 			}
+		} catch (SQLException sqle) {
+			// ignore
 		}
 
 		if (tableExists("DiaFrameMsMsWindows")) {
@@ -376,9 +381,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					+"FROM DiaFrameMsMsWindows";
 			try (PreparedStatement ps1=conn.prepareStatement(cntSql); ResultSet r1=ps1.executeQuery()) {
 				if (r1.next()) out.put("dia.windows.count", Integer.toString(r1.getInt(1)));
+			} catch (SQLException sqle) {
+				// ignore
 			}
 			try (PreparedStatement ps2=conn.prepareStatement(wgSql); ResultSet r2=ps2.executeQuery()) {
 				if (r2.next()) out.put("dia.windowGroups.count", Integer.toString(r2.getInt(1)));
+			} catch (SQLException sqle) {
+				// ignore
 			}
 			try (PreparedStatement ps3=conn.prepareStatement(spanSql); ResultSet r3=ps3.executeQuery()) {
 				if (r3.next()) {
@@ -386,6 +395,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					out.put("dia.mz.max", Double.toString(r3.getDouble(2)));
 					out.put("dia.window.avgWidth", Double.toString(r3.getDouble(3)));
 				}
+			} catch (SQLException sqle) {
+				// ignore
 			}
 		}
 
@@ -399,6 +410,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					out.put("dda.mz.max", Double.toString(rs.getDouble(3)));
 					out.put("dda.window.avgWidth", Double.toString(rs.getDouble(4)));
 				}
+			} catch (SQLException sqle) {
+				// ignore
 			}
 		}
 
@@ -412,6 +425,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						out.put("meta."+k, v);
 					}
 				}
+			} catch (SQLException sqle) {
+				// ignore
 			}
 		}
 		metadata=out;
