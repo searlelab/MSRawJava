@@ -15,16 +15,14 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 
 /**
- * Smoke test: can we open a Thermo RAW, read MS1s and MS2s in a few windows,
- * and get sane counts and RT ranges without throwing?
+ * Smoke test: can we open a Thermo RAW, read MS1s and MS2s in a few windows, and get sane counts and RT ranges without
+ * throwing?
  */
 public class ThermoRawFileSmokeIT {
 	private static final boolean printFullReport=false;
 
 	@Test
 	void openAndRead() throws Exception {
-		//raw=Paths.get("/Users/searle.brian/Downloads/adl_testing/HeLa_BCS_MAPMS_DIA_90min_01.raw");
-
 		long startTime=System.currentTimeMillis();
 
 		try {
