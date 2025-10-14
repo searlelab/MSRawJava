@@ -1,4 +1,4 @@
-package org.searlelab.msrawjava.model;
+package org.searlelab.msrawjava.io;
 
 import java.io.File;
 import java.io.IOException;
@@ -7,6 +7,16 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.model.FragmentScan;
+import org.searlelab.msrawjava.model.PrecursorScan;
+import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.WindowData;
+
+/**
+ * StripeFileInterface describes the reader-facing contract expected by writers that consume DIA-style windowed data. It
+ * exposes access to run metadata and to window/range organization in a vendor-neutral way so output code can pull
+ * MS1/MS2 content uniformly from Bruker and Thermo sources.
+ */
 public interface StripeFileInterface {
 
 	/**

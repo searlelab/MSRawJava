@@ -8,6 +8,12 @@ import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.Peak;
 import org.searlelab.msrawjava.model.Range;
 
+/**
+ * TIMSPeakPicker implements ion-mobility–aware peak detection for timsTOF data, operating across the mobility dimension
+ * after m/z calibration. It processes primitive traces to identify contiguous signal regions, selects apex positions,
+ * and aggregates intensities into lightweight Peak tuples (mz, intensity, ims), producing deterministic outputs while
+ * minimizing allocation so that downstream spectrum assembly remains fast and GC-friendly.
+ */
 public class TIMSPeakPicker {
 	/**
 	 * all peaks need to be "on", this will toggle some "off"

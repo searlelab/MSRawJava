@@ -15,6 +15,13 @@ import java.util.Locale;
 
 import org.searlelab.msrawjava.io.utils.ResourceTreeExtractor;
 
+/**
+ * GrpcServerLauncher prepares and supervises the self-contained Thermo gRPC server used by the Java client: it extracts
+ * the published server bundle from resources into a temporary work directory, selects a free TCP port, starts the child
+ * process, blocks until the port is reachable, exposes the chosen port to callers, and on close tears down the process
+ * and deletes the extracted files. The class infers a runtime identifier from the host OS, keeps launch state per-JVM
+ * instance, and serves as the package-level mechanism behind ThermoServerPool.
+ */
 final class GrpcServerLauncher implements AutoCloseable {
 	private static final String OS_LINUX="linux";
 	private static final String OS_OSX="osx";

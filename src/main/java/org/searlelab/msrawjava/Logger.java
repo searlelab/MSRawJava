@@ -5,6 +5,11 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 
+/**
+ * Logger is a lightweight, dependency-free logging facade for the project that formats and emits messages in a
+ * consistent style and severity order. It is designed to be thread-friendly and predictable, and can optionally feed
+ * LogRecorder so tests and UIs can capture recent output without depending on external logging frameworks.
+ */
 public class Logger {
 	public static boolean PRINT_TO_SCREEN=true;
 	private static final SimpleDateFormat format=new SimpleDateFormat("[HH:mm:ss] ");

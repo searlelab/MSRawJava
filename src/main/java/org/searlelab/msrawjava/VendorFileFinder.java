@@ -8,6 +8,11 @@ import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * VendorFileFinder walks files and directories to discover supported vendor inputs (e.g., Bruker .d directories and
+ * Thermo .raw files), applying simple filters and normalizing paths. It returns a VendorFiles aggregate that groups
+ * discovered items by vendor so downstream readers and the CLI can orchestrate processing consistently.
+ */
 public final class VendorFileFinder {
 
 	/**

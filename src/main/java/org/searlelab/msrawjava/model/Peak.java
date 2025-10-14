@@ -2,6 +2,11 @@ package org.searlelab.msrawjava.model;
 
 import java.util.Comparator;
 
+/**
+ * Peak is a value object representing a single centroided data point, typically holding an m/z, an intensity, and (when
+ * available) an ion-mobility coordinate. It is meant for heavy-weight data analysis, rather than light-weight data
+ * transfer.
+ */
 public class Peak implements Comparable<Peak> {
 	public final double mz;
 	public final float intensity;

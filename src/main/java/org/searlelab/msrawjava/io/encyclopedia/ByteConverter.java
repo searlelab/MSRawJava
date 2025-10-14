@@ -5,6 +5,11 @@ import java.nio.ByteOrder;
 import java.nio.DoubleBuffer;
 import java.nio.FloatBuffer;
 
+/**
+ * ByteConverter provides low-level utilities for converting between Java primitives and byte arrays with a fixed,
+ * explicit endianness. It centralizes packing/unpacking of numeric values so higher-level writers (e.g.,
+ * EncyclopeDIAFile/SQLFile) can serialize binary payloads deterministically without duplicating conversion logic.
+ */
 public class ByteConverter {
 	private static ByteOrder order=ByteOrder.BIG_ENDIAN; // usual for java
 

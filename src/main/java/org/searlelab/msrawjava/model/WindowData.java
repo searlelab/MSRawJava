@@ -2,6 +2,10 @@ package org.searlelab.msrawjava.model;
 
 import java.util.Optional;
 
+/**
+ * WindowData aggregates statistics and annotations for a window (commonly a DIA m/z range), such as counts and timing
+ * characteristics, and optionally ion-mobility span or related measures. 
+ */
 public class WindowData {
 
 	private final float averageDutyCycle;

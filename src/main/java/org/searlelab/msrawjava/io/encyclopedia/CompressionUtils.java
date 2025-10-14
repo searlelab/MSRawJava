@@ -8,6 +8,11 @@ import java.util.zip.Deflater;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.Inflater;
 
+/**
+ * CompressionUtils offers lightweight helpers for compressing and decompressing binary blocks used by on-disk artifacts
+ * that benefit from reduced size (e.g., stored spectra or auxiliary blobs). It abstracts the codec and buffering
+ * details so writer code can opt into compression while preserving streaming behavior and reproducible output.
+ */
 public class CompressionUtils {
 	public static byte[] compress(byte[] decompressedData) throws IOException {
 		Deflater deflater=new Deflater();

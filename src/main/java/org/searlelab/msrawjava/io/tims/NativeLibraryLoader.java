@@ -5,6 +5,12 @@ import java.io.InputStream;
 import java.nio.file.*;
 import java.util.Locale;
 
+/**
+ * NativeLibraryLoader is responsible for resolving, extracting, and loading the platform-specific JNI artifacts that
+ * back the Bruker timsTOF reader. It detects OS/architecture, locates the bundled native library from resources,
+ * manages safe extraction to a temporary location, and ensures the library is loaded exactly once before TimsNative
+ * methods are invoked.
+ */
 final class NativeLibraryLoader {
 	private NativeLibraryLoader() {
 	}

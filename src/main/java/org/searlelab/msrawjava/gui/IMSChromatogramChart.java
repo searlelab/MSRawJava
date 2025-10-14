@@ -16,6 +16,11 @@ import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.searlelab.msrawjava.model.Peak;
 
+/**
+ * IMSChromatogramChart renders a simple ion-mobility chromatogram view (mobility vs. intensity) to visually inspect
+ * extracted peaks and thresholds during development. This component is intended strictly for developer testing and
+ * diagnostics and is not required by the core library or CLI.
+ */
 public class IMSChromatogramChart {
 	/** Build dataset: one XYSeries per chromatogram, preserving insertion order. */
 	private static XYSeriesCollection buildDataset(ArrayList<ArrayList<Peak>> traces) {

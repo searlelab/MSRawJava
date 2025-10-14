@@ -13,6 +13,14 @@ using ThermoFisher.CommonCore.Data.Interfaces;
 using ThermoFisher.CommonCore.RawFileReader;
 using Microsoft.AspNetCore.Server.Kestrel.Core;   // HttpProtocols
 
+/// Program.cs is the entry point for the self-contained ASP.NET Core gRPC bridge that exposes
+/// Thermo RAW access to the Java client. It boots the server, wires up service endpoints
+/// (e.g., session open/close, run metadata, TIC/gradient, DIA window enumeration, and
+/// MS1/MS2 streaming), configures basic logging and shutdown, and runs in a standalone
+/// process so vendor SDK calls remain isolated from the JVM. The executable is intended to
+/// be published as a single-file, RID-specific bundle and launched on demand by the Java
+/// GrpcServerLauncher/ThermoServerPool.
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Resolve listening URL (plaintext HTTP/2)

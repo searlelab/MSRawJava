@@ -2,6 +2,10 @@ package org.searlelab.msrawjava;
 
 import java.util.StringTokenizer;
 
+/**
+ * Version centralizes build and runtime version metadata for the project, exposing a stable string (and related fields)
+ * used by the CLI, writers, and logs. 
+ */
 public class Version implements Comparable<Version> {
 	private static final String UNKNOWN_VERSION="0.0.0";
 	private final int major;

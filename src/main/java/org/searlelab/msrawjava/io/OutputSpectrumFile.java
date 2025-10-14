@@ -12,6 +12,11 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
+/**
+ * OutputSpectrumFile defines a small, uniform lifecycle for spectrum file writers (initialization, metadata/range
+ * configuration, spectra emission, and closing). It exists so concrete writers such as MZMLOutputFile, MGFOutputFile,
+ * and EncyclopeDIAFile can share consistent semantics and be orchestrated interchangeably by higher-level code.
+ */
 public interface OutputSpectrumFile {
 	String getFileExtension();
 

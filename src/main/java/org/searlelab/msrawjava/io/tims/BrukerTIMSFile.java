@@ -20,17 +20,19 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
-import org.searlelab.msrawjava.model.StripeFileInterface;
 import org.searlelab.msrawjava.model.WindowData;
 
 /**
- * TIMS-backed implementation that reads frame metadata via sqlite-jdbc and
- * pulls peak arrays via the Rust JNI iterator. Java controls what to read.
- *
+ * BrukerTIMSFile coordinates access to Bruker timsTOF runs and presents them through the project’s common data model.
+ * It orchestrates reading run metadata and frame/scan content, delegates low-level extraction to TimsReader and native
+ * calls via TimsNative, applies calibration objects, and materializes MS1/MS2 spectra (e.g., PrecursorScan and
+ * FragmentScan) along with DIA window summaries (Range/WindowData). The class isolates vendor specifics so call-sites
+ * can treat Bruker data uniformly alongside other vendors.
  */
 public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 

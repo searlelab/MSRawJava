@@ -1,10 +1,8 @@
 package org.searlelab.msrawjava.io.tims;
 
 /**
- * JNI façade for the Rust iterator.
- * Returned value from next(): Object[] of length 6
- * [0]=double[] mz, [1]=float[] ims, [2]=float[] intensity,
- * [3]=Integer msLevel, [4]=Integer frameIndex, [5]=Double rtSeconds
+ * TimsNative declares the JNI surface used by the Java layer to call into the native (Rust) implementation for Bruker
+ * timsTOF extraction.
  */
 public final class TimsNative {
 	static {

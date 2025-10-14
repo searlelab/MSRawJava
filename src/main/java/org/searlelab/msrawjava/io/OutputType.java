@@ -5,6 +5,11 @@ import java.rmi.UnexpectedException;
 
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 
+/**
+ * OutputType enumerates supported output formats and serves as a compact selector for the corresponding writer
+ * implementation. It provides a single source of truth for format identity and mapping, keeping CLI and orchestration
+ * logic decoupled from concrete writer classes.
+ */
 public enum OutputType {
 	EncyclopeDIA, mgf, mzml;
 

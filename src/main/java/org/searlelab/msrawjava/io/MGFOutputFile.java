@@ -17,6 +17,11 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
+/**
+ * MGFOutputFile streams spectra to an MGF text file, emitting well-formed headers and centroided peak lists with stable
+ * ordering. It focuses on deterministic, append-friendly writing from the common data model, handling run-level
+ * metadata where applicable while avoiding unnecessary buffering.
+ */
 public class MGFOutputFile implements OutputSpectrumFile {
 
 	public static final String MGF_EXTENSION=".mgf";

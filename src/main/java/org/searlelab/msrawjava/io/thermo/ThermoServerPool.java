@@ -2,6 +2,10 @@ package org.searlelab.msrawjava.io.thermo;
 
 import java.io.IOException;
 
+/**
+ * ThermoServerPool provides a synchronized way to access a single GrpcServerLauncher instance, lazily starting
+ * the local Thermo server on first use and exposing its listening port to clients.
+ */
 public final class ThermoServerPool {
 	private static GrpcServerLauncher launcher;
 

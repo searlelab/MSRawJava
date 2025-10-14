@@ -21,8 +21,11 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 /**
- * Extracts an entire directory tree from the classpath to a destination folder.
- * Supports both "file:" resources (exploded) and "jar:" resources (packaged in a JAR).
+ * ResourceTreeExtractor copies a packaged resource directory (on the classpath) to a writable filesystem location,
+ * preserving the tree structure and basic metadata. It exists to stage bundled assets—such as native libraries or the
+ * Thermo server—without external installers, handling path resolution and safe overwrites so callers can launch tools
+ * directly from extracted resources. It supports both "file:" resources (exploded) and "jar:" resources (packaged in a
+ * JAR).
  */
 public final class ResourceTreeExtractor {
 

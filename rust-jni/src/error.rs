@@ -1,3 +1,6 @@
+//! error.rs — Defines the crate’s errors surface so native failures are represented
+//! in a predictable, FFI-safe way. 
+
 use thiserror::Error;
 use jni::JNIEnv;
 

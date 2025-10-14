@@ -3,6 +3,10 @@ package org.searlelab.msrawjava.model;
 import java.util.ArrayList;
 import java.util.Comparator;
 
+/**
+ * Range represents a interval with explicit lower and upper bounds, used throughout the model to express m/z windows,
+ * retention-time slices, or other bounded domains. 
+ */
 // @Immutable
 public class Range implements Comparable<Range> {
 	private final float start, stop;

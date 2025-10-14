@@ -2,6 +2,10 @@ package org.searlelab.msrawjava.io.tims;
 
 import org.searlelab.msrawjava.model.MassTolerance;
 
+/**
+ * TIMSMassTolerance models a mass tolerance tailored for how the timsTOF pro (v1) operates and assumptions about the
+ * source of noise in the instrument, rather than just a standard PPM tolerance.
+ */
 public class TIMSMassTolerance extends MassTolerance {
 	private final double ccoverN;
 	private final double systemSquared;

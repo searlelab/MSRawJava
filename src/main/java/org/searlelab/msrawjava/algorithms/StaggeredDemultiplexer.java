@@ -3,8 +3,8 @@ package org.searlelab.msrawjava.algorithms;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.model.Range;
-import org.searlelab.msrawjava.model.StripeFileInterface;
 
 import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.list.array.TIntArrayList;

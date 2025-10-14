@@ -3,6 +3,12 @@ package org.searlelab.msrawjava;
 import java.nio.file.Path;
 import java.util.ArrayList;
 
+/**
+ * VendorFiles is a simple aggregate that holds the results of vendor file discovery, grouping recognized inputs by type
+ * and exposing stable iteration for batch processing. It acts as the handoff between discovery (VendorFileFinder) and
+ * the reading/serialization stages, keeping CLI and orchestration code concise. Currently it only works for Thermo and
+ * Bruker raw files.
+ */
 public class VendorFiles {
 	private final ArrayList<Path> rawFiles;
 	private final ArrayList<Path> dDirs;

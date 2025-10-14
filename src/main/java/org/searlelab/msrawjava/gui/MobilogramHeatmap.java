@@ -17,12 +17,9 @@ import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.data.xy.DefaultXYZDataset;
 
 /**
- * Build a 2D mobilogram (scan × m/z heatmap) from a single TIMS frame:
- *   - int[] scan
- *   - double[] mz
- *   - double[] intensity
- *
- * Dependencies: JFreeChart 1.5.x (and its transitive JCommon).
+ * MobilogramHeatmap displays a basic heatmap of mobility-indexed signal to provide a quick, visual sanity check of
+ * calibration and extraction across frames/scans. This visualization is for developer testing and diagnostics only and
+ * is not part of normal library or CLI operation.
  */
 public final class MobilogramHeatmap {
     /** Quick default: 600 m/z bins. */

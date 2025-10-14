@@ -7,6 +7,10 @@ import java.util.Optional;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.algorithms.QuickMedian;
 
+/**
+ * FragmentScan models an MS/MS DIA or DDA spectrum in the unified data model, associating calibrated m/z and intensity
+ * arrays with isolation/window information and scan metadata.
+ */
 public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectrum> {
 
 	private final String spectrumName;

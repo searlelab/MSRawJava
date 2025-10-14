@@ -1,5 +1,11 @@
 package org.searlelab.msrawjava.io.tims;
 
+/**
+ * MzCalibrationPoly represents the polynomial (and related coefficients) used by the timsTOF path to evaluate
+ * calibrated m/z from raw indices/TOF. It provides an immutable, serializable form of the calibration function so
+ * readers and native components can perform conversions consistently. The current logic is based on reverse-engineering
+ * provided by Sebastian Paez (thanks Sebastian!)
+ */
 public final class MzCalibrationPoly {
     /**
      * Convert a single TOF index to m/z using the reverse-engineered parabola designed by Sebastian Paez (thanks Sebastian!):

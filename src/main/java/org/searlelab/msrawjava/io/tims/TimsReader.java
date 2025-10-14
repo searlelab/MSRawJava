@@ -6,6 +6,12 @@ import java.util.Optional;
 import org.searlelab.msrawjava.exceptions.TdfFormatException;
 import org.searlelab.msrawjava.io.utils.Triplet;
 
+/**
+ * TimsReader provides lower-level helpers for Bruker timsTOF ingestion: it mediates access to per-frame/per-scan
+ * content, applies calibration and intensity corrections, and transforms native buffers into the project’s model
+ * objects. Positioned beneath BrukerTIMSFile, it concentrates error translation and data shaping so the higher-level
+ * reader can focus on run-level coordination and public API consistency.
+ */
 public final class TimsReader implements AutoCloseable {
 	private final long datasetHandle;
 	private final Optional<MzCalibrationParams> params;

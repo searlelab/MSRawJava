@@ -1,4 +1,8 @@
-// src/extract.rs
+//! extract.rs — Implements the core data extraction pipeline for Bruker timsTOF content, decoding
+//! frame/scan records and applying the minimal transforms required for downstream use (e.g., time-
+//! index to calibrated values and intensity adjustments when available). Produces compact, contiguous
+//! primitive buffers suitable for zero-copy FFI return, keeping per-call allocations and branching low.
+
 use timsrust::converters::ConvertableDomain; // enables .convert()
 use crate::state::Dataset;
 

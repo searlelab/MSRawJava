@@ -1,5 +1,8 @@
 package org.searlelab.msrawjava.model;
 
+/**
+ * PPMMassTolerance is a parts-per-million implementation of MassTolerance.
+ */
 // @Immutable
 public class PPMMassTolerance extends MassTolerance {
 	private final double tolerancePercent;

@@ -1,5 +1,11 @@
 package org.searlelab.msrawjava.io.tims;
 
+/**
+ * MzCalibrationParams encapsulates the numerical parameters required to convert instrument time-of-flight or index
+ * values into calibrated m/z for timsTOF data. It serves as a stable container passed between readers and native
+ * layers, often working with MzCalibrationPoly for evaluation, so that spectrum construction can rely on a single,
+ * consistent calibration description.
+ */
 public final class MzCalibrationParams {
 	public final double timebaseNsPerSample; // DigitizerTimebase (e.g., 0.2)
 	public final double delaySamples; // DigitizerDelay (e.g., 24864)

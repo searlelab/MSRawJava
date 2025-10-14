@@ -28,7 +28,14 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
+/**
+ * Main is the command-line entry point for MSRawJava. It parses options, discovers vendor inputs via VendorFileFinder,
+ * selects the appropriate reader (e.g., BrukerTIMSFile or ThermoRawFile), normalizes spectra and metadata into the
+ * shared model, and directs output to the chosen writer (mzML, MGF, or EncyclopeDIA). The class coordinates batch
+ * orchestration, logging, and deterministic serialization for reproducible runs.
+ */
 public class Main {
+	private static final int NUMBER_OF_REPORTING_SECTIONS=20;
 
 	public static void main(String[] args) throws Exception {
 		System.out.println("Welcome to MSRawJava version "+Version.getVersion());
@@ -169,7 +176,7 @@ public class Main {
 			outFile.addMetadata(rawFile.getMetadata());
 			
 			float gradientLength=rawFile.getGradientLength();
-			int sections=getNumberOfSections(gradientLength);
+			int sections=NUMBER_OF_REPORTING_SECTIONS;
 			float start=0.0f;
 			float sectionTime=gradientLength/sections;
 			for (int i=0; i<sections; i++) {
@@ -219,7 +226,7 @@ public class Main {
 		try {
 			int scanNumber=1;
 			float gradientLength=timsFile.getGradientLength();
-			int sections=getNumberOfSections(gradientLength);
+			int sections=NUMBER_OF_REPORTING_SECTIONS;
 			float start=0.0f;
 			float sectionTime=gradientLength/sections;
 
@@ -321,10 +328,6 @@ public class Main {
 		int i=filename.lastIndexOf('.');
 		String name=filename.substring(0, i);
 		return f.getParent().resolve(name+newExtension);
-	}
-
-	private static int getNumberOfSections(float gradientTimeInSec) {
-		return 20;
 	}
 
 	private static ThreadFactory namedFactory(String base) {

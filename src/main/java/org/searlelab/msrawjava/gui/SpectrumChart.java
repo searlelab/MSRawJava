@@ -16,6 +16,11 @@ import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.searlelab.msrawjava.model.Peak;
 
+/**
+ * SpectrumChart presents a straightforward m/z-vs-intensity spectrum plot to verify that readers and writers are
+ * producing consistent, calibrated peak lists. It exists solely for developer testing and diagnostics and is not a
+ * runtime dependency of the core library or CLI.
+ */
 public final class SpectrumChart {
     /** Build a dataset that draws each peak as a vertical "stick". */
     private static XYSeriesCollection sticks(double[] mz, float[] intensity) {

@@ -6,6 +6,9 @@ import java.util.Collections;
 
 import gnu.trove.list.array.TIntArrayList;
 
+/**
+ * MassTolerance abstracts a mass-error policy for comparing or windowing m/z values.
+ */
 // @Immutable
 public abstract class MassTolerance {
 

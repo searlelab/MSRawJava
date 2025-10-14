@@ -4,6 +4,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Optional;
 
+/**
+ * PrecursorScan models an MS1 (precursor) spectrum in the unified data model, carrying calibrated m/z and intensity
+ * arrays plus relevant scan metadata such as retention-time context and identifiers. 
+ */
 public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpectrum> {
 
 	private final String spectrumName;

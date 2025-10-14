@@ -35,6 +35,12 @@ import com.google.common.collect.Multimap;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.procedure.TIntObjectProcedure;
 
+/**
+ * EncyclopeDIAFile implements a streamed writer for EncyclopeDIA .DIA outputs, organizing run metadata and spectra into
+ * the expected on-disk layout. It coordinates schema creation and batched inserts via SQLFile, encodes binary fields
+ * with ByteConverter, optionally applies CompressionUtils, and enforces deterministic ordering so downstream tools
+ * consume stable archives.
+ */
 public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 	public static final DateFormat m_ISO8601Local=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 	private static final Version MOST_RECENT_VERSION=new Version(0, 7, 0);

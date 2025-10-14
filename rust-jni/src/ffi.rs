@@ -1,3 +1,8 @@
+//! ffi.rs — Exposes a C-compatible API consumed by the JVM via JNI. Handles argument marshaling,
+//! lifetime/ownership rules for native buffers, and translates internal results into stable return
+//! values plus explicit error reporting. Acts as the single bridge layer so all safety, pinning, and
+//! resource management concerns stay contained and auditable.
+
 use jni::objects::{JClass, JIntArray, JString, JObject};
 use jni::sys::{jint, jlong, jobject};
 use jni::JNIEnv;

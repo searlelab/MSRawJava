@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.thermo.rpc.CloseRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.OpenRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.PrecursorsRequest;
@@ -21,12 +22,17 @@ import org.searlelab.msrawjava.io.thermo.rpc.Session;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
-import org.searlelab.msrawjava.model.StripeFileInterface;
 import org.searlelab.msrawjava.model.WindowData;
 
 import io.grpc.ManagedChannel;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 
+/**
+ * ThermoRawFile is a thin, blocking gRPC client over the local Thermo server that normalizes RAW access into the
+ * project’s common model. It manages a channel and session, opens a RAW path, retrieves run metadata and summary (TIC,
+ * gradient length), enumerates DIA window definitions as Map<Range,WindowData>, and streams MS1/MS2 content as
+ * PrecursorScan and FragmentScan objects.
+ */
 public final class ThermoRawFile implements StripeFileInterface, Closeable {
 	private Path rawPath=null;
 	private ManagedChannel channel=null;

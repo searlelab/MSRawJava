@@ -27,6 +27,11 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
+/**
+ * MZMLOutputFile writes mzML in a streaming manner, assembling instrument/run metadata and spectra into a consistent,
+ * indexed XML artifact. It emphasizes deterministic serialization and controlled memory use, mapping the project’s
+ * model types to mzML structures while keeping CV terms and checksums coherent.
+ */
 public class MZMLOutputFile implements OutputSpectrumFile {
 
 	private static final String SPECTRUM_LIST_COUNT_PLACEHOLDER="SPECTRUM_LIST_COUNT_PLACEHOLDER";

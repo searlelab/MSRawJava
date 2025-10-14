@@ -10,6 +10,11 @@ import java.sql.Statement;
 
 import org.searlelab.msrawjava.Logger;
 
+/**
+ * SQLFile encapsulates SQLite-focused file creation and transactional writes used by EncyclopeDIAFile. It owns
+ * connection lifecycle, schema/bootstrap statements, and batched parameter binding, providing a narrow surface that
+ * isolates SQL specifics from the higher-level data mapping and serialization logic.
+ */
 public abstract class SQLFile {
 	public static final String VERSION_STRING="version";
 
