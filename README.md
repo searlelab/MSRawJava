@@ -20,10 +20,13 @@ mvn -DskipTests package
 Sometimes Maven struggles with the one-line command. To prebuild the native side explicitly, use the following commands:
 
 ```
-scripts/build-all-rust.sh 
 scripts/build-all-net.sh 
+scripts/build-all-rust.sh 
 mvn -DskipTests package
 ```
+
+Note, you need to run scripts/build-all-net.sh before scripts/build-all-rust.sh because the net.sh script cleans the target space. Building the MacOS Rust libraries on Windows may fail, so you may need to comment that section of the `build-all-rust.sh` script.
+
 Bruker timsTOF-specific Rust binaries are embedded in the jar under `META-INF/lib/{os-arch}` and `resources/msraw/thermo/bin/{rid}` for the Thermo server. The runtime loaders (`NativeLibraryLoader`, `GrpcServerLauncher`) resolve and launch them automatically.
 
 
