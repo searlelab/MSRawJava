@@ -1,5 +1,5 @@
 # MSRawJava
-A cross-platform Java/C#/Rust package for efficiently reading Thermo .raw and timsTOF .d files.
+A cross-platform Java/C#/Rust package for efficiently reading Thermo .raw and timsTOF .d files with Java programs.
 
 **Building**
 <br>You will need Rustc and Cargo to build the Rust components.
