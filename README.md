@@ -1,9 +1,8 @@
 # MSRawJava: Java-first readers for Bruker timsTOF and Thermo RAW
-MSRawJava is a Java-first toolkit for efficiently reading Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X.
-The code provides additional tooling for normalizing spectra and metadata into a common model, and producing analysis-ready outputs (EncyclopeDIA `.DIA`, `.mzML`, `.MGF`). The library exposes a uniform Java API and a compact CLI. Vendor specifics are isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo so the public surface remains consistent across platforms.
+MSRawJava is a Java-first toolkit for efficiently reading Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X. The code provides additional tooling for reading spectra and metadata into a standard object model, and producing analysis-ready outputs (`.mzML`, `.MGF`, EncyclopeDIA `.DIA`). The library exposes a uniform Java API and a compact CLI. Vendor specifics are isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo, so the public surface remains consistent across platforms.
 
 ## Architecture and code structure
-The library normalizes vendor streams into a compact, immutable model under `model`. `AcquiredSpectrum` defines the common surface for MS1 and MS2 and is implemented by `PrecursorScan` and `FragmentScan`. Both carry `spectrumName`, `spectrumIndex`, `scanStartTime`, `fraction`, isolation/scan window bounds, optional `ionInjectionTime`, and primitive `double[]` m/z with `float[]` intensity; timsTOF adds an optional `float[]` ion mobility vector where every peak gets an assigned ion mobility value. `Peak` is a lightweight value object (`mz`, `intensity`, `ims`) materialized on demand when point lists are needed, avoiding overhead during bulk transfer. Windowing is represented by `Range` (the m/z interval) and `WindowData` (average duty cycle, MS/MS counts, optional ion-mobility span). Readers construct a `Map<Range,WindowData>` of DIA stripes, stream MS1 as `PrecursorScan` and `FragmentScan` records sliced using retention time and m/z windows (for `FragmentScan`s). Arrays remain primitive to enable zero-copy JNI/gRPC exchange; conversion to `Peak` lists is threshold-aware and performed lazily only when necessary. The model’s immutability supports parallel read stages while writers serialize output for deterministic archives.
+The library normalizes vendor streams into a compact, immutable model under `model`. `AcquiredSpectrum` defines the common surface for MS1 and MS2 and is implemented by `PrecursorScan` and `FragmentScan`. Both carry `spectrumName`, `spectrumIndex`, `scanStartTime`, `fraction`, isolation/scan window bounds, optional `ionInjectionTime`, and primitive `double[]` m/z with `float[]` intensity; timsTOF adds an optional `float[]` ion mobility vector where every peak gets an assigned ion mobility value. `Peak` is a lightweight value object (`mz`, `intensity`, `ims`) materialized on demand when point lists are needed, avoiding overhead during bulk transfer. Windowing is represented by `Range` (the m/z interval) and `WindowData` (average duty cycle, MS/MS counts, optional ion-mobility span). Readers construct a `Map<Range, WindowData>` of DIA stripes, stream MS1 as `PrecursorScan` and `FragmentScan` records sliced using retention time and m/z windows (for `FragmentScan`s). Arrays remain primitive to enable zero-copy JNI/gRPC exchange; conversion to `Peak` lists is threshold-aware and performed lazily only when necessary. The model’s immutability supports parallel read stages while writers serialize output for deterministic archives.
 
 From the Java layer, timsTOF access is implemented in `src/main/java/org/searlelab/msrawjava/io/tims`. `BrukerTIMSFile.java` is the main entry point; it coordinates metadata reads from the TDF, frame and scan extraction, and conversion to model objects. Calibration and mobility/mass tolerances are handled by `MzCalibrationParams.java`, `MzCalibrationPoly.java`, and `TIMSPeakPicker.java`. Native interaction is confined to `TimsNative.java` with dynamic loading via `NativeLibraryLoader.java`, keeping all JNI mechanics out of the main code logic. `TIMSPeakPicker` performs peak detection along the ion‑mobility axis (1/K0) after m/z calibration. The peak picker treats each calibrated m/z trace as a one‑dimensional signal over mobility, estimates a local baseline with a robust statistic, and segments contiguous regions above an adaptive threshold. Each region is smoothed with a small Gaussian kernel to suppress single‑bin spikes, the apex is chosen by the local maximum, and the integrated area across the region becomes the new centroid intensity. Neighboring m/z bins are merged within a ToF-specific tolerance to avoid duplicate peaks from fractional binning. Results are emitted as `Peak(mz, intensity, imsApex)`s and fed into `PrecursorScan`/`FragmentScan` spectra. The algorithm is deterministic, linear in the length of the mobility trace, and uses no autoboxing, which keeps garbage collection pressure low.
 
@@ -18,7 +17,7 @@ This project targets Java 17 and builds with Maven. Packaging compiles Java and 
 mvn -DskipTests package
 ```
 
-Sometimes Maven struggles with the one-line command. To prebuild native side explicitly, use the following commands:
+Sometimes Maven struggles with the one-line command. To prebuild the native side explicitly, use the following commands:
 
 ```
 scripts/build-all-rust.sh 
@@ -29,7 +28,7 @@ Bruker timsTOF-specific Rust binaries are embedded in the jar under `META-INF/li
 
 
 ## CLI usage
-The CLI in `Main.java` accepts files or directories and walks them for Bruker `.d` and Thermo `.raw`. Command line options include:
+The CLI in `Main.java` accepts files or directories and searches them for Bruker `.d` and Thermo `.raw` files. Command line options include:
 
 ```
   -dia                  Produces EncyclopeDIA .DIA files (default)
