@@ -41,7 +41,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	private String originalFileName=null;
 	private Connection conn=null;
 	private TimsReader reader=null;
-	private volatile boolean open=true;
+	private volatile boolean open=false;
 	private int ms1Key=0;
 	private int ms2Key=-1; // unknown
 	
@@ -90,6 +90,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		if (conn!=null) {
 			close();
 		}
+		open=true;
 
 		Objects.requireNonNull(dPath, "dPath");
 		this.dPath=dPath;
@@ -849,13 +850,5 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	 */
 	public TimsReader getReader() {
 		return reader;
-	}
-
-	private static double parseDoubleOr(String s, double fallback) {
-		try {
-			return (s==null?fallback:Double.parseDouble(s));
-		} catch (Exception e) {
-			return fallback;
-		}
 	}
 }

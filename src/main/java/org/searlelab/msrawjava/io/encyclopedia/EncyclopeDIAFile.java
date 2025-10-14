@@ -275,7 +275,13 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 					prep.setString(1, precursor.getSpectrumName());
 					prep.setInt(2, precursor.getSpectrumIndex());
 					prep.setFloat(3, precursor.getScanStartTime());
-					prep.setFloat(4, precursor.getIonInjectionTime());
+					
+					if (precursor.getIonInjectionTime()!=null) {
+						prep.setFloat(4, precursor.getIonInjectionTime());
+					} else {
+						prep.setNull(4, Types.FLOAT);
+					}
+					
 					byte[] massByteArray=ByteConverter.toByteArray(precursor.getMassArray());
 					prep.setInt(5, massByteArray.length);
 					prep.setBytes(6, CompressionUtils.compress(massByteArray));
@@ -338,7 +344,13 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 			prep.setInt(index++, stripe.getSpectrumIndex());
 			prep.setFloat(index++, stripe.getScanStartTime());
 			prep.setInt(index++, stripe.getFraction());
-			prep.setFloat(index++, stripe.getIonInjectionTime());
+
+			if (stripe.getIonInjectionTime()!=null) {
+				prep.setFloat(index++, stripe.getIonInjectionTime());
+			} else {
+				prep.setNull(index++, Types.FLOAT);
+			}
+			
 			prep.setDouble(index++, stripe.getIsolationWindowLower());
 			prep.setDouble(index++, (stripe.getIsolationWindowLower()+stripe.getIsolationWindowUpper())/2.0);
 			prep.setDouble(index++, stripe.getIsolationWindowUpper());

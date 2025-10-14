@@ -1,9 +1,9 @@
 package org.searlelab.msrawjava.model;
 
-import org.junit.jupiter.api.Test;
-import org.searlelab.msrawjava.io.tims.TIMSMassTolerance;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 class PPMMassToleranceTest {
 

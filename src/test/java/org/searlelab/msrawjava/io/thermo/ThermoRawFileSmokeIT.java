@@ -61,6 +61,13 @@ public class ThermoRawFileSmokeIT {
 			assertNotNull(ms1s, "MS1 list should not be null");
 			assertTrue(ms1s.size()>0, "Expected at least one MS1 spectrum");
 
+			// RT monotonicity
+			float lastRt=-1f;
+			for (AcquiredSpectrum ms1 : ms1s) {
+				assertTrue(ms1.getScanStartTime()>=lastRt-1e-6, "MS1 RT should be non-decreasing");
+				lastRt=ms1.getScanStartTime();
+			}
+
 			assertEquals(expectedPrecursors, ms1s.size(), "Expect "+expectedPrecursors+" MS2s");
 			for (AcquiredSpectrum ms1 : ms1s) {
 				assertTrue(sum(ms1.getIntensityArray())>0.0f, "Expect TIC>0");
@@ -79,6 +86,13 @@ public class ThermoRawFileSmokeIT {
 			assertNotNull(ms2s, "MS2 list should not be null");
 			assertTrue(ms2s.size()>0, "Expected at least one MS2 spectrum");
 
+			// RT monotonicity
+			lastRt=-1f;
+			for (FragmentScan ms2 : ms2s) {
+				assertTrue(ms2.getScanStartTime()>=lastRt-1e-6, "MS2 RT should be non-decreasing");
+				lastRt=ms2.getScanStartTime();
+			}
+
 			assertEquals(expectedMS2s, ms2s.size(), "Expect "+expectedPrecursors+" MS2s");
 			for (FragmentScan ms2 : ms2s) {
 				assertTrue(sum(ms2.getIntensityArray())>0.0f, "Expect TIC>0");
@@ -94,6 +108,9 @@ public class ThermoRawFileSmokeIT {
 			}
 			System.out.println("Finished! MS1:"+ms1s.size()+", MS2:"+ms2s.size()+" Closing down."+" Processing time: "
 					+(System.currentTimeMillis()-startTime)/1000f+" sec");
+
+			assertTrue(f.isOpen());
+			assertEquals(raw.toFile(), f.getFile());
 
 		} finally {
 			if (f!=null) f.close();
