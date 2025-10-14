@@ -47,8 +47,3 @@ java -jar MSRawJava path/to/raws/
 java -jar MSRawJava -mgf ../../path/to/raws/
 java -jar MSRawJava -mzml /mnt/vol1/path/to/raws/ -minMS1Threshold 10.0 -minMS2Threshold 5.0
 ```
-=======
-Maven should run the build scripts as part of any compile phase. You need to run scripts/build-all-net.sh before scripts/build-all-rust.sh because the net.sh script cleans the target space. Sometimes Maven gets confused with the pom.xml, so if you get errors, the recommended build order is:
-<br>> scripts/build-all-net.sh
-<br>> scripts/build-all-rust.sh
-<br>> mvn clean package
