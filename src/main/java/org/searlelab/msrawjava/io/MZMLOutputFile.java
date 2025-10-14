@@ -330,8 +330,10 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("          <scan instrumentConfigurationRef=\"IC1\">\n");
 		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""
 				+fmtTimeInSec(scan.getScanStartTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""
-				+fmtTimeInSec(scan.getIonInjectionTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+		if (scan.getIonInjectionTime()!=null) {
+			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""
+					+fmtTimeInSec(scan.getIonInjectionTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+		}
 		
 		writeScanWindow(scan.getScanWindowLower(), scan.getScanWindowUpper());
 		out.write("          </scan>\n");
@@ -362,8 +364,11 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("          <scan instrumentConfigurationRef=\"IC1\">\n");
 		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""
 				+fmtTimeInSec(scan.getScanStartTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""
-				+fmtTimeInSec(scan.getIonInjectionTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+
+		if (scan.getIonInjectionTime()!=null) {
+			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""
+					+fmtTimeInSec(scan.getIonInjectionTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+		}
 		
 		writeScanWindow(scan.getScanWindowLower(), scan.getScanWindowUpper());
 		out.write("          </scan>\n");

@@ -4,7 +4,7 @@ import org.searlelab.msrawjava.model.MassTolerance;
 
 /**
  * TIMSMassTolerance models a mass tolerance tailored for how the timsTOF pro (v1) operates and assumptions about the
- * source of noise in the instrument, rather than just a standard PPM tolerance.
+ * source of noise in the instrument, rather than just a standard PPM tolerance. NOTE, CANNOT USE NEGATIVE NUMBERS
  */
 public class TIMSMassTolerance extends MassTolerance {
 	private final double ccoverN;
@@ -27,6 +27,9 @@ public class TIMSMassTolerance extends MassTolerance {
 		systemSquared=systemPPM*systemPPM;
 	}
 
+	/**
+	 * NOTE, CANNOT USE NEGATIVE NUMBERS
+	 */
 	@Override
 	public double getToleranceInMz(double m1, double m2) {
 		double m=(m1+m2)/2.0;
