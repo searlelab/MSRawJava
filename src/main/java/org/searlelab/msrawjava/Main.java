@@ -37,6 +37,7 @@ import org.searlelab.msrawjava.model.WindowData;
 public class Main {
 	private static final int NUMBER_OF_REPORTING_SECTIONS=20;
 
+	/** Entry point that parses CLI flags, discovers vendor files, and writes outputs using the selected format. */
 	public static void main(String[] args) throws Exception {
 		System.out.println("Welcome to MSRawJava version "+Version.getVersion());
 
@@ -164,6 +165,10 @@ public class Main {
 		Logger.logLine("Finished processing, bye!");
 	}
 
+	/**
+	 * Reads a Thermo RAW, batches spectra over time, attaches metadata and DIA ranges, streams MS1/MS2 to the chosen
+	 * writer, and saves the file.
+	 */
 	public static void writeThermo(Path rawFilePath, Path outputDirPath, OutputType outType) throws Exception {
 		ThermoRawFile rawFile=new ThermoRawFile();
 		try {
@@ -204,7 +209,12 @@ public class Main {
 			rawFile.close();
 		}
 	}
-
+	
+	/**
+	 * Reads a Bruker timsTOF .d, peak-picks across the ion-mobility dimension, and renumbers scans in order with the
+	 * given MS1/MS2 thresholds using parallel workers, streams to the chosen writer, and saves the file. Processes IMS
+	 * using a thread pool for speed.
+	 */
 	public static void writeTims(Path timsFilePath, Path outputDirPath, OutputType outType, float minimumMS1Intensity, float minimumMS2Intensity) throws Exception {
 		BrukerTIMSFile timsFile=new BrukerTIMSFile();
 		timsFile.openFile(timsFilePath);
@@ -321,13 +331,6 @@ public class Main {
 			pool.shutdown();
 			pool.awaitTermination(365, TimeUnit.DAYS);
 		}
-	}
-
-	public static Path changeExtension(Path f, String newExtension) {
-		String filename=f.getFileName().toString();
-		int i=filename.lastIndexOf('.');
-		String name=filename.substring(0, i);
-		return f.getParent().resolve(name+newExtension);
 	}
 
 	private static ThreadFactory namedFactory(String base) {
