@@ -2,7 +2,7 @@ name: publish
 
 on:
   push:
-    tags: [ 'v*' ]            
+    tags: [ 'v*' ]            # e.g., v0.6.0
   workflow_dispatch:
     inputs:
       version_override:
@@ -11,8 +11,8 @@ on:
         default: ''
 
 permissions:
-  contents: read
-  packages: write
+  contents: write   # needed to create/update Releases
+  packages: write   # needed to publish to GitHub Packages
 
 jobs:
   # 1) Build Rust JNI on macOS
@@ -55,7 +55,7 @@ jobs:
           name: jni-linux
           path: dist
 
-  # 3) Build Rust JNI on Windows
+  # 3) Build Rust JNI on Windows (MSVC)
   rust-windows:
     runs-on: windows-latest
     steps:
@@ -89,7 +89,6 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # Avoid heredocs: write NuGet.config via printf if secrets exist and file not committed
       - name: Ensure NuGet.config (optional)
         shell: bash
         run: |
@@ -124,7 +123,7 @@ jobs:
           name: thermo-servers
           path: src/main/resources/msraw/thermo/bin
 
-  # 5) Assemble, package, and deploy (macOS)
+  # 5) Assemble, deploy to GitHub Packages, and attach JARs to Release
   publish:
     runs-on: macos-latest
     needs: [rust-macos, rust-linux, rust-windows, dotnet-macos]
@@ -168,7 +167,6 @@ jobs:
           java-version: '17'
           cache: maven
 
-      # Write ~/.m2/settings.xml using printf (no heredoc)
       - name: Configure Maven server creds for GitHub Packages (PAT)
         shell: bash
         run: |
@@ -189,6 +187,51 @@ jobs:
       - name: Maven clean deploy (skip native scripts; we already staged)
         run: mvn -B -DskipTests -Dskip.build.natives=true clean deploy
 
+      # Resolve the exact main and javadoc jar names from Maven
+      - name: Resolve artifact names
+        id: names
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="$(mvn -q -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.1:exec)"
+          MAIN_JAR="target/${NAME}.jar"
+          JAVADOC_JAR="target/${NAME}-javadoc.jar"
+          echo "MAIN_JAR=$MAIN_JAR" >> "$GITHUB_ENV"
+          if [[ -f "$JAVADOC_JAR" ]]; then
+            echo "JAVADOC_JAR=$JAVADOC_JAR" >> "$GITHUB_ENV"
+          fi
+          echo "Resolved main jar: $MAIN_JAR"
+          echo "Resolved javadoc jar: ${JAVADOC_JAR:-<none>}"
+
+      # Generate SHA-256 checksums for the jars we’ll upload
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > target/SHA256SUMS.txt
+          if [[ -f "${MAIN_JAR}" ]]; then
+            shasum -a 256 "${MAIN_JAR}" >> target/SHA256SUMS.txt
+          fi
+          if [[ -n "${JAVADOC_JAR:-}" && -f "${JAVADOC_JAR}" ]]; then
+            shasum -a 256 "${JAVADOC_JAR}" >> target/SHA256SUMS.txt
+          fi
+          echo "Checksum file:"
+          cat target/SHA256SUMS.txt || true
+
+      # Attach main + javadoc jars and checksums to the GitHub Release (on tag builds)
+      - name: Attach jars to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.MAIN_JAR }}
+            ${{ env.JAVADOC_JAR }}
+            target/SHA256SUMS.txt
+          make_latest: true
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+
+      # Optional: keep the “debug” artifact of everything under target/ if you like
       - name: Upload built jars (debug)
         if: always()
         uses: actions/upload-artifact@v4
@@ -197,3 +240,4 @@ jobs:
           path: |
             target/*.jar
             target/lib/*.jar
+            target/SHA256SUMS.txt
