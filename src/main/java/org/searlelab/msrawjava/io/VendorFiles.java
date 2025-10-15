@@ -1,4 +1,4 @@
-package org.searlelab.msrawjava;
+package org.searlelab.msrawjava.io;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
