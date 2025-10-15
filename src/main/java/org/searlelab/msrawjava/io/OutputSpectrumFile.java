@@ -18,18 +18,26 @@ import org.searlelab.msrawjava.model.WindowData;
  * and EncyclopeDIAFile can share consistent semantics and be orchestrated interchangeably by higher-level code.
  */
 public interface OutputSpectrumFile {
+
+	/** Returns the file extension produced by this writer (e.g., ".mzML", ".mgf"). */
 	String getFileExtension();
 
+	/** Sets the DIA m/z windows and associated statistics used to annotate the save file. */
 	void setRanges(HashMap<Range, WindowData> ranges);
 
+	/** Saves all staged content to the given file path. */
 	void saveAsFile(File userFile) throws IOException, SQLException;
 
+	/** Records the source file name and location for embedding in headers/metadata. */
 	void setFileName(String fileName, String fileLocation) throws IOException, SQLException;
 
+	/** Adds key–value metadata entries to be written with the save file. */
 	void addMetadata(Map<String, String> data) throws IOException, SQLException;
 
+	/** Appends MS1 precursors and MS2 fragment spectra to the save file. */
 	void addSpectra(ArrayList<PrecursorScan> precursors, ArrayList<FragmentScan> stripes) throws Exception;
 
+	/** Finalizes the writer and releases any held resources. */
 	void close();
 
 }

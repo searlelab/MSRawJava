@@ -30,8 +30,8 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 /**
  * ThermoRawFile is a thin, blocking gRPC client over the local Thermo server that normalizes RAW access into the
  * project’s common model. It manages a channel and session, opens a RAW path, retrieves run metadata and summary (TIC,
- * gradient length), enumerates DIA window definitions as Map<Range,WindowData>, and streams MS1/MS2 content as
- * PrecursorScan and FragmentScan objects.
+ * gradient length), enumerates DIA window definitions as {@link java.util.Map}&lt;Range,WindowData&gt;, and streams 
+ * MS1/MS2 content as PrecursorScan and FragmentScan objects.
  */
 public final class ThermoRawFile implements StripeFileInterface, Closeable {
 	private Path rawPath=null;

@@ -204,6 +204,8 @@
 				</configuration>
 				<executions>
 					<execution>
+						<id>protoc</id>
+						<phase>generate-sources</phase>
 						<goals>
 							<goal>compile</goal>
 							<goal>compile-custom</goal>
@@ -259,21 +261,40 @@
 					</execution>
 				</executions>
 			</plugin>
-			
+
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<version>3.10.0</version>
+				<configuration>
+					<!-- Add generated sources so imports resolve -->
+					<sourcepath>
+						${project.basedir}/src/main/java${path.separator}
+						${project.build.directory}/generated-sources/protobuf/java${path.separator}
+						${project.build.directory}/generated-sources/protobuf/grpc-java
+					</sourcepath>
+
+					<!-- Do NOT document anything under generated-sources -->
+					<sourceFileExcludes>
+						<sourceFileExclude>**/target/generated-sources/**</sourceFileExclude>
+					</sourceFileExcludes>
+
+					<failOnError>false</failOnError>
+					<doclint>none</doclint>
+					<encoding>${project.build.sourceEncoding}</encoding>
+					<source>${maven.compiler.release}</source>
+				</configuration>
 				<executions>
 					<execution>
 						<id>attach-javadocs</id>
+						<phase>package</phase>
 						<goals>
 							<goal>jar</goal>
 						</goals>
 					</execution>
 				</executions>
-    		</plugin>
-
+			</plugin>
+			
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-dependency-plugin</artifactId>
