@@ -75,8 +75,6 @@ class TimsReaderTest {
 		
 		var chart2 = SpectrumChart.buildChart(triplet.x, triplet.y);
 		SpectrumChart.show(chart2);
-		
-		if (true) return;
 
 		var chart1=MobilogramHeatmap.buildChart(ims, triplet.x, triplet.y, 800);
 		MobilogramHeatmap.show(chart1);

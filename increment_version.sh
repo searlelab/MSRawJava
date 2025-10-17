@@ -18,6 +18,9 @@ echo `find thermo-raw-server/Program.cs -name '*.cs' -exec wc {} \; | awk '{sum=
 
 TAG=v${current}
 
+echo $TAG;
+exit; #FIXME
+
 mvn versions:set -DnewVersion="${current}"
 
 git commit -am "Update to version for release ${TAG}."
