@@ -20,6 +20,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.Logger;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -100,12 +101,66 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		this.conn=DriverManager.getConnection(url);
 		this.conn.setAutoCommit(false);
 		Optional<MzCalibrationParams> params=readCalibrationParams();
-		
-		this.reader=TimsReader.open(dPath, params);
 
-		String sql="SELECT MsMsType, COUNT(*) FROM Frames GROUP BY MsMsType ORDER BY MsMsType";
+		int digitizerNumSamples=-1;
+		double mzAcqRangeLower=-1;
+		double mzAcqRangeUpper=-1;
+		boolean isOtofControl=true;
+		boolean failedGettingCalibrationParams=params.isEmpty();
+		if (!failedGettingCalibrationParams) {
+			try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"DigitizerNumSamples\""); ResultSet rs=ps.executeQuery()) {
+				rs.next();
+				digitizerNumSamples=rs.getInt(1);
+			} catch (Exception e) {
+				Logger.errorException(e);
+				failedGettingCalibrationParams=true;
+			}
+		}
+		if (!failedGettingCalibrationParams) {
+			try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"MzAcqRangeLower\""); ResultSet rs=ps.executeQuery()) {
+				rs.next();
+				mzAcqRangeLower=rs.getDouble(1);
+			} catch (Exception e) {
+				Logger.errorException(e);
+				failedGettingCalibrationParams=true;
+			}
+		}
+		if (!failedGettingCalibrationParams) {
+			try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"MzAcqRangeUpper\""); ResultSet rs=ps.executeQuery()) {
+				rs.next();
+				mzAcqRangeUpper=rs.getDouble(1);
+			} catch (Exception e) {
+				Logger.errorException(e);
+				failedGettingCalibrationParams=true;
+			}
+		}
+
+		if (!failedGettingCalibrationParams) {
+			try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"AcquisitionSoftware\""); ResultSet rs=ps.executeQuery()) {
+				rs.next();
+				isOtofControl="Bruker otofControl".equalsIgnoreCase(rs.getString(1));
+			} catch (Exception e) {
+				Logger.errorException(e);
+				failedGettingCalibrationParams=true;
+			}
+		}
+		
+		Optional<MzCalibrator> calibrator;
+		if (failedGettingCalibrationParams) {
+			calibrator=Optional.empty();
+		} else {
+			if (isOtofControl) {
+				mzAcqRangeLower=mzAcqRangeLower-5.0;
+				mzAcqRangeUpper=mzAcqRangeUpper+5.0;
+			}
+			//calibrator=Optional.of(new MzCalibrationWithEvenPowers(digitizerNumSamples, mzAcqRangeLower, mzAcqRangeUpper, params.get()));
+			calibrator=Optional.of(new MzCalibrationPoly(digitizerNumSamples, mzAcqRangeLower, mzAcqRangeUpper, params.get()));
+		}
+		
+		this.reader=TimsReader.open(dPath, calibrator);
+
 		Map<Integer, Integer> hist=new LinkedHashMap<>();
-		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
+		try (PreparedStatement ps=conn.prepareStatement("SELECT MsMsType, COUNT(*) FROM Frames GROUP BY MsMsType ORDER BY MsMsType"); ResultSet rs=ps.executeQuery()) {
 			while (rs.next())
 				hist.put(rs.getInt(1), rs.getInt(2));
 		}
@@ -138,14 +193,12 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		ms2Key=expectedMS2Key;
 		
 
-		sql="SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeLower\"";
-		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
+		try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeLower\""); ResultSet rs=ps.executeQuery()) {
 			rs.next();
 			OneOverK0AcqRangeLower=rs.getFloat(1);
 		}
 		
-		sql="SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeUpper\"";
-		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
+		try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeUpper\""); ResultSet rs=ps.executeQuery()) {
 			rs.next();
 			OneOverK0AcqRangeUpper=rs.getFloat(1);
 		}
@@ -207,11 +260,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
 				while (rs.next()) {
 					double isoMz=rs.getDouble("IsolationMz");
+					double realCenter=reader.calibrateMz(isoMz);
+					
 					double width=rs.getDouble("IsolationWidth");
 					int sLo=rs.getInt("ScanNumBegin");
 					int sHi=rs.getInt("ScanNumEnd");
-					double lo=isoMz-0.5*width;
-					double hi=isoMz+0.5*width;
+					double lo=realCenter-0.5*width;
+					double hi=realCenter+0.5*width;
 					Range r=new Range((float)lo, (float)hi);
 					rtByRange.computeIfAbsent(r, k -> new ArrayList<>()).add(rs.getDouble("RT"));
 					scanRangeByRange.putIfAbsent(r, new int[] {sLo, sHi});
@@ -496,6 +551,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	public ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
 		ensureOpen();
 		
+		targetMz=reader.uncalibrateMz(targetMz);
+		
 		Map<String, String> meta=getMetadata();
 		double scanWindowLower;
 		double scanWindowUpper;
@@ -568,18 +625,20 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				ps.setDouble(2, maxRT);
 				try (ResultSet rs=ps.executeQuery()) {
 					while (rs.next()) {
-						final int frameId=rs.getInt(1);
-						final float rt=(float)rs.getDouble(2);
-						final int scanLo=rs.getInt(3);
-						final int scanHi=rs.getInt(4);
-						final double isoMz=rs.getDouble(5);
-						final double isoW=rs.getDouble(6);
-						final float acc=(float)rs.getDouble(7);
-						final byte charge=(byte)Math.max(0, rs.getInt(8));
-						final String parent=Integer.toString(rs.getInt(9));
-						final int precursorID=rs.getInt(10); // use precursorID as the spectrumIndex
+						int frameId=rs.getInt(1);
+						float rt=(float)rs.getDouble(2);
+						int scanLo=rs.getInt(3);
+						int scanHi=rs.getInt(4);
+						double isoMz=rs.getDouble(5);
+						double isoW=rs.getDouble(6);
+						float acc=(float)rs.getDouble(7);
+						byte charge=(byte)Math.max(0, rs.getInt(8));
+						String parent=Integer.toString(rs.getInt(9));
+						int precursorID=rs.getInt(10); // use precursorID as the spectrumIndex
 						float t1=(float)rs.getDouble(11);
 						int numScans=rs.getInt(12);
+
+						isoMz=reader.calibrateMz(isoMz, t1);
 
 						final double isoLo=isoMz-0.5*isoW;
 						final double isoHi=isoMz+0.5*isoW;
@@ -651,6 +710,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	@Override
 	public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, final boolean sqrt) throws IOException, SQLException {
 		ensureOpen();
+
+		double start=targetMzRange.getStart()<=0.0f?0.0f:reader.uncalibrateMz(targetMzRange.getStart());
+		double stop=targetMzRange.getStop()>=Float.MAX_VALUE?Float.MAX_VALUE:reader.uncalibrateMz(targetMzRange.getStop());
+		targetMzRange=new Range(start, stop);
 		
 		Map<String, String> meta=getMetadata();
 		double scanWindowLower;
@@ -744,6 +807,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						int precursorID=rs.getInt(10); // use precursorID as the spectrumIndex
 						float t1=(float)rs.getDouble(11);
 						int numScans=rs.getInt(12);
+						
+						isoMz=reader.calibrateMz(isoMz, t1);
 
 						double isoLo=isoMz-0.5*isoW;
 						double isoHi=isoMz+0.5*isoW;
@@ -805,8 +870,11 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		for (Meta m : metas) {
 			for (Win w : m.wins) {
 				// intersect m/z based on the window’s center/width and the user’s target range
-				final double isoL=w.center-0.5*w.width;
-				final double isoH=w.center+0.5*w.width;
+				
+				double realCenter=reader.calibrateMz(w.center);
+				
+				double isoL=realCenter-0.5*w.width;
+				double isoH=realCenter+0.5*w.width;
 
 				try {
 					Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(m.frameId-1, w.scanLo, w.scanHi, m.t1);

@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
-import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.gui.IMSChromatogramChart;
 import org.searlelab.msrawjava.gui.MobilogramHeatmap;
 import org.searlelab.msrawjava.gui.SpectrumChart;
@@ -17,6 +16,29 @@ import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.model.Peak;
 
 class TimsReaderTest {
+
+	public static void main2(String[] args) {
+		Path dPath=Paths.get("/Users/searle.brian/Documents/temp/bruker/2025-07-05_17-56-24_One-column-separation.d");
+		TimsReader reader=TimsReader.open(dPath, Optional.empty());
+
+		Object res=TimsNative.readRawFrameRange(reader.getDatasetHandle(), 4532-1, 883, 883);
+		Object[] arr=(Object[])res;
+		double[] tofMz=(double[])arr[0];
+
+		res=TimsNative.readRawFrameTofIntRange(reader.getDatasetHandle(), 4532-1, 883, 883);
+		Object[] raw=(Object[])res;
+		int[] tofRaw=(int[])raw[0];
+		int[] intensRaw=(int[])raw[1];
+
+		for (int i=0; i<intensRaw.length; i++) {
+			if (intensRaw[i]>200) {
+				System.out.println(tofMz[i]+"\t"+tofRaw[i]+"\t"+intensRaw[i]);
+			}
+		}
+		
+		var chart2 = SpectrumChart.buildChart(tofMz, intensRaw);
+		SpectrumChart.show(chart2);
+	}
 	public static void main(String[] args) {
 		Path dPath=Paths.get("/Users/searle.brian/Documents/temp/bruker/20181024_RFdemoPlasma110_100ng_100samplesday_S4-A11_1_2631.d");
 		long startTime=System.currentTimeMillis();
@@ -30,12 +52,19 @@ class TimsReaderTest {
 		float OneOverK0AcqRangeLower=0.582617f;
 		float OneOverK0AcqRangeUpper=1.534496f;
 		int scanMax=918;
+		int digitizerNumSamples=397888;
+		double mzLower=95.0;
+		double mzUpper=1705.0;
+		MzCalibrationPoly calibrator=new MzCalibrationPoly(digitizerNumSamples, mzLower, mzUpper, params);
 		
-		TimsReader reader=TimsReader.open(dPath, Optional.of(params));
-		// NOTE -1 required now!
+		TimsReader reader=TimsReader.open(dPath, Optional.of(calibrator));
 		double realT1=25.6515312405121;
 		Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(2676-1, 831, 856, realT1); // MS2
+		//Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(2676-1, 831, 856); // MS2
 		//Triplet<double[], float[], int[]> triplet=reader.readFrameWithRange(2673-1, 832, 856); // MS1
+		
+		System.out.println("Calibrate: "+reader.calibrateMz(575.6, realT1));
+		System.out.println("Calibrate: "+reader.calibrateMz(575.985, realT1));
 
 		assertNotNull(triplet);
 		
@@ -43,12 +72,14 @@ class TimsReaderTest {
 		for (int i=0; i<ims.length; i++) {
 			ims[i]=OneOverK0AcqRangeUpper+(OneOverK0AcqRangeLower-OneOverK0AcqRangeUpper)*((triplet.z[i]-1.0f)/scanMax);
 		}
-
-		var chart1=MobilogramHeatmap.buildChart(ims, triplet.x, triplet.y, 800);
-		MobilogramHeatmap.show(chart1);
 		
 		var chart2 = SpectrumChart.buildChart(triplet.x, triplet.y);
 		SpectrumChart.show(chart2);
+		
+		if (true) return;
+
+		var chart1=MobilogramHeatmap.buildChart(ims, triplet.x, triplet.y, 800);
+		MobilogramHeatmap.show(chart1);
 		
 		ArrayList<Peak> peaks=new ArrayList<Peak>();
 
@@ -58,7 +89,7 @@ class TimsReaderTest {
 				peaks.add(new Peak(triplet.x[i], (float)triplet.y[i], (float)ims[i]));
 			}
 		}
-		System.out.println(" --> "+MatrixMath.sum(triplet.y)+", "+triplet.y.length+", "+peaks.size());
+		//System.out.println(" --> "+MatrixMath.sum(triplet.y)+", "+triplet.y.length+", "+peaks.size());
 		
 		ArrayList<ArrayList<Peak>> chromatograms=TIMSPeakPicker.getIMSChromatograms(peaks, 2.0f*msmsIntensityThreshold);
 		var chart4 = IMSChromatogramChart.buildChart(chromatograms);
@@ -78,6 +109,9 @@ class TimsReaderTest {
 			newMassArray[i]=peak.mz;
 			newIntensityArray[i]=peak.intensity;
 			newIonMobilityArray[i]=Math.round(peak.ims);
+
+			//if (peak.intensity>100) System.out.println(peak.mz+"\t"+peak.intensity);
+			
 		}
 		var chart3 = SpectrumChart.buildChart(newMassArray, newIntensityArray);
 		SpectrumChart.show(chart3);
@@ -94,7 +128,12 @@ class TimsReaderTest {
 			    27, 0,
 			    315.351730103478, 157256.258704659, 0.0, 0.0, 0.0
 			);
-		TimsReader reader=TimsReader.open(dPath, Optional.of(params));
+		int digitizerNumSamples=397888;
+		double mzLower=100.0;
+		double mzUpper=1700.0;
+		MzCalibrationPoly calibrator=new MzCalibrationPoly(digitizerNumSamples, mzLower, mzUpper, params);
+		
+		TimsReader reader=TimsReader.open(dPath, Optional.of(calibrator));
 		long startTime=System.currentTimeMillis();
 
 		for (int i=0; i<130; i++) {

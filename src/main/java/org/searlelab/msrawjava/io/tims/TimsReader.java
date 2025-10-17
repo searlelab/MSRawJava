@@ -14,17 +14,21 @@ import org.searlelab.msrawjava.io.utils.Triplet;
  */
 public final class TimsReader implements AutoCloseable {
 	private final long datasetHandle;
-	private final Optional<MzCalibrationParams> params;
+	private final Optional<MzCalibrator> calibrator;
 
-	private TimsReader(long datasetHandle, Optional<MzCalibrationParams> params) {
+	private TimsReader(long datasetHandle, Optional<MzCalibrator> calibrator) {
 		if (datasetHandle==0) throw new IllegalStateException("dataset handle is 0");
 		this.datasetHandle=datasetHandle;
-		this.params=params;
+		this.calibrator=calibrator;
+	}
+	
+	public long getDatasetHandle() {
+		return datasetHandle;
 	}
 
-	public static TimsReader open(Path dPath, Optional<MzCalibrationParams> params) {
+	public static TimsReader open(Path dPath, Optional<MzCalibrator> calibrator) {
 		long h=TimsNative.openDataset(dPath.toString());
-		return new TimsReader(h, params);
+		return new TimsReader(h, calibrator);
 	}
 
 	public Triplet<double[], double[], int[]> readFrame(int frameId) {
@@ -54,7 +58,7 @@ public final class TimsReader implements AutoCloseable {
 	}
 	
 	public Triplet<double[], float[], int[]> readRawFrameAndCalibrate(int frameId, int scanLoInclusive, int scanHiInclusive, double realT1) {
-		if (params.isEmpty()) {
+		if (calibrator.isEmpty()) {
 			return readFrameWithRange(frameId, scanLoInclusive, scanHiInclusive);
 		}
 		
@@ -68,7 +72,7 @@ public final class TimsReader implements AutoCloseable {
 			int[] intensRaw = (int[]) raw[1];
 			int[] scan = (int[]) raw[2];
 			
-			double[] mz = MzCalibrationPoly.tofToMz(tofRaw, params.get(), realT1);
+			double[] mz = calibrator.get().tofToMz(tofRaw, realT1);
 	
 			float[] intensityArrayFloat=new float[intensRaw.length];
 			for (int i=0; i<intensRaw.length; i++) {
@@ -80,7 +84,56 @@ public final class TimsReader implements AutoCloseable {
 			return null;
 		}
 	}
+	
+	/**
+	 * useful for converting precursor m/zs stored in the TDF into their corrected m/zs
+	 * @param uncorrectedMz
+	 * @param realT1
+	 * @return
+	 */
+	public double calibrateMz(double uncorrectedMz, double realT1) {
+		if (calibrator.isEmpty()) return uncorrectedMz;
 
+		double[] a=new double[] {uncorrectedMz};
+		double[] r=calibrator.get().uncorrectedMzToMz(a, realT1);
+		return r[0];
+	}
+	
+	/**
+	 * useful for converting precursor m/zs stored in the TDF into their corrected m/zs, assuming the global T1
+	 * (necessary for keeping values consistent across time, e.g., precursor isolation windows).
+	 * 
+	 * @param uncorrectedMz
+	 * @param realT1
+	 * @return
+	 */
+	public double calibrateMz(double uncorrectedMz) {
+		if (calibrator.isEmpty()) return uncorrectedMz;
+
+		double[] a=new double[] {uncorrectedMz};
+		MzCalibrator mzCalibrator=calibrator.get();
+		double[] r=mzCalibrator.uncorrectedMzToMz(a, mzCalibrator.getGlobalT1());
+		return r[0];
+	}
+	
+	/**
+	 * useful for converting real m/zs (calculated from peptides) into what the instrument would have measured, assuming
+	 * the global T1 (necessary for keeping values consistent across time, e.g., precursor isolation windows).
+	 * 
+	 * @param correctedMz
+	 * @return
+	 */
+	public double uncalibrateMz(double correctedMz) {
+		if (calibrator.isEmpty()) return correctedMz;
+
+		double[] a=new double[] {correctedMz};
+		MzCalibrator mzCalibrator=calibrator.get();
+		int[] tofIndexes=mzCalibrator.mzToTof(a, mzCalibrator.getGlobalT1());
+		double[] r=mzCalibrator.getLinear().tofToMz(tofIndexes, mzCalibrator.getGlobalT1());
+		
+		return r[0];
+	}
+	
 	@Override
 	public void close() {
 		TimsNative.closeDataset(datasetHandle);

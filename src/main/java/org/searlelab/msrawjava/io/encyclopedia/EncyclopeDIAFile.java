@@ -43,7 +43,7 @@ import gnu.trove.procedure.TIntObjectProcedure;
  */
 public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 	public static final DateFormat m_ISO8601Local=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-	private static final Version MOST_RECENT_VERSION=new Version(0, 7, 0);
+	private static final Version MOST_RECENT_VERSION=new Version(0, 7, 0, false);
 
 	private static final String UNKNOWN_VALUE="unknown";
 	public static final String FILELOCATION_ATTRIBUTE="filelocation";

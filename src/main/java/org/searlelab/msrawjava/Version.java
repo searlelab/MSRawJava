@@ -12,6 +12,7 @@ public class Version implements Comparable<Version> {
 	private final int minor;
 	private final int revision;
 	private final boolean snapshot;
+	private final boolean addV;
 
 	public static String getVersion() {
 		Package p=Version.class.getPackage();
@@ -23,15 +24,16 @@ public class Version implements Comparable<Version> {
 		}
 	}
 
-	public Version(int major, int minor, int revision) {
-		this(major, minor, revision, false);
+	public Version(int major, int minor, int revision, boolean addV) {
+		this(major, minor, revision, false, addV);
 	}
 
-	public Version(int major, int minor, int revision, boolean snapshot) {
+	public Version(int major, int minor, int revision, boolean snapshot, boolean addV) {
 		this.major=major;
 		this.minor=minor;
 		this.revision=revision;
 		this.snapshot=snapshot;
+		this.addV=addV;
 	}
 
 	public Version(String versionString) {
@@ -40,8 +42,10 @@ public class Version implements Comparable<Version> {
 			minor=0;
 			revision=0;
 			snapshot=true;
+			addV=false;
 		} else {
-			if (versionString.charAt(0)=='v') {
+			this.addV=versionString.charAt(0)=='v';
+			if (addV) {
 				// trim off version indicator for tagged versions
 				versionString=versionString.substring(1);
 			}
@@ -73,7 +77,7 @@ public class Version implements Comparable<Version> {
 
 	public String toString() {
 		StringBuilder sb=new StringBuilder();
-		if (!snapshot) {
+		if (addV&&!snapshot) {
 			sb.append("v");
 		}
 		sb.append(major);

@@ -23,6 +23,28 @@ import org.searlelab.msrawjava.model.Peak;
  */
 public final class SpectrumChart {
     /** Build a dataset that draws each peak as a vertical "stick". */
+    private static XYSeriesCollection sticks(double[] mz, int[] intensity) {
+        if (mz == null || intensity == null || mz.length != intensity.length) {
+            throw new IllegalArgumentException("mz and intensity must be non-null and same length");
+        }
+        XYSeries s = new XYSeries("Spectrum", false, true);
+        for (int i = 0; i < mz.length; i++) {
+            double x = mz[i];
+            double y = intensity[i];
+            // Skip non-finite or negative intensities
+            if (!Double.isFinite(x) || !Double.isFinite(y) || y <= 0.0) continue;
+
+            // Draw a vertical stick by adding two points and a NaN break
+            s.add(x, 0.0);
+            s.add(x, y);
+            s.add(Double.NaN, Double.NaN); // break the line before the next stick
+        }
+        XYSeriesCollection ds = new XYSeriesCollection();
+        ds.addSeries(s);
+        return ds;
+    }
+    
+    /** Build a dataset that draws each peak as a vertical "stick". */
     private static XYSeriesCollection sticks(double[] mz, float[] intensity) {
         if (mz == null || intensity == null || mz.length != intensity.length) {
             throw new IllegalArgumentException("mz and intensity must be non-null and same length");
@@ -53,6 +75,33 @@ public final class SpectrumChart {
 			intensity[i]=peak.intensity;
 		}
 		
+        var ds = sticks(mz, intensity);
+
+        JFreeChart chart = ChartFactory.createXYLineChart(
+                "Mass Spectrum",
+                "m/z",
+                "Intensity (a.u.)",
+                ds,
+                PlotOrientation.VERTICAL,
+                false, // legend
+                true,  // tooltips
+                false  // URLs
+        );
+
+        // Cleaner axes
+        NumberAxis x = (NumberAxis) chart.getXYPlot().getDomainAxis();
+        x.setAutoRangeIncludesZero(false);
+        NumberAxis y = (NumberAxis) chart.getXYPlot().getRangeAxis();
+        y.setAutoRangeIncludesZero(true);
+
+        // Sticks: lines on, shapes off
+        XYLineAndShapeRenderer r = new XYLineAndShapeRenderer(true, false);
+        chart.getXYPlot().setRenderer(r);
+        return chart;
+    }
+
+    /** Create a simple m/z vs intensity stick spectrum. */
+    public static JFreeChart buildChart(double[] mz, int[] intensity) {
         var ds = sticks(mz, intensity);
 
         JFreeChart chart = ChartFactory.createXYLineChart(
