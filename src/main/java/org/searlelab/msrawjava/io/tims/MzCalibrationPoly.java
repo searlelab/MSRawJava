@@ -22,7 +22,7 @@ public final class MzCalibrationPoly implements MzCalibrator {
 	}
 
 	/**
-	 * Convert a single TOF index to m/z using the reverse-engineered idea by Sebastian Paez (thanks Sebastian!)
+	 * Convert a single TOF index to m/z using reverse-engineered constants by Sebastian Paez (thanks, Sebastian!)
 	 * 
 	 * Basic ToF theory:
 	 * E=(m/2)*v^2=(m/2)*L^2/(t-t0)^2, kinetic energy equation where the time of flight Δt=t-t0 over a distance L
@@ -33,16 +33,16 @@ public final class MzCalibrationPoly implements MzCalibrator {
 	 * t=c0*sqrt(m)^0+c1*sqrt(m)^1+c3*sqrt(m)^3, Taylor-series-like approximation
 	 * m=k2*(t-t0)^2+k4*(t-t0)^4, invert the approximation
 	 * 
-	 * Using Bruker constants:
+	 * Using assumed Bruker constants:
 	 * m/z=C1*(t-C0)^2+C2*(t-C0)^4+C3*(t-C0)^6...
 	 * 
-	 * Notes and assumptions:
-	 * 1) C terms behave like kX terms, not cX terms.
+	 * Notes on assumptions (no promises!):
+	 * 1) CX terms behave like kX terms, not cX terms.
 	 * 2) C0 behaves like a time zero (t0) in ns.
-	 * 3) C1 is in the quadratic time scale.
-	 * 4) dC1 is a minor tweak on C1 in ppm.
+	 * 3) C1 is in the quadratic time scale, C2 is in the quartic time scale.
+	 * 4) dC1 is a minor tweak on C1 in ppm, dC2 is a minor tweak on C2 in ppm.
 	 * 5) DigitizerDelay is in nanoseconds.
-	 * 6) 1e12 shifts from ns^2 to ms^2 scale.
+	 * 6) 1e12 is needed to shift from ns^2 to ms^2 scale.
 	 */
 	@Override
 	public double[] tofToMz(int[] tof, double realT1) {
