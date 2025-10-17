@@ -28,6 +28,8 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
+import gnu.trove.list.array.TDoubleArrayList;
+
 /**
  * BrukerTIMSFile coordinates access to Bruker timsTOF runs and presents them through the project’s common data model.
  * It orchestrates reading run metadata and frame/scan content, delegates low-level extraction to TimsReader and native
@@ -296,7 +298,28 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			}
 			return out;
 		} catch (SQLException e) {
-			throw new RuntimeException(e); //FIXME
+			Logger.errorLine("Error getting ranges:");
+			Logger.errorException(e);
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public double[] getPrecursorMzs() {
+		try {
+			if (!tableExists("Precursors")) return new double[0];
+			try (PreparedStatement ps=conn.prepareStatement("SELECT MonoisotopicMz FROM Precursors WHERE MonoisotopicMz IS NOT NULL"); ResultSet rs=ps.executeQuery()) {
+				TDoubleArrayList precursors=new TDoubleArrayList();
+				while (rs.next()) {
+					double monoMz=rs.getDouble(1);
+					precursors.add(monoMz);
+				}
+				return precursors.toArray();
+			}
+
+		} catch (SQLException e) {
+			Logger.errorLine("Error getting precursors:");
+			Logger.errorException(e);
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -610,12 +633,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			return out;
 		} else if (ms2Key==8) {
 			// DDA: select frames whose isolation contains targetMz, pick closest per frame, include charge and parent
-			final String sql="SELECT F.Id, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, F.t1, F.NumScans "
+			final String sql="SELECT F.Id, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, F.t1, F.NumScans, "
 					+"COALESCE(P.Charge, 0) AS Charge, COALESCE(P.Parent, F.Id) AS Parent, P.Id "
 					+"FROM Frames F "
 					+"JOIN PasefFrameMsMsInfo I ON I.Frame = F.Id "
 					+"LEFT JOIN Precursors P ON P.Id = I.Precursor "
 					+"WHERE F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "
+					+"AND ? BETWEEN I.IsolationMz-I.IsolationWidth/2 AND I.IsolationMz+I.IsolationWidth/2 "
 					+"ORDER BY F.Time ASC, I.ScanNumBegin ASC";
 
 			final ArrayList<FragmentScan> out=new ArrayList<>();
@@ -623,6 +647,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			try (PreparedStatement ps=conn.prepareStatement(sql)) {
 				ps.setDouble(1, minRT);
 				ps.setDouble(2, maxRT);
+				ps.setDouble(3, targetMz);
+				
 				try (ResultSet rs=ps.executeQuery()) {
 					while (rs.next()) {
 						int frameId=rs.getInt(1);

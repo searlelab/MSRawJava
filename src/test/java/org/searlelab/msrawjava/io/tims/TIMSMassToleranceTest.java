@@ -1,10 +1,17 @@
 package org.searlelab.msrawjava.io.tims;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 class TIMSMassToleranceTest {
+	public static void main(String[] args) {
+		TIMSMassTolerance tolerance=new TIMSMassTolerance(true);
+		for (int i=95; i<1705; i=i+5) {
+			System.out.println(i+"\t"+1000000*tolerance.getToleranceInMz(i, i)/i);
+		}
+	}
 
 	@Test
 	void test() {

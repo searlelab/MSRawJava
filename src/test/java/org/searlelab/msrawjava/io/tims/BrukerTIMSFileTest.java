@@ -1,33 +1,71 @@
 package org.searlelab.msrawjava.io.tims;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Map;
+
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.*;
-
-import static org.junit.jupiter.api.Assertions.*;
-
 class BrukerTIMSFileTest {
+    @Test
+    void rangesRtAndTargetedDDAExtraction() throws Exception {
+        Path path = Path.of("src","test","resources","rawdata","dda_test.d");
+        Assumptions.assumeTrue(Files.exists(path), "Fixture .d not present: " + path);
 
-    private static final Path D_PATH = Path.of("src","test","resources","rawdata","230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
+		BrukerTIMSFile file = new BrukerTIMSFile();
+        file.openFile(path);
 
-    @TempDir
-    Path tmp; // unused; just to be consistent with other ITs
+        // RT range sanity
+        Range rtRange = file.getRtRange();
+        assertTrue(rtRange.getStart() <= rtRange.getStop());
+        assertTrue(rtRange.getStop() > 0.0f, "Non-zero end RT expected");
+        
+        double[] precursors=file.getPrecursorMzs();
+        Assumptions.assumeTrue(precursors.length>0, "Fixture should be DDA");
+        
+        for (double centerMz : precursors) {
+            // Extract a small set of MS2 spectra around that target with and without sqrt transform
+            ArrayList<FragmentScan> ms2_linear = file.getStripes(centerMz, 0.0f, Float.MAX_VALUE, false);
+            ArrayList<FragmentScan> ms2_sqrt   = file.getStripes(centerMz, 0.0f, Float.MAX_VALUE, true);
+
+            // Counts should be > 0 and identical regardless of transform
+            assertFalse(ms2_linear.isEmpty(), "Expected at least one MS2 for the target window");
+            assertEquals(ms2_linear.size(), ms2_sqrt.size(), "sqrt transform should not change # of spectra");
+
+            // Each returned spectrum’s isolation window should contain the target center
+            for (AcquiredSpectrum s : ms2_linear) {
+            	Range range=new Range(s.getIsolationWindowLower(), s.getIsolationWindowUpper());
+                assertTrue(range.contains((float) centerMz), "DDA window must contain precursor: "+range.toString()+" missing "+centerMz);
+            }
+
+            // MS1 count matches histogram key 0
+            Map<Integer,Integer> hist = file.msmsTypeHistogram();
+            ArrayList<PrecursorScan> ms1s = file.getPrecursors(0f, Float.MAX_VALUE);
+            assertEquals(hist.getOrDefault(0, 0), ms1s.size());
+		}
+
+        file.close();
+    }
 
     @Test
-    void rangesRtAndTargetedStripeExtraction() throws Exception {
-        Assumptions.assumeTrue(Files.exists(D_PATH), "Fixture .d not present: " + D_PATH);
+    void rangesRtAndTargetedDIAExtraction() throws Exception {
+        Path path = Path.of("src","test","resources","rawdata","230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
+        Assumptions.assumeTrue(Files.exists(path), "Fixture .d not present: " + path);
 
-        BrukerTIMSFile file = new BrukerTIMSFile();
-        file.openFile(D_PATH);
+		BrukerTIMSFile file = new BrukerTIMSFile();
+        file.openFile(path);
 
         // RT range sanity
         Range rtRange = file.getRtRange();
@@ -40,29 +78,29 @@ class BrukerTIMSFileTest {
         ArrayList<Range> ranges = new ArrayList<>(rangeMap.keySet());
         Collections.sort(ranges);
 
-        // Choose the middle DIA window; use its center as target m/z
-        Range mid = ranges.get(ranges.size()/2);
-        double centerMz = 0.5 * (mid.getStart() + mid.getStop());
+        for (Range range : ranges) {
+            double centerMz = 0.5 * (range.getStart() + range.getStop());
 
-        // Extract a small set of MS2 spectra around that target with and without sqrt transform
-        ArrayList<FragmentScan> ms2_linear = file.getStripes(centerMz, rtRange.getStart(), rtRange.getStop(), false);
-        ArrayList<FragmentScan> ms2_sqrt   = file.getStripes(centerMz, rtRange.getStart(), rtRange.getStop(), true);
+            // Extract a small set of MS2 spectra around that target with and without sqrt transform
+            ArrayList<FragmentScan> ms2_linear = file.getStripes(centerMz, rtRange.getStart(), rtRange.getStop(), false);
+            ArrayList<FragmentScan> ms2_sqrt   = file.getStripes(centerMz, rtRange.getStart(), rtRange.getStop(), true);
 
-        // Counts should be > 0 and identical regardless of transform
-        assertFalse(ms2_linear.isEmpty(), "Expected at least one MS2 for the target window");
-        assertEquals(ms2_linear.size(), ms2_sqrt.size(), "sqrt transform should not change # of spectra");
+            // Counts should be > 0 and identical regardless of transform
+            assertFalse(ms2_linear.isEmpty(), "Expected at least one MS2 for the target window");
+            assertEquals(ms2_linear.size(), ms2_sqrt.size(), "sqrt transform should not change # of spectra");
 
-        // Each returned spectrum’s isolation window should contain the target center
-        for (AcquiredSpectrum s : ms2_linear) {
-            double isoCenter = 0.5 * (s.getIsolationWindowLower() + s.getIsolationWindowUpper());
-            assertTrue(mid.contains((float) isoCenter), "Isolation center must fall within chosen DIA range");
-        }
+            // Each returned spectrum’s isolation window should contain the target center
+            for (AcquiredSpectrum s : ms2_linear) {
+                double isoCenter = 0.5 * (s.getIsolationWindowLower() + s.getIsolationWindowUpper());
+                assertTrue(range.contains((float) isoCenter), "Isolation center must fall within chosen DIA range");
+            }
 
-        // MS1 count matches histogram key 0
-        Map<Integer,Integer> hist = file.msmsTypeHistogram();
-        ArrayList<PrecursorScan> ms1s = file.getPrecursors(0f, Float.MAX_VALUE);
-        assertEquals(hist.getOrDefault(0, 0), ms1s.size());
+            // MS1 count matches histogram key 0
+            Map<Integer,Integer> hist = file.msmsTypeHistogram();
+            ArrayList<PrecursorScan> ms1s = file.getPrecursors(0f, Float.MAX_VALUE);
+            assertEquals(hist.getOrDefault(0, 0), ms1s.size());
+		}
 
         file.close();
-    }
+	}
 }

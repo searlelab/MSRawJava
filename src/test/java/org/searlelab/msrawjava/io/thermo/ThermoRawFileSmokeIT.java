@@ -5,10 +5,17 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.function.Consumer;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.io.OutputType;
+import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -22,7 +29,7 @@ public class ThermoRawFileSmokeIT {
 	private static final boolean printFullReport=false;
 
 	@Test
-	void openAndRead() throws Exception {
+	void openAndRead(@TempDir Path outDir) throws Exception {
 		long startTime=System.currentTimeMillis();
 
 		try {
@@ -34,11 +41,62 @@ public class ThermoRawFileSmokeIT {
 			testFile(Path.of("src/test/resources/rawdata/Astral_GPFDIA_2mz.raw"), 4, 134);
 			testFile(Path.of("src/test/resources/rawdata/Stellar_DIA_4mz.raw"), 3, 375);
 			testFile(Path.of("src/test/resources/rawdata/Stellar_DDA.raw"), 3, 60);
+
+			writeRawSmokeMGF(Path.of("src/test/resources/rawdata/Exploris_DIA_16mzst.raw"), outDir);
+			writeRawSmokeMZML(Path.of("src/test/resources/rawdata/Stellar_DDA.raw"), outDir);
 		} finally {
 			ThermoServerPool.shutdown();
 		}
 
 		System.out.println("Total time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
+	}
+
+	void writeRawSmokeMZML(Path raw, Path outDir) throws Exception {
+		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
+		RawFileConverters.writeThermo(raw, outDir, OutputType.mzml);
+		Path mzml=firstWithExt(outDir, ".mzml");
+		assertNotNull(mzml, "Output .mzML should exist");
+		assertTrue(Files.size(mzml)>0, "mzML should not be empty");
+
+		String xml=Files.readString(mzml, StandardCharsets.UTF_8);
+
+		// SpectrumList count equals total spectra written
+		assertTrue(xml.contains("<spectrumList"), "spectrumList element should be present");
+
+		// Presence of both ms levels
+		long lvl1=xml.lines().filter(l -> l.contains("name=\"ms level\" value=\"1\"")).count();
+		long lvl2=xml.lines().filter(l -> l.contains("name=\"ms level\" value=\"2\"")).count();
+		assertTrue(lvl1>0, "ms level 1 lines should have MS1s");
+		assertTrue(lvl2>0, "ms level 2 lines should have MS2s");
+
+		// At least one precursor block present for MS2
+		assertTrue(xml.contains("<precursorList"), "MS2 precursor information should be present");
+		assertTrue(xml.contains("selected ion m/z"), "Selected ion m/z should be present");
+		assertTrue(xml.contains("<binaryDataArrayList count=\"2\">"), "Binary arrays should be present");
+	}
+
+	void writeRawSmokeMGF(Path raw, Path outDir) throws Exception {
+		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
+		RawFileConverters.writeThermo(raw, outDir, OutputType.mgf);
+		Path mgf=firstWithExt(outDir, ".mgf");
+		assertNotNull(mgf, "Output .mgf should exist");
+		assertTrue(Files.size(mgf)>0, "MGF should not be empty");
+
+		String content=readHead(mgf, 16384);
+		assertTrue(content.contains("BEGIN IONS"));
+		assertTrue(content.contains("END IONS"));
+	}
+
+	private static Path firstWithExt(Path dir, String ext) throws IOException {
+		try (var s=Files.list(dir)) {
+			return s.filter(p -> p.getFileName().toString().toLowerCase().endsWith(ext)).findFirst().orElse(null);
+		}
+	}
+
+	private static String readHead(Path file, int max) throws IOException {
+		byte[] b=Files.readAllBytes(file);
+		int n=Math.min(b.length, max);
+		return new String(b, 0, n, StandardCharsets.UTF_8);
 	}
 
 	private void testFile(Path raw, int expectedPrecursors, int expectedMS2s) throws Exception, IOException {
