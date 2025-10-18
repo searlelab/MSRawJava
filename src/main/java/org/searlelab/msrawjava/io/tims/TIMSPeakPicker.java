@@ -4,9 +4,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.searlelab.msrawjava.algorithms.QuickMedian;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.Peak;
 import org.searlelab.msrawjava.model.Range;
+
+import gnu.trove.list.array.TDoubleArrayList;
 
 /**
  * TIMSPeakPicker implements ion-mobility–aware peak detection for timsTOF data, operating across the mobility dimension
@@ -261,5 +264,109 @@ public class TIMSPeakPicker {
 			out[i]=(wsum>0.0f)?(ysum/wsum):y[i];
 		}
 		return out;
+	}
+
+	public static final MassTolerance tolerance=new TIMSMassTolerance();
+	public static final float IM_TOL_PCT=3.0f;
+	public static final int MAX_PEAKS=10000;
+
+	public static ArrayList<Peak> peakPickLikeSage(ArrayList<Peak> mzSortedPeaks) {
+		// Ensure m/z-sorted
+		mzSortedPeaks.sort(null);
+
+		// Build intensity-desc order
+		ArrayList<Peak> intensitySorted=new ArrayList<>(mzSortedPeaks);
+		intensitySorted.sort(new Peak.PeakIntensityComparator()); // ascending
+		// We'll iterate from the end for descending
+		ArrayList<Peak> out=new ArrayList<>(Math.min(mzSortedPeaks.size(), MAX_PEAKS));
+
+		int totalIncluded=0; // count of consumed points
+
+		for (int idx=intensitySorted.size()-1; idx>=0; idx--) {
+			if (out.size()>=MAX_PEAKS) break;
+
+			Peak apex=intensitySorted.get(idx);
+			if (!apex.isAvailable()||apex.intensity<=0f) continue;
+
+			final double mzApex=apex.mz;
+			final float imApex=apex.ims;
+
+			// m/z ± ppm window (Da)
+			final double daTol=tolerance.getToleranceInMz(mzApex, mzApex)/2.0;
+			final double leftMz=mzApex-daTol;
+			final double rightMz=mzApex+daTol;
+
+			// IM ± percent window
+			final float absImTol=imApex*(IM_TOL_PCT/100.0f);
+			final float leftIm=imApex-absImTol;
+			final float rightIm=imApex+absImTol;
+
+			// Tight m/z slice using binary search bounds
+			final int start=lowerBoundMz(mzSortedPeaks, leftMz);
+			final int end=upperBoundMz(mzSortedPeaks, rightMz);
+
+			float sumIntensity=0f;
+			int numIncludable=0;
+
+			TDoubleArrayList mzList=new TDoubleArrayList();
+			ArrayList<Peak> imsPeaks=new ArrayList<Peak>();
+			for (int i=start; i<end; i++) {
+				Peak p=mzSortedPeaks.get(i);
+				if (p.isAvailable()&&p.intensity>0f&&p.ims>=leftIm&&p.ims<=rightIm) {
+					sumIntensity+=p.intensity;
+					mzList.add(p.mz);
+					p.turnOff(); // consume (Sage: intensity = -1.0)
+					numIncludable++;
+					imsPeaks.add(p);
+				}
+			}
+			double ensembleMz=QuickMedian.median(mzList.toArray());
+
+			float ensembleIMS=imApex;
+			if (imsPeaks.size()>1) {
+				float[] trace=smoothIMSGaussian(imsPeaks, 0.005f);
+				int maxIndex=0;
+				for (int i=1; i<trace.length; i++) {
+					if (trace[i]>trace[maxIndex]) {
+						maxIndex=i;
+					}
+				}
+				ensembleIMS=imsPeaks.get(maxIndex).ims;
+			}
+			
+			// Sage asserts at least 'itself' included; here we just skip if nothing was picked
+			if (numIncludable==0) continue;
+
+			out.add(new Peak(ensembleMz, sumIntensity, ensembleIMS));
+			totalIncluded+=numIncludable;
+
+			// Early exit when all consumed (optional; cheap check)
+			if (totalIncluded>=mzSortedPeaks.size()) break;
+		}
+
+		// Sage sorts the aggregated buffer by m/z before returning
+		out.sort(null);
+		return out;
+	}
+
+	// ---- helpers: m/z lower/upper bounds on a List<Peak> sorted by m/z ----
+	private static int lowerBoundMz(ArrayList<Peak> a, double keyMz) {
+		int lo=0, hi=a.size();
+		while (lo<hi) {
+			int mid=(lo+hi)>>>1;
+			if (a.get(mid).mz<keyMz) lo=mid+1;
+			else hi=mid;
+		}
+		return lo; // first index with mz >= keyMz
+	}
+
+	private static int upperBoundMz(ArrayList<Peak> a, double keyMz) {
+		int lo=0, hi=a.size();
+		while (lo<hi) {
+			int mid=(lo+hi)>>>1;
+			if (a.get(mid).mz<=keyMz) lo=mid+1;
+			else hi=mid;
+		}
+		return lo; // first index with mz > keyMz
 	}
 }

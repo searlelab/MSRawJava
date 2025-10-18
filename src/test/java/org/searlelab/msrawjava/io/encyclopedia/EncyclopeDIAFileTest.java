@@ -31,7 +31,7 @@ class EncyclopeDIAFileTest {
 	}
 
 	private static FragmentScan ms2(String name, int index, float rtSeconds, double isoLo, double isoHi, byte z, double[] mz, float[] inten, float[] ims) {
-		return new FragmentScan(name, "prec", index, rtSeconds, 0, null, isoLo, isoHi, mz, inten, ims, z, 0.0, 3000.0);
+		return new FragmentScan(name, "prec", index, (isoLo+isoHi)/2.0, rtSeconds, 0, null, isoLo, isoHi, mz, inten, ims, z, 0.0, 3000.0);
 	}
 
 	private static HashMap<Range, WindowData> singleRange() {

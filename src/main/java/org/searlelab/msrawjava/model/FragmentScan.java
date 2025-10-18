@@ -16,6 +16,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	private final String spectrumName;
 	private final String precursorName;
 	private final int spectrumIndex;
+	private final double precursorMz;
 	private final float scanStartTime;
 	private final int fraction;
 	private final Float ionInjectionTime;
@@ -28,13 +29,14 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	private final float[] ionMobilityArray;
 	private final byte charge;
 
-	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, float scanStartTime, int fraction, Float ionInjectionTime,
+	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, double precursorMz, float scanStartTime, int fraction, Float ionInjectionTime,
 			double isolationWindowLower, double isolationWindowUpper, double[] massArray, float[] intensityArray, float[] ionMobilityArray, byte charge, double 
 			scanWindowLower, double scanWindowUpper) {
 		super();
 		this.spectrumName=spectrumName;
 		this.precursorName=precursorName;
 		this.spectrumIndex=spectrumIndex;
+		this.precursorMz=precursorMz;
 		this.scanStartTime=scanStartTime;
 		this.fraction=fraction;
 		this.ionInjectionTime=ionInjectionTime;
@@ -59,7 +61,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 			newIntensityArray[i]=peak.intensity;
 			newIonMobilityArray[i]=peak.ims;
 		}
-		return new FragmentScan(spectrumName, precursorName, newSpectrumIndex, scanStartTime, fraction, ionInjectionTime, isolationWindowLower,
+		return new FragmentScan(spectrumName, precursorName, newSpectrumIndex, precursorMz, scanStartTime, fraction, ionInjectionTime, isolationWindowLower,
 				isolationWindowUpper, newMassArray, newIntensityArray, newIonMobilityArray, charge, scanWindowLower, scanWindowUpper);
 	}
 
@@ -93,7 +95,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 
 	@Override
 	public double getPrecursorMZ() {
-		return (isolationWindowLower+isolationWindowUpper)/2.0;
+		return precursorMz;
 	}
 
 	@Override

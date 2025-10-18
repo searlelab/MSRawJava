@@ -97,7 +97,8 @@ class TimsReaderTest {
 			peak.turnOn();
 		}
 
-		ArrayList<Peak> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*msmsIntensityThreshold);
+		//ArrayList<Peak> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*msmsIntensityThreshold);
+		ArrayList<Peak> picked=TIMSPeakPicker.peakPickLikeSage(peaks);
 		
 		double[] newMassArray=new double[picked.size()];
 		float[] newIntensityArray=new float[picked.size()];
@@ -135,7 +136,7 @@ class TimsReaderTest {
 		long startTime=System.currentTimeMillis();
 
 		for (int i=0; i<130; i++) {
-			Triplet<double[], double[], int[]> triplet=reader.readFrame(i);
+			Triplet<double[], float[], int[]> triplet=reader.readFrame(i);
 			assertNotNull(triplet);
 			assertTrue(triplet.x.length==triplet.y.length);
 			assertTrue(triplet.x.length==triplet.z.length);

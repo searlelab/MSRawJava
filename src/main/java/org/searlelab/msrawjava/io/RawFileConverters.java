@@ -132,7 +132,9 @@ public class RawFileConverters {
 					ms1Futures.add(pool.submit(() -> {
 						ArrayList<Peak> peaks=ms1s.get(idx).getPeaks(minimumMS1Intensity);
 						Collections.sort(peaks);
-						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*minimumMS1Intensity);
+						//peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*minimumMS1Intensity);
+						peaks=TIMSPeakPicker.peakPickLikeSage(peaks);
+						
 						return ms1s.get(idx).rebuild(sn, peaks); // never null for MS1
 					}));
 				}
@@ -145,7 +147,8 @@ public class RawFileConverters {
 					ms2Futures.add(pool.submit(() -> {
 						ArrayList<Peak> peaks=ms2s.get(idx).getPeaks(minimumMS2Intensity);
 
-						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*minimumMS2Intensity);
+						//peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*minimumMS2Intensity);
+						peaks=TIMSPeakPicker.peakPickLikeSage(peaks);
 
 						if (timsFile.isPASEFDDA()&&peaks.isEmpty()) return null; // don't worry about scan gaps
 						return ms2s.get(idx).rebuild(sn, peaks);

@@ -59,9 +59,10 @@ pub fn collect_frame_mz_int_scan_range(
         let start = frame.scan_offsets[s];
         let end = if s + 1 < sc_count { frame.scan_offsets[s + 1] } else { frame.tof_indices.len() };
         for j in start..end {
-            let tof = frame.tof_indices[j];
+            let tof = frame.tof_indices[j] as f64;
             let mz_val = mzc.convert(tof);
             let iz = frame.get_corrected_intensity(j);
+			//let im_val = ds.meta.im_converter.convert(s as f64) as f64;
             mz.push(mz_val);
             intensity.push(iz);
             scan.push(s as i32);

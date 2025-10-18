@@ -31,11 +31,21 @@ public final class TimsReader implements AutoCloseable {
 		return new TimsReader(h, calibrator);
 	}
 
-	public Triplet<double[], double[], int[]> readFrame(int frameId) {
+	public Triplet<double[], float[], int[]> readFrame(int frameId) {
 		Object res=TimsNative.readRawFrame(this.datasetHandle, frameId);
 		if (res==null) return null;
 		Object[] arr=(Object[])res;
-		return new Triplet<double[], double[], int[]>((double[])arr[0], (double[])arr[1], (int[])arr[2]);
+
+		double[] intensityArrayDouble=(double[])arr[1];
+		//double[] imsArrayDouble=(double[])arr[2];
+		float[] intensityArrayFloat=new float[intensityArrayDouble.length];
+		//float[] imsArrayFloat=new float[imsArrayDouble.length];
+		for (int i=0; i<intensityArrayDouble.length; i++) {
+			intensityArrayFloat[i]=(float)intensityArrayDouble[i];
+			//imsArrayFloat[i]=(float)imsArrayDouble[i];
+		}
+
+		return new Triplet<double[], float[], int[]>((double[])arr[0], intensityArrayFloat, (int[])arr[2]);
 	}
 
 	public Triplet<double[], float[], int[]> readFrameWithRange(int frameId, int scanLoInclusive, int scanHiInclusive) {
@@ -46,9 +56,12 @@ public final class TimsReader implements AutoCloseable {
 			Object[] arr=(Object[])res;
 			
 			double[] intensityArrayDouble=(double[])arr[1];
+			//double[] imsArrayDouble=(double[])arr[2];
 			float[] intensityArrayFloat=new float[intensityArrayDouble.length];
+			//float[] imsArrayFloat=new float[imsArrayDouble.length];
 			for (int i=0; i<intensityArrayDouble.length; i++) {
 				intensityArrayFloat[i]=(float)intensityArrayDouble[i];
+				//imsArrayFloat[i]=(float)imsArrayDouble[i];
 			}
 	
 			return new Triplet<double[], float[], int[]>((double[])arr[0], intensityArrayFloat, (int[])arr[2]);

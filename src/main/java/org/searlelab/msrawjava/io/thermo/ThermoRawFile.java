@@ -166,7 +166,8 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 				float v=s.getIntensity(i);
 				intensity[i]=sqrt?(float)Math.sqrt(Math.max(0f, v)):v;
 			}
-			out.add(new FragmentScan(s.getSpectrumName(), s.getPrecursorName(), s.getScanNumber(), (float)s.getRtSeconds(), 0, (float)s.getIonInjectionTimeS(),
+			double precursorMz=(s.getIsoLower()+s.getIsoUpper())/2.0; // FIXME // works most of the time but not always
+			out.add(new FragmentScan(s.getSpectrumName(), s.getPrecursorName(), s.getScanNumber(), precursorMz, (float)s.getRtSeconds(), 0, (float)s.getIonInjectionTimeS(),
 					s.getIsoLower(), s.getIsoUpper(), mz, intensity, null, (byte)s.getCharge(), s.getScanWindowLower(), s.getScanWindowUpper()));
 		}
 		out.sort(Comparator.comparingDouble(FragmentScan::getScanStartTime));
