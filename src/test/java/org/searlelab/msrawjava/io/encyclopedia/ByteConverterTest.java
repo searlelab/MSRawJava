@@ -74,4 +74,82 @@ class ByteConverterTest {
 		assertNotNull(flags);
 		assertEquals(0, flags.length);
 	}
+
+	@Test
+	void toFloatArray_fromBytes_defaultOrder_bigEndianRoundTrip() {
+		float[] src=new float[] {0.0f, 1.0f, -2.5f, 123456.75f};
+		byte[] bytes=new byte[src.length*Float.BYTES];
+		ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).asFloatBuffer().put(src);
+
+		float[] decoded=ByteConverter.toFloatArray(bytes);
+		assertArrayEquals(src, decoded, 0.0f);
+	}
+
+	@Test
+	void toFloatArray_fromBytes_littleEndian_override() {
+		float[] src=new float[] {-1.5f, 2.25f, 3.5f};
+		byte[] bytes=new byte[src.length*Float.BYTES];
+		ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer().put(src);
+
+		float[] decoded=ByteConverter.toFloatArray(bytes, ByteOrder.LITTLE_ENDIAN);
+		assertArrayEquals(src, decoded, 0.0f);
+	}
+
+	@Test
+	void toDoubleArray_fromBytes_defaultOrder_bigEndianRoundTrip() {
+		double[] src=new double[] {0.0, 1.0, -2.5, 123456.75};
+		byte[] bytes=new byte[src.length*Double.BYTES];
+		ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).asDoubleBuffer().put(src);
+
+		double[] decoded=ByteConverter.toDoubleArray(bytes);
+		assertArrayEquals(src, decoded, 0.0);
+	}
+
+	@Test
+	void toDoubleArray_fromBytes_littleEndian_override() {
+		double[] src=new double[] {-1.5, 2.25, 3.5};
+		byte[] bytes=new byte[src.length*Double.BYTES];
+		ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asDoubleBuffer().put(src);
+
+		double[] decoded=ByteConverter.toDoubleArray(bytes, ByteOrder.LITTLE_ENDIAN);
+		assertArrayEquals(src, decoded, 0.0);
+	}
+
+	@Test
+	void toFloatArray_fromBytes_empty_and_toDoubleArray_empty() {
+		float[] f=ByteConverter.toFloatArray(new byte[0]);
+		double[] d=ByteConverter.toDoubleArray(new byte[0]);
+		assertEquals(0, f.length);
+		assertEquals(0, d.length);
+	}
+
+	@Test
+	void toFloatArray_fromNumberArray_mixedTypes() {
+		Number[] src=new Number[] {1, 2.5f, 3.25d, -4L};
+		float[] out=ByteConverter.toFloatArray(src);
+		assertArrayEquals(new float[] {1f, 2.5f, 3.25f, -4f}, out, 0.0f);
+	}
+
+	@Test
+	void toDoubleArray_fromNumberArray_mixedTypes() {
+		Number[] src=new Number[] {1, 2.5f, 3.25d, -4L};
+		double[] out=ByteConverter.toDoubleArray(src);
+		assertArrayEquals(new double[] {1.0, 2.5, 3.25, -4.0}, out, 0.0);
+	}
+
+	@Test
+	void toByteArray_boolean_basicMapping_andRoundTripThroughToBooleanArray() {
+		boolean[] flags=new boolean[] {true, false, true, true, false};
+		byte[] b=ByteConverter.toByteArray(flags);
+		assertArrayEquals(new byte[] {1, 0, 1, 1, 0}, b);
+		assertArrayEquals(flags, ByteConverter.toBooleanArray(b));
+	}
+
+	@Test
+	void toByteArray_boolean_emptyProducesEmptyBytes() {
+		byte[] out=ByteConverter.toByteArray(new boolean[0]);
+		assertNotNull(out);
+		assertEquals(0, out.length);
+	}
+
 }

@@ -69,7 +69,6 @@ public class TIMSPeakpickerTest {
         }
     }
 
-
 	@Test
 	public void peakpickingTest() throws Exception {
 		Path path=Path.of("src", "test", "resources", "spectra", "one_tims_ms1.csv");
@@ -87,10 +86,10 @@ public class TIMSPeakpickerTest {
 		Collections.sort(peaks);
 
 		long time=System.currentTimeMillis();
-		ArrayList<Peak> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*3.0f);
+		ArrayList<Peak> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks);
 		System.out.println((System.currentTimeMillis()-time)+" msec");
 		System.out.println(peaks.size()+"\t"+picked.size());
-		assertTrue(picked.size()/(float)peaks.size()<0.2);
-		assertTrue(picked.size()/(float)peaks.size()>0.001);
+		assertTrue(picked.size()/(float)peaks.size()<0.3);
+		assertTrue(picked.size()/(float)peaks.size()>0.01);
 	}
 }

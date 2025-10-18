@@ -98,7 +98,7 @@ class TimsReaderTest {
 		}
 
 		//ArrayList<Peak> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*msmsIntensityThreshold);
-		ArrayList<Peak> picked=TIMSPeakPicker.peakPickLikeSage(peaks);
+		ArrayList<Peak> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks);
 		
 		double[] newMassArray=new double[picked.size()];
 		float[] newIntensityArray=new float[picked.size()];
