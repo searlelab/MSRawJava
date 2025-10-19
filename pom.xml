@@ -5,9 +5,13 @@
 
   <groupId>org.searlelab</groupId>
   <artifactId>msrawjava-parent</artifactId>
-  <version>0.5.290</version>
+  <version>${revision}</version>
   <packaging>pom</packaging>
   <name>msrawjava (parent)</name>
+
+  <properties>
+    <revision>0.5.292</revision>
+  </properties>
 
   <distributionManagement>
     <repository>
