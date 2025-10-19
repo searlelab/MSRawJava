@@ -2,7 +2,7 @@ name: publish
 
 on:
   push:
-    tags: [ 'v*' ]            # e.g., v0.6.0
+    tags: [ 'v*' ]
   workflow_dispatch:
     inputs:
       version_override:
@@ -143,22 +143,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p src/main/resources/META-INF/lib
-          rsync -a artifacts/jni-macos/   src/main/resources/
-          rsync -a artifacts/jni-linux/   src/main/resources/
-          rsync -a artifacts/jni-windows/ src/main/resources/
-          echo "JNI staged:"
-          find src/main/resources/META-INF/lib -type f -maxdepth 3 -print
+          mkdir -p core/src/main/resources/META-INF/lib
+          rsync -a artifacts/jni-macos/   core/src/main/resources/
+          rsync -a artifacts/jni-linux/   core/src/main/resources/
+          rsync -a artifacts/jni-windows/ core/src/main/resources/
+          echo "JNI staged (core):"
+          find core/src/main/resources/META-INF/lib -type f -maxdepth 3 -print
 
       - name: Stage Thermo servers into resources
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf src/main/resources/msraw/thermo/bin
-          mkdir -p src/main/resources/msraw/thermo
-          rsync -a artifacts/thermo-servers/ src/main/resources/msraw/thermo/bin/
-          echo "Thermo servers staged:"
-          find src/main/resources/msraw/thermo/bin -type f -maxdepth 3 -print
+          rm -rf core/src/main/resources/msraw/thermo/bin
+          mkdir -p core/src/main/resources/msraw/thermo
+          rsync -a artifacts/thermo-servers/ core/src/main/resources/msraw/thermo/bin/
+          echo "Thermo servers staged (core):"
+          find core/src/main/resources/msraw/thermo/bin -type f -maxdepth 3 -print
 
       - name: Set up Java 17 (Temurin)
         uses: actions/setup-java@v4
@@ -193,28 +193,41 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          NAME="$(mvn -q -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.1:exec)"
-          MAIN_JAR="target/${NAME}.jar"
-          JAVADOC_JAR="target/${NAME}-javadoc.jar"
-          echo "MAIN_JAR=$MAIN_JAR" >> "$GITHUB_ENV"
-          if [[ -f "$JAVADOC_JAR" ]]; then
-            echo "JAVADOC_JAR=$JAVADOC_JAR" >> "$GITHUB_ENV"
+          
+          # core module
+          pushd core >/dev/null
+          CORE_NAME="$(mvn -q -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.1:exec)"
+          popd >/dev/null
+          echo "CORE_MAIN_JAR=core/target/${CORE_NAME}.jar" >> "$GITHUB_ENV"
+          if [[ -f "core/target/${CORE_NAME}-javadoc.jar" ]]; then
+             echo "CORE_JAVADOC_JAR=core/target/${CORE_NAME}-javadoc.jar" >> "$GITHUB_ENV"
           fi
-          echo "Resolved main jar: $MAIN_JAR"
-          echo "Resolved javadoc jar: ${JAVADOC_JAR:-<none>}"
+          echo "Core jar: core/target/${CORE_NAME}.jar"
+
+          # gui module
+          pushd gui >/dev/null
+          GUI_NAME="$(mvn -q -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.1:exec)"
+          popd >/dev/null
+          echo "GUI_MAIN_JAR=gui/target/${GUI_NAME}.jar" >> "$GITHUB_ENV"
+          if [[ -f "gui/target/${GUI_NAME}-javadoc.jar" ]]; then
+            echo "GUI_JAVADOC_JAR=gui/target/${GUI_NAME}-javadoc.jar" >> "$GITHUB_ENV"
+          fi
+          echo "GUI jar: gui/target/${GUI_NAME}.jar"
 
       # Generate SHA-256 checksums for the jars we’ll upload
       - name: Generate checksums
         shell: bash
         run: |
           set -euo pipefail
+
+          mkdir -p target
           : > target/SHA256SUMS.txt
-          if [[ -f "${MAIN_JAR}" ]]; then
-            shasum -a 256 "${MAIN_JAR}" >> target/SHA256SUMS.txt
-          fi
-          if [[ -n "${JAVADOC_JAR:-}" && -f "${JAVADOC_JAR}" ]]; then
-            shasum -a 256 "${JAVADOC_JAR}" >> target/SHA256SUMS.txt
-          fi
+          for f in "${CORE_MAIN_JAR}" "${CORE_JAVADOC_JAR:-}" "${GUI_MAIN_JAR}" "${GUI_JAVADOC_JAR:-}"; do
+            if [[ -n "$f" && -f "$f" ]]; then
+              shasum -a 256 "$f" >> target/SHA256SUMS.txt
+            fi
+          done
+
           echo "Checksum file:"
           cat target/SHA256SUMS.txt || true
 
@@ -224,8 +237,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ${{ env.MAIN_JAR }}
-            ${{ env.JAVADOC_JAR }}
+            ${{ env.CORE_MAIN_JAR }}
+            ${{ env.CORE_JAVADOC_JAR }}
+            ${{ env.GUI_MAIN_JAR }}
+            ${{ env.GUI_JAVADOC_JAR }}
             target/SHA256SUMS.txt
           make_latest: true
           generate_release_notes: true
@@ -238,6 +253,8 @@ jobs:
         with:
           name: msrawjava-artifacts
           path: |
-            target/*.jar
-            target/lib/*.jar
+            core/target/*.jar
+            gui/target/*.jar
+            core/target/lib/*.jar
+            gui/target/lib/*.jar
             target/SHA256SUMS.txt

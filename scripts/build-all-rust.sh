@@ -10,7 +10,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CRATE_DIR="$ROOT/rust-jni"
-OUT_DIR="$ROOT/target/classes/META-INF/lib"
+OUT_DIR="$ROOT/core/target/classes/META-INF/lib"
 
 mkdir -p "$OUT_DIR/osx-aarch64" "$OUT_DIR/linux-x86_64" "$OUT_DIR/windows-x86_64"
 
