@@ -195,9 +195,7 @@ jobs:
           set -euo pipefail
           
           # core module
-          pushd core >/dev/null
-          CORE_NAME="$(mvn -q -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.1:exec)"
-          popd >/dev/null
+          CORE_NAME="$(mvn -q -pl core -am -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.1:exec)"
           echo "CORE_MAIN_JAR=core/target/${CORE_NAME}.jar" >> "$GITHUB_ENV"
           if [[ -f "core/target/${CORE_NAME}-javadoc.jar" ]]; then
              echo "CORE_JAVADOC_JAR=core/target/${CORE_NAME}-javadoc.jar" >> "$GITHUB_ENV"
@@ -205,9 +203,7 @@ jobs:
           echo "Core jar: core/target/${CORE_NAME}.jar"
 
           # gui module
-          pushd gui >/dev/null
-          GUI_NAME="$(mvn -q -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.1:exec)"
-          popd >/dev/null
+          GUI_NAME="$(mvn -q -pl gui -am -Dexec.executable=echo -Dexec.args='${project.build.finalName}' --non-recursive org.codehaus.mojo:exec-maven-plugin:3.5.1:exec)"
           echo "GUI_MAIN_JAR=gui/target/${GUI_NAME}.jar" >> "$GITHUB_ENV"
           if [[ -f "gui/target/${GUI_NAME}-javadoc.jar" ]]; then
             echo "GUI_JAVADOC_JAR=gui/target/${GUI_NAME}-javadoc.jar" >> "$GITHUB_ENV"
