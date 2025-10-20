@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
@@ -111,6 +112,8 @@ public class ThermoRawFileSmokeIT {
 			assertTrue(f.getGradientLength()>0.0f);
 			assertTrue(f.getRanges().size()>0);
 			assertTrue(f.getMetadata().size()>0);
+			
+			assertTrue(MatrixMath.sum(f.getTICTrace().y)>0);
 
 			System.out.println("Begin MS1 reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 			ArrayList<PrecursorScan> ms1s=f.getPrecursors(0, Float.POSITIVE_INFINITY);

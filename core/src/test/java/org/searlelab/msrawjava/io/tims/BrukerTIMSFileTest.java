@@ -13,6 +13,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
@@ -50,6 +51,7 @@ class BrukerTIMSFileTest {
 
 		BrukerTIMSFile file = new BrukerTIMSFile();
         file.openFile(path);
+		assertTrue(MatrixMath.sum(file.getTICTrace().y)>0);
 
         // RT range sanity
         Range rtRange = file.getRtRange();
@@ -90,6 +92,7 @@ class BrukerTIMSFileTest {
 
 		BrukerTIMSFile file = new BrukerTIMSFile();
         file.openFile(path);
+		assertTrue(MatrixMath.sum(file.getTICTrace().y)>0);
 
         // RT range sanity
         Range rtRange = file.getRtRange();

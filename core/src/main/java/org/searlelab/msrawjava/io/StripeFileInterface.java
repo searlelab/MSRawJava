@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
@@ -89,6 +90,15 @@ public interface StripeFileInterface {
 	 * @throws SQLException
 	 */
 	float getTIC() throws IOException, SQLException;
+
+	/**
+	 * returns total precursor ion current and time (in seconds) arrays across entire file
+	 * 
+	 * @return
+	 * @throws IOException
+	 * @throws SQLException
+	 */
+	public Pair<float[], float[]> getTICTrace() throws IOException, SQLException;
 
 	/**
 	 * returns the time in seconds between the first scan and the last scan

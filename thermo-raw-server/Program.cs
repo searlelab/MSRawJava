@@ -54,6 +54,8 @@ builder.Services.AddGrpc();
 var app = builder.Build();
 app.MapGrpcService<ThermoRawServiceImpl>();
 app.MapGet("/", () => "MSRaw Thermo gRPC ready (HTTP/2 plaintext)");
+Console.WriteLine("ThermoRawService methods:");
+foreach (var m in ThermoRawService.Descriptor.Methods) Console.WriteLine("  " + m.Name);
 Console.WriteLine($"LISTENING h2c on {ip}:{port}");
 app.Run();
 
@@ -108,6 +110,54 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    }
     }
     
+     public override Task<TicReply> GetMs1Tic(TicRequest req, ServerCallContext context)
+	{
+	    try
+	    {
+	        var raw = Get(req.SessionId); // your existing helper
+	
+	        // Default to full run if caller passed 0/0 (keeps behavior friendly while remaining minimal)
+	        double rtMin = req.RtMin;
+	        double rtMax = req.RtMax;
+	        if (rtMin == 0 && rtMax == 0)
+	        {
+	            rtMin = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.StartTime : raw.RunHeader.StartTime; // minutes
+	            rtMax = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.EndTime   : raw.RunHeader.EndTime;   // minutes
+	        }
+	
+	        var rts  = new List<double>(1024);
+	        var tics = new List<double>(1024);
+	
+	        foreach (int scan in ScansInRt(raw, rtMin, rtMax)) // ScansInRt compares in MINUTES
+	        {
+	            // MS1 only
+		    var filter = raw.GetFilterForScanNumber(scan);
+	            if (filter == null || filter.MSOrder != MSOrderType.Ms) continue;
+	
+	            // Lightweight per-scan stats
+		    var stats = raw.GetScanStatsForScanNumber(scan);
+	            if (stats == null) continue;
+	
+	            // RT -> seconds for the reply
+	            double rtSec = raw.RetentionTimeFromScanNumber(scan) * 60.0;
+	
+	            rts.Add(rtSec);
+	            tics.Add(stats.TIC);
+	        }
+	
+	        var reply = new TicReply();
+	        reply.RtSeconds.AddRange(rts);
+	        reply.Tic.AddRange(tics);
+	        return Task.FromResult(reply);
+	    }
+	    catch (RpcException) { throw; } // preserve explicit status code if thrown elsewhere
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "GetMs1Tic failed: " + ex));
+	    }
+	}
+
+
     
     public override Task<RunSummary> GetRunSummary(Session request, ServerCallContext context)
     {
@@ -339,7 +389,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    return i;
 	}
 
-    public override async Task GetPrecursors(PrecursorsRequest req, IServerStreamWriter<Spectrum> stream, ServerCallContext ctx)
+       public override async Task GetPrecursors(PrecursorsRequest req, IServerStreamWriter<Spectrum> stream, ServerCallContext ctx)
     {
 		try 
 		{

@@ -17,6 +17,7 @@ service ThermoRawService {
   rpc GetRunSummary(Session) returns (RunSummary);
   rpc GetRanges(Session) returns (RangesReply);
   rpc GetMetadata(Session) returns (MetadataReply);
+  rpc GetMs1Tic(TicRequest) returns (TicReply);
 }
 
 message OpenRequest { string path = 1; }
@@ -46,9 +47,33 @@ message RangesReply {
   repeated WindowRange windows = 1;
 }
 
+message TicRequest {
+  string session_id = 1;   // from OpenReply.session_id
+  double rt_min     = 2;   // minutes (inclusive)
+  double rt_max     = 3;   // minutes (inclusive)
+}
+
+message TicReply {
+  repeated double rt_seconds = 1;  // parallel to tic[]
+  repeated double tic        = 2;  // TIC per MS1 scan
+}
+
 // methods for getting spectra
-message PrecursorsRequest { string session_id = 1; double rt_min = 2; double rt_max = 3; bool profile = 4; }
-message StripesRequest    { string session_id = 1; double rt_min = 2; double rt_max = 3; double mz_lo = 4; double mz_hi = 5; bool profile = 6; }
+message PrecursorsRequest { 
+  string session_id = 1; 
+  double rt_min = 2; 
+  double rt_max = 3; 
+  bool profile = 4; 
+}
+
+message StripesRequest {
+  string session_id = 1; 
+  double rt_min = 2; 
+  double rt_max = 3;
+  double mz_lo = 4; 
+  double mz_hi = 5; 
+  bool profile = 6; 
+}
 
 message Spectrum {
   repeated double mz = 1;

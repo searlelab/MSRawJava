@@ -22,6 +22,7 @@ import java.util.zip.DataFormatException;
 
 import org.searlelab.msrawjava.Logger;
 import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -29,6 +30,7 @@ import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
 import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.list.array.TFloatArrayList;
 
 /**
  * BrukerTIMSFile coordinates access to Bruker timsTOF runs and presents them through the project’s common data model.
@@ -304,7 +306,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		}
 	}
 	
-	public double[] getPrecursorMzs() {
+	/** for testing */
+	double[] getPrecursorMzs() {
 		try {
 			if (!tableExists("Precursors")) return new double[0];
 			try (PreparedStatement ps=conn.prepareStatement("SELECT MonoisotopicMz FROM Precursors WHERE MonoisotopicMz IS NOT NULL"); ResultSet rs=ps.executeQuery()) {
@@ -335,6 +338,21 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				return (float)rs.getDouble(1);
 			}
 			return 0f;
+		}
+	}
+	
+	@Override
+	public Pair<float[], float[]> getTICTrace() throws IOException, SQLException {
+		ensureOpen();
+		final String sql="SELECT time, SummedIntensities FROM Frames WHERE MsMsType = "+ms1Key;
+		TFloatArrayList time=new TFloatArrayList();
+		TFloatArrayList TIC=new TFloatArrayList();
+		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
+			if (rs.next()) {
+				time.add((float)rs.getDouble(1));
+				TIC.add((float)rs.getDouble(2));
+			}
+			return new Pair<float[], float[]>(time.toArray(), TIC.toArray());
 		}
 	}
 

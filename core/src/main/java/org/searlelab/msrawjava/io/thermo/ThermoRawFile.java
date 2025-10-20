@@ -8,17 +8,22 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.thermo.rpc.TicRequest;
+import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.CloseRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.OpenRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.PrecursorsRequest;
+import org.searlelab.msrawjava.io.thermo.rpc.Session;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.StripesRequest;
+import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawProto;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
-import org.searlelab.msrawjava.io.thermo.rpc.Session;
+import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
@@ -128,6 +133,27 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		}
 		return out;
 	}
+	
+	@Override
+	public Pair<float[], float[]> getTICTrace() throws IOException, SQLException {
+		TicRequest req=TicRequest.newBuilder().setSessionId(sessionId).setRtMin(0).setRtMax(Float.MAX_VALUE).build();
+		TicReply ticData = stub.getMs1Tic(req);
+		List<Double> rtSec = ticData.getRtSecondsList();
+		List<Double> tic  = ticData.getTicList();
+
+		double[] rtSecDoubleArray=rtSec.stream().mapToDouble(d -> d).toArray();
+		double[] ticDoubleArray=tic.stream().mapToDouble(d -> d).toArray();
+
+		float[] rtSecFloatArray = new float[rtSecDoubleArray.length];
+        for (int i = 0; i < rtSecDoubleArray.length; i++) {
+        	rtSecFloatArray[i] = (float) rtSecDoubleArray[i];
+        }
+		float[] ticFloatArray = new float[ticDoubleArray.length];
+        for (int i = 0; i < ticDoubleArray.length; i++) {
+        	ticFloatArray[i] = (float) ticDoubleArray[i];
+        }
+        return new Pair<float[], float[]>(rtSecFloatArray, ticFloatArray);
+	}
 
 	@Override
 	public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws IOException {
@@ -140,9 +166,10 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 			Spectrum s=it.next();
 			double[] mz=s.getMzList().stream().mapToDouble(d -> d).toArray();
 			float[] intensity=new float[s.getIntensityCount()];
-			for (int i=0; i<intensity.length; i++)
+			for (int i=0; i<intensity.length; i++) {
 				intensity[i]=s.getIntensity(i);
-
+			}
+			
 			out.add(new PrecursorScan(s.getSpectrumName(), s.getScanNumber(), (float)s.getRtSeconds(), 0, s.getIsoLower(), s.getIsoUpper(),
 					(float)s.getIonInjectionTimeS(), mz, intensity, null));
 		}

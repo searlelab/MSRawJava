@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.."; pwd)"
 PROJ="$ROOT/thermo-raw-server/MSRaw.Thermo.Server.csproj"
-OUT_BASE="$ROOT/src/main/resources/msraw/thermo/bin"
+OUT_BASE="$ROOT/core/src/main/resources/msraw/thermo/bin"
 PUB_BASE="$ROOT/publish"
 
 # Thermo doesn’t ship osx-arm64. Use Rosetta (osx-x64), plus linux-x64 and win-x64.
