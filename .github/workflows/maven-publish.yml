@@ -185,7 +185,7 @@ jobs:
             > ~/.m2/settings.xml
 
       - name: Maven clean deploy (skip native scripts; we already staged)
-        run: mvn -B -DskipTests -Dskip.build.natives=true clean deploy
+        run: mvn -B -DskipTests -Dskip.build.natives=true -pl core,gui -am clean deploy
 
       # Resolve the exact main and javadoc jar names from Maven
       - name: Resolve artifact names
