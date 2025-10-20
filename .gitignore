@@ -41,5 +41,5 @@ replay_pid*
 /thermo-raw-server/obj/Release/
 
 # binary generation
-/src/main/resources/msraw/
+/core/src/main/resources/msraw/
 *.versionsBackup
