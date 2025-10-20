@@ -54,6 +54,7 @@ class EncyclopeDIAFileTest {
 		// Write .DIA
 		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile();
+		assertEquals(".dia", dia.getFileExtension().toLowerCase());
 		dia.setFileName("tiny_run", "/data/tiny_run");
 		dia.setRanges(ranges);
 		dia.addMetadata("Instrument", "TestRig");
@@ -88,6 +89,12 @@ class EncyclopeDIAFileTest {
 			// Sanity check a spectra row has isolation window and spectrum index
 			assertTrue(count(c, "select count(*) from spectra where SpectrumIndex=2")==1);
 		}
+		
+
+		dia=new EncyclopeDIAFile();
+		dia.openFile();
+		assertTrue(dia.getMetadata().size()>0);
+		dia.close();
 	}
 
 	private static void assertTableExists(DatabaseMetaData md, String tableName) throws SQLException {

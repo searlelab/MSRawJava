@@ -52,6 +52,7 @@ class BrukerTIMSFileTest {
 		BrukerTIMSFile file = new BrukerTIMSFile();
         file.openFile(path);
 		assertTrue(MatrixMath.sum(file.getTICTrace().y)>0);
+		assertTrue(file.getTIC()>0);
 
         // RT range sanity
         Range rtRange = file.getRtRange();
@@ -93,6 +94,7 @@ class BrukerTIMSFileTest {
 		BrukerTIMSFile file = new BrukerTIMSFile();
         file.openFile(path);
 		assertTrue(MatrixMath.sum(file.getTICTrace().y)>0);
+		assertTrue(file.getTIC()>0);
 
         // RT range sanity
         Range rtRange = file.getRtRange();

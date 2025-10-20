@@ -13,7 +13,6 @@ import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,15 +21,11 @@ import java.util.Map.Entry;
 import org.searlelab.msrawjava.Logger;
 import org.searlelab.msrawjava.Version;
 import org.searlelab.msrawjava.io.OutputSpectrumFile;
+import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
-import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
-
-import com.google.common.base.Joiner;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
 
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.procedure.TIntObjectProcedure;
@@ -191,20 +186,6 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 		map.put(SOURCENAME_ATTRIBUTE, sourceName==null?UNKNOWN_VALUE:sourceName);
 		map.put(FILELOCATION_ATTRIBUTE, fileLocation==null?UNKNOWN_VALUE:fileLocation);
 		addMetadata(map);
-	}
-
-	public void setStartTime(Date startTime) throws IOException, SQLException {
-		addMetadata(RUN_START_TIME, m_ISO8601Local.format(startTime));
-	}
-
-	public void setSoftwareVersions(final Multimap<String, String> softwareAccessionIdToVersion) throws IOException, SQLException {
-		if (!softwareAccessionIdToVersion.isEmpty()) {
-			Map<String, String> toAdd=Maps.newHashMap();
-			softwareAccessionIdToVersion.asMap().forEach((key, value) -> {
-				toAdd.put(SOFTWARE_VERSION_PREFIX+key, Joiner.on(SOFTWARE_VERSIONS_DELIMITER).join(value));
-			});
-			addMetadata(toAdd);
-		}
 	}
 
 	public void addMetadata(String key, String value) throws IOException, SQLException {
@@ -396,28 +377,6 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 			c.close();
 		}
 		setFileVersion();
-	}
-
-	public void dropIndices() throws IOException, SQLException {
-		Connection c=getConnection();
-		try {
-			Statement s=c.createStatement();
-			try {
-				s.execute("drop index if exists 'spectra_index_isolation_window_lower'");
-				s.execute("drop index if exists 'spectra_index_isolation_window_upper'");
-				s.execute("drop index if exists 'spectra_index_scan_start_time_and_windows'");
-
-				s.execute("drop index if exists 'precursor_index_isolation_window_lower'");
-				s.execute("drop index if exists 'precursor_index_isolation_window_upper'");
-				s.execute("drop index if exists 'precursor_index_scan_start_time'");
-
-				c.commit();
-			} finally {
-				s.close();
-			}
-		} finally {
-			c.close();
-		}
 	}
 
 	public void createIndices() throws IOException, SQLException {

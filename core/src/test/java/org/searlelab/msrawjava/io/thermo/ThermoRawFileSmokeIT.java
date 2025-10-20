@@ -114,6 +114,7 @@ public class ThermoRawFileSmokeIT {
 			assertTrue(f.getMetadata().size()>0);
 			
 			assertTrue(MatrixMath.sum(f.getTICTrace().y)>0);
+			assertTrue(f.getTIC()>0);
 
 			System.out.println("Begin MS1 reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 			ArrayList<PrecursorScan> ms1s=f.getPrecursors(0, Float.POSITIVE_INFINITY);

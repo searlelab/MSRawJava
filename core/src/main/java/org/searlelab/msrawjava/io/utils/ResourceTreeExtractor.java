@@ -53,12 +53,11 @@ public final class ResourceTreeExtractor {
 			Path srcRoot=Paths.get(urlToUri(url)).normalize();
 			copyTree(srcRoot, destDir);
 		} else if ("jar".equalsIgnoreCase(protocol)) {
-			// jar:file:/.../your.jar!/msraw/thermo/bin/osx-x64/
 			String spec=url.toString();
 			int bang=spec.indexOf("!/");
 			if (bang<0) throw new MalformedURLException("Invalid jar url: "+spec);
-			URI jarUri=URI.create(spec.substring(0, bang)); // "jar:file:/.../your.jar"
-			String entryPath=spec.substring(bang+1); // "msraw/thermo/bin/osx-x64/..."
+			URI jarUri=URI.create(spec.substring(0, bang));
+			String entryPath=spec.substring(bang+1); 
 
 			// Open or reuse a FileSystem for the jar
 			try (FileSystem fs=newFileSystemIfNeeded(jarUri)) {
