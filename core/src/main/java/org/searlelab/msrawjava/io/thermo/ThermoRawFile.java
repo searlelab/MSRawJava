@@ -13,16 +13,15 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import org.searlelab.msrawjava.io.StripeFileInterface;
-import org.searlelab.msrawjava.io.thermo.rpc.TicRequest;
-import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.CloseRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.OpenRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.PrecursorsRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.Session;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.StripesRequest;
-import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawProto;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
+import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
+import org.searlelab.msrawjava.io.thermo.rpc.TicRequest;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;

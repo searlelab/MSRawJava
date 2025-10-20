@@ -9,7 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.function.Consumer;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;

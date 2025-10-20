@@ -88,7 +88,7 @@ class TimsReaderTest {
 		}
 		//System.out.println(" --> "+MatrixMath.sum(triplet.y)+", "+triplet.y.length+", "+peaks.size());
 		
-		ArrayList<ArrayList<Peak>> chromatograms=TIMSPeakPicker.getIMSChromatograms(peaks, 2.0f*msmsIntensityThreshold);
+		//ArrayList<ArrayList<Peak>> chromatograms=TIMSPeakPicker.getIMSChromatograms(peaks, 2.0f*msmsIntensityThreshold);
 		//var chart4 = IMSChromatogramChart.buildChart(chromatograms);
 		//IMSChromatogramChart.show(chart4);
 		
