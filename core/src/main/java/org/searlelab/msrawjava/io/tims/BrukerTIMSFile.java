@@ -348,7 +348,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		TFloatArrayList time=new TFloatArrayList();
 		TFloatArrayList TIC=new TFloatArrayList();
 		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
-			if (rs.next()) {
+			while (rs.next()) {
 				time.add((float)rs.getDouble(1));
 				TIC.add((float)rs.getDouble(2));
 			}

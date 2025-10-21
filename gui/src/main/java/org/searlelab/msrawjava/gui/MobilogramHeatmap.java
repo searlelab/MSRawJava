@@ -3,11 +3,12 @@ package org.searlelab.msrawjava.gui;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Paint;
+
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 
-import org.jfree.chart.JFreeChart;
 import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.PaintScale;

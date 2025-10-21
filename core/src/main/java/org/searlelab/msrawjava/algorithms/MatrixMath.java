@@ -3,6 +3,26 @@ package org.searlelab.msrawjava.algorithms;
 
 public class MatrixMath {
 	
+	public static float max(float[] v) {
+		float max=-Float.MAX_VALUE;
+		for (int i=0; i<v.length; i++) {
+			if (v[i]>max) {
+				max=v[i];
+			}
+		}
+		return max;
+	}
+	
+	public static float min(float[] v) {
+		float min=Float.MAX_VALUE;
+		for (int i=0; i<v.length; i++) {
+			if (v[i]<min) {
+				min=v[i];
+			}
+		}
+		return min;
+	}
+	
 	public static double max(double[] v) {
 		double max=-Double.MAX_VALUE;
 		for (int i=0; i<v.length; i++) {
@@ -68,6 +88,11 @@ public class MatrixMath {
 		double sum=sum(v);
 		return sum/v.length;
 	}
+	
+	public static float mean(float[] v) {
+		float sum=sum(v);
+		return sum/v.length;
+	}
 
 	public static double sum(double[] v) {
 		double sum=0.0;
@@ -83,6 +108,70 @@ public class MatrixMath {
 			sum+=v[i];
 		}
 		return sum;
+	}
+
+	public static double[] multiply(double[] v1, double m) {
+		double[] r=new double[v1.length];
+		for (int i=0; i<r.length; i++) {
+			r[i]=v1[i]*m;
+		}
+		return r;
+	}
+
+	public static float[] multiply(float[] v1, float m) {
+		float[] r=new float[v1.length];
+		for (int i=0; i<r.length; i++) {
+			r[i]=v1[i]*m;
+		}
+		return r;
+	}
+
+	public static double[] divide(double[] v1, double m) {
+		double[] r=new double[v1.length];
+		for (int i=0; i<r.length; i++) {
+			r[i]=v1[i]/m;
+		}
+		return r;
+	}
+
+	public static float[] divide(float[] v1, float m) {
+		float[] r=new float[v1.length];
+		for (int i=0; i<r.length; i++) {
+			r[i]=v1[i]/m;
+		}
+		return r;
+	}
+	
+	public static double[] toDoubleArray(float[] a) {
+		double[] f=new double[a.length];
+		for (int i=0; i<f.length; i++) {
+			f[i]=a[i];
+		}
+		return f;
+	}
+	
+	public static float[] toFloatArray(double[] a) {
+		float[] f=new float[a.length];
+		for (int i=0; i<f.length; i++) {
+			f[i]=(float)a[i];
+		}
+		return f;
+	}
+
+	public static float[] log10(float[] v) {
+		float[] r=new float[v.length];
+		for (int i=0; i<r.length; i++) {
+			r[i]=(float)Math.log10(v[i]);
+		}
+		return r;
+	}
+
+	public static double[] log10(double[] v) {
+		double[] r=new double[v.length];
+		for (int i=0; i<r.length; i++) {
+			r[i]=Math.log10(v[i]);
+		}
+		return r;
 	}
 
 	/**

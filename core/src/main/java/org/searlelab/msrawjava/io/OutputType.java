@@ -49,7 +49,7 @@ public enum OutputType {
 		}
 	}
 
-	private static String changeExtension(String filename, String newExtension) {
+	public static String changeExtension(String filename, String newExtension) {
 		int i=filename.lastIndexOf('.');
 		if (i>0) {
 			String name=filename.substring(0, i);
