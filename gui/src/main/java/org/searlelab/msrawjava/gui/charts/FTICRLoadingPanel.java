@@ -243,9 +243,9 @@ public class FTICRLoadingPanel extends LoadingPanel {
 
 		private void recomputeGeometry() {
 			int w=getWidth(), h=getHeight();
-			int pad=Math.max(8, Math.min(w, h)/18);
+			int pad=Math.max(8, Math.min(w, h)/10);
 			size=Math.max(0, Math.min(w, h)-pad*2);
-			cx=w/2;
+			cx=w/3;
 			cy=h/2;
 
 			trapR=size*0.52;

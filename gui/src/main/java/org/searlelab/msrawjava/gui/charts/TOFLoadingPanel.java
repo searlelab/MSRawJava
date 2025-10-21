@@ -212,7 +212,7 @@ public class TOFLoadingPanel extends LoadingPanel {
 
 		    // ---- Make the V much narrower (≈5x) around the center ----
 		    double cxMid = w * 0.25;
-		    double topY  = pad * 2.0;
+		    double topY  = pad * 3.0;
 		    double apexY = h - pad * 2.0;
 
 		    double halfSpanFull = cxMid - pad * 2.0;     // original half-span to edges
@@ -229,7 +229,7 @@ public class TOFLoadingPanel extends LoadingPanel {
 		    Ltot = L1 + L2;
 
 		    // Lightest ion (m/z=1) arrival target; narrower path shortens Ltot, so re-fit base speed
-		    double targetLightTime = 0.2;               // keep your chosen feel
+		    double targetLightTime = 0.15;               // keep your chosen feel
 		    baseSpeed = Ltot / targetLightTime;
 
 		    // Ensure heaviest ion arrives before next push (+ small margin)
@@ -362,14 +362,24 @@ public class TOFLoadingPanel extends LoadingPanel {
 		}
 
 		private void drawReflectron(Graphics2D g2) {
+			double plateLen=40; // extent across the tube
+			double plateThk=4; // thickness along the path
 
 			g2.setStroke(new BasicStroke(2f));
 			g2.setColor(new Color(150, 150, 155));
-			for (int i=-2; i<=2; i++) {
+			for (int i=-2; i<=1; i++) {
 				double t=i/6.0;
 				double x1=refl.x-20;
-				double y1=refl.y+t*30;
-				g2.draw(new RoundRectangle2D.Double(x1, y1, 40, 2, 6, 6));
+				double y1=refl.y+t*40;
+				
+				Shape plate=new RoundRectangle2D.Double(x1, y1, plateLen, plateThk, 6, 6);
+
+				g2.setColor(new Color(200, 205, 212));
+				g2.fill(plate);
+
+				g2.setColor(new Color(130, 135, 142));
+				g2.setStroke(new BasicStroke(1.2f));
+				g2.draw(plate);
 			}
 		}
 
@@ -382,9 +392,9 @@ public class TOFLoadingPanel extends LoadingPanel {
 			double theta=Math.atan2(uy, ux); // rotation angle
 
 			// --- Single extraction plate (perpendicular to path) ---
-			double plateLen=34; // extent across the tube
-			double plateThk=8; // thickness along the path
-			double plateOff=18; // distance from source along the path
+			double plateLen=40; // extent across the tube
+			double plateThk=6; // thickness along the path
+			double plateOff=-10; // distance from source along the path
 			double cxp=src.x+ux*plateOff;
 			double cyp=src.y+uy*plateOff;
 
@@ -401,10 +411,10 @@ public class TOFLoadingPanel extends LoadingPanel {
 			g2.draw(plateT);
 
 			// --- Ring-lens cross-section: short stack just downstream of the plate ---
-			int rings=3;
-			double ringSpacing=10;
-			double ringLen=26;
-			double ringThk=6;
+			int rings=4;
+			double ringSpacing=7;
+			double ringLen=40;
+			double ringThk=4;
 
 			for (int i=0; i<rings; i++) {
 				double off=plateOff+12+i*ringSpacing;
