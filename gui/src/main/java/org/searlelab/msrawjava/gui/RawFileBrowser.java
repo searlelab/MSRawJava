@@ -53,8 +53,10 @@ import javax.swing.tree.TreeSelectionModel;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.gui.charts.BasicChartGenerator;
+import org.searlelab.msrawjava.gui.charts.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.charts.GraphType;
 import org.searlelab.msrawjava.gui.charts.LoadingPanel;
+import org.searlelab.msrawjava.gui.charts.TOFLoadingPanel;
 import org.searlelab.msrawjava.gui.charts.XYTrace;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
@@ -291,7 +293,7 @@ public class RawFileBrowser extends JFrame {
 
 	    final File f = maybe.get();
 	    final long mySeq = loadSeq.incrementAndGet(); // detect stale workers
-	    final LoadingPanel loading = new LoadingPanel("Reading " + f.getName());
+	    final LoadingPanel loading = Math.random()>0.5?new FTICRLoadingPanel("Reading " + f.getName()):new TOFLoadingPanel("Reading " + f.getName());
 
         double r = dividerProportion(fileSplit);
 	    fileSplit.setBottomComponent(loading);
