@@ -56,6 +56,7 @@ import org.searlelab.msrawjava.gui.charts.BasicChartGenerator;
 import org.searlelab.msrawjava.gui.charts.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.charts.GraphType;
 import org.searlelab.msrawjava.gui.charts.LoadingPanel;
+import org.searlelab.msrawjava.gui.charts.QuadrupoleLoadingPanel;
 import org.searlelab.msrawjava.gui.charts.TOFLoadingPanel;
 import org.searlelab.msrawjava.gui.charts.XYTrace;
 import org.searlelab.msrawjava.io.OutputType;
@@ -293,9 +294,12 @@ public class RawFileBrowser extends JFrame {
 
 	    final File f = maybe.get();
 	    final long mySeq = loadSeq.incrementAndGet(); // detect stale workers
-	    final LoadingPanel loading = Math.random()>0.5?new FTICRLoadingPanel("Reading " + f.getName()):new TOFLoadingPanel("Reading " + f.getName());
 
-        double r = dividerProportion(fileSplit);
+		final LoadingPanel[] loadingPanels=new LoadingPanel[] {new FTICRLoadingPanel("Reading "+f.getName()), new TOFLoadingPanel("Reading "+f.getName()),
+				new QuadrupoleLoadingPanel("Reading "+f.getName())};
+		final LoadingPanel loading=loadingPanels[(int)(Math.random()*(loadingPanels.length))];
+
+		double r=dividerProportion(fileSplit);
 	    fileSplit.setBottomComponent(loading);
         fileSplit.setDividerLocation(r);
 
