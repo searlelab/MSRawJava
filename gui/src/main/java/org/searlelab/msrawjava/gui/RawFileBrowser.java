@@ -1,7 +1,5 @@
 package org.searlelab.msrawjava.gui;
 
-import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -9,17 +7,14 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.text.Collator;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.Enumeration;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.prefs.Preferences;
 
 import javax.swing.BorderFactory;
@@ -34,7 +29,6 @@ import javax.swing.JTable;
 import javax.swing.JTree;
 import javax.swing.ListSelectionModel;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 import javax.swing.UIManager;
@@ -44,21 +38,24 @@ import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeWillExpandListener;
 import javax.swing.filechooser.FileSystemView;
 import javax.swing.table.AbstractTableModel;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.gui.charts.BasicChartGenerator;
-import org.searlelab.msrawjava.gui.charts.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.charts.GraphType;
-import org.searlelab.msrawjava.gui.charts.LoadingPanel;
-import org.searlelab.msrawjava.gui.charts.QuadrupoleLoadingPanel;
-import org.searlelab.msrawjava.gui.charts.TOFLoadingPanel;
 import org.searlelab.msrawjava.gui.charts.XYTrace;
+import org.searlelab.msrawjava.gui.filebrowser.DirectoryNode;
+import org.searlelab.msrawjava.gui.filebrowser.DirectoryTreeModel;
+import org.searlelab.msrawjava.gui.filebrowser.ExtensionFilenameFilter;
+import org.searlelab.msrawjava.gui.filebrowser.FileTreeCellRenderer;
+import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
+import org.searlelab.msrawjava.gui.loadingpanels.FTICRLoadingPanel;
+import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
+import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
+import org.searlelab.msrawjava.gui.loadingpanels.TOFLoadingPanel;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
@@ -85,7 +82,7 @@ public class RawFileBrowser extends JFrame {
 
 	private final JSplitPane fileSplit;
 	private volatile SwingWorker<JComponent, String> currentLoad;
-	private final java.util.concurrent.atomic.AtomicLong loadSeq = new java.util.concurrent.atomic.AtomicLong();
+	private final AtomicLong loadSeq=new AtomicLong();
 
 	// Files shown in the table: directories + files that match this filter
 	private final FilenameFilter fileFilter=new ExtensionFilenameFilter("raw", "d");
@@ -165,17 +162,13 @@ public class RawFileBrowser extends JFrame {
 		UIManager.put("Table.focusCellHighlightBorder", BorderFactory.createEmptyBorder());
 
 		// Apply unified renderers to all common types
-		StripeBorderRenderer baseRenderer=new StripeBorderRenderer(contentTable);
-		IconStripeBorderRenderer iconRend=new IconStripeBorderRenderer(contentTable);
-		SizeRendererStripe sizeRend=new SizeRendererStripe(contentTable);
+		contentTable.setDefaultRenderer(Object.class, StripeTableCellRenderer.BASE_RENDERER);
+		contentTable.setDefaultRenderer(String.class, StripeTableCellRenderer.BASE_RENDERER);
+		contentTable.setDefaultRenderer(Date.class, StripeTableCellRenderer.BASE_RENDERER);
+		contentTable.setDefaultRenderer(Number.class, StripeTableCellRenderer.BASE_RENDERER);
 
-		contentTable.setDefaultRenderer(Object.class, baseRenderer);
-		contentTable.setDefaultRenderer(String.class, baseRenderer);
-		contentTable.setDefaultRenderer(Date.class, baseRenderer);
-		contentTable.setDefaultRenderer(Number.class, baseRenderer); // fallback
-
-		contentTable.setDefaultRenderer(Icon.class, iconRend);
-		contentTable.setDefaultRenderer(Long.class, sizeRend); // file sizes
+		contentTable.setDefaultRenderer(Icon.class, StripeTableCellRenderer.ICON_RENDERER);
+		contentTable.setDefaultRenderer(Long.class, StripeTableCellRenderer.SIZE_RENDERER); // file sizes
 
 		// Nice renderers: file icons & human-readable sizes
 		contentTable.getColumnModel().getColumn(0).setPreferredWidth(20);
@@ -185,12 +178,10 @@ public class RawFileBrowser extends JFrame {
 		contentTable.getColumnModel().getColumn(4).setPreferredWidth(120);
 
 		contentTable.getSelectionModel().addListSelectionListener(e -> {
-		    if (e.getValueIsAdjusting()) return;
-		    int viewRow = contentTable.getSelectedRow();
-		    File f = (viewRow >= 0)
-		            ? tableModel.getFileAt(contentTable.convertRowIndexToModel(viewRow))
-		            : null;
-		    updateFile(Optional.ofNullable(f));
+			if (e.getValueIsAdjusting()) return;
+			int viewRow=contentTable.getSelectedRow();
+			File f=(viewRow>=0)?tableModel.getFileAt(contentTable.convertRowIndexToModel(viewRow)):null;
+			updateFile(Optional.ofNullable(f));
 		});
 
 		// Double-click directories in table to descend in the tree
@@ -213,7 +204,6 @@ public class RawFileBrowser extends JFrame {
 		JScrollPane tableScroll=new JScrollPane(contentTable);
 
 		// ---- Right-Bottom: simple JFreeChart (file size) ----
-
 		fileSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT, tableScroll, new JPanel());
 		fileSplit.setResizeWeight(0.7);
 		fileSplit.setContinuousLayout(true);
@@ -269,91 +259,97 @@ public class RawFileBrowser extends JFrame {
 		} catch (Exception ignore) {
 		}
 	}
-	
+
 	private static double dividerProportion(JSplitPane sp) {
-	    int div = sp.getDividerSize();
-	    int avail = (sp.getOrientation() == JSplitPane.VERTICAL_SPLIT)
-	            ? Math.max(sp.getHeight() - div, 1)
-	            : Math.max(sp.getWidth() - div, 1);
-	    return Math.max(0, Math.min(1, sp.getDividerLocation() / (double) avail));
+		int div=sp.getDividerSize();
+		int avail=(sp.getOrientation()==JSplitPane.VERTICAL_SPLIT)?Math.max(sp.getHeight()-div, 1):Math.max(sp.getWidth()-div, 1);
+		return Math.max(0, Math.min(1, sp.getDividerLocation()/(double)avail));
 	}
 
 	private void updateFile(Optional<File> maybe) {
-	    // Cancel any in-flight load
-	    SwingWorker<JComponent, String> prev = currentLoad;
-	    if (prev != null) prev.cancel(true);
+		// Cancel any in-flight load
+		SwingWorker<JComponent, String> prev=currentLoad;
+		if (prev!=null) prev.cancel(true);
 
-	    // No file selected -> clear bottom
-	    if (maybe == null || maybe.isEmpty()) {
-	        double r = dividerProportion(fileSplit);
-	        fileSplit.setBottomComponent(new JPanel());
-	        fileSplit.setDividerLocation(r);
-	        currentLoad = null;
-	        return;
-	    }
+		// No file selected -> clear bottom
+		if (maybe==null||maybe.isEmpty()) {
+			double r=dividerProportion(fileSplit);
+			fileSplit.setBottomComponent(new JPanel());
+			fileSplit.setDividerLocation(r);
+			currentLoad=null;
+			return;
+		}
 
-	    final File f = maybe.get();
-	    final long mySeq = loadSeq.incrementAndGet(); // detect stale workers
+		final File f=maybe.get();
+		final long mySeq=loadSeq.incrementAndGet(); // detect stale workers
 
 		final LoadingPanel[] loadingPanels=new LoadingPanel[] {new FTICRLoadingPanel("Reading "+f.getName()), new TOFLoadingPanel("Reading "+f.getName()),
 				new QuadrupoleLoadingPanel("Reading "+f.getName())};
 		final LoadingPanel loading=loadingPanels[(int)(Math.random()*(loadingPanels.length))];
 
 		double r=dividerProportion(fileSplit);
-	    fileSplit.setBottomComponent(loading);
-        fileSplit.setDividerLocation(r);
+		fileSplit.setBottomComponent(loading);
+		fileSplit.setDividerLocation(r);
 
-	    currentLoad = new SwingWorker<>() {
-	        @Override protected JComponent doInBackground() throws Exception {
-	            // Heavy lifting OFF the EDT
-	            if (isDotD(f)) {
-	                BrukerTIMSFile raw = new BrukerTIMSFile();
-	                try {
-	                    raw.openFile(f.toPath());
-	                    Pair<float[], float[]> tic = raw.getTICTrace(); // may block / wait for native
-	                    if (isCancelled()) return null;
-	                    XYTrace trace = new XYTrace(MatrixMath.divide(tic.x, 60.0f), tic.y,
-	                            GraphType.area, OutputType.changeExtension(raw.getOriginalFileName(), ""), null, null);
-	                    return BasicChartGenerator.getChart("Time (min)", "Total Ion Current", false, trace);
-	                } finally {
-	                    try { raw.close(); } catch (Throwable ignore) {}
-	                }
-	            } else if (isThermo(f)) {
-	                ThermoRawFile raw = new ThermoRawFile();
-	                try {
-	                    raw.openFile(f.toPath());
-	                    Pair<float[], float[]> tic = raw.getTICTrace(); // may wait for gRPC launcher
-	                    if (isCancelled()) return null;
-	                    XYTrace trace = new XYTrace(MatrixMath.divide(tic.x, 60.0f), tic.y,
-	                            GraphType.area, OutputType.changeExtension(raw.getOriginalFileName(), ""), null, null);
-	                    return BasicChartGenerator.getChart("Time (min)", "Total Ion Current", false, trace);
-	                } finally {
-	                    try { raw.close(); } catch (Throwable ignore) {}
-	                }
-	            } else {
-	                // Not a supported file -> empty panel
-	                return new JPanel();
-	            }
-	        }
+		currentLoad=new SwingWorker<>() {
+			@Override
+			protected JComponent doInBackground() throws Exception {
+				// Heavy lifting OFF the EDT
+				if (isDotD(f)) {
+					BrukerTIMSFile raw=new BrukerTIMSFile();
+					try {
+						raw.openFile(f.toPath());
+						Pair<float[], float[]> tic=raw.getTICTrace(); // may block / wait for native
+						if (isCancelled()) return null;
+						XYTrace trace=new XYTrace(MatrixMath.divide(tic.x, 60.0f), tic.y, GraphType.area,
+								OutputType.changeExtension(raw.getOriginalFileName(), ""), null, null);
+						return BasicChartGenerator.getChart("Time (min)", "Total Ion Current", false, trace);
+					} finally {
+						try {
+							raw.close();
+						} catch (Throwable ignore) {
+						}
+					}
+				} else if (isThermo(f)) {
+					ThermoRawFile raw=new ThermoRawFile();
+					try {
+						raw.openFile(f.toPath());
+						Pair<float[], float[]> tic=raw.getTICTrace(); // may wait for gRPC launcher
+						if (isCancelled()) return null;
+						XYTrace trace=new XYTrace(MatrixMath.divide(tic.x, 60.0f), tic.y, GraphType.area,
+								OutputType.changeExtension(raw.getOriginalFileName(), ""), null, null);
+						return BasicChartGenerator.getChart("Time (min)", "Total Ion Current", false, trace);
+					} finally {
+						try {
+							raw.close();
+						} catch (Throwable ignore) {
+						}
+					}
+				} else {
+					// Not a supported file -> empty panel
+					return new JPanel();
+				}
+			}
 
-	        @Override protected void done() {
-	            // Only apply if this is still the most recent request and not cancelled
-	            if (mySeq != loadSeq.get()) return;
-	            loading.stop();
-	            try {
-	                if (isCancelled()) return;
-	                JComponent panel = get(); // may throw
-	                
-	                double r = dividerProportion(fileSplit);
-	                fileSplit.setBottomComponent(panel != null ? panel : new JPanel());
-	                fileSplit.setDividerLocation(r);
-	            } catch (Exception ex) {
-	                fileSplit.setBottomComponent(new JLabel("Cannot parse file!"));
-	            }
-	        }
-	    };
+			@Override
+			protected void done() {
+				// Only apply if this is still the most recent request and not cancelled
+				if (mySeq!=loadSeq.get()) return;
+				loading.stop();
+				try {
+					if (isCancelled()) return;
+					JComponent panel=get(); // may throw
 
-	    currentLoad.execute();
+					double r=dividerProportion(fileSplit);
+					fileSplit.setBottomComponent(panel!=null?panel:new JPanel());
+					fileSplit.setDividerLocation(r);
+				} catch (Exception ex) {
+					fileSplit.setBottomComponent(new JLabel("Cannot parse file!"));
+				}
+			}
+		};
+
+		currentLoad.execute();
 	}
 
 	/** Expand & select a directory in the tree, adding child nodes along the way if needed. */
@@ -375,7 +371,7 @@ public class RawFileBrowser extends JFrame {
 		if (target==null) return new TreePath(virtualRoot);
 
 		File[] fsRoots=fsv.getRoots();
-		boolean unixFlatten=treeModel.unixFlattenRoot;
+		boolean unixFlatten=treeModel.isUnixFlattenRoot();
 
 		// Pick the FS root that contains target (or "/" on Unix).
 		File chosenRoot=(fsRoots!=null&&fsRoots.length>0)?fsRoots[0]:target;
@@ -462,112 +458,6 @@ public class RawFileBrowser extends JFrame {
 
 		@Override
 		public void treeWillCollapse(TreeExpansionEvent event) {
-			/* no-op */ }
-	}
-
-	// ---------------- Models & renderers ----------------
-
-	/** Virtual root -> filesystem roots -> directories (lazy). */
-	private static class DirectoryTreeModel extends DefaultTreeModel {
-		private static final long serialVersionUID=1L;
-		private final DirectoryNode virtualRoot;
-		final boolean unixFlattenRoot;
-
-		DirectoryTreeModel(FileSystemView fsv) {
-			super(new DirectoryNode(null));
-			this.virtualRoot=(DirectoryNode)getRoot();
-			virtualRoot.setAllowsChildren(true);
-			virtualRoot.setUserObject("My Computer");
-
-			File[] roots=fsv.getRoots();
-			boolean singleUnixRoot=roots!=null&&roots.length==1&&File.separator.equals(roots[0].getAbsolutePath());
-			this.unixFlattenRoot=singleUnixRoot;
-
-			if (unixFlattenRoot) {
-				// Add immediate subdirectories of "/" directly under “My Computer”
-				File root=roots[0];
-				File[] kids=root.listFiles(f -> f.isDirectory()&&!f.getName().startsWith("."));
-				if (kids!=null) {
-					Arrays.sort(kids, Comparator.comparing(f -> f.getName().toLowerCase(Locale.ROOT)));
-					for (File k : kids) {
-						DirectoryNode child=new DirectoryNode(k);
-						child.add(new DefaultMutableTreeNode("loading"));
-						virtualRoot.add(child);
-					}
-				}
-			} else {
-				// Normal: show filesystem roots as children
-				for (File r : roots) {
-					DirectoryNode child=new DirectoryNode(r);
-					child.add(new DefaultMutableTreeNode("loading"));
-					virtualRoot.add(child);
-				}
-			}
-		}
-
-		void loadChildren(DirectoryNode node, FileSystemView fsv) {
-			if (node.loaded||node.getFile()==null) return;
-			node.removeAllChildren();
-			File dir=node.getFile();
-
-			// Only subdirectories that are NOT dot-dirs
-			File[] kids=dir.listFiles(f -> f.isDirectory()&&!f.getName().startsWith("."));
-			if (kids!=null) {
-				Arrays.sort(kids, Comparator.comparing(f -> f.getName().toLowerCase(Locale.ROOT)));
-				for (File k : kids) {
-					DirectoryNode child=new DirectoryNode(k);
-					child.add(new DefaultMutableTreeNode("loading"));
-					node.add(child);
-				}
-			}
-			node.loaded=true;
-			nodeStructureChanged(node);
-		}
-	}
-
-	private static class DirectoryNode extends DefaultMutableTreeNode {
-		private static final long serialVersionUID=1L;
-		private boolean loaded=false;
-
-		DirectoryNode(File dir) {
-			super(dir==null?"Computer":dir);
-			setAllowsChildren(true);
-		}
-
-		File getFile() {
-			return (getUserObject() instanceof File f)?f:null;
-		}
-
-		@Override
-		public String toString() {
-			File f=getFile();
-			return f==null?"My Computer":(f.getName().isEmpty()?f.getPath():f.getName());
-		}
-	}
-
-	private static class FileTreeCellRenderer extends DefaultTreeCellRenderer {
-		private static final long serialVersionUID=1L;
-		private final FileSystemView fsv;
-
-		FileTreeCellRenderer(FileSystemView fsv) {
-			this.fsv=fsv;
-		}
-
-		@Override
-		public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean exp, boolean leaf, int row, boolean focus) {
-			super.getTreeCellRendererComponent(tree, value, sel, exp, leaf, row, focus);
-			if (value instanceof DirectoryNode dn) {
-				File f=dn.getFile();
-				if (f!=null) {
-					setIcon(fsv.getSystemIcon(f));
-					String name=fsv.getSystemDisplayName(f);
-					setText((name==null||name.isBlank())?f.getName():name);
-				} else {
-					setText("My Computer");
-					setIcon(UIManager.getIcon("FileView.computerIcon"));
-				}
-			}
-			return this;
 		}
 	}
 
@@ -665,125 +555,6 @@ public class RawFileBrowser extends JFrame {
 			if (f==null) return false;
 			String name=f.getName().toLowerCase(Locale.ROOT);
 			return name.endsWith(".raw")||name.endsWith(".d");
-		}
-	}
-
-	/** Simple extension-based filter (case-insensitive). Directories always accepted. */
-	private static class ExtensionFilenameFilter implements FilenameFilter {
-		private final Set<String> exts;
-
-		ExtensionFilenameFilter(String... extensions) {
-			exts=new HashSet<>();
-			for (String e : extensions) {
-				if (e!=null&&!e.isBlank()) {
-					String s=e.startsWith(".")?e.toLowerCase(Locale.ROOT):"."+e.toLowerCase(Locale.ROOT);
-					exts.add(s);
-				}
-			}
-		}
-
-		@Override
-		public boolean accept(File dir, String name) {
-			File f=new File(dir, name);
-			if (f.isDirectory()) return true;
-			String lower=name.toLowerCase(Locale.ROOT);
-			for (String ex : exts) {
-				if (lower.endsWith(ex)) return true;
-			}
-			return false; // hide non-matching files
-		}
-	}
-
-	// ---- Unified renderers: stripes + 1px borders + correct selection ----
-	private static class StripeBorderRenderer extends DefaultTableCellRenderer {
-		private static final long serialVersionUID=1L;
-		private final JTable table;
-		private final Color altBg=or(UIManager.getColor("Table.alternateRowColor"), new Color(247, 247, 247)); // very light gray
-		private final Color grid=or(UIManager.getColor("Table.gridColor"), new Color(220, 220, 220));
-
-		StripeBorderRenderer(JTable table) {
-			this.table=table;
-			setOpaque(true);
-		}
-
-		@Override
-		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-
-			super.getTableCellRendererComponent(tbl, value, false, false, row, column);
-
-			// Compute selection from the table itself (robust across LaFs)
-			boolean rowSelected=false;
-			int[] selectedRows=table.getSelectedRows();
-			for (int i=0; i<selectedRows.length; i++) {
-				if (selectedRows[i]==row) {
-					rowSelected=true;
-					break;
-				}
-			}
-
-			if (rowSelected) {
-				setBackground(table.getSelectionBackground());
-				setForeground(table.getSelectionForeground());
-			} else {
-				setForeground(tbl.getForeground());
-				setBackground((row%2==0)?Color.WHITE:altBg);
-			}
-
-			int top=(row==0)?0:1;
-			setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(top, 0, 0, 0, grid),
-					BorderFactory.createMatteBorder(0, 2, 0, 2, getBackground())));
-
-			return this;
-		}
-
-		private static <T> T or(T a, T b) {
-			return (a!=null)?a:b;
-		}
-	}
-
-	private static class IconStripeBorderRenderer extends StripeBorderRenderer {
-		private static final long serialVersionUID=1L;
-		IconStripeBorderRenderer(JTable table) {
-			super(table);
-		}
-
-		@Override
-		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-
-			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, column);
-			setIcon(value instanceof Icon?(Icon)value:null);
-			setHorizontalAlignment(CENTER);
-			return this;
-		}
-	}
-
-	private static class SizeRendererStripe extends StripeBorderRenderer {
-		private static final long serialVersionUID=1L;
-		SizeRendererStripe(JTable table) {
-			super(table);
-			setHorizontalAlignment(SwingConstants.RIGHT);
-		}
-
-		@Override
-		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-
-			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, column);
-			if (value instanceof Long l&&l>=0L) {
-				setText(humanBytes(l));
-			} else {
-				setText("");
-			}
-			return this;
-		}
-
-		private static String humanBytes(long b) {
-			if (b<1024) return b+" B";
-			double kb=b/1024.0;
-			if (kb<1024) return String.format(Locale.ROOT, "%.1f KB", kb);
-			double mb=kb/1024.0;
-			if (mb<1024) return String.format(Locale.ROOT, "%.2f MB", mb);
-			double gb=mb/1024.0;
-			return String.format(Locale.ROOT, "%.2f GB", gb);
 		}
 	}
 }

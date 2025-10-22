@@ -1,4 +1,4 @@
-package org.searlelab.msrawjava.gui.charts;
+package org.searlelab.msrawjava.gui.loadingpanels;
 
 import javax.swing.JPanel;
 
