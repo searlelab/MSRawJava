@@ -50,9 +50,9 @@ import org.openpdf.text.pdf.PdfContentByte;
 import org.openpdf.text.pdf.PdfGraphics2D;
 import org.openpdf.text.pdf.PdfTemplate;
 import org.openpdf.text.pdf.PdfWriter;
-import org.searlelab.msrawjava.Logger;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.logging.Logger;
 
 public class BasicChartGenerator {
 	private static final DecimalFormat MASS_FORMAT=new DecimalFormat(".#");

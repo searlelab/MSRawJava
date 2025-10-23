@@ -1,4 +1,4 @@
-package org.searlelab.msrawjava;
+package org.searlelab.msrawjava.logging;
 
 /**
  * LogRecorder collects recent log messages in memory for inspection, diagnostics, or UI display. It pairs with Logger

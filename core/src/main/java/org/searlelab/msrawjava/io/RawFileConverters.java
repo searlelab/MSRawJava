@@ -15,10 +15,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.searlelab.msrawjava.Logger;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
+import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.Peak;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -36,13 +36,16 @@ public class RawFileConverters {
 	 * Reads a Thermo RAW, batches spectra over time, attaches metadata and DIA ranges, streams MS1/MS2 to the chosen
 	 * writer, and saves the file.
 	 */
-	public static void writeThermo(Path rawFilePath, Path outputDirPath, OutputType outType) throws Exception {
+	public static boolean writeThermo(Path rawFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
 		ThermoRawFile rawFile=new ThermoRawFile();
+		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
+		
 		try {
 			rawFile.openFile(rawFilePath);
 
 			String originalFileName=rawFilePath.getFileName().toString();
-			OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
+			progress.update("Started converting "+originalFileName+"...");
+			
 			outFile.setFileName(originalFileName, rawFilePath.toString());
 			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
 			outFile.addMetadata(rawFile.getMetadata());
@@ -60,21 +63,32 @@ public class RawFileConverters {
 				}
 
 				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, stop);
+				if (progress.isCanceled()) return false;
 				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, stop, false);
-				int percent=Math.round((i+1)*100f/sections);
-				Logger.logLine(percent+"% Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
-						+String.format("%.1f", (start+sectionTime)/60f)+" minutes");
+				if (progress.isCanceled()) return false;
 
 				outFile.addSpectra(ms1s, ms2s);
+				
+				progress.update("Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
+						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/sections);
 				start=stop;
+				if (progress.isCanceled()) return false;
 			}
 
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
+			
+			progress.update("Finished converting "+originalFileName+"!");
+			return true;
 
 		} finally {
 			rawFile.close();
+			outFile.close();
 		}
+	}
+
+	public static boolean writeTims(Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
+		return writeTims(timsFilePath, outputDirPath, outType, progress, 3, 1);
 	}
 
 	/**
@@ -82,12 +96,14 @@ public class RawFileConverters {
 	 * given MS1/MS2 thresholds using parallel workers, streams to the chosen writer, and saves the file. Processes IMS
 	 * using a thread pool for speed.
 	 */
-	public static void writeTims(Path timsFilePath, Path outputDirPath, OutputType outType, float minimumMS1Intensity, float minimumMS2Intensity)
+	public static boolean writeTims(Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress, float minimumMS1Intensity, float minimumMS2Intensity)
 			throws Exception {
 		BrukerTIMSFile timsFile=new BrukerTIMSFile();
 		timsFile.openFile(timsFilePath);
 
 		String originalFileName=timsFilePath.getFileName().toString();
+		progress.update("Started converting "+originalFileName+"...");
+		
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
 		int workers=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
@@ -112,11 +128,9 @@ public class RawFileConverters {
 				float stop=(i==sections-1)?Float.MAX_VALUE:start+sectionTime;
 
 				ArrayList<PrecursorScan> ms1s=timsFile.getPrecursors(start, stop);
+				if (progress.isCanceled()) return false;
 				ArrayList<FragmentScan> ms2s=timsFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, stop, false);
-
-				int percent=Math.round((i+1)*100f/sections);
-				Logger.logLine(percent+"% Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
-						+String.format("%.1f", (start+sectionTime)/60f)+" minutes");
+				if (progress.isCanceled()) return false;
 
 				// Pre-allocate scan numbers (missing scans are OK)
 				final int baseMs1Scan=scanNumber;
@@ -151,6 +165,7 @@ public class RawFileConverters {
 						return ms2s.get(idx).rebuild(sn, peaks);
 					}));
 				}
+				if (progress.isCanceled()) return false;
 
 				// Collect results (join compute here)
 				ArrayList<PrecursorScan> sortedMS1s=new ArrayList<>(ms1s.size());
@@ -158,12 +173,14 @@ public class RawFileConverters {
 					PrecursorScan ps=getOrNull(f);
 					if (ps!=null) sortedMS1s.add(ps);
 				}
+				if (progress.isCanceled()) return false;
 
 				ArrayList<FragmentScan> sortedMS2s=new ArrayList<>(ms2s.size());
 				for (Future<FragmentScan> f : ms2Futures) {
 					FragmentScan fs=getOrNull(f);
 					if (fs!=null) sortedMS2s.add(fs);
 				}
+				if (progress.isCanceled()) return false;
 
 				// Serialize DB writes on a single writer thread 
 				writeFutures.add(CompletableFuture.runAsync(() -> {
@@ -174,6 +191,10 @@ public class RawFileConverters {
 						throw new CompletionException(t);
 					}
 				}, writer));
+
+				progress.update("Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
+						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/sections);
+				if (progress.isCanceled()) return false;
 
 				start=stop;
 			}
@@ -193,11 +214,16 @@ public class RawFileConverters {
 
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
+			
+			progress.update("Finished converting "+originalFileName+"!");
+			
+			return true;
 		} finally {
-			timsFile.close();
-
 			pool.shutdown();
 			pool.awaitTermination(365, TimeUnit.DAYS);
+
+			timsFile.close();
+			outFile.close();
 		}
 	}
 

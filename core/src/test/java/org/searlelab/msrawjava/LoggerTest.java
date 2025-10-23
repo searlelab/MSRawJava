@@ -6,6 +6,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.logging.LogRecorder;
+import org.searlelab.msrawjava.logging.Logger;
 
 class LoggerTest {
 

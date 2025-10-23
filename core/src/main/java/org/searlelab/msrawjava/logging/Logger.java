@@ -1,4 +1,4 @@
-package org.searlelab.msrawjava;
+package org.searlelab.msrawjava.logging;
 
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;

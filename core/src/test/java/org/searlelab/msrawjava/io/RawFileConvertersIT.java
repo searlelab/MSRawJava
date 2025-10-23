@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
 
 class RawFileConvertersIT {
 	private static final Path TIMS_D=Path.of("src", "test", "resources", "rawdata", "230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
@@ -18,7 +19,7 @@ class RawFileConvertersIT {
 	@Test
 	void writeTims_toMGF_smoke(@TempDir Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(TIMS_D), "Fixture .d not present: "+TIMS_D);
-		RawFileConverters.writeTims(TIMS_D, outDir, OutputType.mgf, 1.0f, 1.0f);
+		RawFileConverters.writeTims(TIMS_D, outDir, OutputType.mgf, new LoggingProgressIndicator(), 1.0f, 1.0f);
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
 		assertTrue(Files.size(mgf)>0, "MGF should not be empty");

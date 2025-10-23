@@ -20,10 +20,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.zip.DataFormatException;
 
-import org.searlelab.msrawjava.Logger;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.io.utils.Triplet;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;

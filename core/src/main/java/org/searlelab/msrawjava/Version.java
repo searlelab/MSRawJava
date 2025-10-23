@@ -2,6 +2,8 @@ package org.searlelab.msrawjava;
 
 import java.util.StringTokenizer;
 
+import org.searlelab.msrawjava.logging.Logger;
+
 /**
  * Version centralizes build and runtime version metadata for the project, exposing a stable string (and related fields)
  * used by the CLI, writers, and logs. 

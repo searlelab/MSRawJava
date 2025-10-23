@@ -8,7 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-import org.searlelab.msrawjava.Logger;
+import org.searlelab.msrawjava.logging.Logger;
 
 /**
  * SQLFile encapsulates SQLite-focused file creation and transactional writes used by EncyclopeDIAFile. It owns

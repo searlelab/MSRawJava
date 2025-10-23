@@ -16,6 +16,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
+import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -53,7 +54,7 @@ public class ThermoRawFileSmokeIT {
 
 	void writeRawSmokeMZML(Path raw, Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
-		RawFileConverters.writeThermo(raw, outDir, OutputType.mzml);
+		RawFileConverters.writeThermo(raw, outDir, OutputType.mzml, new LoggingProgressIndicator());
 		Path mzml=firstWithExt(outDir, ".mzml");
 		assertNotNull(mzml, "Output .mzML should exist");
 		assertTrue(Files.size(mzml)>0, "mzML should not be empty");
@@ -77,7 +78,7 @@ public class ThermoRawFileSmokeIT {
 
 	void writeRawSmokeMGF(Path raw, Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
-		RawFileConverters.writeThermo(raw, outDir, OutputType.mgf);
+		RawFileConverters.writeThermo(raw, outDir, OutputType.mgf, new LoggingProgressIndicator());
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
 		assertTrue(Files.size(mgf)>0, "MGF should not be empty");
