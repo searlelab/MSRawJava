@@ -19,6 +19,11 @@ import java.util.Objects;
  * discovered items by vendor so downstream readers and the CLI can orchestrate processing consistently.
  */
 public final class VendorFileFinder {
+	public static VendorFiles findAndAddRawAndD(Path start) throws IOException {
+		VendorFiles files=new VendorFiles();
+		findAndAddRawAndD(start, files);
+		return files;
+	}
 
 	/**
 	 * Collects vendor data roots under the given path.
@@ -41,16 +46,14 @@ public final class VendorFileFinder {
 
 		// Handle single-file or single-dir cases quickly
 		if (Files.isRegularFile(root)) {
-			if (hasExt(root, ".raw")) raw.add(root);
+			if (isThermoFile(root)) raw.add(root);
 			files.add(raw, ddirs);
 			return;
 		}
-		if (Files.isDirectory(root)) {
-			if (hasExt(root.getFileName(), ".d")) {
-				ddirs.add(root);
-				files.add(raw, ddirs);
-				return;
-			}
+		if (isDotDFile(root)) {
+			ddirs.add(root);
+			files.add(raw, ddirs);
+			return;
 		}
 
 		// Walk recursively. We do NOT follow symlinks to avoid loops.
@@ -59,7 +62,7 @@ public final class VendorFileFinder {
 			@Override
 			public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
 				// If this directory itself is a .d bundle, collect and skip its subtree
-				if (hasExt(dir.getFileName(), ".d")) {
+				if (isDotDFile(dir)) {
 					ddirs.add(dir.toAbsolutePath().normalize());
 					return FileVisitResult.SKIP_SUBTREE;
 				}
@@ -68,7 +71,7 @@ public final class VendorFileFinder {
 
 			@Override
 			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-				if (attrs.isRegularFile()&&hasExt(file, ".raw")) {
+				if (attrs.isRegularFile()&&isThermoFile(file)) {
 					raw.add(file.toAbsolutePath().normalize());
 				}
 				return FileVisitResult.CONTINUE;
@@ -85,14 +88,18 @@ public final class VendorFileFinder {
 		return;
 	}
 
-	private static boolean hasExt(Path p, String extLowerDot) {
-		if (p==null) return false;
-		return hasExt(p.toString(), extLowerDot);
+	public static boolean isThermoFile(Path root) {
+		return hasExt(root, ".raw");
 	}
 
-	private static boolean hasExt(String pathStr, String extLowerDot) {
-		if (pathStr==null) return false;
-		String s=pathStr.toLowerCase(Locale.ROOT);
+	public static boolean isDotDFile(Path root) {
+		return (Files.isDirectory(root)&&hasExt(root.getFileName(), ".d"));
+	}
+
+	private static boolean hasExt(Path p, String extLowerDot) {
+		if (p==null) return false;
+
+		String s=p.toString().toLowerCase(Locale.ROOT);
 		return s.endsWith(extLowerDot);
 	}
 }

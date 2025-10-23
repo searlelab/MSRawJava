@@ -21,7 +21,7 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 	private final Color altBg=or(UIManager.getColor("Table.alternateRowColor"), new Color(247, 247, 247)); // very light gray
 	private final Color grid=or(UIManager.getColor("Table.gridColor"), new Color(220, 220, 220));
 
-	private StripeTableCellRenderer() {
+	protected StripeTableCellRenderer() {
 		setOpaque(true);
 	}
 

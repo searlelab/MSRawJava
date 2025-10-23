@@ -1,0 +1,548 @@
+package org.searlelab.msrawjava.gui;
+
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Insets;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+import java.util.prefs.Preferences;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.JSplitPane;
+import javax.swing.JTable;
+import javax.swing.JTextArea;
+import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableCellRenderer;
+
+import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
+import org.searlelab.msrawjava.io.OutputType;
+import org.searlelab.msrawjava.io.RawFileConverters;
+import org.searlelab.msrawjava.io.VendorFileFinder;
+import org.searlelab.msrawjava.logging.ProgressIndicator;
+
+/**
+ * Owns the conversion parameter bar, queue, dispatcher and details console.
+ * Exposes a "selected paths supplier" so the Queue button can grab whatever
+ * the directory table currently has selected.
+ */
+public class ConversionPane extends JPanel {
+	private static final long serialVersionUID=1L;
+
+	// ---- prefs keys (kept local to the pane) ----
+	private static final String PREF_OUT_TYPE="queue.outType";
+	private static final String PREF_THREADS="queue.threads";
+
+	// ---- UI constants ----
+	private static final Color BUTTON_COLOR_BACKGROUND=new Color(250, 245, 235);
+	private static final Color GREEN=new Color(0x2e7d32);
+	private static final Color RED=new Color(0xc62828);
+	private static final Color GRAY=new Color(0x757575);
+
+	// ---- collaborators ----
+	private final Preferences prefs;
+
+	// ---- supplier of currently selected paths in the directory table (set by RawFileBrowser) ----
+	private Supplier<List<Path>> selectedPathsSupplier=List::of;
+
+	// ---- parameter bar widgets ----
+	private final JComboBox<OutputType> outTypeBox=new JComboBox<>(OutputType.values());
+	private JSpinner threadSpinner;
+
+	// ---- queue UI ----
+	private final JobTableModel queueModel=new JobTableModel();
+	private final JTable queueTable=new JTable(queueModel);
+
+	// ---- details console ----
+	private final JTextArea jobConsole=new JTextArea();
+	private final JLabel statusIndicator=new JLabel("●");
+
+	// ---- dispatcher / execution ----
+	private final ExecutorService executor=Executors.newCachedThreadPool();
+	private final QueueDispatcher dispatcher=new QueueDispatcher(queueModel, executor);
+
+	public ConversionPane(Preferences prefs) {
+		super(new BorderLayout());
+		this.prefs=Objects.requireNonNull(prefs, "prefs");
+
+		// ---- param bar ----
+		JPanel params=buildParamBar();
+
+		// ---- queue table ----
+		queueTable.setRowHeight(22);
+		queueTable.setFillsViewportHeight(true);
+		queueTable.setDefaultRenderer(Float.class, new ProgressRenderer(queueModel));
+		queueTable.setDefaultRenderer(String.class, StripeTableCellRenderer.BASE_RENDERER);
+		queueTable.setDefaultRenderer(Object.class, StripeTableCellRenderer.BASE_RENDERER);
+		queueTable.getColumnModel().getColumn(0).setPreferredWidth(280); // File
+		queueTable.getColumnModel().getColumn(1).setPreferredWidth(120); // Progress
+		queueTable.getSelectionModel().addListSelectionListener(e -> {
+			if (!e.getValueIsAdjusting()) updateConsoleForSelection();
+		});
+		JScrollPane queueScroll=new JScrollPane(queueTable);
+		queueScroll.setPreferredSize(new Dimension(360, 200));
+
+		// ---- console ----
+		JPanel console=buildConsolePanel();
+
+		// ---- queue toolbar ----
+		JPanel tools=buildQueueToolbar();
+
+		// ---- pack top controls (params above toolbar) ----
+		JPanel controls=new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+		controls.add(tools);
+		controls.add(params);
+
+		// ---- lower split (queue + console) ----
+		JSplitPane queueAndConsole=new JSplitPane(JSplitPane.VERTICAL_SPLIT, queueScroll, console);
+		queueAndConsole.setResizeWeight(0.75); // 75% queue, 25% console
+		queueAndConsole.setContinuousLayout(true);
+		queueAndConsole.setOneTouchExpandable(true);
+
+		add(controls, BorderLayout.NORTH);
+		add(queueAndConsole, BorderLayout.CENTER);
+	}
+
+	// Exposed to RawFileBrowser
+	public void setSelectedPathsSupplier(Supplier<List<Path>> supplier) {
+		this.selectedPathsSupplier=(supplier!=null)?supplier:List::of;
+	}
+
+	public void shutdown() {
+		executor.shutdownNow();
+	}
+
+	private JPanel buildParamBar() {
+		JPanel bar=new JPanel(new BorderLayout());
+		bar.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+
+		JPanel left=new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+
+		String savedType=prefs.get(PREF_OUT_TYPE, OutputType.mzml.name());
+		try {
+			outTypeBox.setSelectedItem(OutputType.valueOf(savedType));
+		} catch (Exception ignore) {
+		}
+		outTypeBox.addActionListener(e -> {
+			OutputType sel=(OutputType)outTypeBox.getSelectedItem();
+			if (sel!=null) prefs.put(PREF_OUT_TYPE, sel.name());
+		});
+
+		int defaultThreads=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
+		int savedThreads=Math.max(1, prefs.getInt(PREF_THREADS, defaultThreads));
+		threadSpinner=new JSpinner(new SpinnerNumberModel(savedThreads, 1, 512, 1));
+		threadSpinner.addChangeListener(e -> {
+			int n=(Integer)threadSpinner.getValue();
+			prefs.putInt(PREF_THREADS, n);
+			dispatcher.setDesiredParallelism(n);
+		});
+
+		left.add(new JLabel("Output:"));
+		left.add(outTypeBox);
+		left.add(new JLabel("Threads:"));
+		left.add(threadSpinner);
+
+		// init dispatcher
+		dispatcher.setDesiredParallelism((Integer)threadSpinner.getValue());
+		bar.add(left, BorderLayout.WEST);
+		return bar;
+	}
+
+	private JPanel buildQueueToolbar() {
+		JButton queueSelected=new JButton("Queue Selected");
+		wireButton(queueSelected);
+		queueSelected.addActionListener(e -> enqueueFromSupplier());
+
+		JButton cancelAll=new JButton("Cancel");
+		wireButton(cancelAll);
+		cancelAll.addActionListener(e -> {
+			dispatcher.pause(true);
+			queueModel.cancelAll();
+		});
+
+		JButton restart=new JButton("Restart");
+		wireButton(restart);
+		restart.addActionListener(e -> {
+			queueModel.requeueFailedAndCanceled();
+			dispatcher.pause(false);
+			dispatcher.maybeStart();
+		});
+
+		JButton clear=new JButton("Clear");
+		wireButton(clear);
+		clear.addActionListener(e -> queueModel.clearUnstartedOrCanceled());
+
+		JPanel tools=new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+		tools.add(new JLabel("<html><b>Queue:"));
+		tools.add(queueSelected);
+		tools.add(cancelAll);
+		tools.add(restart);
+		tools.add(clear);
+		return tools;
+	}
+
+	private JPanel buildConsolePanel() {
+		JPanel panel=new JPanel(new BorderLayout());
+		JPanel header=new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
+		header.add(new JLabel("Details"));
+
+		statusIndicator.setOpaque(false);
+		statusIndicator.setForeground(new Color(0x1976D2)); // blue = running/default
+		header.add(statusIndicator);
+
+		panel.add(header, BorderLayout.NORTH);
+
+		jobConsole.setEditable(false);
+		jobConsole.setLineWrap(true);
+		jobConsole.setWrapStyleWord(true);
+		jobConsole.setFont(new java.awt.Font("Monospaced", java.awt.Font.PLAIN, 12));
+		JScrollPane sp=new JScrollPane(jobConsole);
+		sp.setPreferredSize(new Dimension(360, 140));
+		panel.add(sp, BorderLayout.CENTER);
+		return panel;
+	}
+
+	private static void wireButton(JButton b) {
+		b.setOpaque(true);
+		b.setContentAreaFilled(true);
+		b.setBackground(BUTTON_COLOR_BACKGROUND);
+		b.setFocusPainted(false);
+	}
+
+	// ---------- actions ----------
+
+	private void enqueueFromSupplier() {
+		List<Path> paths=(selectedPathsSupplier!=null)?selectedPathsSupplier.get():List.of();
+		if (paths==null||paths.isEmpty()) return;
+
+		OutputType outType=(OutputType)outTypeBox.getSelectedItem();
+		for (Path p : paths) {
+			boolean thermo=VendorFileFinder.isThermoFile(p);
+			boolean bruker=VendorFileFinder.isDotDFile(p);
+			if (!thermo&&!bruker) continue;
+
+			Path outDir=(p.getParent()!=null)?p.getParent():p; // safe default
+			ConversionJob job=new ConversionJob(p, outDir, outType, thermo?Source.THERMO:Source.TIMS);
+			queueModel.enqueue(job);
+		}
+		dispatcher.maybeStart();
+	}
+
+	private void updateConsoleForSelection() {
+		int row=queueTable.getSelectedRow();
+		if (row<0) {
+			jobConsole.setText("");
+			statusIndicator.setForeground(GRAY);
+			return;
+		}
+		ConversionJob j=queueModel.get(row);
+		StringBuilder sb=new StringBuilder();
+		sb.append("Source: ").append(j.source==Source.THERMO?"Thermo .raw":"Bruker .d").append('\n');
+		sb.append("Output: ").append(j.outType.name()).append('\n');
+		sb.append("Path:   ").append(j.input.toString()).append("\n\n");
+		sb.append(j.readLog());
+
+		jobConsole.setText(sb.toString());
+		jobConsole.setCaretPosition(jobConsole.getDocument().getLength());
+
+		if (j.state==JobState.DONE&&Boolean.TRUE.equals(j.success)) statusIndicator.setForeground(GREEN);
+		else if (j.state==JobState.FAILED||(j.state==JobState.DONE&&Boolean.FALSE.equals(j.success))) statusIndicator.setForeground(RED);
+		else if (j.state==JobState.CANCELED) statusIndicator.setForeground(GRAY);
+		else statusIndicator.setForeground(new Color(0x1976D2)); // blue
+	}
+
+	// ---------- table models & renderers ----------
+
+	private static final class JobTableModel extends AbstractTableModel {
+		private static final long serialVersionUID=1L;
+		private final CopyOnWriteArrayList<ConversionJob> jobs=new CopyOnWriteArrayList<>();
+		private static final String[] COLS= {"File", "Progress"};
+
+		@Override
+		public int getRowCount() {
+			return jobs.size();
+		}
+
+		@Override
+		public int getColumnCount() {
+			return COLS.length;
+		}
+
+		@Override
+		public String getColumnName(int c) {
+			return COLS[c];
+		}
+
+		@Override
+		public Class<?> getColumnClass(int c) {
+			return (c==1)?Float.class:String.class;
+		}
+
+		@Override
+		public Object getValueAt(int r, int c) {
+			ConversionJob j=jobs.get(r);
+			return (c==0)?j.input.getFileName().toString():j.progress;
+		}
+
+		void enqueue(ConversionJob j) {
+			jobs.add(j);
+			int row=jobs.size()-1;
+			fireTableRowsInserted(row, row);
+		}
+
+		void jobUpdated(ConversionJob j) {
+			int idx=jobs.indexOf(j);
+			if (idx>=0) SwingUtilities.invokeLater(() -> fireTableRowsUpdated(idx, idx));
+		}
+
+		ConversionJob pollNextQueued() {
+			for (ConversionJob j : jobs)
+				if (j.state==JobState.QUEUED) return j;
+			return null;
+		}
+
+		void clearUnstartedOrCanceled() {
+			boolean removed=jobs.removeIf(j -> j.state==JobState.QUEUED||j.state==JobState.CANCELED);
+			if (removed) fireTableDataChanged();
+		}
+
+		void cancelAll() {
+			for (ConversionJob j : jobs) {
+				j.requestCancel();
+				if (j.state==JobState.QUEUED) {
+					j.state=JobState.CANCELED;
+					jobUpdated(j);
+				}
+			}
+		}
+
+		ConversionJob get(int row) {
+			return jobs.get(row);
+		}
+
+		void requeueFailedAndCanceled() {
+			for (ConversionJob j : jobs) {
+				if (j.state==JobState.CANCELED||j.state==JobState.FAILED) {
+					j.cancelRequested=false;
+					j.success=null;
+					j.progress=0f;
+					j.state=JobState.QUEUED;
+					jobUpdated(j);
+				}
+			}
+		}
+	}
+
+	private static final class ProgressRenderer implements TableCellRenderer {
+		private final JobTableModel model;
+		private final JProgressBar bar=new JProgressBar(0, 100);
+
+		ProgressRenderer(JobTableModel model) {
+			this.model=model;
+			bar.setStringPainted(true);
+			bar.setBorder(BorderFactory.createEmptyBorder(1, 4, 1, 4));
+		}
+
+		@Override
+		public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+			float f=(value instanceof Float)?(Float)value:0f;
+			int pct=Math.max(0, Math.min(100, Math.round(f*100f)));
+			bar.setValue(pct);
+
+			// color by job result
+			ConversionJob j=model.get(row);
+			Color fg;
+			if (j.state==JobState.DONE) {
+				fg=Boolean.TRUE.equals(j.success)?GREEN:RED;
+			} else if (j.state==JobState.FAILED) {
+				fg=RED;
+			} else if (j.state==JobState.CANCELED) {
+				fg=GRAY;
+			} else {
+				fg=UIManager.getColor("ProgressBar.foreground");
+			}
+			bar.setForeground(fg);
+
+			if (isSelected) bar.setBackground(table.getSelectionBackground());
+			else bar.setBackground(table.getBackground());
+			return bar;
+		}
+	}
+
+	// ---------- dispatcher & jobs ----------
+
+	private enum Source {
+		THERMO, TIMS
+	}
+
+	private enum JobState {
+		QUEUED, RUNNING, DONE, FAILED, CANCELED
+	}
+
+	private final class QueueDispatcher {
+		private final JobTableModel model;
+		private final ExecutorService exec;
+		private final AtomicInteger running=new AtomicInteger(0);
+		private volatile int desiredParallelism=1;
+		private volatile boolean paused=false;
+
+		QueueDispatcher(JobTableModel model, ExecutorService exec) {
+			this.model=model;
+			this.exec=exec;
+		}
+
+		void setDesiredParallelism(int n) {
+			desiredParallelism=Math.max(1, n);
+			maybeStart();
+		}
+
+		void pause(boolean p) {
+			paused=p;
+		}
+
+		void maybeStart() {
+			if (paused) return;
+			while (running.get()<desiredParallelism) {
+				ConversionJob next=model.pollNextQueued();
+				if (next==null) break;
+				if (!next.tryMarkRunning()) continue;
+				running.incrementAndGet();
+				model.jobUpdated(next);
+				next.future=exec.submit(() -> {
+					try {
+						next.run();
+					} finally {
+						running.decrementAndGet();
+						model.jobUpdated(next);
+						maybeStart();
+					}
+				});
+			}
+		}
+	}
+
+	private final class ConversionJob implements Runnable, ProgressIndicator {
+		final Path input;
+		final Path outputDir;
+		final OutputType outType;
+		final Source source;
+
+		volatile JobState state=JobState.QUEUED;
+		final StringBuilder log=new StringBuilder();
+		volatile String message="";
+		volatile float progress=0f;
+		volatile Boolean success=null; // null=not finished, true/false on finish
+		volatile boolean cancelRequested=false;
+		volatile Future<?> future;
+
+		ConversionJob(Path input, Path outputDir, OutputType outType, Source source) {
+			this.input=input;
+			this.outputDir=outputDir;
+			this.outType=outType;
+			this.source=source;
+		}
+
+		String readLog() {
+			synchronized (log) {
+				return log.toString();
+			}
+		}
+
+		boolean tryMarkRunning() {
+			if (state!=JobState.QUEUED) return false;
+			state=JobState.RUNNING;
+			return true;
+		}
+
+		void requestCancel() {
+			cancelRequested=true;
+			if (future!=null) future.cancel(true);
+		}
+
+		@Override
+		public void run() {
+			try {
+				boolean ok;
+				if (source==Source.THERMO) {
+					ok=RawFileConverters.writeThermo(input, outputDir, outType, this);
+				} else {
+					ok=RawFileConverters.writeTims(input, outputDir, outType, this);
+				}
+				if (cancelRequested) {
+					state=JobState.CANCELED;
+					success=false;
+					update("Canceled", 1f);
+				} else if (ok) {
+					state=JobState.DONE;
+					success=true;
+					update("Finished", 1f);
+				} else {
+					state=JobState.FAILED;
+					success=false;
+					update("Failed", 1f);
+				}
+			} catch (Throwable t) {
+				state=cancelRequested?JobState.CANCELED:JobState.FAILED;
+				success=false;
+				update((cancelRequested?"Canceled":("Failed: "+t.getMessage())), 1f);
+			} finally {
+				queueModel.jobUpdated(this);
+			}
+		}
+
+		// ---- ProgressIndicator ----
+		@Override
+		public void update(String msg) {
+			update(msg, progress);
+		}
+
+		@Override
+		public void update(String msg, float totalProgress) {
+			message=(msg==null)?"":msg;
+			float p=totalProgress;
+			if (Float.isNaN(p)||Float.isInfinite(p)) p=0f;
+			if (p>1.001f) p=p/100f;
+			progress=Math.max(0f, Math.min(1f, p));
+
+			if (!message.isEmpty()) {
+				synchronized (log) {
+					if (log.length()>0) log.append('\n');
+					log.append(message);
+				}
+			}
+
+			SwingUtilities.invokeLater(() -> {
+				queueModel.jobUpdated(this);
+				updateConsoleForSelection();
+			});
+		}
+
+		@Override
+		public float getTotalProgress() {
+			return progress;
+		}
+
+		@Override
+		public boolean isCanceled() {
+			return cancelRequested;
+		}
+	}
+}
