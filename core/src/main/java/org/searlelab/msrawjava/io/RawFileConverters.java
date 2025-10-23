@@ -70,7 +70,7 @@ public class RawFileConverters {
 				outFile.addSpectra(ms1s, ms2s);
 				
 				progress.update("Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
-						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/sections);
+						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/(sections+1));
 				start=stop;
 				if (progress.isCanceled()) return false;
 			}
@@ -78,7 +78,7 @@ public class RawFileConverters {
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 			
-			progress.update("Finished converting "+originalFileName+"!");
+			progress.update("Finished converting "+originalFileName+"!", 1.0f);
 			return true;
 
 		} finally {
@@ -193,7 +193,7 @@ public class RawFileConverters {
 				}, writer));
 
 				progress.update("Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
-						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/sections);
+						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/(sections+1));
 				if (progress.isCanceled()) return false;
 
 				start=stop;
@@ -214,8 +214,8 @@ public class RawFileConverters {
 
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
-			
-			progress.update("Finished converting "+originalFileName+"!");
+
+			progress.update("Finished converting "+originalFileName+"!", 1.0f);
 			
 			return true;
 		} finally {

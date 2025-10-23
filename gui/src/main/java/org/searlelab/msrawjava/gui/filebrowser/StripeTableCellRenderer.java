@@ -137,7 +137,7 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 				JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
 			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
 			setHorizontalAlignment(SwingConstants.RIGHT);
-			setText(Integer.toString(row + 1)); // view row -> 1..N
+			setText(Integer.toString(row + 1)+" "); // view row -> 1..N
 			return this;
 		}
 	}
