@@ -8,9 +8,12 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -24,87 +27,127 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableRowSorter;
 
+import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.logging.Logger;
 
 /** Small, streaming table that summarizes raw files in a directory. */
 public class DirectorySummaryPanel extends JPanel {
 	private static final long serialVersionUID=1L;
-	
+
+	private static final int sparkResolution=128;
+	private static final SparkData FAILED=new SparkData(new float[0]);
+
 	private final JTable table;
 	private final DirSummaryModel model=new DirSummaryModel();
 	// A tiny pool so we don’t thrash the disk; adjust if you want more parallelism.
-	private final ExecutorService pool=Executors.newFixedThreadPool(Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()/2)));
+	private final ExecutorService pool=Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()/2);
 	private volatile boolean closed=false;
 
 	public DirectorySummaryPanel(VendorFiles files) {
 		super(new BorderLayout());
 
 		table=new JTable(model);
+		TableRowSorter<DirSummaryModel> sorter=new TableRowSorter<>(model);
+		sorter.setSortable(0, false); // "#" not sortable
+		sorter.setComparator(4, Comparator.nullsLast(Float::compareTo)); // gradient
+		sorter.setComparator(5, Comparator.nullsLast(Float::compareTo)); // total tic
+		sorter.setSortable(6, false); // tic spark 
+
+		table.setRowSorter(sorter);
+
 		table.setRowHeight(28);
 		table.setFillsViewportHeight(true);
 		table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 
 		// Stripe renderers so it blends in
-		table.setDefaultRenderer(String.class, org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer.BASE_RENDERER);
-		table.setDefaultRenderer(Long.class, org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer.SIZE_RENDERER);
+		table.setDefaultRenderer(String.class, StripeTableCellRenderer.BASE_RENDERER);
+		table.setDefaultRenderer(Long.class, StripeTableCellRenderer.SIZE_RENDERER);
 		table.setDefaultRenderer(Float.class, new GradientRenderer()); // formats "X.Y min"
 		table.setDefaultRenderer(SparkData.class, new SparkRenderer()); // red filled spark
+
+		table.getColumnModel().getColumn(0).setCellRenderer(StripeTableCellRenderer.ROW_NUMBER_RENDERER);
+		table.getColumnModel().getColumn(1).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
+		table.getColumnModel().getColumn(2).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
+		table.getColumnModel().getColumn(3).setCellRenderer(StripeTableCellRenderer.SIZE_RENDERER);
+		table.getColumnModel().getColumn(4).setCellRenderer(new GradientRenderer());
+		table.getColumnModel().getColumn(5).setCellRenderer(StripeTableCellRenderer.SCI_RENDERER);
+		table.getColumnModel().getColumn(6).setCellRenderer(new SparkRenderer());
 
 		// Column widths (tweak as you like)
 		JScrollPane sp=new JScrollPane(table);
 		add(sp, BorderLayout.CENTER);
 		SwingUtilities.invokeLater(() -> {
-			if (table.getColumnModel().getColumnCount()>=5) {
-				table.getColumnModel().getColumn(0).setPreferredWidth(320); // File
-				table.getColumnModel().getColumn(1).setPreferredWidth(90); // Vendor
-				table.getColumnModel().getColumn(2).setPreferredWidth(110); // Size
-				table.getColumnModel().getColumn(3).setPreferredWidth(110); // Gradient
-				table.getColumnModel().getColumn(4).setPreferredWidth(220); // TIC
-			}
+			table.getColumnModel().getColumn(0).setPreferredWidth(50); // #
+			table.getColumnModel().getColumn(1).setPreferredWidth(320); // File
+			table.getColumnModel().getColumn(2).setPreferredWidth(80); // Vendor
+			table.getColumnModel().getColumn(3).setPreferredWidth(100); // Size
+			table.getColumnModel().getColumn(4).setPreferredWidth(110); // Gradient
+			table.getColumnModel().getColumn(5).setPreferredWidth(110); // total tic
+			table.getColumnModel().getColumn(6).setPreferredWidth(220); // TIC
 		});
 
 		// Seed fast info (file name/vendor/size) synchronously so table appears immediately
-		for (Path p : files.getThermoFiles())
-			model.addRow(DirRow.fromThermo(p));
-		for (Path p : files.getBrukerDirs())
-			model.addRow(DirRow.fromBruker(p));
+		ArrayList<DirRow> brukerRows=new ArrayList<DirRow>();
+		for (Path p : files.getBrukerDirs()) {
+			brukerRows.add(DirRow.fromBruker(p));
+		}
+		Collections.sort(brukerRows);
+		ArrayList<DirRow> thermoRows=new ArrayList<DirRow>();
+		for (Path p : files.getThermoFiles()) {
+			thermoRows.add(DirRow.fromThermo(p));
+		}
+		Collections.sort(thermoRows);
 
-		// Stream slow info (gradient + TIC spark) in the background per row
-		for (DirRow row : model.rows) {
+		ArrayList<DirRow> allRows=new ArrayList<DirRow>(brukerRows.size()+thermoRows.size());
+		allRows.addAll(brukerRows);
+		allRows.addAll(thermoRows);
+		Collections.sort(allRows);
+
+		model.addRows(allRows);
+
+		// Stream slow info (gradient + TIC spark) in the background per row, do Bruker first because they are faster
+		for (DirRow row : brukerRows) {
+			pool.submit(() -> computeSlowBits(row));
+		}
+		for (DirRow row : thermoRows) {
 			pool.submit(() -> computeSlowBits(row));
 		}
 	}
-	
-	public JTable getTable() { return table; }
+
+	public JTable getTable() {
+		return table;
+	}
 
 	public List<Path> getSelectedPaths() {
-	    int[] view = table.getSelectedRows();
-	    List<Path> out = new ArrayList<>(view.length);
-	    for (int vr : view) {
-	        int mr = table.convertRowIndexToModel(vr);
-	        DirRow r = model.getAt(mr);
-	        if (r != null) out.add(r.path);
-	    }
-	    return out;
+		int[] view=table.getSelectedRows();
+		List<Path> out=new ArrayList<>(view.length);
+		for (int vr : view) {
+			int mr=table.convertRowIndexToModel(vr);
+			DirRow r=model.getAt(mr);
+			if (r!=null) out.add(r.path);
+		}
+		return out;
 	}
 
 	public Path getFirstSelectedPath() {
-	    int row = table.getSelectedRow();
-	    if (row < 0) return null;
-	    int mr = table.convertRowIndexToModel(row);
-	    DirRow r = model.getAt(mr);
-	    return (r == null) ? null : r.path;
+		int row=table.getSelectedRow();
+		if (row<0) return null;
+		int mr=table.convertRowIndexToModel(row);
+		DirRow r=model.getAt(mr);
+		return (r==null)?null:r.path;
 	}
-	
+
 	public Path getPathAtViewRow(int vr) {
-	    if (vr < 0) return null;
-	    int mr = table.convertRowIndexToModel(vr);
-	    DirRow r = model.getAt(mr);
-	    return (r == null) ? null : r.path;
+		if (vr<0) return null;
+		int mr=table.convertRowIndexToModel(vr);
+		DirRow r=model.getAt(mr);
+		return (r==null)?null:r.path;
 	}
 
 	private void computeSlowBits(DirRow row) {
@@ -115,13 +158,13 @@ public class DirectorySummaryPanel extends JPanel {
 			try {
 				raw.openFile(row.path);
 				Pair<float[], float[]> tic=raw.getTICTrace();
-				float gradMin=(float)(raw.getGradientLength()/60.0);
-				SparkData spark=SparkData.fromTIC(tic.x, tic.y, 64);
-				row.gradientMin=gradMin;
-				row.spark=spark;
+				row.totalTIC=raw.getTIC();
+				row.gradientMin=raw.getGradientLength()/60f;
+				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
-				// ignore this file; leave row with fast info only
+				row.spark=FAILED;
+				safeRowUpdate(row);
 			} finally {
 				try {
 					raw.close();
@@ -133,13 +176,13 @@ public class DirectorySummaryPanel extends JPanel {
 			try {
 				raw.openFile(row.path);
 				Pair<float[], float[]> tic=raw.getTICTrace();
-				float gradMin=(float)(raw.getGradientLength()/60.0);
-				SparkData spark=SparkData.fromTIC(tic.x, tic.y, 64);
-				row.gradientMin=gradMin;
-				row.spark=spark;
+				row.totalTIC=raw.getTIC();
+				row.gradientMin=raw.getGradientLength()/60f;
+				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
-				// ignore this file; leave row with fast info only
+				row.spark=FAILED;
+				safeRowUpdate(row);
 			} finally {
 				try {
 					raw.close();
@@ -169,20 +212,23 @@ public class DirectorySummaryPanel extends JPanel {
 
 	/** Table model: File | Vendor | Size | Gradient (min) | TIC spark */
 	private static final class DirSummaryModel extends AbstractTableModel {
-		private static final String[] COLS= {"File", "Vendor", "Size", "Gradient (min)", "TIC"};
+		private static final String[] COLS= {"#", "File", "Vendor", "Size", "Gradient (min)", "Total TIC", "TIC"};
 		private static final long serialVersionUID=1L;
 
 		private final CopyOnWriteArrayList<DirRow> rows=new CopyOnWriteArrayList<>();
 
-		void addRow(DirRow r) {
-			rows.add(r);
-			int i=rows.size()-1;
-			SwingUtilities.invokeLater(() -> fireTableRowsInserted(i, i));
+		void addRows(List<DirRow> rs) {
+			final int start=rows.size();
+			rows.addAll(rs);
+			final int end=rows.size()-1;
+			if (end>=start) {
+				SwingUtilities.invokeLater(() -> fireTableRowsInserted(start, end));
+			}
 		}
-		
+
 		DirRow getAt(int modelRow) {
-		    if (modelRow < 0 || modelRow >= rows.size()) return null;
-		    return rows.get(modelRow);
+			if (modelRow<0||modelRow>=rows.size()) return null;
+			return rows.get(modelRow);
 		}
 
 		void rowUpdated(DirRow r) {
@@ -208,10 +254,11 @@ public class DirectorySummaryPanel extends JPanel {
 		@Override
 		public Class<?> getColumnClass(int c) {
 			return switch (c) {
-				case 0, 1 -> String.class;
-				case 2 -> Long.class; // SIZE_RENDERER will humanize it
-				case 3 -> Float.class; // we format "X.Y min" in renderer
-				case 4 -> SparkData.class;
+				case 0, 1, 2 -> String.class;
+				case 3 -> Long.class; // SIZE_RENDERER will humanize it
+				case 4 -> Float.class; // we format "X.Y min" in renderer
+				case 5 -> Float.class; // total TIC
+				case 6 -> SparkData.class;
 				default -> Object.class;
 			};
 		}
@@ -220,18 +267,20 @@ public class DirectorySummaryPanel extends JPanel {
 		public Object getValueAt(int r, int c) {
 			DirRow row=rows.get(r);
 			return switch (c) {
-				case 0 -> row.fileName;
-				case 1 -> row.vendor.label;
-				case 2 -> row.sizeBytes;
-				case 3 -> row.gradientMin; // may be null -> renderer shows ""
-				case 4 -> row.spark; // may be null -> renderer shows empty spark
+				case 0 -> null;
+				case 1 -> row.fileName;
+				case 2 -> row.vendor.label;
+				case 3 -> row.sizeBytes;
+				case 4 -> row.gradientMin; // may be null
+				case 5 -> row.totalTIC; // may be null
+				case 6 -> row.spark; // may be null
 				default -> null;
 			};
 		}
 	}
 
 	/** Row data for the directory summary. */
-	private static final class DirRow {
+	private static final class DirRow implements Comparable<DirRow> {
 		enum Vendor {
 			THERMO("Thermo"), BRUKER("Bruker");
 
@@ -248,6 +297,7 @@ public class DirectorySummaryPanel extends JPanel {
 		final long sizeBytes;
 
 		volatile Float gradientMin; // null until computed
+		volatile Float totalTIC; // null until computed
 		volatile SparkData spark; // null until computed
 
 		private DirRow(Path p, Vendor v, long size) {
@@ -257,15 +307,36 @@ public class DirectorySummaryPanel extends JPanel {
 			this.sizeBytes=Math.max(0L, size);
 		}
 
+		@Override
+		public int compareTo(DirRow o) {
+			if (o==null) return 1;
+			int c=String.CASE_INSENSITIVE_ORDER.compare(this.fileName, o.fileName);
+			if (c!=0) return c;
+			c=this.fileName.compareTo(o.fileName);
+			if (c!=0) return c;
+			return Long.compare(this.sizeBytes, o.sizeBytes);
+		}
+
 		static DirRow fromThermo(Path p) {
 			long size=(Files.isRegularFile(p)?p.toFile().length():0L);
 			return new DirRow(p, Vendor.THERMO, size);
 		}
 
 		static DirRow fromBruker(Path p) {
-			// Bruker .d is a directory; Directory.length() is usually 0. We’ll leave it 0 for speed.
-			// (If you want actual directory size, compute asynchronously with Files.walk & sum.)
-			long size=p.toFile().length();
+			long size;
+			try {
+				size=Files.walk(p).filter(Files::isRegularFile).mapToLong(f -> {
+					try {
+						return Files.size(f);
+					} catch (IOException e) {
+						System.err.println("Error getting size of file "+f+": "+e.getMessage());
+						return 0L;
+					}
+				}).sum();
+			} catch (IOException e) {
+				Logger.errorException(e);
+				size=0;
+			}
 			return new DirRow(p, Vendor.BRUKER, size);
 		}
 	}
@@ -279,20 +350,24 @@ public class DirectorySummaryPanel extends JPanel {
 		}
 
 		static SparkData fromTIC(float[] x, float[] y, int maxPts) {
-			if (y==null||y.length==0) return null;
-			// Downsample by picking evenly spaced indices
-			int n=Math.min(maxPts, y.length);
-			float[] pick=new float[n];
-			double max=0.0;
-			for (int i=0; i<n; i++) {
-				int idx=(int)Math.floor((long)i*(y.length-1)/(double)(n-1));
-				float v=y[idx];
-				pick[i]=v;
-				if (v>max) max=v;
+			if (y==null||y.length==0) {
+				return new SparkData(new float[] {0.0f});
 			}
-			if (max<=0) max=1.0;
-			for (int i=0; i<n; i++)
+			int n=Math.min(maxPts, y.length);
+
+			float[] pick=new float[n];
+			for (int i=0; i<y.length; i++) {
+				int index=(int)Math.floor(n*i/(float)y.length);
+				if (y[i]>pick[index]) {
+					pick[index]=y[i];
+				}
+			}
+			float max=MatrixMath.max(pick);
+			if (max<=0) max=1.0f;
+
+			for (int i=0; i<n; i++) {
 				pick[i]=(float)(pick[i]/max);
+			}
 			return new SparkData(pick);
 		}
 	}
@@ -306,7 +381,7 @@ public class DirectorySummaryPanel extends JPanel {
 			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
 			if (value instanceof Float f) {
 				setHorizontalAlignment(SwingConstants.RIGHT);
-				setText(String.format(Locale.ROOT, "%.2f min", f));
+				setText(String.format(Locale.ROOT, "%.1f min", f));
 			} else {
 				setText("");
 			}
@@ -324,6 +399,24 @@ public class DirectorySummaryPanel extends JPanel {
 		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 			// Keep stripes/border from base class
 			super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
+			// If spark data not ready -> show placeholder text
+
+			if (value==FAILED) {
+				setText("");
+				putClientProperty("spark", null);
+				return this;
+			}
+
+			if (!(value instanceof SparkData sd)||sd==null||sd.yNorm==null||sd.yNorm.length==0) {
+				setHorizontalAlignment(SwingConstants.CENTER);
+				setText("Reading File...");
+				putClientProperty("spark", null);
+				return this;
+			}
+
+			// Spark is ready -> no text, just the area chart
+			setText("");
+
 			putClientProperty("spark", value); // hand data to paint()
 			return this;
 		}

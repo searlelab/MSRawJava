@@ -16,7 +16,9 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 
 	public static final StripeTableCellRenderer BASE_RENDERER=new StripeTableCellRenderer();
 	public static final IconStripeBorderRenderer ICON_RENDERER=new IconStripeBorderRenderer();
-	public static final SizeRendererStripe SIZE_RENDERER=new SizeRendererStripe();
+	public static final FileSizeRenderer SIZE_RENDERER=new FileSizeRenderer();
+	public static final SciRenderer SCI_RENDERER=new SciRenderer();
+	public static final RowNumberRenderer ROW_NUMBER_RENDERER=new RowNumberRenderer();
 
 	private final Color altBg=or(UIManager.getColor("Table.alternateRowColor"), new Color(247, 247, 247)); // very light gray
 	private final Color grid=or(UIManager.getColor("Table.gridColor"), new Color(220, 220, 220));
@@ -76,10 +78,10 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 		}
 	}
 
-	private static class SizeRendererStripe extends StripeTableCellRenderer {
+	private static class FileSizeRenderer extends StripeTableCellRenderer {
 		private static final long serialVersionUID=1L;
 
-		SizeRendererStripe() {
+		FileSizeRenderer() {
 			super();
 			setHorizontalAlignment(SwingConstants.RIGHT);
 		}
@@ -101,9 +103,42 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 			double kb=b/1024.0;
 			if (kb<1024) return String.format(Locale.ROOT, "%.1f KB", kb);
 			double mb=kb/1024.0;
-			if (mb<1024) return String.format(Locale.ROOT, "%.2f MB", mb);
+			if (mb<1024) return String.format(Locale.ROOT, "%.1f MB", mb);
 			double gb=mb/1024.0;
-			return String.format(Locale.ROOT, "%.2f GB", gb);
+			return String.format(Locale.ROOT, "%.1f GB", gb);
+		}
+	}
+	
+	private static final class SciRenderer extends StripeTableCellRenderer {
+	    private static final long serialVersionUID = 1L;
+
+	    @Override
+	    public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+	        super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
+	        setHorizontalAlignment(SwingConstants.RIGHT);
+	        if (value instanceof Float f) {
+	            // Start with Java's e-format, then trim + and leading zeros in exponent
+	            String s = String.format(Locale.ROOT, "%.1e", f);     // e.g., 1.0e+03
+	            s = s.replaceAll("e\\+?0*(\\d+)$", "e$1");            // 1.0e+03 -> 1.0e3, 1.0e03 -> 1.0e3
+	            s = s.replaceAll("e-0*(\\d+)$", "e-$1");              // 1.0e-03 -> 1.0e-3
+	            setText(s);
+	        } else {
+	            setText("");
+	        }
+	        return this;
+	    }
+	}
+	
+	private static final class RowNumberRenderer extends StripeTableCellRenderer {
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public Component getTableCellRendererComponent(
+				JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
+			setHorizontalAlignment(SwingConstants.RIGHT);
+			setText(Integer.toString(row + 1)); // view row -> 1..N
+			return this;
 		}
 	}
 }
