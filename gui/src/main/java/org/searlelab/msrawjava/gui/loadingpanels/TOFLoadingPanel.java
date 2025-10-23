@@ -577,7 +577,7 @@ public class TOFLoadingPanel extends LoadingPanel {
 			Color color; // by mass
 			double s=0; // path position (0..Ltot)
 			double v=0; // speed (px/s)
-			double detTime=0; // expected arrival as reference (unused in drawing)
+			@SuppressWarnings("unused") double detTime=0; // expected arrival as reference 
 			boolean detected=false;
 			int bin=0; // spectrum bin
 

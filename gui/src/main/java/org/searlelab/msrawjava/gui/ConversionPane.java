@@ -2,8 +2,10 @@ package org.searlelab.msrawjava.gui;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Graphics;
 import java.awt.Insets;
 import java.nio.file.Path;
 import java.util.List;
@@ -31,7 +33,6 @@ import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.table.AbstractTableModel;
-import javax.swing.table.TableCellRenderer;
 
 import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
 import org.searlelab.msrawjava.io.OutputType;
@@ -351,24 +352,39 @@ public class ConversionPane extends JPanel {
 		}
 	}
 
-	private static final class ProgressRenderer implements TableCellRenderer {
+	private static final class ProgressRenderer extends StripeTableCellRenderer {
+		private static final long serialVersionUID=1L;
+
 		private final JobTableModel model;
 		private final JProgressBar bar=new JProgressBar(0, 100);
 
+		private static final Color GREEN=new Color(0x2e7d32);
+		private static final Color RED=new Color(0xc62828);
+		private static final Color GRAY=new Color(0x757575);
+
 		ProgressRenderer(JobTableModel model) {
 			this.model=model;
+			setOpaque(true);
+
 			bar.setStringPainted(true);
-			bar.setBorder(BorderFactory.createEmptyBorder(1, 4, 1, 4));
+			bar.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+			bar.setOpaque(false);
 		}
 
 		@Override
-		public java.awt.Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+			super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
+
 			float f=(value instanceof Float)?(Float)value:0f;
+			if (Float.isNaN(f)||Float.isInfinite(f)) f=0f;
 			int pct=Math.max(0, Math.min(100, Math.round(f*100f)));
 			bar.setValue(pct);
+			bar.setString(pct+"%");
 
-			// color by job result
-			ConversionJob j=model.get(row);
+			bar.setBackground(getBackground());
+
+			int modelRow=(table.getRowSorter()!=null)?table.convertRowIndexToModel(row):row;
+			ConversionJob j=model.get(modelRow);
 			Color fg;
 			if (j.state==JobState.DONE) {
 				fg=Boolean.TRUE.equals(j.success)?GREEN:RED;
@@ -381,9 +397,20 @@ public class ConversionPane extends JPanel {
 			}
 			bar.setForeground(fg);
 
-			if (isSelected) bar.setBackground(table.getSelectionBackground());
-			else bar.setBackground(table.getBackground());
-			return bar;
+			return this; // return the striped renderer itself
+		}
+
+		@Override
+		protected void paintComponent(Graphics g) {
+			super.paintComponent(g);
+
+			Insets ins=getInsets();
+			int x=ins.left+2;
+			int y=ins.top+2;
+			int w=Math.max(0, getWidth()-ins.left-ins.right-4);
+			int h=Math.max(0, getHeight()-ins.top-ins.bottom-4);
+
+			SwingUtilities.paintComponent(g, bar, this, x, y, w, h);
 		}
 	}
 
