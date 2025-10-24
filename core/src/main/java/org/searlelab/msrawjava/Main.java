@@ -10,6 +10,7 @@ import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.VendorFiles;
+import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
@@ -137,8 +138,11 @@ public class Main {
 
 					Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 					Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
-					
-					RawFileConverters.writeThermo(path, outputPath, params.getOutType(), new LoggingProgressIndicator());
+										
+					ThermoRawFile rawFile=new ThermoRawFile();		
+					rawFile.openFile(path);
+
+					RawFileConverters.writeStandard(rawFile, outputPath, params.getOutType(), new LoggingProgressIndicator());
 					Logger.logLine("Finished writing "+params.getOutType()+" file");
 				}
 

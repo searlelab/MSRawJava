@@ -3,29 +3,59 @@ package org.searlelab.msrawjava.algorithms;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 
 import org.junit.jupiter.api.Test;
-import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
+import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.io.OutputType;
+import org.searlelab.msrawjava.io.RawFileConverters;
+import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
 import org.searlelab.msrawjava.model.Range;
 
 class StaggeredDemultiplexerTest {
-	public static void main(String[] args) throws Exception {
-		ThermoRawFile file=new ThermoRawFile();
-		
-		file.openFile(Paths.get("/Users/searle.brian/Documents/temp/thermo/HeLa_BCS_GPFDIA_90min_1.raw"));
+
+	@Test
+	public void smokeTest(@TempDir Path outDir) throws Exception {
 		
 		long time=System.currentTimeMillis();
-		StaggeredDemultiplexer.getSubRanges(file);
+
+		EncyclopeDIAFile rawFile=new EncyclopeDIAFile();
+		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_15cycles.dia").toFile());
+		RawFileConverters.writeDemux(rawFile, outDir, OutputType.mgf, new LoggingProgressIndicator());
+
 		System.out.println(System.currentTimeMillis()-time);
-		file.close();
-		
-		//ThermoServerPool.shutdown(); // keep open to speed up tests
 	}
 	
 	@Test
 	void testSubRanges() throws Exception {
+		ArrayList<Range> ranges=getTestRanges();
+		
+		double rangeSum=0.0;
+		for (Range range : ranges) {
+			rangeSum+=range.getRange();
+		}
+		double rangeAverage=rangeSum/ranges.size();
+		
+		ArrayList<RangeCounter> counters=StaggeredDemultiplexer.getSubRanges(ranges);
+
+		double counterSum=0.0;
+		for (RangeCounter counter : counters) {
+			counterSum+=counter.range.getRange();
+		}
+		double counterAverage=counterSum/counters.size();
+		assertTrue(ranges.size()<counters.size());
+		assertEquals(76, ranges.size());
+		assertEquals(77, counters.size());
+		
+		assertEquals(16.0, rangeAverage, 0.01);
+		assertEquals(8.0, counterAverage, 0.01);
+		assertEquals(2.0, rangeAverage/counterAverage, 0.01);
+	}
+
+	private static ArrayList<Range> getTestRanges() {
 		ArrayList<Range> ranges=new ArrayList<Range>();
 		ranges.add(new Range(400.4356, 416.4356));
 		ranges.add(new Range(416.4428, 432.4428));
@@ -103,27 +133,7 @@ class StaggeredDemultiplexerTest {
 		ranges.add(new Range(952.6865, 968.6865));
 		ranges.add(new Range(968.6939, 984.6939));
 		ranges.add(new Range(984.7011, 1000.7011));
-		
-		double rangeSum=0.0;
-		for (Range range : ranges) {
-			rangeSum+=range.getRange();
-		}
-		double rangeAverage=rangeSum/ranges.size();
-		
-		ArrayList<RangeCounter> counters=StaggeredDemultiplexer.getSubRanges(ranges);
-
-		double counterSum=0.0;
-		for (RangeCounter counter : counters) {
-			counterSum+=counter.range.getRange();
-		}
-		double counterAverage=counterSum/counters.size();
-		assertTrue(ranges.size()<counters.size());
-		assertEquals(76, ranges.size());
-		assertEquals(77, counters.size());
-		
-		assertEquals(16.0, rangeAverage, 0.01);
-		assertEquals(8.0, counterAverage, 0.01);
-		assertEquals(2.0, rangeAverage/counterAverage, 0.01);
+		return ranges;
 	}
 	
 }

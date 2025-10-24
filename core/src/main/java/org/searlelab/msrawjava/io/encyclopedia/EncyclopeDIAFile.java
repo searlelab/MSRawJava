@@ -13,13 +13,26 @@ import java.sql.Types;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Vector;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.DataFormatException;
 
 import org.searlelab.msrawjava.Version;
+import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.OutputSpectrumFile;
+import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.utils.StreamCopy;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -27,6 +40,9 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.procedure.TIntObjectProcedure;
 
@@ -36,7 +52,7 @@ import gnu.trove.procedure.TIntObjectProcedure;
  * with ByteConverter, optionally applies CompressionUtils, and enforces deterministic ordering so downstream tools
  * consume stable archives.
  */
-public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
+public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, StripeFileInterface {
 	public static final DateFormat m_ISO8601Local=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 	private static final Version MOST_RECENT_VERSION=new Version(0, 7, 0, false);
 
@@ -53,6 +69,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 
 	public static final String DIA_EXTENSION=".dia";
 	private File tempFile;
+	private File userFile;
 
 	private final HashMap<Range, WindowData> ranges=new HashMap<Range, WindowData>();
 
@@ -154,24 +171,390 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 	}
 
 	public void openFile() throws IOException, SQLException {
-		tempFile=File.createTempFile("encyclopedia_", DIA_EXTENSION);
-		tempFile.deleteOnExit();
+		if (tempFile==null) {
+			tempFile=File.createTempFile("encyclopedia_", DIA_EXTENSION);
+			tempFile.deleteOnExit();
+		}
 		createNewTables();
 	}
+	
+	@Override
+	public void openFile(File userFile) throws IOException, SQLException {
+		tempFile=File.createTempFile("encyclopedia_", DIA_EXTENSION);
+		Files.copy(userFile.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+		tempFile.deleteOnExit();
+		
+		getMetadata();
+		loadRanges();
+		loadFractionNames();
+	}
+	
+	public void loadRanges() throws IOException, SQLException {
 
-	@Override public void saveAsFile(File userFile) throws IOException, SQLException {
+		ranges.clear();
+		Connection c = getConnection();
+		try {
+			Statement s=c.createStatement();
+			try {
+				ResultSet rs=s.executeQuery("select Start, Stop, DutyCycle, NumWindows, IonMobilityStart,IonMobilityStop from Ranges");
+
+				while (rs.next()) {
+					float start=rs.getFloat(1);
+					float stop=rs.getFloat(2);
+					float dutyCycle=rs.getFloat(3);
+					int numWindows=rs.getInt(4);
+					Float ionMobilityStart=rs.getFloat(5);
+					if (rs.wasNull()) ionMobilityStart=null;
+					Float ionMobilityStop=rs.getFloat(6);
+					if (rs.wasNull()) ionMobilityStop=null;
+					
+					Optional<Range> range=(ionMobilityStart==null||ionMobilityStop==null)?Optional.empty():Optional.of(new Range(ionMobilityStart, ionMobilityStop));
+					
+					ranges.put(new Range(start, stop), new WindowData(dutyCycle, numWindows, range));
+				}
+			} finally {
+				s.close();
+			}
+		} finally {
+			c.close();
+		}
+	}
+
+	public void loadFractionNames() throws IOException, SQLException {
+		fractionNames.clear();
+		Connection c = getConnection();
+		try {
+			Statement s=c.createStatement();
+			try {
+				ResultSet rs=s.executeQuery("select fraction, name from fractions");
+
+				while (rs.next()) {
+					int fraction=rs.getInt(1);
+					String name=rs.getString(2);
+					
+					fractionNames.put(fraction, name);
+				}
+			} finally {
+				s.close();
+			}
+		} finally {
+			c.close();
+		}
+	}
+	
+
+	@Override
+	public Map<Range, WindowData> getRanges() {
+		return ranges;
+	}
+
+	@Override
+	public ArrayList<PrecursorScan> getPrecursors(float minRT, float maxRT) throws IOException, SQLException, DataFormatException {
+		Connection c = getConnection();
+		try {
+			Statement s=c.createStatement();
+			try {
+				ResultSet rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC, fraction, isolationWindowLower, isolationWindowUpper from precursor "
+						+"where ScanStartTime between "+minRT+" and "+maxRT);
+
+				ArrayList<PrecursorScan> precursors=new ArrayList<PrecursorScan>();
+				while (rs.next()) {
+					String spectrumName=rs.getString(1);
+					int spectrumIndex=rs.getInt(2);
+					float scanStartTime=rs.getFloat(3);
+					Float ionInjectionTime=rs.getFloat(4);
+					if (rs.wasNull()) {
+						ionInjectionTime=null;
+					}
+					int massEncodedLength=rs.getInt(5);
+					double[] massArray=ByteConverter.toDoubleArray(CompressionUtils.decompress(rs.getBytes(6), massEncodedLength));
+					int intensityEncodedLength=rs.getInt(7);
+					float[] intensityArray=ByteConverter.toFloatArray(CompressionUtils.decompress(rs.getBytes(8), intensityEncodedLength));
+					Integer ionMobilityEncodedLength=rs.getInt(9);
+					float[] ionMobilityArray=null;
+					if (!rs.wasNull()) {
+						ionMobilityArray=ByteConverter.toFloatArray(CompressionUtils.decompress(rs.getBytes(10), ionMobilityEncodedLength));
+					}
+					int fraction=rs.getInt(12);
+					double isolationWindowLower=rs.getDouble(13);
+					double isolationWindowUpper=rs.getDouble(14);
+
+					precursors.add(new PrecursorScan(spectrumName, spectrumIndex, scanStartTime, fraction, isolationWindowLower, isolationWindowUpper, ionInjectionTime, massArray, intensityArray, ionMobilityArray));
+				}
+
+				return precursors;
+			} finally {
+				s.close();
+			}
+		} finally {
+			c.close();
+		}
+	}
+
+	@Override
+	public ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
+		Connection c = getConnection();
+		try {
+			Statement s=c.createStatement();
+			try {
+				ResultSet rs=s.executeQuery("select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, IonInjectionTime, Fraction from spectra "
+						+"where IsolationWindowLower <= "+targetMz+" and IsolationWindowUpper >= "+targetMz+" and ScanStartTime between "+minRT+" and "+maxRT+" order by ScanStartTime asc");
+
+				final Vector<FragmentScan> stripes=new Vector<FragmentScan>();
+
+				int cores=Runtime.getRuntime().availableProcessors();
+				ThreadFactory threadFactory=new ThreadFactoryBuilder().setNameFormat("STRIPE_"+targetMz+"-%d").setDaemon(true).build();
+				LinkedBlockingQueue<Runnable> workQueue=new LinkedBlockingQueue<Runnable>();
+				ExecutorService executor=new ThreadPoolExecutor(cores, cores, Long.MAX_VALUE, TimeUnit.NANOSECONDS, workQueue, threadFactory);
+
+				while (rs.next()) {
+					final String spectrumName=rs.getString(1);
+					final String precursorName=rs.getString(2);
+					final int spectrumIndex=rs.getInt(3);
+					final float scanStartTime=rs.getFloat(4);
+					final double isolationWindowLower=rs.getDouble(5);
+					final double isolationWindowUpper=rs.getDouble(6);
+					final int precursorCharge=rs.getInt(7);
+					final int massEncodedLength=rs.getInt(8);
+					final byte[] massBytes=rs.getBytes(9);
+					final int intensityEncodedLength=rs.getInt(10);
+					final byte[] intensityBytes=rs.getBytes(11);
+					Integer ionMobilityEncodedLength=rs.getInt(12);
+					final byte[] ionMobilityBytes;
+					if (rs.wasNull()) {
+						ionMobilityBytes=null;
+					} else {
+						ionMobilityBytes=rs.getBytes(13);
+					}
+					Float nullableIonInjectionTime=rs.getFloat(14);
+					if (rs.wasNull()) {
+						nullableIonInjectionTime=null;
+					}
+					final Float ionInjectionTime=nullableIonInjectionTime;
+					final int fraction=rs.getInt(15);
+					executor.submit(new Runnable() {
+						@Override
+						public void run() {
+							try {
+								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper, precursorCharge, massEncodedLength, massBytes,
+										intensityEncodedLength, intensityBytes, ionMobilityEncodedLength, ionMobilityBytes));
+							} catch (DataFormatException dfe) {
+								throw new RuntimeException(dfe);
+							} catch (IOException ioe) {
+								throw new RuntimeException(ioe);
+							}
+						}
+					});
+				}
+
+				executor.shutdown();
+				try {
+					executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+				} catch (InterruptedException ie) {
+					throw new RuntimeException(ie);
+				} finally {
+					executor.shutdownNow();
+				}
+				
+				ArrayList<FragmentScan> arrayList=new ArrayList<FragmentScan>(stripes);
+				Collections.sort(arrayList);
+				return arrayList;
+			} finally {
+				s.close();
+			}
+		} finally {
+			c.close();
+		}
+	}
+	
+
+
+	private FragmentScan getStripe(boolean sqrt, String spectrumName, String precursorName, int spectrumIndex, Float scanStartTime, int fraction, Float ionInjectionTime, double isolationWindowLower,
+			double isolationWindowUpper, int precursorCharge, int massEncodedLength, byte[] massBytes, int intensityEncodedLength, byte[] intensityBytes, Integer nullableIonMobilityEncodedLength, byte[] ionMobilityArrayBytes) throws IOException, DataFormatException {
+		double[] massArray=ByteConverter.toDoubleArray(CompressionUtils.decompress(massBytes, massEncodedLength));
+		float[] intensityArray=ByteConverter.toFloatArray(CompressionUtils.decompress(intensityBytes, intensityEncodedLength));
+		if (sqrt) {
+			for (int i=0; i<intensityArray.length; i++) {
+				intensityArray[i]=(float)Math.sqrt(intensityArray[i]);
+			}
+		}
+		float[] ionMobilityArray=null;
+		if (nullableIonMobilityEncodedLength!=null&&nullableIonMobilityEncodedLength>0) {
+			ionMobilityArray=ByteConverter.toFloatArray(CompressionUtils.decompress(ionMobilityArrayBytes, nullableIonMobilityEncodedLength));
+		}
+		return new FragmentScan(spectrumName, precursorName, spectrumIndex, (isolationWindowUpper+isolationWindowLower)/2.0, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper, massArray, intensityArray, ionMobilityArray, (byte)precursorCharge, 0.0, MatrixMath.max(massArray));
+	}
+
+	@Override
+	public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
+		Connection c = getConnection();
+		try {
+			Statement s=c.createStatement();
+			try {
+				ResultSet rs=s.executeQuery("select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, IonInjectionTime, Fraction from spectra "
+						+"where  IsolationWindowLower <= "+targetMzRange.getStop()+" and IsolationWindowUpper >= "+targetMzRange.getStart()+" and ScanStartTime between "+minRT+" and "+maxRT+" order by ScanStartTime asc");
+
+				final Vector<FragmentScan> stripes=new Vector<FragmentScan>();
+
+				int cores=Runtime.getRuntime().availableProcessors();
+				ThreadFactory threadFactory=new ThreadFactoryBuilder().setNameFormat("STRIPE_"+targetMzRange.getStart()+"_"+targetMzRange.getStop()+"-%d").setDaemon(true).build();
+				LinkedBlockingQueue<Runnable> workQueue=new LinkedBlockingQueue<Runnable>();
+				ExecutorService executor=new ThreadPoolExecutor(cores, cores, Long.MAX_VALUE, TimeUnit.NANOSECONDS, workQueue, threadFactory);
+
+				while (rs.next()) {
+					final String spectrumName=rs.getString(1);
+					final String precursorName=rs.getString(2);
+					final int spectrumIndex=rs.getInt(3);
+					final float scanStartTime=rs.getFloat(4);
+					final float isolationWindowLower=rs.getFloat(5);
+					final float isolationWindowUpper=rs.getFloat(6);
+					final int precursorCharge=rs.getInt(7);
+					final int massEncodedLength=rs.getInt(8);
+					final byte[] massBytes=rs.getBytes(9);
+					final int intensityEncodedLength=rs.getInt(10);
+					final byte[] intensityBytes=rs.getBytes(11);
+					Integer ionMobilityEncodedLength=rs.getInt(12);
+					final byte[] ionMobilityBytes;
+					if (rs.wasNull()) {
+						ionMobilityBytes=null;
+					} else {
+						ionMobilityBytes=rs.getBytes(13);
+					}
+					Float nullableIonInjectionTime=rs.getFloat(14);
+					if (rs.wasNull()) {
+						nullableIonInjectionTime=null;
+					}
+					final Float ionInjectionTime=nullableIonInjectionTime;
+					final int fraction=rs.getInt(15);
+					
+					executor.submit(new Runnable() {
+						@Override
+						public void run() {
+							try {
+								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper, precursorCharge, massEncodedLength, massBytes,
+										intensityEncodedLength, intensityBytes, ionMobilityEncodedLength, ionMobilityBytes));
+							} catch (DataFormatException dfe) {
+								throw new RuntimeException(dfe);
+							} catch (IOException ioe) {
+								throw new RuntimeException(ioe);
+							}
+						}
+					});
+				}
+
+				executor.shutdown();
+				try {
+					executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+				} catch (InterruptedException ie) {
+					throw new RuntimeException(ie);
+				} finally {
+					executor.shutdownNow();
+				}
+				ArrayList<FragmentScan> arrayList=new ArrayList<FragmentScan>(stripes);
+				Collections.sort(arrayList);
+				return arrayList;
+			} finally {
+				s.close();
+			}
+		} finally {
+			c.close();
+		}
+	}
+
+	@Override
+	public float getTIC() throws IOException, SQLException {
+		String value=getMetadata().get(TOTAL_PRECURSOR_TIC_ATTRIBUTE);
+		if (value==null) return 0.0f;
+		return Float.parseFloat(value);
+	}
+
+	@Override
+	public float getGradientLength() throws IOException, SQLException {
+		String value=getMetadata().get(GRADIENT_LENGTH_ATTRIBUTE);
+		if (value==null) {
+			float rt=0.0f;
+			Connection c = getConnection();
+			try {
+				Statement s=c.createStatement();
+				try {
+					ResultSet rs=s.executeQuery("select max(scanstarttime) from spectra");
+
+					while (rs.next()) {
+						rt=rs.getFloat(1);
+					}
+				} finally {
+					s.close();
+				}
+			} finally {
+				c.close();
+			}
+
+			if (rt>0.0f) {
+				addMetadata(GRADIENT_LENGTH_ATTRIBUTE, Float.toString(rt));
+			}
+			return rt;
+		}
+		return Float.parseFloat(value);
+	}
+
+	@Override
+	public Pair<float[], float[]> getTICTrace() throws IOException, SQLException {
+		TFloatArrayList rts=new TFloatArrayList();
+		TFloatArrayList tics=new TFloatArrayList();
+
+		Connection c=getConnection();
+		try {
+			Statement s=c.createStatement();
+			try {
+				ResultSet rs=s.executeQuery("SELECT ScanStartTime, TIC FROM precursor");
+
+				while (rs.next()) {
+					rts.add(rs.getFloat(1));
+					tics.add(rs.getFloat(2));
+				}
+
+			} finally {
+				s.close();
+			}
+		} finally {
+			c.close();
+		}
+		return new Pair<float[], float[]>(rts.toArray(), tics.toArray());
+	}
+
+	@Override
+	public boolean isOpen() {
+		return tempFile.exists();
+	}
+
+	@Override
+	public File getFile() {
+		if (userFile!=null) return userFile;
+		return tempFile;
+	}
+
+	@Override
+	public String getOriginalFileName() {
+		try {
+			return getMetadata().get(SOURCENAME_ATTRIBUTE);
+		} catch (Exception e) {
+			throw new RuntimeException("Error getting metadata", e);
+		}
+	}
+
+	@Override public void saveAsFile(File saveFile) throws IOException, SQLException {
 		HashMap<String, String> map=new HashMap<String, String>();
-		map.put(FILENAME_ATTRIBUTE, userFile.getName()==null?UNKNOWN_VALUE:userFile.getName());
+		map.put(FILENAME_ATTRIBUTE, saveFile.getName()==null?UNKNOWN_VALUE:saveFile.getName());
 		addMetadata(map);
 		
 		writeRanges();
 		writeFractionNames();
 		createIndices();
 
-		if (userFile!=null) {
+		if (saveFile!=null) {
 			setFileVersion();
 
-			Files.copy(tempFile.toPath(), userFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			Files.copy(tempFile.toPath(), saveFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 		}
 	}
 
@@ -402,8 +785,10 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile {
 	}
 
 	@Override public void close() {
-		if (tempFile.exists()&&!tempFile.delete()) {
-			Logger.errorLine("Error deleting temp DIA file!");
+		if (userFile==null) {
+			if(tempFile.exists()&&!tempFile.delete()) {
+				Logger.errorLine("Error deleting temp DIA file!");
+			}
 		}
 	}
 }

@@ -54,7 +54,11 @@ public class ThermoRawFileSmokeIT {
 
 	void writeRawSmokeMZML(Path raw, Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
-		RawFileConverters.writeThermo(raw, outDir, OutputType.mzml, new LoggingProgressIndicator());
+		
+		ThermoRawFile rawFile=new ThermoRawFile();		
+		rawFile.openFile(raw);
+
+		RawFileConverters.writeStandard(rawFile, outDir, OutputType.mzml, new LoggingProgressIndicator());
 		Path mzml=firstWithExt(outDir, ".mzml");
 		assertNotNull(mzml, "Output .mzML should exist");
 		assertTrue(Files.size(mzml)>0, "mzML should not be empty");

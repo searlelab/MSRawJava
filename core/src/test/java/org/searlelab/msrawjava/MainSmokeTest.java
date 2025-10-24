@@ -17,12 +17,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedConstruction; // <-- added
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.searlelab.msrawjava.io.ExportParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
+import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
+import org.searlelab.msrawjava.io.thermo.ThermoRawFile; // <-- added
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 
 class MainSmokeTest {
@@ -88,11 +91,21 @@ class MainSmokeTest {
 		ExportParameters p=params(start, OutputType.mgf, outDir, 2.0f, 1.0f);
 
 		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
-				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class)) {
+				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class);
+				// prevent ThermoRawFile from trying to open a real gRPC connection
+				MockedConstruction<ThermoRawFile> ctor=Mockito.mockConstruction(ThermoRawFile.class, (mock, ctx) -> {
+					Mockito.doNothing().when(mock).openFile(any(Path.class));
+					Mockito.doNothing().when(mock).close();
+				})) {
 
-			// Static methods return boolean now; stub them to succeed.
-			conv.when(() -> RawFileConverters.writeThermo(any(), any(), any(), any(ProgressIndicator.class))).thenReturn(true);
-			conv.when(() -> RawFileConverters.writeTims(any(), any(), any(), any(ProgressIndicator.class), anyFloat(), anyFloat())).thenReturn(true);
+			pool.when(ThermoServerPool::port).thenReturn(12345); // harmless value
+
+			// Static methods return boolean; stub them to succeed.
+			conv.when(
+					() -> RawFileConverters.writeStandard(any(StripeFileInterface.class), any(Path.class), any(OutputType.class), any(ProgressIndicator.class)))
+					.thenReturn(true);
+			conv.when(() -> RawFileConverters.writeTims(any(Path.class), any(Path.class), any(OutputType.class), any(ProgressIndicator.class), anyFloat(),
+					anyFloat())).thenReturn(true);
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 
@@ -101,7 +114,7 @@ class MainSmokeTest {
 			pool.verify(ThermoServerPool::shutdown, times(1));
 
 			// Verify writers called with expected paths and any ProgressIndicator
-			conv.verify(() -> RawFileConverters.writeThermo(eq(raw.toAbsolutePath().normalize()), eq(outDir), eq(OutputType.mgf), any(ProgressIndicator.class)),
+			conv.verify(() -> RawFileConverters.writeStandard(any(StripeFileInterface.class), eq(outDir), eq(OutputType.mgf), any(ProgressIndicator.class)),
 					times(1));
 
 			conv.verify(() -> RawFileConverters.writeTims(eq(ddir.toAbsolutePath().normalize()), eq(outDir), eq(OutputType.mgf), any(ProgressIndicator.class),
@@ -121,7 +134,8 @@ class MainSmokeTest {
 		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
 				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class)) {
 
-			conv.when(() -> RawFileConverters.writeTims(any(), any(), any(), any(ProgressIndicator.class), anyFloat(), anyFloat())).thenReturn(true);
+			conv.when(() -> RawFileConverters.writeTims(any(Path.class), any(Path.class), any(OutputType.class), any(ProgressIndicator.class), anyFloat(),
+					anyFloat())).thenReturn(true);
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 

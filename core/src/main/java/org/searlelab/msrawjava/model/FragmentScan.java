@@ -64,6 +64,10 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 		return new FragmentScan(spectrumName, precursorName, newSpectrumIndex, precursorMz, scanStartTime, fraction, ionInjectionTime, isolationWindowLower,
 				isolationWindowUpper, newMassArray, newIntensityArray, newIonMobilityArray, charge, scanWindowLower, scanWindowUpper);
 	}
+	
+	public Range getPrecursorRange() {
+		return new Range(isolationWindowLower, isolationWindowUpper);
+	}
 
 	public ArrayList<Peak> getPeaks(float minimumIntensity) {
 		ArrayList<Peak> peaks=new ArrayList<Peak>();

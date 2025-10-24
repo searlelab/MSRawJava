@@ -38,6 +38,7 @@ import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.VendorFileFinder;
+import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 
 /**
@@ -508,8 +509,10 @@ public class ConversionPane extends JPanel {
 		public void run() {
 			try {
 				boolean ok;
-				if (source==Source.THERMO) {
-					ok=RawFileConverters.writeThermo(input, outputDir, outType, this);
+				if (source==Source.THERMO) {					
+					ThermoRawFile rawFile=new ThermoRawFile();		
+					rawFile.openFile(input);
+					ok=RawFileConverters.writeStandard(rawFile, outputDir, outType, this);
 				} else {
 					ok=RawFileConverters.writeTims(input, outputDir, outType, this);
 				}

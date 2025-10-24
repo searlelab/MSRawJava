@@ -61,13 +61,17 @@ public class Range implements Comparable<Range> {
 
 	@Override
 	public int hashCode() {
-		return Float.floatToIntBits(start)+16807*Float.floatToIntBits(stop);
+		// round is close enough for this work, theoretically it's possible for 1.4999999999999!=1.500000000000, but this is safer than truncate since int to float conversions are common
+		return Math.round(start)+16807*Math.round(stop); 
 	}
 
 	@Override
 	public boolean equals(Object obj) {
 		if (!(obj instanceof Range)) return false;
-		return compareTo((Range)obj)==0;
+		Range r=(Range)obj;
+		if (Math.abs(start - r.start)>1e-3f) return false;
+		if (Math.abs(stop - r.stop)>1e-3f) return false;
+		return true;
 	}
 
 	public float getStart() {
