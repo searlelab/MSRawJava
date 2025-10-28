@@ -23,9 +23,11 @@ import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.FragmentScan;
-import org.searlelab.msrawjava.model.Peak;
+import org.searlelab.msrawjava.model.MassTolerance;
+import org.searlelab.msrawjava.model.PeakWithIMS;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
@@ -96,7 +98,7 @@ public class RawFileConverters {
 		}
 	}
 
-	public static boolean writeDemux(StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
+	public static boolean writeDemux(StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress, MassTolerance tolerance) throws Exception {
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
 		try {
@@ -105,12 +107,6 @@ public class RawFileConverters {
 
 			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 			Map<Range, WindowData> ranges=rawFile.getRanges();
-			for (Map.Entry<Range, WindowData> entry : ranges.entrySet()) {
-				Range key=entry.getKey();
-				WindowData val=entry.getValue();
-				System.out.println(key+" --> "+val);
-			}
-			System.out.println(ranges.size()+" total");
 			
 			
 			outFile.setRanges(new HashMap<Range, WindowData>(ranges));
@@ -119,21 +115,11 @@ public class RawFileConverters {
 			ArrayList<Range> acquiredWindows=new ArrayList<>(ranges.keySet());
 			acquiredWindows.sort(null);
 
-			StaggeredDemultiplexer demultiplexer=new StaggeredDemultiplexer(acquiredWindows);
+			StaggeredDemultiplexer demultiplexer=new StaggeredDemultiplexer(acquiredWindows, tolerance);
 
 			CycleAssembler assembler=new CycleAssembler(acquiredWindows);
-			ArrayDeque<ArrayList<FragmentScan>> last4=new ArrayDeque<>(4);
+			ArrayDeque<ArrayList<FragmentScan>> last5=new ArrayDeque<>(5);
 
-			// A tiny helper to publish one cycle (ms2-only) to the writer.
-			final Consumer<ArrayList<FragmentScan>> publishOriginalCycle=(cycle) -> {
-				try {
-					if (cycle!=null&&!cycle.isEmpty()) {
-						outFile.addSpectra(new ArrayList<PrecursorScan>(), cycle);
-					}
-				} catch (Exception e) {
-					throw new RuntimeException(e);
-				}
-			};
 			final Consumer<ArrayList<FragmentScan>> publishDemuxedCycle=(cycleDemuxed) -> {
 				try {
 					if (cycleDemuxed!=null&&!cycleDemuxed.isEmpty()) {
@@ -151,6 +137,7 @@ public class RawFileConverters {
 			final float gradientLength=rawFile.getGradientLength();
 			float start=0f;
 			final float sectionTime=gradientLength/sections;
+			int currentScanNumber=1;
 
 			for (int i=0; i<sections; i++) {
 				float stop=(i==sections-1)?Float.MAX_VALUE:start+sectionTime;
@@ -170,24 +157,30 @@ public class RawFileConverters {
 					// Every time we complete one or more cycles, process them
 					ArrayList<ArrayList<FragmentScan>> finished=assembler.drainCompleted();
 					for (ArrayList<FragmentScan> cycle : finished) {
-						last4.addLast(cycle);
-						if (last4.size()>4) last4.removeFirst();
+						last5.addLast(cycle);
+						if (last5.size()>5) last5.removeFirst();
 
-						if (last4.size()==4) {
+						if (last5.size()==5) {
 							// Prepare inputs in order: M2, M1, C0, P1, P2
-							ArrayList<FragmentScan> cM2=last4.stream().skip(0).findFirst().get();
-							ArrayList<FragmentScan> cM1=last4.stream().skip(1).findFirst().get();
-							ArrayList<FragmentScan> cP1=last4.stream().skip(2).findFirst().get();
-							ArrayList<FragmentScan> cP2=last4.stream().skip(3).findFirst().get();
+							ArrayList<FragmentScan> cM2=last5.stream().skip(0).findFirst().get();
+							ArrayList<FragmentScan> cM1=last5.stream().skip(1).findFirst().get();
+							ArrayList<FragmentScan> center=last5.stream().skip(2).findFirst().get();
+							ArrayList<FragmentScan> cP1=last5.stream().skip(3).findFirst().get();
+							ArrayList<FragmentScan> cP2=last5.stream().skip(4).findFirst().get();
 
-							// Run demultiplexing for the middle cycle
-							ArrayList<FragmentScan> demuxed=demultiplexer.demultiplex(cM2, cM1, cP1, cP2);
-
-							// Publish the *middle* cycle, replaced with demultiplexed scans
-							publishDemuxedCycle.accept(demuxed);
+							try {
+								// Run demultiplexing for the middle cycle
+								ArrayList<FragmentScan> demuxed=demultiplexer.demultiplex(cM2, cM1, center, cP1, cP2, currentScanNumber);
+								currentScanNumber=currentScanNumber+2*cM1.size(); // split each window in two
+	
+								publishDemuxedCycle.accept(demuxed);
+							} catch (Exception e) {
+								Logger.logLine("Error in demux");
+								Logger.errorException(e);
+							}
 
 							// Remove the oldest cycle (we just published it), keep the last 4
-							last4.removeFirst();
+							last5.removeFirst();
 						}
 					}
 				}
@@ -207,18 +200,29 @@ public class RawFileConverters {
 			assembler.flushPartial();
 			ArrayList<ArrayList<FragmentScan>> tailFinished=assembler.drainCompleted();
 			for (ArrayList<FragmentScan> cycle : tailFinished) {
-				last4.addLast(cycle);
-				if (last4.size()>4) last4.removeFirst();
+				last5.addLast(cycle);
+				if (last5.size()>5) last5.removeFirst();
 
-				if (last4.size()==4) {
-					ArrayList<FragmentScan> cM2=last4.stream().skip(0).findFirst().get();
-					ArrayList<FragmentScan> cM1=last4.stream().skip(1).findFirst().get();
-					ArrayList<FragmentScan> cP1=last4.stream().skip(2).findFirst().get();
-					ArrayList<FragmentScan> cP2=last4.stream().skip(3).findFirst().get();
-
-					ArrayList<FragmentScan> demuxed=demultiplexer.demultiplex(cM2, cM1, cP1, cP2);
-					publishDemuxedCycle.accept(demuxed);
-					last4.removeFirst();
+				if (last5.size()==5) {
+					ArrayList<FragmentScan> cM2=last5.stream().skip(0).findFirst().get();
+					ArrayList<FragmentScan> cM1=last5.stream().skip(1).findFirst().get();
+					ArrayList<FragmentScan> center=last5.stream().skip(2).findFirst().get();
+					ArrayList<FragmentScan> cP1=last5.stream().skip(3).findFirst().get();
+					ArrayList<FragmentScan> cP2=last5.stream().skip(4).findFirst().get();
+					
+					// only flush if it's a full cycle
+					if (cM2.size()==cM1.size()&&cM2.size()==cP1.size()&&cM2.size()==cP2.size()) {
+						try {
+							ArrayList<FragmentScan> demuxed=demultiplexer.demultiplex(cM2, cM1, center, cP1, cP2, currentScanNumber);
+							currentScanNumber=currentScanNumber+2*cM1.size();
+							
+							publishDemuxedCycle.accept(demuxed);
+						} catch (Exception e) {
+							Logger.logLine("Error in demux");
+							Logger.errorException(e);
+						}
+						last5.removeFirst();
+					}
 				}
 			}
 
@@ -298,7 +302,7 @@ public class RawFileConverters {
 					final int idx=j;
 					final int sn=baseMs1Scan+j;
 					ms1Futures.add(pool.submit(() -> {
-						ArrayList<Peak> peaks=ms1s.get(idx).getPeaks(minimumMS1Intensity);
+						ArrayList<PeakWithIMS> peaks=ms1s.get(idx).getPeaks(minimumMS1Intensity);
 						Collections.sort(peaks);
 						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks);
 
@@ -312,7 +316,7 @@ public class RawFileConverters {
 					final int idx=j;
 					final int sn=baseMs2Scan+j;
 					ms2Futures.add(pool.submit(() -> {
-						ArrayList<Peak> peaks=ms2s.get(idx).getPeaks(minimumMS2Intensity);
+						ArrayList<PeakWithIMS> peaks=ms2s.get(idx).getPeaks(minimumMS2Intensity);
 						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks);
 
 						if (timsFile.isPASEFDDA()&&peaks.isEmpty()) return null; // don't worry about scan gaps

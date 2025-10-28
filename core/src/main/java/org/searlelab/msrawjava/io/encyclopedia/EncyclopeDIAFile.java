@@ -32,7 +32,6 @@ import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.OutputSpectrumFile;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.utils.Pair;
-import org.searlelab.msrawjava.io.utils.StreamCopy;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;

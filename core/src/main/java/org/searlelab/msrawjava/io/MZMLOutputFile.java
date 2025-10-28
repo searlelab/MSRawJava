@@ -319,7 +319,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000130\" name=\"positive scan\" value=\"\"/>\n");
 		
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000505\" name=\"base peak intensity\" value=\""
-				+fmtIntens(scan.getBasePeak().intensity)+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
+				+fmtIntens(scan.getBasePeak().getIntensity())+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""
 				+fmtIntens(scan.getTIC())+"\"/>\n");
 
@@ -353,7 +353,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000130\" name=\"positive scan\" value=\"\"/>\n");
 
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000505\" name=\"base peak intensity\" value=\""
-				+fmtIntens(scan.getBasePeak().intensity)+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
+				+fmtIntens(scan.getBasePeak().getIntensity())+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""
 				+fmtIntens(scan.getTIC())+"\"/>\n");
 		

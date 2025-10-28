@@ -35,13 +35,13 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 		this.ionMobilityArray=ionMobilityArray;
 	}
 
-	public PrecursorScan rebuild(int newSpectrumIndex, ArrayList<Peak> peaks) {
+	public PrecursorScan rebuild(int newSpectrumIndex, ArrayList<PeakWithIMS> peaks) {
 		Collections.sort(peaks);
 		double[] newMassArray=new double[peaks.size()];
 		float[] newIntensityArray=new float[peaks.size()];
 		float[] newIonMobilityArray=new float[peaks.size()];
 		for (int i=0; i<peaks.size(); i++) {
-			Peak peak=peaks.get(i);
+			PeakWithIMS peak=peaks.get(i);
 			newMassArray[i]=peak.mz;
 			newIntensityArray[i]=peak.intensity;
 			newIonMobilityArray[i]=peak.ims;
@@ -50,11 +50,11 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 				newMassArray, newIntensityArray, newIonMobilityArray);
 	}
 
-	public ArrayList<Peak> getPeaks(float minimumIntensity) {
-		ArrayList<Peak> peaks=new ArrayList<Peak>();
+	public ArrayList<PeakWithIMS> getPeaks(float minimumIntensity) {
+		ArrayList<PeakWithIMS> peaks=new ArrayList<PeakWithIMS>();
 		for (int i=0; i<massArray.length; i++) {
 			if (intensityArray[i]>minimumIntensity) {
-				peaks.add(new Peak(massArray[i], intensityArray[i], ionMobilityArray[i]));
+				peaks.add(new PeakWithIMS(massArray[i], intensityArray[i], ionMobilityArray[i]));
 			}
 		}
 		return peaks;
@@ -145,7 +145,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 		return tic;
 	}
 	
-	public Peak getBasePeak() {
+	public PeakInterface getBasePeak() {
 		float maxIntensity=0.0f;
 		double maxMz=0.0;
 		float maxIMS=0.0f;
@@ -158,6 +158,6 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 				}
 			}
 		}
-		return new Peak(maxMz, maxIntensity, maxIMS);
+		return new PeakWithIMS(maxMz, maxIntensity, maxIMS);
 	}
 }

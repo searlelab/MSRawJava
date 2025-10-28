@@ -12,7 +12,8 @@ import java.util.Random;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.io.utils.Triplet;
-import org.searlelab.msrawjava.model.Peak;
+import org.searlelab.msrawjava.model.PeakInterface;
+import org.searlelab.msrawjava.model.PeakWithIMS;
 
 class TimsReaderTest {
 
@@ -78,12 +79,12 @@ class TimsReaderTest {
 		//var chart1=MobilogramHeatmap.buildChart(ims, triplet.x, triplet.y, 800);
 		//MobilogramHeatmap.show(chart1);
 		
-		ArrayList<Peak> peaks=new ArrayList<Peak>();
+		ArrayList<PeakWithIMS> peaks=new ArrayList<PeakWithIMS>();
 
 		float msmsIntensityThreshold=1.0f;
 		for (int i=0; i<triplet.x.length; i++) {
 			if (triplet.y[i]>msmsIntensityThreshold) {
-				peaks.add(new Peak(triplet.x[i], (float)triplet.y[i], (float)ims[i]));
+				peaks.add(new PeakWithIMS(triplet.x[i], (float)triplet.y[i], (float)ims[i]));
 			}
 		}
 		//System.out.println(" --> "+MatrixMath.sum(triplet.y)+", "+triplet.y.length+", "+peaks.size());
@@ -92,18 +93,18 @@ class TimsReaderTest {
 		//var chart4 = IMSChromatogramChart.buildChart(chromatograms);
 		//IMSChromatogramChart.show(chart4);
 		
-		for (Peak peak : peaks) {
+		for (PeakInterface peak : peaks) {
 			peak.turnOn();
 		}
 
 		//ArrayList<Peak> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks, 2.0f*msmsIntensityThreshold);
-		ArrayList<Peak> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks);
+		ArrayList<PeakWithIMS> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks);
 		
 		double[] newMassArray=new double[picked.size()];
 		float[] newIntensityArray=new float[picked.size()];
 		int[] newIonMobilityArray=new int[picked.size()];
 		for (int i=0; i<picked.size(); i++) {
-			Peak peak=picked.get(i);
+			PeakWithIMS peak=picked.get(i);
 			newMassArray[i]=peak.mz;
 			newIntensityArray[i]=peak.intensity;
 			newIonMobilityArray[i]=Math.round(peak.ims);

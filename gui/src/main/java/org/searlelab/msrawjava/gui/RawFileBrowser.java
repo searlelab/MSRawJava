@@ -104,7 +104,7 @@ public class RawFileBrowser extends JFrame {
 		setContentPane(leftAndCenter);
 
 		setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-		setSize(1200, 700);
+		setSize(1280, 700);
 		setLocationByPlatform(true);
 
 		String lastPath=prefs.get(PREF_LAST_DIR, null);

@@ -1,9 +1,10 @@
 package org.searlelab.msrawjava.model;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
+import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.list.array.TIntArrayList;
 
 /**
@@ -34,8 +35,8 @@ public abstract class MassTolerance {
 	 * @param target
 	 * @return all matching masses in range
 	 */
-	public int[] getIndicies(Peak[] peaks, Peak target) {
-		int value=Arrays.binarySearch(peaks, target);
+	public int[] getIndices(TDoubleArrayList peaks, double target) {
+		int value=peaks.binarySearch(target);
 		// exact match (not likely)
 		if (value<0) {
 			// insertion point
@@ -45,14 +46,14 @@ public abstract class MassTolerance {
 		TIntArrayList matches=new TIntArrayList();
 		// look below
 		int index=value;
-		while (index>0&&compareTo(peaks[index-1].mz, target.mz)==0) {
+		while (index>0&&compareTo(peaks.get(index-1), target)==0) {
 			matches.add(index-1);
 			index--;
 		}
 
 		// look up
 		index=value;
-		while (index<peaks.length&&compareTo(peaks[index].mz, target.mz)==0) {
+		while (index<peaks.size()&&compareTo(peaks.get(index), target)==0) {
 			matches.add(index);
 			index++;
 		}
@@ -66,7 +67,39 @@ public abstract class MassTolerance {
 	 * @param target
 	 * @return all matching masses in range
 	 */
-	public int[] getIndicies(ArrayList<Peak> peaks, Peak target) {
+	public int[] getIndices(PeakInterface[] peaks, PeakInterface target) {
+		int value=Arrays.binarySearch(peaks, target);
+		// exact match (not likely)
+		if (value<0) {
+			// insertion point
+			value=-(value+1);
+		}
+
+		TIntArrayList matches=new TIntArrayList();
+		// look below
+		int index=value;
+		while (index>0&&compareTo(peaks[index-1].getMz(), target.getMz())==0) {
+			matches.add(index-1);
+			index--;
+		}
+
+		// look up
+		index=value;
+		while (index<peaks.length&&compareTo(peaks[index].getMz(), target.getMz())==0) {
+			matches.add(index);
+			index++;
+		}
+
+		return matches.toArray();
+	}
+
+	/**
+	 * @param peaks
+	 *            -- assumes sorted array of peaks
+	 * @param target
+	 * @return all matching masses in range
+	 */
+	public int[] getIndices(List<? extends PeakInterface> peaks, PeakInterface target) {
 		int value=Collections.binarySearch(peaks, target);
 		// exact match (not likely)
 		if (value<0) {
@@ -77,14 +110,14 @@ public abstract class MassTolerance {
 		TIntArrayList matches=new TIntArrayList();
 		// look below
 		int index=value;
-		while (index>0&&compareTo(peaks.get(index-1).mz, target.mz)==0) {
+		while (index>0&&compareTo(peaks.get(index-1).getMz(), target.getMz())==0) {
 			matches.add(index-1);
 			index--;
 		}
 
 		// look up
 		index=value;
-		while (index<peaks.size()&&compareTo(peaks.get(index).mz, target.mz)==0) {
+		while (index<peaks.size()&&compareTo(peaks.get(index).getMz(), target.getMz())==0) {
 			matches.add(index);
 			index++;
 		}

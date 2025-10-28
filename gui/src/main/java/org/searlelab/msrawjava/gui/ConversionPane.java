@@ -21,6 +21,7 @@ import java.util.prefs.Preferences;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
@@ -39,7 +40,9 @@ import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
+import org.searlelab.msrawjava.model.PPMMassTolerance;
 
 /**
  * Owns the conversion parameter bar, queue, dispatcher and details console.
@@ -52,6 +55,7 @@ public class ConversionPane extends JPanel {
 	// ---- prefs keys (kept local to the pane) ----
 	private static final String PREF_OUT_TYPE="queue.outType";
 	private static final String PREF_THREADS="queue.threads";
+	private static final String PREF_DEMULTIPLEX="queue.demultiplex";
 
 	// ---- UI constants ----
 	private static final Color BUTTON_COLOR_BACKGROUND=new Color(250, 245, 235);
@@ -67,6 +71,7 @@ public class ConversionPane extends JPanel {
 
 	// ---- parameter bar widgets ----
 	private final JComboBox<OutputType> outTypeBox=new JComboBox<>(OutputType.values());
+	private final JCheckBox demultiplexBox=new JCheckBox("Demux");
 	private JSpinner threadSpinner;
 
 	// ---- queue UI ----
@@ -148,6 +153,10 @@ public class ConversionPane extends JPanel {
 			if (sel!=null) prefs.put(PREF_OUT_TYPE, sel.name());
 		});
 
+		boolean savedDemux=prefs.getBoolean(PREF_DEMULTIPLEX, false);
+		demultiplexBox.setSelected(savedDemux);
+		demultiplexBox.addActionListener(e -> prefs.putBoolean(PREF_DEMULTIPLEX, demultiplexBox.isSelected()));
+
 		int defaultThreads=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
 		int savedThreads=Math.max(1, prefs.getInt(PREF_THREADS, defaultThreads));
 		threadSpinner=new JSpinner(new SpinnerNumberModel(savedThreads, 1, 512, 1));
@@ -159,6 +168,7 @@ public class ConversionPane extends JPanel {
 
 		left.add(new JLabel("Output:"));
 		left.add(outTypeBox);
+		left.add(demultiplexBox);
 		left.add(new JLabel("Threads:"));
 		left.add(threadSpinner);
 
@@ -241,8 +251,9 @@ public class ConversionPane extends JPanel {
 			boolean bruker=VendorFileFinder.isDotDFile(p);
 			if (!thermo&&!bruker) continue;
 
-			Path outDir=(p.getParent()!=null)?p.getParent():p; // safe default
-			ConversionJob job=new ConversionJob(p, outDir, outType, thermo?Source.THERMO:Source.TIMS);
+			Path outDir=(p.getParent()!=null)?p.getParent():p;
+			boolean demux=demultiplexBox.isSelected();
+			ConversionJob job=new ConversionJob(p, outDir, outType, demux, thermo?Source.THERMO:Source.TIMS);
 			queueModel.enqueue(job);
 		}
 		dispatcher.maybeStart();
@@ -471,6 +482,7 @@ public class ConversionPane extends JPanel {
 		final Path input;
 		final Path outputDir;
 		final OutputType outType;
+		final boolean demultiplex;
 		final Source source;
 
 		volatile JobState state=JobState.QUEUED;
@@ -481,10 +493,11 @@ public class ConversionPane extends JPanel {
 		volatile boolean cancelRequested=false;
 		volatile Future<?> future;
 
-		ConversionJob(Path input, Path outputDir, OutputType outType, Source source) {
+		ConversionJob(Path input, Path outputDir, OutputType outType, boolean demultiplex, Source source) {
 			this.input=input;
 			this.outputDir=outputDir;
 			this.outType=outType;
+			this.demultiplex=demultiplex;
 			this.source=source;
 		}
 
@@ -512,8 +525,15 @@ public class ConversionPane extends JPanel {
 				if (source==Source.THERMO) {					
 					ThermoRawFile rawFile=new ThermoRawFile();		
 					rawFile.openFile(input);
-					ok=RawFileConverters.writeStandard(rawFile, outputDir, outType, this);
+					if (demultiplex) {
+						ok=RawFileConverters.writeDemux(rawFile, outputDir, outType, this, new PPMMassTolerance(10.0));
+					} else {
+						ok=RawFileConverters.writeStandard(rawFile, outputDir, outType, this);
+					}
 				} else {
+					if (demultiplex) {
+						Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files");
+					}
 					ok=RawFileConverters.writeTims(input, outputDir, outType, this);
 				}
 				if (cancelRequested) {

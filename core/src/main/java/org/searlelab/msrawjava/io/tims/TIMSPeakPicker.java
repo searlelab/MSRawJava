@@ -6,7 +6,8 @@ import java.util.List;
 
 import org.searlelab.msrawjava.algorithms.QuickMedian;
 import org.searlelab.msrawjava.model.MassTolerance;
-import org.searlelab.msrawjava.model.Peak;
+import org.searlelab.msrawjava.model.PeakInterface;
+import org.searlelab.msrawjava.model.PeakWithIMS;
 
 import gnu.trove.list.array.TDoubleArrayList;
 
@@ -23,19 +24,19 @@ public class TIMSPeakPicker {
 	 * @param minimumIntensity
 	 * @return
 	 */
-	public static ArrayList<ArrayList<Peak>> getIMSChromatograms(ArrayList<Peak> mzSortedPeaks, float minimumIntensity) {
+	public static ArrayList<ArrayList<PeakWithIMS>> getIMSChromatograms(ArrayList<PeakWithIMS> mzSortedPeaks, float minimumIntensity) {
 		MassTolerance tolerance=new TIMSMassTolerance();
-		Peak.PeakIMSComparator imsComparator=new Peak.PeakIMSComparator();
+		PeakWithIMS.PeakIMSComparator imsComparator=new PeakWithIMS.PeakIMSComparator();
 
-		ArrayList<Peak> intensitySortedPeaks=new ArrayList<Peak>(mzSortedPeaks);
+		ArrayList<PeakWithIMS> intensitySortedPeaks=new ArrayList<PeakWithIMS>(mzSortedPeaks);
 
 		mzSortedPeaks.sort(null); // sorted on m/z
-		intensitySortedPeaks.sort(new Peak.PeakIntensityComparator()); // sorted on intensity
+		intensitySortedPeaks.sort(new PeakWithIMS.PeakIntensityComparator()); // sorted on intensity
 
-		ArrayList<ArrayList<Peak>> finalPeaks=new ArrayList<ArrayList<Peak>>();
+		ArrayList<ArrayList<PeakWithIMS>> finalPeaks=new ArrayList<ArrayList<PeakWithIMS>>();
 		int lastPeakConsidered=intensitySortedPeaks.size();
 		EACHPEAK: while (true) {
-			Peak targetPeak=null;
+			PeakWithIMS targetPeak=null;
 			for (int i=lastPeakConsidered-1; i>0; i--) {
 				if (intensitySortedPeaks.get(i).isAvailable()) {
 					targetPeak=intensitySortedPeaks.get(i);
@@ -47,15 +48,15 @@ public class TIMSPeakPicker {
 			if (targetPeak==null) {
 				break EACHPEAK;
 			} else {
-				int[] indicies=tolerance.getIndicies(mzSortedPeaks, targetPeak);
-				ArrayList<Peak> imsSortedSlice=new ArrayList<Peak>();
+				int[] indicies=tolerance.getIndices(mzSortedPeaks, targetPeak);
+				ArrayList<PeakWithIMS> imsSortedSlice=new ArrayList<PeakWithIMS>();
 				for (int i=0; i<indicies.length; i++) {
 					imsSortedSlice.add(mzSortedPeaks.get(indicies[i]));
 				}
 				Collections.sort(imsSortedSlice, imsComparator);
 				finalPeaks.add(imsSortedSlice);
 				
-				for (Peak peak : imsSortedSlice) {
+				for (PeakInterface peak : imsSortedSlice) {
 					peak.turnOff();
 				}
 			}
@@ -73,12 +74,12 @@ public class TIMSPeakPicker {
 	 * @param mzSortedPeaks
 	 * @return
 	 */
-	public static ArrayList<Peak> peakPickAcrossIMS(ArrayList<Peak> mzSortedPeaks) {
+	public static ArrayList<PeakWithIMS> peakPickAcrossIMS(ArrayList<PeakWithIMS> mzSortedPeaks) {
 		mzSortedPeaks.sort(null);
 
-		ArrayList<Peak> intensitySorted=new ArrayList<>(mzSortedPeaks);
-		intensitySorted.sort(new Peak.PeakIntensityComparator());
-		ArrayList<Peak> out=new ArrayList<>(MAX_PEAKS/10);
+		ArrayList<PeakWithIMS> intensitySorted=new ArrayList<>(mzSortedPeaks);
+		intensitySorted.sort(new PeakWithIMS.PeakIntensityComparator());
+		ArrayList<PeakWithIMS> out=new ArrayList<>(MAX_PEAKS/10);
 
 		int totalIncluded=0; // count of consumed points
 
@@ -86,7 +87,7 @@ public class TIMSPeakPicker {
 		for (int idx=intensitySorted.size()-1; idx>=0; idx--) {
 			if (out.size()>=MAX_PEAKS) break;
 
-			Peak apex=intensitySorted.get(idx);
+			PeakWithIMS apex=intensitySorted.get(idx);
 			if (!apex.isAvailable()||apex.intensity<=0f) continue;
 
 			final double mzApex=apex.mz;
@@ -110,9 +111,9 @@ public class TIMSPeakPicker {
 			int numIncludable=0;
 
 			TDoubleArrayList mzList=new TDoubleArrayList();
-			ArrayList<Peak> imsPeaks=new ArrayList<Peak>();
+			ArrayList<PeakWithIMS> imsPeaks=new ArrayList<PeakWithIMS>();
 			for (int i=start; i<end; i++) {
-				Peak p=mzSortedPeaks.get(i);
+				PeakWithIMS p=mzSortedPeaks.get(i);
 				if (p.isAvailable()&&p.intensity>0f&&p.ims>=leftIm&&p.ims<=rightIm) {
 					sumIntensity+=p.intensity;
 					mzList.add(p.mz);
@@ -138,7 +139,7 @@ public class TIMSPeakPicker {
 				ensembleIMS=imsPeaks.get(maxIndex).ims;
 			}
 
-			out.add(new Peak(ensembleMz, sumIntensity, ensembleIMS));
+			out.add(new PeakWithIMS(ensembleMz, sumIntensity, ensembleIMS));
 			totalIncluded+=numIncludable;
 
 			// Early exit when all consumed
@@ -149,7 +150,7 @@ public class TIMSPeakPicker {
 		return out;
 	}
 
-	private static float[] smoothIMSGaussian(List<Peak> peaks, float sigma) {
+	private static float[] smoothIMSGaussian(List<PeakWithIMS> peaks, float sigma) {
 		final int n=peaks.size();
 		final float[] out=new float[n];
 		if (n==0) return out;
@@ -167,7 +168,7 @@ public class TIMSPeakPicker {
 		final float[] ims=new float[n];
 		final float[] y=new float[n];
 		for (int i=0; i<n; i++) {
-			Peak p=peaks.get(i);
+			PeakWithIMS p=peaks.get(i);
 			ims[i]=p.ims;
 			y[i]=p.intensity;
 		}
@@ -204,7 +205,7 @@ public class TIMSPeakPicker {
 	}
 
 	// ---- helpers: m/z lower/upper bounds on a List<Peak> sorted by m/z ----
-	private static int lowerBoundMz(ArrayList<Peak> a, double keyMz) {
+	private static int lowerBoundMz(ArrayList<PeakWithIMS> a, double keyMz) {
 		int lo=0, hi=a.size();
 		while (lo<hi) {
 			int mid=(lo+hi)>>>1;
@@ -214,7 +215,7 @@ public class TIMSPeakPicker {
 		return lo; // first index with mz >= keyMz
 	}
 
-	private static int upperBoundMz(ArrayList<Peak> a, double keyMz) {
+	private static int upperBoundMz(ArrayList<PeakWithIMS> a, double keyMz) {
 		int lo=0, hi=a.size();
 		while (lo<hi) {
 			int mid=(lo+hi)>>>1;

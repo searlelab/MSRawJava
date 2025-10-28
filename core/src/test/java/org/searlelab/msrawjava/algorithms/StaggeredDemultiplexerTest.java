@@ -13,9 +13,16 @@ import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
+import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.Range;
 
 class StaggeredDemultiplexerTest {
+	public static void main(String[] args) throws Exception {
+		EncyclopeDIAFile rawFile=new EncyclopeDIAFile();
+		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_15cycles.dia").toFile());
+		Path outDir=Paths.get("/Users/searle.brian/Documents/temp/demux/");
+		RawFileConverters.writeDemux(rawFile, outDir, OutputType.EncyclopeDIA, new LoggingProgressIndicator(), new PPMMassTolerance(10.0));
+	}
 
 	@Test
 	public void smokeTest(@TempDir Path outDir) throws Exception {
@@ -24,7 +31,7 @@ class StaggeredDemultiplexerTest {
 
 		EncyclopeDIAFile rawFile=new EncyclopeDIAFile();
 		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_15cycles.dia").toFile());
-		RawFileConverters.writeDemux(rawFile, outDir, OutputType.mgf, new LoggingProgressIndicator());
+		RawFileConverters.writeDemux(rawFile, outDir, OutputType.mgf, new LoggingProgressIndicator(), new PPMMassTolerance(10.0));
 
 		System.out.println(System.currentTimeMillis()-time);
 	}
