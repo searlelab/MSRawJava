@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -16,28 +17,23 @@ import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
-import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
 class BrukerTIMSFileTest {
 	public static void main(String[] args) throws Exception {
-		Path path=Paths.get("/Users/searle.brian/Documents/temp/bruker/2025-07-05_17-56-24_One-column-separation.d");
+		//Path path=Paths.get("/Users/searle.brian/Documents/temp/bruker/2025-07-05_17-56-24_One-column-separation.d");
+		Path path=Paths.get("/Users/searle.brian/Documents/temp/jgreenwald/20251013_Batch2_50_16HBE_WTV3_B2_DIA_Slot1-7_1_12472.d");
 		BrukerTIMSFile f = new BrukerTIMSFile();
         f.openFile(path);
         
         double center=(1585.7584+2*1.00727647)/2.0f;//793.88651;
-        PPMMassTolerance tolerance=new PPMMassTolerance(50);
-        double width=tolerance.getToleranceInMz(center, center);
-        
-        
-        Range targetMzRange=new Range(center-width/2.0, center+width/2.0);
-        System.out.println((center-width/2.0)+" to "+(center+width/2.0));
-		ArrayList<FragmentScan> scans=f.getStripes(targetMzRange, 0, Float.MAX_VALUE, false);
+		ArrayList<FragmentScan> scans=f.getStripes(center, 0, Float.MAX_VALUE, false);
         System.out.println(scans.size()+" --> "+center);
         for (FragmentScan scan : scans) {
-			System.out.println(scan.getScanStartTime()/60f+"min, "+scan.getSpectrumName());
+			double[] massArray=scan.getMassArray();
+			System.out.println(scan.getScanStartTime()/60f+"min, "+scan.getSpectrumName()+", "+Arrays.stream(massArray).min()+" to "+Arrays.stream(massArray).max());
 		}
         
         f.close();

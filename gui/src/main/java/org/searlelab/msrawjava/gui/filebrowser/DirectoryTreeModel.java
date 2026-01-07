@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui.filebrowser;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
@@ -20,7 +21,8 @@ public class DirectoryTreeModel extends DefaultTreeModel {
 		virtualRoot.setAllowsChildren(true);
 		virtualRoot.setUserObject("My Computer");
 
-		File[] roots=fsv.getRoots();
+		File[] roots=getRoots(fsv);
+		
 		this.unixFlattenRoot=roots!=null&&roots.length==1&&File.separator.equals(roots[0].getAbsolutePath());
 
 		if (unixFlattenRoot) {
@@ -43,6 +45,18 @@ public class DirectoryTreeModel extends DefaultTreeModel {
 				virtualRoot.add(child);
 			}
 		}
+	}
+
+	public static File[] getRoots(FileSystemView fsv) {
+		File[] roots=File.listRoots();
+		ArrayList<File> rootList=new ArrayList<File>(Arrays.asList(roots));
+		File desktop = fsv.getHomeDirectory();
+		if (desktop!=null) rootList.add(desktop);
+		
+		File docs = fsv.getDefaultDirectory();
+		if (docs!=null&&!docs.equals(desktop)) rootList.add(docs);
+		
+		return rootList.toArray(new File[0]);
 	}
 
 	public void loadChildren(DirectoryNode node, FileSystemView fsv) {

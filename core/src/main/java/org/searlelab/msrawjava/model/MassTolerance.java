@@ -35,6 +35,38 @@ public abstract class MassTolerance {
 	 * @param target
 	 * @return all matching masses in range
 	 */
+	public int[] getIndices(double[] peaks, double target) {
+		int value=Arrays.binarySearch(peaks, target);
+		// exact match (not likely)
+		if (value<0) {
+			// insertion point
+			value=-(value+1);
+		}
+
+		TIntArrayList matches=new TIntArrayList();
+		// look below
+		int index=value;
+		while (index>0&&compareTo(peaks[index-1], target)==0) {
+			matches.add(index-1);
+			index--;
+		}
+
+		// look up
+		index=value;
+		while (index<peaks.length&&compareTo(peaks[index], target)==0) {
+			matches.add(index);
+			index++;
+		}
+
+		return matches.toArray();
+	}
+
+	/**
+	 * @param peaks
+	 *            -- assumes sorted array of peaks
+	 * @param target
+	 * @return all matching masses in range
+	 */
 	public int[] getIndices(TDoubleArrayList peaks, double target) {
 		int value=peaks.binarySearch(target);
 		// exact match (not likely)

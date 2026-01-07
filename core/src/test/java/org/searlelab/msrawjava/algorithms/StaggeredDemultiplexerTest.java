@@ -17,20 +17,15 @@ import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.Range;
 
 class StaggeredDemultiplexerTest {
-	public static void main(String[] args) throws Exception {
-		EncyclopeDIAFile rawFile=new EncyclopeDIAFile();
-		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_15cycles.dia").toFile());
-		Path outDir=Paths.get("/Users/searle.brian/Documents/temp/demux/");
-		RawFileConverters.writeDemux(rawFile, outDir, OutputType.EncyclopeDIA, new LoggingProgressIndicator(), new PPMMassTolerance(10.0));
-	}
-
 	@Test
 	public void smokeTest(@TempDir Path outDir) throws Exception {
+		// VATVSLPR (29.9 min apex)
 		
 		long time=System.currentTimeMillis();
+		//outDir=Paths.get("/Users/searle.brian/Documents/temp/demux/");
 
 		EncyclopeDIAFile rawFile=new EncyclopeDIAFile();
-		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_15cycles.dia").toFile());
+		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_29to31min.dia").toFile());
 		RawFileConverters.writeDemux(rawFile, outDir, OutputType.mgf, new LoggingProgressIndicator(), new PPMMassTolerance(10.0));
 
 		System.out.println(System.currentTimeMillis()-time);

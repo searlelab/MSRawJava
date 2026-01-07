@@ -24,6 +24,7 @@ import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.text.AttributedString;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 import javax.swing.JComponent;
@@ -52,6 +53,7 @@ import org.openpdf.text.pdf.PdfTemplate;
 import org.openpdf.text.pdf.PdfWriter;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.logging.Logger;
 
 public class BasicChartGenerator {
@@ -94,258 +96,16 @@ public class BasicChartGenerator {
 		plot.setDomainAxis(numberaxis);
 		plot.setRangeAxis(numberaxis1);
 
-		boolean isSpectrum=false;
 		int count=0;
 		for (XYTraceInterface trace : traces) {
-			AbstractXYItemRenderer renderer=new XYLineAndShapeRenderer();
-			switch (trace.getType()) {
-				case area:
-					renderer=new XYAreaRenderer();
-					renderer.setSeriesStroke(0, new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-					break;
-
-				case line:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesStroke(0, new BasicStroke(trace.getThickness().orElse(2.0f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-					((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
-
-					break;
-
-				case boldline:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesStroke(0, new BasicStroke(trace.getThickness().orElse(5.0f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-					((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
-
-					break;
-
-				case squaredline:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesStroke(0, new BasicStroke(trace.getThickness().orElse(5.0f), BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL));
-					((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
-
-					break;
-
-				case bolddashedline:
-					renderer=new XYLineAndShapeRenderer();
-					Float thickness=trace.getThickness().orElse(5.0f);
-					if (thickness>5) {
-						renderer.setSeriesStroke(0,
-								new BasicStroke(thickness, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[] {12.0f, 16.0f}, 0.0f));
-					} else {
-						renderer.setSeriesStroke(0,
-								new BasicStroke(thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0.0f, new float[] {3.0f, 5.0f}, 0.0f));
-					}
-					((XYLineAndShapeRenderer)renderer).setDrawSeriesLineAsPath(true);
-					((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
-
-					break;
-
-				case dashedline:
-					renderer=new XYLineAndShapeRenderer();
-					thickness=trace.getThickness().orElse(2.0f);
-					if (thickness>5) {
-						renderer.setSeriesStroke(0,
-								new BasicStroke(thickness, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[] {12.0f, 16.0f}, 0.0f));
-					} else {
-						renderer.setSeriesStroke(0,
-								new BasicStroke(thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0.0f, new float[] {3.0f, 5.0f}, 0.0f));
-					}
-					((XYLineAndShapeRenderer)renderer).setDrawSeriesLineAsPath(true);
-					((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
-
-					break;
-
-				case bighollowpoint:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesShape(0, createRingShape(0, 0, 2.5, 0.75));
-
-					((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
-
-					break;
-
-				case bigpoint:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesShape(0, new Ellipse2D.Double(-2.5, -2.5, 5, 5));
-
-					((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
-
-					break;
-
-				case point:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesShape(0, new Ellipse2D.Double(-1.5, -1.5, 3, 3));
-					((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
-
-					break;
-
-				case tinypoint:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesShape(0, new Ellipse2D.Double(-0.5, -0.5, 1, 1));
-					((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
-
-					break;
-
-				case uncenteredText:
-				case text:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesShape(0, new Ellipse2D.Double(-0.5, -0.5, 1, 1));
-					((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
-
-					break;
-
-				case spectrum:
-					renderer=new XYLineAndShapeRenderer();
-					((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
-					renderer.setDefaultPaint(Color.DARK_GRAY);
-					isSpectrum=true;
-
-					break;
-
-				case imsspectrum:
-					renderer=new XYLineAndShapeRenderer();
-					renderer.setSeriesShape(0, createRingShape(0, 0, 2.5, 0.75));
-					((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
-
-					break;
-
-				default:
-					throw new RuntimeException("unsupported graphing type!");
+			Triplet<AbstractXYItemRenderer, XYSeriesCollection, ArrayList<XYTextAnnotation>> traceData=getTraceData(trace, divider);
+			
+			plot.setDataset(count, traceData.y);
+			plot.setRenderer(count, traceData.x);
+			for (XYTextAnnotation annotation : traceData.z) {
+				annotation.setFont(font4);
+				plot.addAnnotation(annotation);
 			}
-
-			Pair<double[], double[]> values=trace.toArrays();
-			double[] x=values.x;
-			double[] y=MatrixMath.divide(values.y, divider);
-			XYSeriesCollection dataset=new XYSeriesCollection();
-			switch (trace.getType()) {
-				case area:
-				case line:
-				case boldline:
-				case squaredline:
-				case dashedline:
-				case bolddashedline:
-				case bighollowpoint:
-				case bigpoint:
-				case point:
-				case tinypoint:
-					XYSeries series=new XYSeries(trace.getName(), false);
-					for (int i=0; i<x.length; i++) {
-						series.add(x[i], y[i]);
-					}
-					dataset.addSeries(series);
-					break;
-
-				case imsspectrum: {
-					float[] ims=new float[x.length];
-					if (trace instanceof AcquiredSpectrumWrapper) {
-						if (((AcquiredSpectrumWrapper)trace).getSpectrum().getIonMobilityArray().isPresent()) {
-							ims=((AcquiredSpectrumWrapper)trace).getSpectrum().getIonMobilityArray().get();
-							// otherwise set it to an empty array
-						}
-					}
-
-					double maxIntensity=MatrixMath.max(y);
-					int seriesCount=0;
-					for (int i=0; i<x.length; i++) {
-						if (y[i]/maxIntensity<0.01) {
-							// ignore peaks that are less than 1%
-							continue;
-						}
-
-						XYSeries peakSeries=new XYSeries(i);
-						peakSeries.add(ims[i], x[i]);
-						dataset.addSeries(peakSeries);
-
-						// dot size is related to the sqrt of intensity (area=pi*r*r)
-						double intensity=Math.sqrt(y[i]/maxIntensity);
-
-						double diameter=intensity*20.0;
-						double negHalfDiameter=-diameter/2.0;
-
-						Color color=new Color(0.0f, 0.0f, 0.0f, (float)intensity);
-						renderer.setSeriesShape(seriesCount, new Ellipse2D.Double(negHalfDiameter, negHalfDiameter, diameter, diameter));
-						renderer.setSeriesPaint(seriesCount, color);
-						seriesCount++;
-					}
-				}
-					break;
-
-				case spectrum:
-					// IGNORE: just annotate the top 5 ions that don't already have labels and above 20%
-					//double[] intensities=y.clone();
-					//Arrays.sort(intensities);
-					double yThreshold=0;//intensities.length>0?intensities[Math.max(0, intensities.length-5)]:0.0;
-					yThreshold=Double.MAX_VALUE;//Math.max(General.max(y)*0.1, yThreshold);
-
-					for (int i=0; i<x.length; i++) {
-						if (!Double.isNaN(x[i])&&!Double.isNaN(y[i])) {
-							XYSeries peakSeries=new XYSeries(i);
-							peakSeries.add(x[i], 0);
-							peakSeries.add(x[i], y[i]);
-							dataset.addSeries(peakSeries);
-
-							renderer.setSeriesStroke(i, peakStroke);
-							renderer.setSeriesPaint(i, Color.DARK_GRAY);
-
-							boolean aboveThreshold=y[i]<0?y[i]<-yThreshold:y[i]>yThreshold;
-							if (aboveThreshold) {
-								XYTextAnnotation xytextannotation=new XYTextAnnotation(MASS_FORMAT.format(x[i]), x[i], y[i]);
-								xytextannotation.setPaint(Color.DARK_GRAY);
-								xytextannotation.setFont(font4);
-								xytextannotation.setTextAnchor(y[i]<0?TextAnchor.TOP_CENTER:TextAnchor.BOTTOM_CENTER);
-								plot.addAnnotation(xytextannotation);
-							}
-						}
-					}
-
-					double maxX=0.0;
-					double minY=0.0;
-					for (int i=0; i<x.length; i++) {
-						if (x[i]>maxX) maxX=x[i];
-						if (y[i]<minY) minY=y[i];
-					}
-					if (minY<0.0) {
-						// some negative, so plot baseline (+5%)
-						int index=dataset.getSeriesCount();
-						XYSeries peakSeries=new XYSeries(index);
-						peakSeries.add(0, 0);
-						peakSeries.add(maxX*1.05, 0);
-						dataset.addSeries(peakSeries);
-						renderer.setSeriesStroke(index, new BasicStroke(1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-						renderer.setSeriesPaint(index, Color.GRAY);
-					}
-					break;
-
-				case text:
-					for (int i=0; i<x.length; i++) {
-						if (!Double.isNaN(x[i])&&!Double.isNaN(y[i])) {
-							XYTextAnnotation annotation=new XYTextAnnotation(trace.getName(), x[i], y[i]*1.01);
-							annotation.setFont(font4);
-							plot.addAnnotation(annotation);
-						}
-					}
-					break;
-
-				case uncenteredText:
-					for (int i=0; i<x.length; i++) {
-						if (!Double.isNaN(x[i])&&!Double.isNaN(y[i])) {
-							XYTextAnnotation annotation=new XYTextAnnotation(trace.getName(), x[i], y[i]*1.01);
-							annotation.setTextAnchor(TextAnchor.TOP_LEFT);
-							annotation.setFont(font4);
-							plot.addAnnotation(annotation);
-						}
-					}
-					break;
-
-				default:
-					throw new RuntimeException("unsupported graphing type!");
-			}
-			if (trace.getColor().isPresent()) {
-				renderer.setSeriesPaint(0, trace.getColor().get());
-				renderer.setDefaultPaint(trace.getColor().get());
-			}
-
-			plot.setDataset(count, dataset);
-			plot.setRenderer(count, renderer);
 
 			count++;
 		}
@@ -389,8 +149,266 @@ public class BasicChartGenerator {
 		chartPanel.setMaximumDrawWidth(Integer.MAX_VALUE);
 		chartPanel.setMaximumDrawHeight(Integer.MAX_VALUE);
 
+		boolean isSpectrum=false;
+		for (XYTraceInterface trace : traces) {
+			if (trace.getType()==GraphType.spectrum) {
+				isSpectrum=true;
+				break;
+			}
+		}
 		if (isSpectrum&&maxY>0&&divider>0) numberaxis1.setUpperBound(maxY/divider);
 		return chartPanel;
+	}
+
+	public static Triplet<AbstractXYItemRenderer, XYSeriesCollection, ArrayList<XYTextAnnotation>> getTraceData(XYTraceInterface trace, double divider) {
+		AbstractXYItemRenderer renderer=new XYLineAndShapeRenderer();
+		XYSeriesCollection dataset=new XYSeriesCollection();
+		ArrayList<XYTextAnnotation> annotations=new ArrayList<>();
+		
+		
+		switch (trace.getType()) {
+			case area:
+				renderer=new XYAreaRenderer();
+				renderer.setSeriesStroke(0, new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+				break;
+
+			case line:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesStroke(0, new BasicStroke(trace.getThickness().orElse(2.0f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+				((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
+
+				break;
+
+			case boldline:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesStroke(0, new BasicStroke(trace.getThickness().orElse(5.0f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+				((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
+
+				break;
+
+			case squaredline:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesStroke(0, new BasicStroke(trace.getThickness().orElse(5.0f), BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL));
+				((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
+
+				break;
+
+			case bolddashedline:
+				renderer=new XYLineAndShapeRenderer();
+				Float thickness=trace.getThickness().orElse(5.0f);
+				if (thickness>5) {
+					renderer.setSeriesStroke(0,
+							new BasicStroke(thickness, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[] {12.0f, 16.0f}, 0.0f));
+				} else {
+					renderer.setSeriesStroke(0,
+							new BasicStroke(thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0.0f, new float[] {3.0f, 5.0f}, 0.0f));
+				}
+				((XYLineAndShapeRenderer)renderer).setDrawSeriesLineAsPath(true);
+				((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
+
+				break;
+
+			case dashedline:
+				renderer=new XYLineAndShapeRenderer();
+				thickness=trace.getThickness().orElse(2.0f);
+				if (thickness>5) {
+					renderer.setSeriesStroke(0,
+							new BasicStroke(thickness, BasicStroke.CAP_SQUARE, BasicStroke.JOIN_MITER, 10.0f, new float[] {12.0f, 16.0f}, 0.0f));
+				} else {
+					renderer.setSeriesStroke(0,
+							new BasicStroke(thickness, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0.0f, new float[] {3.0f, 5.0f}, 0.0f));
+				}
+				((XYLineAndShapeRenderer)renderer).setDrawSeriesLineAsPath(true);
+				((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
+
+				break;
+
+			case bighollowpoint:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesShape(0, createRingShape(0, 0, 2.5, 0.75));
+
+				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
+
+				break;
+
+			case bigpoint:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesShape(0, new Ellipse2D.Double(-2.5, -2.5, 5, 5));
+
+				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
+
+				break;
+
+			case point:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesShape(0, new Ellipse2D.Double(-1.5, -1.5, 3, 3));
+				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
+
+				break;
+
+			case tinypoint:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesShape(0, new Ellipse2D.Double(-0.5, -0.5, 1, 1));
+				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
+
+				break;
+
+			case uncenteredText:
+			case text:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesShape(0, new Ellipse2D.Double(-0.5, -0.5, 1, 1));
+				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
+
+				break;
+
+			case spectrum:
+				renderer=new XYLineAndShapeRenderer();
+				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
+				renderer.setDefaultPaint(Color.DARK_GRAY);
+
+				break;
+
+			case imsspectrum:
+				renderer=new XYLineAndShapeRenderer();
+				renderer.setSeriesShape(0, createRingShape(0, 0, 2.5, 0.75));
+				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
+
+				break;
+
+			default:
+				throw new RuntimeException("unsupported graphing type!");
+		}
+
+		Pair<double[], double[]> values=trace.toArrays();
+		double[] x=values.x;
+		double[] y=MatrixMath.divide(values.y, divider);
+		switch (trace.getType()) {
+			case area:
+			case line:
+			case boldline:
+			case squaredline:
+			case dashedline:
+			case bolddashedline:
+			case bighollowpoint:
+			case bigpoint:
+			case point:
+			case tinypoint:
+				XYSeries series=new XYSeries(trace.getName(), false);
+				for (int i=0; i<x.length; i++) {
+					series.add(x[i], y[i]);
+				}
+				dataset.addSeries(series);
+				break;
+
+			case imsspectrum: {
+				float[] ims=new float[x.length];
+				if (trace instanceof AcquiredSpectrumWrapper) {
+					if (((AcquiredSpectrumWrapper)trace).getSpectrum().getIonMobilityArray().isPresent()) {
+						ims=((AcquiredSpectrumWrapper)trace).getSpectrum().getIonMobilityArray().get();
+						// otherwise set it to an empty array
+					}
+				}
+
+				double maxIntensity=MatrixMath.max(y);
+				int seriesCount=0;
+				for (int i=0; i<x.length; i++) {
+					if (y[i]/maxIntensity<0.01) {
+						// ignore peaks that are less than 1%
+						continue;
+					}
+
+					XYSeries peakSeries=new XYSeries(i);
+					peakSeries.add(ims[i], x[i]);
+					dataset.addSeries(peakSeries);
+
+					// dot size is related to the sqrt of intensity (area=pi*r*r)
+					double intensity=Math.sqrt(y[i]/maxIntensity);
+
+					double diameter=intensity*20.0;
+					double negHalfDiameter=-diameter/2.0;
+
+					Color color=new Color(0.0f, 0.0f, 0.0f, (float)intensity);
+					renderer.setSeriesShape(seriesCount, new Ellipse2D.Double(negHalfDiameter, negHalfDiameter, diameter, diameter));
+					renderer.setSeriesPaint(seriesCount, color);
+					seriesCount++;
+				}
+			}
+				break;
+
+			case spectrum:
+				// IGNORE: just annotate the top 5 ions that don't already have labels and above 20%
+				//double[] intensities=y.clone();
+				//Arrays.sort(intensities);
+				double yThreshold=0;//intensities.length>0?intensities[Math.max(0, intensities.length-5)]:0.0;
+				yThreshold=Double.MAX_VALUE;//Math.max(General.max(y)*0.1, yThreshold);
+
+				for (int i=0; i<x.length; i++) {
+					if (!Double.isNaN(x[i])&&!Double.isNaN(y[i])) {
+						XYSeries peakSeries=new XYSeries(i);
+						peakSeries.add(x[i], 0);
+						peakSeries.add(x[i], y[i]);
+						dataset.addSeries(peakSeries);
+
+						renderer.setSeriesStroke(i, peakStroke);
+						renderer.setSeriesPaint(i, Color.DARK_GRAY);
+
+						boolean aboveThreshold=y[i]<0?y[i]<-yThreshold:y[i]>yThreshold;
+						if (aboveThreshold) {
+							XYTextAnnotation xytextannotation=new XYTextAnnotation(MASS_FORMAT.format(x[i]), x[i], y[i]);
+							xytextannotation.setPaint(Color.DARK_GRAY);
+							xytextannotation.setTextAnchor(y[i]<0?TextAnchor.TOP_CENTER:TextAnchor.BOTTOM_CENTER);
+							annotations.add(xytextannotation);
+						}
+					}
+				}
+
+				double maxX=0.0;
+				double minY=0.0;
+				for (int i=0; i<x.length; i++) {
+					if (x[i]>maxX) maxX=x[i];
+					if (y[i]<minY) minY=y[i];
+				}
+				if (minY<0.0) {
+					// some negative, so plot baseline (+5%)
+					int index=dataset.getSeriesCount();
+					XYSeries peakSeries=new XYSeries(index);
+					peakSeries.add(0, 0);
+					peakSeries.add(maxX*1.05, 0);
+					dataset.addSeries(peakSeries);
+					renderer.setSeriesStroke(index, new BasicStroke(1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+					renderer.setSeriesPaint(index, Color.GRAY);
+				}
+				break;
+
+			case text:
+				for (int i=0; i<x.length; i++) {
+					if (!Double.isNaN(x[i])&&!Double.isNaN(y[i])) {
+						XYTextAnnotation annotation=new XYTextAnnotation(trace.getName(), x[i], y[i]*1.01);
+						annotations.add(annotation);
+					}
+				}
+				break;
+
+			case uncenteredText:
+				for (int i=0; i<x.length; i++) {
+					if (!Double.isNaN(x[i])&&!Double.isNaN(y[i])) {
+						XYTextAnnotation annotation=new XYTextAnnotation(trace.getName(), x[i], y[i]*1.01);
+						annotation.setTextAnchor(TextAnchor.TOP_LEFT);
+						annotations.add(annotation);
+					}
+				}
+				break;
+
+			default:
+				throw new RuntimeException("unsupported graphing type!");
+		}
+		if (trace.getColor().isPresent()) {
+			renderer.setSeriesPaint(0, trace.getColor().get());
+			renderer.setDefaultPaint(trace.getColor().get());
+		}
+
+		Triplet<AbstractXYItemRenderer, XYSeriesCollection, ArrayList<XYTextAnnotation>> traceData=new Triplet<>(renderer, dataset, annotations);
+		return traceData;
 	}
 
 	private static void addSaveMenu(final String xAxis, final ExtendedChartPanel chartPanel, final XYTraceInterface... traces) {

@@ -61,7 +61,7 @@ public final class MzCalibrationPoly implements MzCalibrator {
 			final double inner_ns=time_ns-params.C0;
 			final double inner2=inner_ns*inner_ns;
 			final double inner4=inner2*inner2;
-			mzs[i]=(c1corr*inner2+c2corr*inner4)/1.0e12;
+			mzs[i]=(c1corr*inner2)/1.0e12+(c2corr*inner4)/1.0e24;
 		}
 		return mzs;
 	}
@@ -72,7 +72,7 @@ public final class MzCalibrationPoly implements MzCalibrator {
 		// ppm-corrected coefficients
 		final double cf1=1.0+params.dC1*(params.T1-realT1)/1.0e6;
 		final double c1corr=params.C1*cf1;
-		final double cf2=1.0+params.dC2*(params.T1-realT1)/1.0e6;
+		final double cf2=1.0+params.dC2*(params.T1-realT1)/1.0e6; // should be T2
 		final double c2corr=params.C2*cf2;
 
 		// time mapping (delay treated as ns)
@@ -82,7 +82,7 @@ public final class MzCalibrationPoly implements MzCalibrator {
 		final double C0ns=params.C0;
 
 		// quadratic in y = inner^2: (a) y^2 + (b) y - m_base = 0
-		final double a=c2corr/1.0e12;
+		final double a=c2corr/1.0e24;
 		final double b=c1corr/1.0e12;
 		final boolean linear=Math.abs(a)<1e-30;
 

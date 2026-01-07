@@ -40,8 +40,8 @@ public class StaggeredDemultiplexer {
 	 * @param cycleP2
 	 * @return
 	 */
-	public ArrayList<FragmentScan> demultiplex(ArrayList<FragmentScan> cycleM2, ArrayList<FragmentScan> cycleM1, ArrayList<FragmentScan> cycleP1,
-			ArrayList<FragmentScan> cycleCenter, ArrayList<FragmentScan> cycleP2, int currentScanNumber) {
+	public ArrayList<FragmentScan> demultiplex(ArrayList<FragmentScan> cycleM2, ArrayList<FragmentScan> cycleM1, ArrayList<FragmentScan> cycleCenter, ArrayList<FragmentScan> cycleP1,
+			ArrayList<FragmentScan> cycleP2, int currentScanNumber) {
 		assert (cycleCenter.size()==cycleM1.size());
 		assert (cycleCenter.size()==cycleM2.size());
 		assert (cycleCenter.size()==cycleP1.size());
@@ -66,7 +66,7 @@ public class StaggeredDemultiplexer {
 		}
 		rtCenter=rtCenter/(cycleM1.size()+cycleM2.size());
 
-		ArrayList<ArrayList<HermitePeakIntensityInterpolator>> interpolatablePeaksForEachMSMS=new ArrayList<ArrayList<HermitePeakIntensityInterpolator>>();
+		ArrayList<ArrayList<LogQuadraticPeakIntensityInterpolator>> interpolatablePeaksForEachMSMS=new ArrayList<ArrayList<LogQuadraticPeakIntensityInterpolator>>();
 
 		for (int i=0; i<cycleCenter.size(); i++) {
 			// for each window
@@ -76,9 +76,9 @@ public class StaggeredDemultiplexer {
 			ArrayList<PeakInTime> p1Peaks=getPeaksInMzOrder(cycleP1.get(i));
 			ArrayList<PeakInTime> p2Peaks=getPeaksInMzOrder(cycleP2.get(i));
 
-			ArrayList<HermitePeakIntensityInterpolator> interpolatedPeaks=new ArrayList<HermitePeakIntensityInterpolator>();
+			ArrayList<LogQuadraticPeakIntensityInterpolator> interpolatedPeaks=new ArrayList<LogQuadraticPeakIntensityInterpolator>();
 
-			centerPeaks.sort(PeakInTime.INTENSITY_COMPARATOR);
+			//centerPeaks.sort(PeakInTime.INTENSITY_COMPARATOR);
 
 			for (int j=centerPeaks.size()-1; j>=0; j--) {
 				PeakInTime nextBest=centerPeaks.get(j);
@@ -89,21 +89,27 @@ public class StaggeredDemultiplexer {
 				PeakInTime p1=getPeakIntensity(p1Peaks, nextBest, cycleP1.get(i).getScanStartTime());
 				PeakInTime p2=getPeakIntensity(p2Peaks, nextBest, cycleP2.get(i).getScanStartTime());
 
-				HermitePeakIntensityInterpolator interpolator=new HermitePeakIntensityInterpolator(new PeakInTime[] {m2, m1, nextBest, p1, p2}, nextBest.mz);
+				PeakInTime[] sortedPeaks=new PeakInTime[] {m2, m1, nextBest, p1, p2};
+				Arrays.sort(sortedPeaks, PeakInTime.RT_COMPARATOR);
+				LogQuadraticPeakIntensityInterpolator interpolator=new LogQuadraticPeakIntensityInterpolator(sortedPeaks, nextBest.mz);
 				interpolatedPeaks.add(interpolator);
 			}
 			interpolatedPeaks.sort(null); // sort on m/z
 
 			interpolatablePeaksForEachMSMS.add(interpolatedPeaks);
 		}
-
+		
+		// FIXME VATVSLPR (29.9 min apex)
+		double[] fragmentsOfInterest=new double[] {175.11900, 272.17176, 385.25582, 472.28785, 571.35627, 672.40394, 743.44106, 842.50947};
+		System.out.println();
+		
 		ArrayList<FragmentScan> demuxMSMS=new ArrayList<FragmentScan>();
 		for (int i=0; i<cycleCenter.size(); i++) {
-			ArrayList<HermitePeakIntensityInterpolator> left2Peaks=i<2?null:interpolatablePeaksForEachMSMS.get(i-2);
-			ArrayList<HermitePeakIntensityInterpolator> left1Peaks=i<1?null:interpolatablePeaksForEachMSMS.get(i-1);
-			//ArrayList<HermitePeakIntensityInterpolator> center=interpolatablePeaksForEachMSMS.get(i);
-			ArrayList<HermitePeakIntensityInterpolator> right1Peaks=i+1>=interpolatablePeaksForEachMSMS.size()?null:interpolatablePeaksForEachMSMS.get(i+1);
-			ArrayList<HermitePeakIntensityInterpolator> right2Peaks=i+2>=interpolatablePeaksForEachMSMS.size()?null:interpolatablePeaksForEachMSMS.get(i+2);
+			ArrayList<LogQuadraticPeakIntensityInterpolator> left2Peaks=i<2?null:interpolatablePeaksForEachMSMS.get(i-2);
+			ArrayList<LogQuadraticPeakIntensityInterpolator> left1Peaks=i<1?null:interpolatablePeaksForEachMSMS.get(i-1);
+			//ArrayList<LogQuadraticPeakIntensityInterpolator> center=interpolatablePeaksForEachMSMS.get(i);
+			ArrayList<LogQuadraticPeakIntensityInterpolator> right1Peaks=i+1>=interpolatablePeaksForEachMSMS.size()?null:interpolatablePeaksForEachMSMS.get(i+1);
+			ArrayList<LogQuadraticPeakIntensityInterpolator> right2Peaks=i+2>=interpolatablePeaksForEachMSMS.size()?null:interpolatablePeaksForEachMSMS.get(i+2);
 
 			ArrayList<Peak> leftPeaks=new ArrayList<Peak>();
 			ArrayList<Peak> rightPeaks=new ArrayList<Peak>();
@@ -120,6 +126,16 @@ public class StaggeredDemultiplexer {
 				float leftIntensity=Math.max(i==0?1.0f:0.0f, left1Intensity-left2Intensity);
 				float rightIntensity=Math.max(i==cycleCenter.size()-1?1.0f:0.0f, right1Intensity-right2Intensity);
 				float denom=leftIntensity+rightIntensity;
+
+				
+				if (msms.getIsolationWindowLower()<421.75840&&msms.getIsolationWindowUpper()>421.75840) {
+					double center=(msms.getIsolationWindowLower()+msms.getIsolationWindowUpper())/2.0;
+					if (tolerance.getIndices(fragmentsOfInterest, peak.getMz()).length>0) {
+						System.out.println((msms.getScanStartTime()/60.0)+"\t"+(421.75840>center)+", "+peak.getMz()+" ("+msms.getIsolationWindowLower()+" to "+msms.getIsolationWindowUpper()+")"
+						+"\t"+Math.log10(peak.getIntensity())+"\t["+Math.log10(left2Intensity)+","+Math.log10(left1Intensity)+","+Math.log10(right1Intensity)+","+Math.log10(right2Intensity)+"], "
+								+(denom>0)+": "+(leftIntensity/denom)+" vs "+(rightIntensity/denom));
+					}
+				}
 				if (denom>0) {
 					// ignore as noise if we don't observe it above or below
 					float percentLeft=leftIntensity/denom;
@@ -168,12 +184,12 @@ public class StaggeredDemultiplexer {
 	 * @param rtInSec
 	 * @return
 	 */
-	private float getInterpolatedPeakIntensity(ArrayList<HermitePeakIntensityInterpolator> peaks, PeakInTime nextBest, float rtInSec) {
+	private float getInterpolatedPeakIntensity(ArrayList<LogQuadraticPeakIntensityInterpolator> peaks, PeakInTime nextBest, float rtInSec) {
 		if (peaks==null) return 0.0f;
 		int[] indices=tolerance.getIndices(peaks, nextBest);
 		float totalIntensity=0.0f;
 		for (int j=0; j<indices.length; j++) {
-			HermitePeakIntensityInterpolator peak=peaks.get(indices[j]);
+			LogQuadraticPeakIntensityInterpolator peak=peaks.get(indices[j]);
 			if (peak.isAvailable()) {
 				totalIntensity+=peak.getIntensity(nextBest.getRtInSec());
 				peak.turnOff();
