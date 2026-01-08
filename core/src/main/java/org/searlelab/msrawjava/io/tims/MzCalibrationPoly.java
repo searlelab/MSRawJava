@@ -72,7 +72,9 @@ public final class MzCalibrationPoly implements MzCalibrator {
 		// ppm-corrected coefficients
 		final double cf1=1.0+params.dC1*(params.T1-realT1)/1.0e6;
 		final double c1corr=params.C1*cf1;
-		final double cf2=1.0+params.dC2*(params.T1-realT1)/1.0e6; // should be T2
+		
+		// should be params.T2-realT2, but we don't have that here. As a result, let's assume that the temperature differential is the same
+		final double cf2=1.0+params.dC2*(params.T1-realT1)/1.0e6;
 		final double c2corr=params.C2*cf2;
 
 		// time mapping (delay treated as ns)
