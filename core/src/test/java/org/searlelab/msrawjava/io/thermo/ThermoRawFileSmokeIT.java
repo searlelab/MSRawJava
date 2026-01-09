@@ -21,6 +21,7 @@ import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 /**
  * Smoke test: can we open a Thermo RAW, read MS1s and MS2s in a few windows, and get sane counts and RT ranges without
@@ -57,8 +58,8 @@ public class ThermoRawFileSmokeIT {
 		
 		ThermoRawFile rawFile=new ThermoRawFile();		
 		rawFile.openFile(raw);
-
-		RawFileConverters.writeStandard(rawFile, outDir, OutputType.mzml, new LoggingProgressIndicator());
+		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
+		RawFileConverters.writeStandard(threads, rawFile, outDir, OutputType.mzml, new LoggingProgressIndicator());
 		Path mzml=firstWithExt(outDir, ".mzml");
 		assertNotNull(mzml, "Output .mzML should exist");
 		assertTrue(Files.size(mzml)>0, "mzML should not be empty");
@@ -78,11 +79,14 @@ public class ThermoRawFileSmokeIT {
 		assertTrue(xml.contains("<precursorList"), "MS2 precursor information should be present");
 		assertTrue(xml.contains("selected ion m/z"), "Selected ion m/z should be present");
 		assertTrue(xml.contains("<binaryDataArrayList count=\"2\">"), "Binary arrays should be present");
+		threads.close();
 	}
 
 	void writeRawSmokeMGF(Path raw, Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
-		RawFileConverters.writeThermo(raw, outDir, OutputType.mgf, new LoggingProgressIndicator());
+		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
+		
+		RawFileConverters.writeThermo(threads, raw, outDir, OutputType.mgf, new LoggingProgressIndicator());
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
 		assertTrue(Files.size(mgf)>0, "MGF should not be empty");
@@ -90,6 +94,7 @@ public class ThermoRawFileSmokeIT {
 		String content=readHead(mgf, 16384);
 		assertTrue(content.contains("BEGIN IONS"));
 		assertTrue(content.contains("END IONS"));
+		threads.close();
 	}
 
 	private static Path firstWithExt(Path dir, String ext) throws IOException {

@@ -15,19 +15,22 @@ import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 class StaggeredDemultiplexerTest {
 	@Test
 	public void smokeTest(@TempDir Path outDir) throws Exception {
 		// VATVSLPR (29.9 min apex)
+		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
 		
 		long time=System.currentTimeMillis();
 		//outDir=Paths.get("/Users/searle.brian/Documents/temp/demux/");
 
 		EncyclopeDIAFile rawFile=new EncyclopeDIAFile();
 		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_29to31min.dia").toFile());
-		RawFileConverters.writeDemux(rawFile, outDir, OutputType.mgf, new LoggingProgressIndicator(), new PPMMassTolerance(10.0));
+		RawFileConverters.writeDemux(threads, rawFile, outDir, OutputType.mgf, new LoggingProgressIndicator(), new PPMMassTolerance(10.0));
 
+		threads.close();
 		System.out.println(System.currentTimeMillis()-time);
 	}
 	

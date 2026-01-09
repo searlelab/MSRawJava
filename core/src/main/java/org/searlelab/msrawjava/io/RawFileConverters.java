@@ -31,26 +31,27 @@ import org.searlelab.msrawjava.model.PeakWithIMS;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
+import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 /**
  * RawFileConverters reads raw files using native readers, normalizes spectra and metadata into the shared model, and
  * directs output to the chosen writer (mzML, MGF, or EncyclopeDIA).
  */
 public class RawFileConverters {
-	private static final int NUMBER_OF_REPORTING_SECTIONS=20;
+	private static final int NUMBER_OF_REPORTING_SECTIONS=100;
 
 	/**
 	 * Reads a Thermo RAW, batches spectra over time, attaches metadata and DIA ranges, streams MS1/MS2 to the chosen
 	 * writer, and saves the file.
 	 */
-	public static boolean writeThermo(Path rawFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
+	public static boolean writeThermo(ProcessingThreadPool pool, Path rawFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
 		ThermoRawFile rawFile=new ThermoRawFile();
 
 		rawFile.openFile(rawFilePath);
-		return writeStandard(rawFile, outputDirPath, outType, progress);
+		return writeStandard(pool, rawFile, outputDirPath, outType, progress);
 	}
 
-	public static boolean writeStandard(StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
+	public static boolean writeStandard(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
 		try {
@@ -81,7 +82,7 @@ public class RawFileConverters {
 				outFile.addSpectra(ms1s, ms2s);
 
 				progress.update("Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
-						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/(sections+1));
+						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/(sections+NUMBER_OF_REPORTING_SECTIONS/20f));
 				start=stop;
 				if (progress.isCanceled()) return false;
 			}
@@ -98,7 +99,7 @@ public class RawFileConverters {
 		}
 	}
 
-	public static boolean writeDemux(StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress, MassTolerance tolerance) throws Exception {
+	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress, MassTolerance tolerance) throws Exception {
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
 		try {
@@ -189,7 +190,7 @@ public class RawFileConverters {
 				outFile.addSpectra(ms1s, new ArrayList<FragmentScan>());
 
 				progress.update("Processed "+String.format("%.1f–%.1f", start/60f, Math.min(stop, start+sectionTime)/60f)+" min: "+ms1s.size()+" MS1, "
-						+ms2s.size()+" MS2", (i+1)*100f/(sections+1));
+						+ms2s.size()+" MS2", (i+1)*100f/(sections+NUMBER_OF_REPORTING_SECTIONS/20f));
 
 				start=stop;
 				if (progress.isCanceled()) return false;
@@ -245,8 +246,8 @@ public class RawFileConverters {
 		}
 	}
 
-	public static boolean writeTims(Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
-		return writeTims(timsFilePath, outputDirPath, outType, progress, 3, 1);
+	public static boolean writeTims(ProcessingThreadPool pool, Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
+		return writeTims(pool, timsFilePath, outputDirPath, outType, progress, 3, 1);
 	}
 
 	/**
@@ -254,18 +255,18 @@ public class RawFileConverters {
 	 * given MS1/MS2 thresholds using parallel workers, streams to the chosen writer, and saves the file. Processes IMS
 	 * using a thread pool for speed.
 	 */
-	public static boolean writeTims(Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress, float minimumMS1Intensity,
+	public static boolean writeTims(ProcessingThreadPool threadPool, Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress, float minimumMS1Intensity,
 			float minimumMS2Intensity) throws Exception {
 		BrukerTIMSFile timsFile=new BrukerTIMSFile();
 		timsFile.openFile(timsFilePath);
 
 		String originalFileName=timsFilePath.getFileName().toString();
-		progress.update("Started converting "+originalFileName+"...");
+		progress.update("Started converting "+originalFileName+"...", 0.0f);
 
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
 		int workers=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
-		ExecutorService pool=Executors.newFixedThreadPool(workers, namedFactory("tims-worker"));
+		ExecutorService pool = threadPool.computePool();
 		ExecutorService writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
 
 		List<CompletableFuture<Void>> writeFutures=new ArrayList<>();
@@ -349,9 +350,10 @@ public class RawFileConverters {
 						throw new CompletionException(t);
 					}
 				}, writer));
+				float totalProgress=(i+1)/(float)(sections+NUMBER_OF_REPORTING_SECTIONS/20f); // only go up to 95%	
 
 				progress.update("Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
-						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/(sections+1));
+						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", totalProgress);
 				if (progress.isCanceled()) return false;
 
 				start=stop;
@@ -377,8 +379,6 @@ public class RawFileConverters {
 
 			return true;
 		} finally {
-			pool.shutdown();
-			pool.awaitTermination(365, TimeUnit.DAYS);
 
 			timsFile.close();
 			outFile.close();

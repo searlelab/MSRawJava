@@ -6,11 +6,14 @@ import java.nio.file.Path;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
+import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 class RawFileConvertersTest {
 	@Test
-	void writeTims_missingDir_throws() {
+	void writeTims_missingDir_throws() throws Exception {
 		Path missing=Path.of("src", "test", "resources", "rawdata", "nope_does_not_exist.d");
-		assertThrows(Exception.class, () -> RawFileConverters.writeTims(missing, missing.getParent(), OutputType.mgf, new LoggingProgressIndicator(), 1.0f, 1.0f));
+		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
+		assertThrows(Exception.class, () -> RawFileConverters.writeTims(threads, missing, missing.getParent(), OutputType.mgf, new LoggingProgressIndicator(), 1.0f, 1.0f));
+		threads.close();
 	}
 }

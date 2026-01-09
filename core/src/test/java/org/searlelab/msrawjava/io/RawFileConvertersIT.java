@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
+import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 class RawFileConvertersIT {
 	private static final Path TIMS_D=Path.of("src", "test", "resources", "rawdata", "230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
@@ -19,7 +20,9 @@ class RawFileConvertersIT {
 	@Test
 	void writeTims_toMGF_smoke(@TempDir Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(TIMS_D), "Fixture .d not present: "+TIMS_D);
-		RawFileConverters.writeTims(TIMS_D, outDir, OutputType.mgf, new LoggingProgressIndicator(), 1.0f, 1.0f);
+		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
+		
+		RawFileConverters.writeTims(threads, TIMS_D, outDir, OutputType.mgf, new LoggingProgressIndicator(), 1.0f, 1.0f);
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
 		assertTrue(Files.size(mgf)>0, "MGF should not be empty");
@@ -27,6 +30,8 @@ class RawFileConvertersIT {
 		String content=readHead(mgf, 16384);
 		assertTrue(content.contains("BEGIN IONS"));
 		assertTrue(content.contains("END IONS"));
+		
+		threads.close();
 	}
 
 	private static Path firstWithExt(Path dir, String ext) throws IOException {

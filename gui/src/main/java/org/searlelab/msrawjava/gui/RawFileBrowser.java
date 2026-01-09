@@ -46,6 +46,7 @@ import java.util.Objects;
 	import org.searlelab.msrawjava.gui.loadingpanels.TOFLoadingPanel;
 	import org.searlelab.msrawjava.io.VendorFileFinder;
 	import org.searlelab.msrawjava.io.VendorFiles;
+	import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 	
 	public class RawFileBrowser extends JFrame {
 		private static final long serialVersionUID=1L;
@@ -64,7 +65,7 @@ import java.util.Objects;
 		private volatile SwingWorker<JComponent, String> currentLoad;
 		private final AtomicLong loadSeq=new AtomicLong();
 	
-		public RawFileBrowser() {
+		public RawFileBrowser(ProcessingThreadPool pool) {
 			super("Raw File Browser");
 	
 			treeModel=new DirectoryTreeModel(fsv);
@@ -88,7 +89,7 @@ import java.util.Objects;
 			treeScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 	
 			// ---- Top is the directory table (set later); Bottom is the lowerSplit
-			conversionPane=new ConversionPane(prefs);
+			conversionPane=new ConversionPane(prefs, pool);
 			fileSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JPanel(), conversionPane);
 			fileSplit.setResizeWeight(0.5);
 			fileSplit.setContinuousLayout(true);

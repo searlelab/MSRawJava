@@ -14,6 +14,7 @@ import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
+import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 /**
  * Main is the command-line entry point for MSRawJava. It parses options, discovers vendor inputs via VendorFileFinder,
@@ -120,6 +121,7 @@ public class Main {
 
 	/** Discovers vendor files and writes outputs using the selected format. */
 	public static void convertKnownFiles(ExportParameters params) throws IOException, InterruptedException, Exception {
+		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
 		VendorFiles files=new VendorFiles();
 		for (File f : params.getFileList()) {
 			if (f.exists()&&f.canRead()) {
@@ -142,7 +144,7 @@ public class Main {
 					ThermoRawFile rawFile=new ThermoRawFile();		
 					rawFile.openFile(path);
 
-					RawFileConverters.writeStandard(rawFile, outputPath, params.getOutType(), new LoggingProgressIndicator());
+					RawFileConverters.writeStandard(pool, rawFile, outputPath, params.getOutType(), new LoggingProgressIndicator());
 					Logger.logLine("Finished writing "+params.getOutType()+" file");
 				}
 
@@ -159,9 +161,10 @@ public class Main {
 				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
 				
-				RawFileConverters.writeTims(path, outputPath, params.getOutType(), new LoggingProgressIndicator(), params.getMinimumMS1Intensity(), params.getMinimumMS2Intensity());
+				RawFileConverters.writeTims(pool, path, outputPath, params.getOutType(), new LoggingProgressIndicator(), params.getMinimumMS1Intensity(), params.getMinimumMS2Intensity());
 				Logger.logLine("Finished writing "+params.getOutType()+" file");
 			}
 		}
+		pool.close();
 	}
 }

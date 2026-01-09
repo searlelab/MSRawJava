@@ -43,6 +43,7 @@ import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
+import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 /**
  * Owns the conversion parameter bar, queue, dispatcher and details console.
@@ -65,6 +66,7 @@ public class ConversionPane extends JPanel {
 
 	// ---- collaborators ----
 	private final Preferences prefs;
+	private final ProcessingThreadPool pool;
 
 	// ---- supplier of currently selected paths in the directory table (set by RawFileBrowser) ----
 	private Supplier<List<Path>> selectedPathsSupplier=List::of;
@@ -86,9 +88,10 @@ public class ConversionPane extends JPanel {
 	private final ExecutorService executor=Executors.newCachedThreadPool();
 	private final QueueDispatcher dispatcher=new QueueDispatcher(queueModel, executor);
 
-	public ConversionPane(Preferences prefs) {
+	public ConversionPane(Preferences prefs, ProcessingThreadPool pool) {
 		super(new BorderLayout());
 		this.prefs=Objects.requireNonNull(prefs, "prefs");
+		this.pool=pool;
 
 		// ---- param bar ----
 		JPanel params=buildParamBar();
@@ -526,15 +529,15 @@ public class ConversionPane extends JPanel {
 					ThermoRawFile rawFile=new ThermoRawFile();		
 					rawFile.openFile(input);
 					if (demultiplex) {
-						ok=RawFileConverters.writeDemux(rawFile, outputDir, outType, this, new PPMMassTolerance(10.0));
+						ok=RawFileConverters.writeDemux(pool, rawFile, outputDir, outType, this, new PPMMassTolerance(10.0));
 					} else {
-						ok=RawFileConverters.writeStandard(rawFile, outputDir, outType, this);
+						ok=RawFileConverters.writeStandard(pool, rawFile, outputDir, outType, this);
 					}
 				} else {
 					if (demultiplex) {
 						Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files");
 					}
-					ok=RawFileConverters.writeTims(input, outputDir, outType, this);
+					ok=RawFileConverters.writeTims(pool, input, outputDir, outType, this);
 				}
 				if (cancelRequested) {
 					state=JobState.CANCELED;
