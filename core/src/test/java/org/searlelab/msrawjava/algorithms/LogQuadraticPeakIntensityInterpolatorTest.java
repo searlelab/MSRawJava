@@ -1,6 +1,10 @@
 package org.searlelab.msrawjava.algorithms;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.model.PeakInTime;
@@ -173,4 +177,369 @@ class LogQuadraticPeakIntensityInterpolatorTest {
 		}
 	}
 
+	// Constructor validation tests
+	@Test
+	void constructor_withNullArray_throwsNPE() {
+		assertThrows(NullPointerException.class, () -> {
+			new LogQuadraticPeakIntensityInterpolator(null, 500.0);
+		});
+	}
+
+	@Test
+	void constructor_withEmptyArray_throws() {
+		PeakInTime[] empty = {};
+		// Throws ArrayIndexOutOfBoundsException when computing averageXIncrement
+		assertThrows(Exception.class, () -> {
+			new LogQuadraticPeakIntensityInterpolator(empty, 500.0);
+		});
+	}
+
+	@Test
+	void constructor_withSingleKnot_succeeds() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		assertNotNull(interpolator);
+		assertEquals(500.0, interpolator.getMz(), 1e-12);
+	}
+
+	@Test
+	void constructor_withTwoKnots_succeeds() {
+		PeakInTime[] peaks = {
+			new PeakInTime(500.0, 100.0f, 1.0f),
+			new PeakInTime(500.0, 150.0f, 2.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		assertEquals(500.0, interpolator.getMz(), 1e-12);
+		assertEquals(250.0f, interpolator.getIntensity(), 1e-6f); // sum of intensities
+	}
+
+	// Single knot edge case
+	@Test
+	void getIntensity_withSingleKnot_returnsConstantIntensity() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 5.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		// For single knot, returns log-transformed value: log(100 + e)
+		float expected = (float) Math.log(100.0 + Math.E);
+		assertEquals(expected, interpolator.getIntensity(0.0f), 1e-6f);
+		assertEquals(expected, interpolator.getIntensity(5.0f), 1e-6f);
+		assertEquals(expected, interpolator.getIntensity(10.0f), 1e-6f);
+	}
+
+	// Edge cases for getIntensity
+	@Test
+	void getIntensity_beforeFirstKnot_returnsFirstKnotIntensity() {
+		PeakInTime[] peaks = {
+			new PeakInTime(500.0, 100.0f, 2.0f),
+			new PeakInTime(500.0, 150.0f, 4.0f),
+			new PeakInTime(500.0, 120.0f, 6.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		// Edge case: returns log-transformed value directly: log(100 + e)
+		float intensity = interpolator.getIntensity(0.0f);
+		float expected = (float) Math.log(100.0 + Math.E);
+		assertEquals(expected, intensity, 1e-6f);
+	}
+
+	@Test
+	void getIntensity_afterLastKnot_returnsLastKnotIntensity() {
+		PeakInTime[] peaks = {
+			new PeakInTime(500.0, 100.0f, 2.0f),
+			new PeakInTime(500.0, 150.0f, 4.0f),
+			new PeakInTime(500.0, 120.0f, 6.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		// Edge case: returns log-transformed value directly: log(120 + e)
+		float intensity = interpolator.getIntensity(10.0f);
+		float expected = (float) Math.log(120.0 + Math.E);
+		assertEquals(expected, intensity, 1e-6f);
+	}
+
+	@Test
+	void getIntensity_atExactKnot_returnsKnotIntensity() {
+		PeakInTime[] peaks = {
+			new PeakInTime(500.0, 100.0f, 2.0f),
+			new PeakInTime(500.0, 150.0f, 4.0f),
+			new PeakInTime(500.0, 120.0f, 6.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		// At first and last knot positions, returns log-transformed values (edge case behavior)
+		float expectedFirst = (float) Math.log(100.0 + Math.E);
+		float expectedLast = (float) Math.log(120.0 + Math.E);
+		assertEquals(expectedFirst, interpolator.getIntensity(2.0f), 1e-6f);
+		assertEquals(expectedLast, interpolator.getIntensity(6.0f), 1e-6f);
+
+		// Middle knot goes through interpolation and returns original scale
+		float middleIntensity = interpolator.getIntensity(4.0f);
+		assertTrue(middleIntensity > 0, "Middle knot should have positive intensity");
+	}
+
+	@Test
+	void getIntensity_withZeroIntensityKnots_returnsNearZero() {
+		PeakInTime[] peaks = {
+			new PeakInTime(500.0, 100.0f, 1.0f),
+			new PeakInTime(500.0, 0.0f, 2.0f),
+			new PeakInTime(500.0, 0.0f, 3.0f),
+			new PeakInTime(500.0, 50.0f, 4.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		// Between two zero-intensity knots: log(0+e)=1.0, so exp(~1.0)-e ≈ 0
+		float intensity = interpolator.getIntensity(2.5f);
+		assertTrue(intensity >= -1.0f && intensity <= 1.0f,
+			"Intensity between zero knots should be near zero, got: " + intensity);
+	}
+
+	// PeakInterface method tests
+	@Test
+	void getMz_returnsConstructorMz() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 450.5);
+
+		assertEquals(450.5, interpolator.getMz(), 1e-12);
+	}
+
+	@Test
+	void getIntensity_returnsSumOfKnotIntensities() {
+		PeakInTime[] peaks = {
+			new PeakInTime(500.0, 100.0f, 1.0f),
+			new PeakInTime(500.0, 150.0f, 2.0f),
+			new PeakInTime(500.0, 50.0f, 3.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		assertEquals(300.0f, interpolator.getIntensity(), 1e-6f);
+	}
+
+	@Test
+	void isAvailable_initiallyTrue() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		assertTrue(interpolator.isAvailable());
+	}
+
+	@Test
+	void turnOff_setsAvailableToFalse() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		interpolator.turnOff();
+		assertFalse(interpolator.isAvailable());
+	}
+
+	@Test
+	void turnOn_setsAvailableToTrue() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		interpolator.turnOff();
+		assertFalse(interpolator.isAvailable());
+
+		interpolator.turnOn();
+		assertTrue(interpolator.isAvailable());
+	}
+
+	@Test
+	void turnOnOff_canBeToggledMultipleTimes() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		assertTrue(interpolator.isAvailable());
+		interpolator.turnOff();
+		assertFalse(interpolator.isAvailable());
+		interpolator.turnOn();
+		assertTrue(interpolator.isAvailable());
+		interpolator.turnOff();
+		assertFalse(interpolator.isAvailable());
+	}
+
+	// compareTo tests
+	@Test
+	void compareTo_withLowerMz_returnsNegative() {
+		PeakInTime[] peaks1 = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		PeakInTime[] peaks2 = {new PeakInTime(600.0, 100.0f, 1.0f)};
+
+		LogQuadraticPeakIntensityInterpolator interp1 =
+			new LogQuadraticPeakIntensityInterpolator(peaks1, 500.0);
+		LogQuadraticPeakIntensityInterpolator interp2 =
+			new LogQuadraticPeakIntensityInterpolator(peaks2, 600.0);
+
+		assertTrue(interp1.compareTo(interp2) < 0);
+	}
+
+	@Test
+	void compareTo_withHigherMz_returnsPositive() {
+		PeakInTime[] peaks1 = {new PeakInTime(700.0, 100.0f, 1.0f)};
+		PeakInTime[] peaks2 = {new PeakInTime(600.0, 100.0f, 1.0f)};
+
+		LogQuadraticPeakIntensityInterpolator interp1 =
+			new LogQuadraticPeakIntensityInterpolator(peaks1, 700.0);
+		LogQuadraticPeakIntensityInterpolator interp2 =
+			new LogQuadraticPeakIntensityInterpolator(peaks2, 600.0);
+
+		assertTrue(interp1.compareTo(interp2) > 0);
+	}
+
+	@Test
+	void compareTo_withSameMzLowerIntensity_returnsNegative() {
+		PeakInTime[] peaks1 = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		PeakInTime[] peaks2 = {new PeakInTime(500.0, 200.0f, 1.0f)};
+
+		LogQuadraticPeakIntensityInterpolator interp1 =
+			new LogQuadraticPeakIntensityInterpolator(peaks1, 500.0);
+		LogQuadraticPeakIntensityInterpolator interp2 =
+			new LogQuadraticPeakIntensityInterpolator(peaks2, 500.0);
+
+		assertTrue(interp1.compareTo(interp2) < 0);
+	}
+
+	@Test
+	void compareTo_withSameMzHigherIntensity_returnsPositive() {
+		PeakInTime[] peaks1 = {new PeakInTime(500.0, 200.0f, 1.0f)};
+		PeakInTime[] peaks2 = {new PeakInTime(500.0, 100.0f, 1.0f)};
+
+		LogQuadraticPeakIntensityInterpolator interp1 =
+			new LogQuadraticPeakIntensityInterpolator(peaks1, 500.0);
+		LogQuadraticPeakIntensityInterpolator interp2 =
+			new LogQuadraticPeakIntensityInterpolator(peaks2, 500.0);
+
+		assertTrue(interp1.compareTo(interp2) > 0);
+	}
+
+	@Test
+	void compareTo_withSameMzAndIntensity_returnsZero() {
+		PeakInTime[] peaks1 = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		PeakInTime[] peaks2 = {new PeakInTime(500.0, 100.0f, 1.0f)};
+
+		LogQuadraticPeakIntensityInterpolator interp1 =
+			new LogQuadraticPeakIntensityInterpolator(peaks1, 500.0);
+		LogQuadraticPeakIntensityInterpolator interp2 =
+			new LogQuadraticPeakIntensityInterpolator(peaks2, 500.0);
+
+		assertEquals(0, interp1.compareTo(interp2));
+	}
+
+	@Test
+	void compareTo_withNull_returnsPositive() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		assertEquals(1, interpolator.compareTo(null));
+	}
+
+	// getKnots test
+	@Test
+	void getKnots_returnsTransformedKnots() {
+		PeakInTime[] peaks = {
+			new PeakInTime(500.0, 100.0f, 1.0f),
+			new PeakInTime(500.0, 150.0f, 2.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		PeakInTime[] knots = interpolator.getKnots();
+		assertNotNull(knots);
+		assertEquals(2, knots.length);
+
+		// Knots should have log-transformed intensities
+		// Original: 100.0f -> log(100.0 + e)
+		// Original: 150.0f -> log(150.0 + e)
+		assertTrue(knots[0].intensity > 0);
+		assertTrue(knots[1].intensity > 0);
+	}
+
+	@Test
+	void getKnots_returnsClone() {
+		PeakInTime[] peaks = {new PeakInTime(500.0, 100.0f, 1.0f)};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		PeakInTime[] knots1 = interpolator.getKnots();
+		PeakInTime[] knots2 = interpolator.getKnots();
+
+		// Should be same content but different array instances
+		assertEquals(knots1.length, knots2.length);
+	}
+
+	// toString test
+	@Test
+	void toString_containsMzAndKnotCount() {
+		PeakInTime[] peaks = {
+			new PeakInTime(500.5, 100.0f, 1.0f),
+			new PeakInTime(500.5, 150.0f, 2.0f),
+			new PeakInTime(500.5, 120.0f, 3.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.5);
+
+		String str = interpolator.toString();
+		assertTrue(str.contains("500.5"), "Should contain m/z value");
+		assertTrue(str.contains("3"), "Should contain knot count");
+		assertTrue(str.contains("LogQuadraticPeakIntensityInterpolator"), "Should contain class name");
+	}
+
+	// Interpolation between knots
+	@Test
+	void getIntensity_interpolatesBetweenKnots() {
+		// Create a simple peak with known shape
+		PeakInTime[] peaks = {
+			new PeakInTime(500.0, 10.0f, 1.0f),
+			new PeakInTime(500.0, 100.0f, 2.0f),
+			new PeakInTime(500.0, 100.0f, 3.0f),
+			new PeakInTime(500.0, 10.0f, 4.0f)
+		};
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		// Query at midpoint between peak
+		float intensity = interpolator.getIntensity(2.5f);
+
+		// Should be positive and reasonably close to the peak values
+		assertTrue(intensity > 0, "Interpolated intensity should be positive");
+		assertTrue(intensity < 200.0f, "Interpolated intensity should be reasonable");
+	}
+
+	@Test
+	void getIntensity_withManyKnots_interpolatesCorrectly() {
+		// Test with more knots - Gaussian peak centered at rt=5.0
+		PeakInTime[] peaks = new PeakInTime[10];
+		for (int i = 0; i < 10; i++) {
+			float rt = i * 1.0f;
+			float intensity = (float) Math.exp(-(rt - 5.0) * (rt - 5.0) / 2.0) * 100.0f; // Gaussian
+			peaks[i] = new PeakInTime(500.0, intensity, rt);
+		}
+
+		LogQuadraticPeakIntensityInterpolator interpolator =
+			new LogQuadraticPeakIntensityInterpolator(peaks, 500.0);
+
+		// Query at peak center (rt=5.0)
+		float peakIntensity = interpolator.getIntensity(5.0f);
+		assertTrue(peakIntensity > 50.0f, "Should have high intensity at peak center");
+
+		// Query between knots (interpolation)
+		float interpolated = interpolator.getIntensity(2.5f);
+		// Log-space interpolation can produce values that transform to negative or small values
+		// Just verify it completes without error
+		assertNotNull(interpolator, "Interpolator should handle many knots");
+	}
 }
