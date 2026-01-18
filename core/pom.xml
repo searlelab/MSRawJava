@@ -239,6 +239,7 @@
 				<configuration>
 					<excludes>
 						<exclude>org/searlelab/msrawjava/io/thermo/rpc/**</exclude>
+						<exclude>net/bytebuddy/**</exclude>
 					</excludes>
 				</configuration>
 				<executions>
