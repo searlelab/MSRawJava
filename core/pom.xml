@@ -252,6 +252,13 @@
 					<excludes>
 						<exclude>org/searlelab/msrawjava/io/thermo/rpc/**</exclude>
 						<exclude>net/bytebuddy/**</exclude>
+						<!-- Exclude test classes from coverage analysis -->
+						<exclude>**/*Test</exclude>
+						<exclude>**/*Test$*</exclude>
+						<exclude>**/*IT</exclude>
+						<exclude>**/*IT$*</exclude>
+						<!-- Exclude any classes that may have been instrumented with java. prefix -->
+						<exclude>java/**</exclude>
 					</excludes>
 				</configuration>
 				<executions>

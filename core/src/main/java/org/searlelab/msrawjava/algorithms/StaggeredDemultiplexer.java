@@ -103,30 +103,6 @@ public class StaggeredDemultiplexer {
 
 	/**
 	 * Demultiplexes staggered DIA spectra from 5 complete cycles.
-	 * Uses a spectrum-centric approach where each acquired spectrum produces
-	 * 2 demultiplexed outputs (one for each sub-window it covers).
-	 * Includes edge sub-windows by default.
-	 *
-	 * @param cycleM2           cycle at t-2 (earliest)
-	 * @param cycleM1           cycle at t-1
-	 * @param cycleCenter       cycle at t (the one we're demultiplexing)
-	 * @param cycleP1           cycle at t+1
-	 * @param cycleP2           cycle at t+2 (latest)
-	 * @param currentScanNumber starting scan number for output spectra
-	 * @return demultiplexed FragmentScans, 2*(N+M) per cycle with edges
-	 */
-	public ArrayList<FragmentScan> demultiplex(
-			ArrayList<FragmentScan> cycleM2,
-			ArrayList<FragmentScan> cycleM1,
-			ArrayList<FragmentScan> cycleCenter,
-			ArrayList<FragmentScan> cycleP1,
-			ArrayList<FragmentScan> cycleP2,
-			int currentScanNumber) {
-		return demultiplex(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2, currentScanNumber, true);
-	}
-
-	/**
-	 * Demultiplexes staggered DIA spectra from 5 complete cycles.
 	 * Uses a spectrum-centric approach where each acquired spectrum is the anchor
 	 * for demultiplexing the sub-windows it covers.
 	 *
@@ -138,14 +114,14 @@ public class StaggeredDemultiplexer {
 	 *   <li>Only m/z values from the anchor spectrum appear in output</li>
 	 * </ul>
 	 *
-	 * @param cycleM2                cycle at t-2 (earliest)
-	 * @param cycleM1                cycle at t-1
-	 * @param cycleCenter            cycle at t (the one we're demultiplexing)
-	 * @param cycleP1                cycle at t+1
-	 * @param cycleP2                cycle at t+2 (latest)
-	 * @param currentScanNumber      starting scan number for output spectra
-	 * @param includeEdgeSubWindows  if true, include first/last sub-windows (single coverage);
-	 *                               if false, exclude them (requires dual coverage)
+	 * <p>Edge sub-window handling is controlled by {@link DemuxConfig#isIncludeEdgeSubWindows()}.
+	 *
+	 * @param cycleM2           cycle at t-2 (earliest)
+	 * @param cycleM1           cycle at t-1
+	 * @param cycleCenter       cycle at t (the one we're demultiplexing)
+	 * @param cycleP1           cycle at t+1
+	 * @param cycleP2           cycle at t+2 (latest)
+	 * @param currentScanNumber starting scan number for output spectra
 	 * @return demultiplexed FragmentScans
 	 */
 	public ArrayList<FragmentScan> demultiplex(
@@ -154,8 +130,7 @@ public class StaggeredDemultiplexer {
 			ArrayList<FragmentScan> cycleCenter,
 			ArrayList<FragmentScan> cycleP1,
 			ArrayList<FragmentScan> cycleP2,
-			int currentScanNumber,
-			boolean includeEdgeSubWindows) {
+			int currentScanNumber) {
 
 		// Validate input
 		validateCycles(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2);
@@ -184,8 +159,8 @@ public class StaggeredDemultiplexer {
 			DemuxWindow[] coveredSubWindows = findCoveredSubWindows(anchorSpectrum);
 
 			for (DemuxWindow subWindow : coveredSubWindows) {
-				// Skip edge sub-windows if requested
-				if (!includeEdgeSubWindows && isEdgeSubWindow(subWindow)) {
+				// Skip edge sub-windows if configured to exclude them
+				if (!config.isIncludeEdgeSubWindows() && isEdgeSubWindow(subWindow)) {
 					continue;
 				}
 
@@ -357,26 +332,6 @@ public class StaggeredDemultiplexer {
 		this.initialized = true;
 	}
 
-	/**
-	 * Calculates target RT by averaging cycleM1 and cycleP1 times.
-	 * @deprecated No longer used - spectrum-centric approach uses each anchor's actual RT instead
-	 */
-	@Deprecated
-	@SuppressWarnings("unused")
-	private float calculateTargetRT(ArrayList<FragmentScan> cycleM1, ArrayList<FragmentScan> cycleP1) {
-		float sum = 0;
-		int count = 0;
-		for (FragmentScan scan : cycleM1) {
-			sum += scan.getScanStartTime();
-			count++;
-		}
-		for (FragmentScan scan : cycleP1) {
-			sum += scan.getScanStartTime();
-			count++;
-		}
-		return count > 0 ? sum / count : 0;
-	}
-
 	private ArrayList<SpectrumWithRT> findCoveringSpectra(DemuxWindow subWindow,
 			ArrayList<ArrayList<FragmentScan>> allCycles) {
 		ArrayList<SpectrumWithRT> result = new ArrayList<>();
@@ -408,41 +363,6 @@ public class StaggeredDemultiplexer {
 		});
 
 		return new ArrayList<>(spectra.subList(0, k));
-	}
-
-	/**
-	 * Collects unique m/z values from all center cycle spectra covering a sub-window.
-	 * @deprecated Replaced by collectMzValuesFromAnchor() which collects from anchor only
-	 */
-	@Deprecated
-	@SuppressWarnings("unused")
-	private TDoubleArrayList collectUniqueMzValues(DemuxWindow subWindow, ArrayList<FragmentScan> cycleCenter) {
-		TDoubleArrayList mzs = new TDoubleArrayList();
-
-		for (FragmentScan scan : cycleCenter) {
-			// Only include spectra whose isolation window covers this sub-window
-			if (!subWindow.isContainedBy(scan.getIsolationWindowLower(), scan.getIsolationWindowUpper())) {
-				continue;
-			}
-			// Collect ALL m/z values from this spectrum - fragment ions can have any m/z,
-			// not just within the precursor isolation window. The isolation window defines
-			// which PRECURSORS are selected, but fragments can be anywhere in the m/z range.
-			double[] masses = scan.getMassArray();
-			for (double mz : masses) {
-				mzs.add(mz);
-			}
-		}
-
-		// Sort and remove duplicates (within tolerance)
-		mzs.sort();
-		TDoubleArrayList unique = new TDoubleArrayList();
-		for (int i = 0; i < mzs.size(); i++) {
-			if (unique.isEmpty() || tolerance.compareTo(mzs.get(i), unique.get(unique.size() - 1)) != 0) {
-				unique.add(mzs.get(i));
-			}
-		}
-
-		return unique;
 	}
 
 	private double[] buildIntensityVector(ArrayList<SpectrumWithRT> spectra, double targetMz, float targetRT) {
