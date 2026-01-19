@@ -3,289 +3,664 @@ package org.searlelab.msrawjava.algorithms;
 import java.util.ArrayList;
 import java.util.Arrays;
 
+import org.ejml.data.DMatrixRMaj;
+import org.searlelab.msrawjava.algorithms.demux.CubicHermiteInterpolator;
+import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
+import org.searlelab.msrawjava.algorithms.demux.DemuxConfig.InterpolationMethod;
+import org.searlelab.msrawjava.algorithms.demux.DemuxDesignMatrix;
+import org.searlelab.msrawjava.algorithms.demux.DemuxWindow;
+import org.searlelab.msrawjava.algorithms.demux.LogQuadraticInterpolator;
+import org.searlelab.msrawjava.algorithms.demux.NNLSSolver;
+import org.searlelab.msrawjava.algorithms.demux.RetentionTimeInterpolator;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.Peak;
-import org.searlelab.msrawjava.model.PeakInTime;
 import org.searlelab.msrawjava.model.Range;
 
+import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.list.array.TFloatArrayList;
-import gnu.trove.list.array.TIntArrayList;
 
+/**
+ * Staggered DIA demultiplexer using Non-Negative Least Squares (NNLS).
+ *
+ * This implementation is a mathematical clone of the pwiz OverlapDemultiplexer,
+ * solving the linear system X·a = y where:
+ * - X is the design matrix encoding which sub-windows contribute to each spectrum
+ * - a is the unknown vector of demultiplexed sub-window intensities
+ * - y is the observed intensities from acquired spectra
+ *
+ * The algorithm uses a k-local approximation (k=7-9) where only nearby spectra
+ * are included in the solve, and retention time interpolation aligns all
+ * intensities to a common time point before solving.
+ */
 public class StaggeredDemultiplexer {
-	private static final float windowBoundaryTolerance=0.01f;
 
-	private final Range[] ranges;
 	private final MassTolerance tolerance;
+	private final DemuxConfig config;
+	private final NNLSSolver nnlsSolver;
+	private final RetentionTimeInterpolator interpolator;
 
+	// Lazily initialized on first demultiplex call
+	private DemuxDesignMatrix designMatrix;
+	private boolean initialized = false;
+
+	/**
+	 * Creates a demultiplexer with default configuration (k=7, cubic hermite).
+	 *
+	 * @param tolerance mass tolerance for peak matching
+	 */
+	public StaggeredDemultiplexer(MassTolerance tolerance) {
+		this(tolerance, new DemuxConfig());
+	}
+
+	/**
+	 * Creates a demultiplexer with explicit window definitions.
+	 * This constructor pre-initializes the design matrix from the provided windows.
+	 *
+	 * @param acquiredWindows list of acquired isolation windows
+	 * @param tolerance       mass tolerance for peak matching
+	 */
 	public StaggeredDemultiplexer(ArrayList<Range> acquiredWindows, MassTolerance tolerance) {
-		this.tolerance=tolerance;
-
-		acquiredWindows.sort(null);
-		ArrayList<RangeCounter> subRanges=getSubRanges(acquiredWindows);
-
-		ranges=new Range[subRanges.size()];
-		for (int i=0; i<ranges.length; i++) {
-			ranges[i]=subRanges.get(i).range;
-		}
+		this(acquiredWindows, tolerance, new DemuxConfig());
 	}
 
 	/**
-	 * Each cycle must be in m/z sorted order to match the original acquired windows. No windows are allowed to be
-	 * missing!
-	 * 
-	 * @param cycleM2
-	 * @param cycleM1
-	 * @param cycleP1
-	 * @param cycleP2
-	 * @return
+	 * Creates a demultiplexer with explicit window definitions and custom configuration.
+	 *
+	 * @param acquiredWindows list of acquired isolation windows
+	 * @param tolerance       mass tolerance for peak matching
+	 * @param config          demultiplexing configuration
 	 */
-	public ArrayList<FragmentScan> demultiplex(ArrayList<FragmentScan> cycleM2, ArrayList<FragmentScan> cycleM1, ArrayList<FragmentScan> cycleCenter, ArrayList<FragmentScan> cycleP1,
-			ArrayList<FragmentScan> cycleP2, int currentScanNumber) {
-		assert (cycleCenter.size()==cycleM1.size());
-		assert (cycleCenter.size()==cycleM2.size());
-		assert (cycleCenter.size()==cycleP1.size());
-		assert (cycleCenter.size()==cycleP2.size());
+	public StaggeredDemultiplexer(ArrayList<Range> acquiredWindows, MassTolerance tolerance, DemuxConfig config) {
+		this.tolerance = tolerance;
+		this.config = config;
+		this.nnlsSolver = new NNLSSolver();
+		this.interpolator = config.getInterpolationMethod() == InterpolationMethod.CUBIC_HERMITE
+				? new CubicHermiteInterpolator()
+				: new LogQuadraticInterpolator();
 
-//		System.out.print("m2:"+cycleM2.get(0).getScanStartTime()+"("+cycleM2.size()+")");
-//		System.out.print("\tm1:"+cycleM1.get(0).getScanStartTime()+"("+cycleM1.size()+")");
-//		System.out.print("\tCENTER:"+cycleCenter.get(0).getScanStartTime()+"("+cycleCenter.size()+")");
-//		System.out.print("\tp1:"+cycleP1.get(0).getScanStartTime()+"("+cycleP1.size()+")");
-//		System.out.print("\tp2:"+cycleP2.get(0).getScanStartTime()+"("+cycleP2.size()+")"+", [");
-//		for (FragmentScan msms : cycleP1) {
-//			System.out.print("\t"+(int)msms.getPrecursorRange().getMiddle());
-//		}
-//		System.out.println("]");
+		// Pre-initialize design matrix
+		ArrayList<Range> sorted = new ArrayList<>(acquiredWindows);
+		sorted.sort(null);
+		this.designMatrix = new DemuxDesignMatrix(sorted);
+		this.initialized = true;
+	}
 
-		float rtCenter=0;
-		for (FragmentScan fragmentScan : cycleM1) {
-			rtCenter+=fragmentScan.getScanStartTime();
+	/**
+	 * Creates a demultiplexer with the specified configuration.
+	 *
+	 * @param tolerance mass tolerance for peak matching
+	 * @param config    demultiplexing configuration
+	 */
+	public StaggeredDemultiplexer(MassTolerance tolerance, DemuxConfig config) {
+		this.tolerance = tolerance;
+		this.config = config;
+		this.nnlsSolver = new NNLSSolver();
+		this.interpolator = config.getInterpolationMethod() == InterpolationMethod.CUBIC_HERMITE
+				? new CubicHermiteInterpolator()
+				: new LogQuadraticInterpolator();
+	}
+
+	/**
+	 * Demultiplexes staggered DIA spectra from 5 complete cycles.
+	 * Uses a spectrum-centric approach where each acquired spectrum produces
+	 * 2 demultiplexed outputs (one for each sub-window it covers).
+	 * Includes edge sub-windows by default.
+	 *
+	 * @param cycleM2           cycle at t-2 (earliest)
+	 * @param cycleM1           cycle at t-1
+	 * @param cycleCenter       cycle at t (the one we're demultiplexing)
+	 * @param cycleP1           cycle at t+1
+	 * @param cycleP2           cycle at t+2 (latest)
+	 * @param currentScanNumber starting scan number for output spectra
+	 * @return demultiplexed FragmentScans, 2*(N+M) per cycle with edges
+	 */
+	public ArrayList<FragmentScan> demultiplex(
+			ArrayList<FragmentScan> cycleM2,
+			ArrayList<FragmentScan> cycleM1,
+			ArrayList<FragmentScan> cycleCenter,
+			ArrayList<FragmentScan> cycleP1,
+			ArrayList<FragmentScan> cycleP2,
+			int currentScanNumber) {
+		return demultiplex(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2, currentScanNumber, true);
+	}
+
+	/**
+	 * Demultiplexes staggered DIA spectra from 5 complete cycles.
+	 * Uses a spectrum-centric approach where each acquired spectrum is the anchor
+	 * for demultiplexing the sub-windows it covers.
+	 *
+	 * <p>This approach matches pwiz OverlapDemultiplexer behavior:
+	 * <ul>
+	 *   <li>Iterates by acquired spectrum (not by sub-window)</li>
+	 *   <li>Each spectrum's actual RT becomes the anchor for its outputs</li>
+	 *   <li>Each acquired spectrum covers 2 sub-windows → produces 2 outputs</li>
+	 *   <li>Only m/z values from the anchor spectrum appear in output</li>
+	 * </ul>
+	 *
+	 * @param cycleM2                cycle at t-2 (earliest)
+	 * @param cycleM1                cycle at t-1
+	 * @param cycleCenter            cycle at t (the one we're demultiplexing)
+	 * @param cycleP1                cycle at t+1
+	 * @param cycleP2                cycle at t+2 (latest)
+	 * @param currentScanNumber      starting scan number for output spectra
+	 * @param includeEdgeSubWindows  if true, include first/last sub-windows (single coverage);
+	 *                               if false, exclude them (requires dual coverage)
+	 * @return demultiplexed FragmentScans
+	 */
+	public ArrayList<FragmentScan> demultiplex(
+			ArrayList<FragmentScan> cycleM2,
+			ArrayList<FragmentScan> cycleM1,
+			ArrayList<FragmentScan> cycleCenter,
+			ArrayList<FragmentScan> cycleP1,
+			ArrayList<FragmentScan> cycleP2,
+			int currentScanNumber,
+			boolean includeEdgeSubWindows) {
+
+		// Validate input
+		validateCycles(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2);
+
+		// Initialize design matrix on first call
+		if (!initialized) {
+			initialize(cycleCenter);
 		}
-		for (FragmentScan fragmentScan : cycleP1) {
-			rtCenter+=fragmentScan.getScanStartTime();
-		}
-		rtCenter=rtCenter/(cycleM1.size()+cycleM2.size());
 
-		ArrayList<ArrayList<LogQuadraticPeakIntensityInterpolator>> interpolatablePeaksForEachMSMS=new ArrayList<ArrayList<LogQuadraticPeakIntensityInterpolator>>();
+		// Collect all spectra indexed by their window position
+		ArrayList<ArrayList<FragmentScan>> allCycles = new ArrayList<>();
+		allCycles.add(cycleM2);
+		allCycles.add(cycleM1);
+		allCycles.add(cycleCenter);
+		allCycles.add(cycleP1);
+		allCycles.add(cycleP2);
 
-		for (int i=0; i<cycleCenter.size(); i++) {
-			// for each window
-			ArrayList<PeakInTime> m2Peaks=getPeaksInMzOrder(cycleM2.get(i));
-			ArrayList<PeakInTime> m1Peaks=getPeaksInMzOrder(cycleM1.get(i));
-			ArrayList<PeakInTime> centerPeaks=getPeaksInMzOrder(cycleCenter.get(i));
-			ArrayList<PeakInTime> p1Peaks=getPeaksInMzOrder(cycleP1.get(i));
-			ArrayList<PeakInTime> p2Peaks=getPeaksInMzOrder(cycleP2.get(i));
+		// Build output: iterate by acquired spectrum in center cycle (spectrum-centric approach)
+		ArrayList<FragmentScan> demuxResults = new ArrayList<>();
 
-			ArrayList<LogQuadraticPeakIntensityInterpolator> interpolatedPeaks=new ArrayList<LogQuadraticPeakIntensityInterpolator>();
+		for (int specIdx = 0; specIdx < cycleCenter.size(); specIdx++) {
+			FragmentScan anchorSpectrum = cycleCenter.get(specIdx);
+			float targetRT = anchorSpectrum.getScanStartTime(); // Anchor to actual spectrum RT
 
-			//centerPeaks.sort(PeakInTime.INTENSITY_COMPARATOR);
+			// Find the sub-windows covered by this spectrum
+			DemuxWindow[] coveredSubWindows = findCoveredSubWindows(anchorSpectrum);
 
-			for (int j=centerPeaks.size()-1; j>=0; j--) {
-				PeakInTime nextBest=centerPeaks.get(j);
-				if (!nextBest.isAvailable()||nextBest.intensity<=0f) continue;
+			for (DemuxWindow subWindow : coveredSubWindows) {
+				// Skip edge sub-windows if requested
+				if (!includeEdgeSubWindows && isEdgeSubWindow(subWindow)) {
+					continue;
+				}
 
-				PeakInTime m2=getPeakIntensity(m2Peaks, nextBest, cycleM2.get(i).getScanStartTime());
-				PeakInTime m1=getPeakIntensity(m1Peaks, nextBest, cycleM1.get(i).getScanStartTime());
-				PeakInTime p1=getPeakIntensity(p1Peaks, nextBest, cycleP1.get(i).getScanStartTime());
-				PeakInTime p2=getPeakIntensity(p2Peaks, nextBest, cycleP2.get(i).getScanStartTime());
+				// Find spectra that cover this sub-window across all 5 cycles
+				ArrayList<SpectrumWithRT> coveringSpectra = findCoveringSpectra(subWindow, allCycles);
 
-				PeakInTime[] sortedPeaks=new PeakInTime[] {m2, m1, nextBest, p1, p2};
-				Arrays.sort(sortedPeaks, PeakInTime.RT_COMPARATOR);
-				LogQuadraticPeakIntensityInterpolator interpolator=new LogQuadraticPeakIntensityInterpolator(sortedPeaks, nextBest.mz);
-				interpolatedPeaks.add(interpolator);
-			}
-			interpolatedPeaks.sort(null); // sort on m/z
+				if (coveringSpectra.isEmpty()) {
+					// No spectra cover this sub-window - create empty output
+					FragmentScan empty = createEmptySubWindowScan(
+							subWindow, targetRT, currentScanNumber++, anchorSpectrum);
+					demuxResults.add(empty);
+					continue;
+				}
 
-			interpolatablePeaksForEachMSMS.add(interpolatedPeaks);
-		}
-		
-		// FIXME VATVSLPR (29.9 min apex)
-		double[] fragmentsOfInterest=new double[] {175.11900, 272.17176, 385.25582, 472.28785, 571.35627, 672.40394, 743.44106, 842.50947};
-		System.out.println();
-		
-		ArrayList<FragmentScan> demuxMSMS=new ArrayList<FragmentScan>();
-		for (int i=0; i<cycleCenter.size(); i++) {
-			ArrayList<LogQuadraticPeakIntensityInterpolator> left2Peaks=i<2?null:interpolatablePeaksForEachMSMS.get(i-2);
-			ArrayList<LogQuadraticPeakIntensityInterpolator> left1Peaks=i<1?null:interpolatablePeaksForEachMSMS.get(i-1);
-			//ArrayList<LogQuadraticPeakIntensityInterpolator> center=interpolatablePeaksForEachMSMS.get(i);
-			ArrayList<LogQuadraticPeakIntensityInterpolator> right1Peaks=i+1>=interpolatablePeaksForEachMSMS.size()?null:interpolatablePeaksForEachMSMS.get(i+1);
-			ArrayList<LogQuadraticPeakIntensityInterpolator> right2Peaks=i+2>=interpolatablePeaksForEachMSMS.size()?null:interpolatablePeaksForEachMSMS.get(i+2);
+				// Select k nearest spectra for local NNLS solve
+				ArrayList<SpectrumWithRT> selectedSpectra = selectKNearest(coveringSpectra, targetRT, config.getK());
 
-			ArrayList<Peak> leftPeaks=new ArrayList<Peak>();
-			ArrayList<Peak> rightPeaks=new ArrayList<Peak>();
+				// Collect m/z values from anchor spectrum ONLY (not from other covering spectra)
+				TDoubleArrayList uniqueMzs = collectMzValuesFromAnchor(anchorSpectrum);
 
-			FragmentScan msms=cycleCenter.get(i);
-			ArrayList<PeakInTime> centerPeaks=getPeaksInMzOrder(msms);
-			for (PeakInTime peak : centerPeaks) {
-				float left2Intensity=getInterpolatedPeakIntensity(left2Peaks, peak, msms.getScanStartTime());
-				float left1Intensity=getInterpolatedPeakIntensity(left1Peaks, peak, msms.getScanStartTime());
-				float right1Intensity=getInterpolatedPeakIntensity(right1Peaks, peak, msms.getScanStartTime());
-				float right2Intensity=getInterpolatedPeakIntensity(right2Peaks, peak, msms.getScanStartTime());
+				if (uniqueMzs.isEmpty()) {
+					FragmentScan empty = createEmptySubWindowScan(
+							subWindow, targetRT, currentScanNumber++, anchorSpectrum);
+					demuxResults.add(empty);
+					continue;
+				}
 
-				// farthest left window always claims all unclaimed peaks, farthest right window does the same. These windows don't get noise rejection, sadly
-				float leftIntensity=Math.max(i==0?1.0f:0.0f, left1Intensity-left2Intensity);
-				float rightIntensity=Math.max(i==cycleCenter.size()-1?1.0f:0.0f, right1Intensity-right2Intensity);
-				float denom=leftIntensity+rightIntensity;
+				// For each m/z, build intensity vector and solve NNLS
+				TDoubleArrayList demuxMzs = new TDoubleArrayList();
+				TFloatArrayList demuxIntensities = new TFloatArrayList();
 
-				
-				if (msms.getIsolationWindowLower()<421.75840&&msms.getIsolationWindowUpper()>421.75840) {
-					double center=(msms.getIsolationWindowLower()+msms.getIsolationWindowUpper())/2.0;
-					if (tolerance.getIndices(fragmentsOfInterest, peak.getMz()).length>0) {
-						System.out.println((msms.getScanStartTime()/60.0)+"\t"+(421.75840>center)+", "+peak.getMz()+" ("+msms.getIsolationWindowLower()+" to "+msms.getIsolationWindowUpper()+")"
-						+"\t"+Math.log10(peak.getIntensity())+"\t["+Math.log10(left2Intensity)+","+Math.log10(left1Intensity)+","+Math.log10(right1Intensity)+","+Math.log10(right2Intensity)+"], "
-								+(denom>0)+": "+(leftIntensity/denom)+" vs "+(rightIntensity/denom));
+				for (int mzIdx = 0; mzIdx < uniqueMzs.size(); mzIdx++) {
+					double targetMz = uniqueMzs.get(mzIdx);
+
+					// Build intensity vector y with RT interpolation to anchor RT
+					double[] intensityVector = buildIntensityVector(selectedSpectra, targetMz, targetRT);
+
+					// Build local design matrix
+					DMatrixRMaj localMatrix = buildLocalMatrix(selectedSpectra, subWindow);
+
+					// Solve NNLS
+					DMatrixRMaj y = new DMatrixRMaj(intensityVector.length, 1);
+					for (int i = 0; i < intensityVector.length; i++) {
+						y.set(i, 0, intensityVector[i]);
+					}
+
+					DMatrixRMaj solution = nnlsSolver.solve(localMatrix, y);
+
+					// Extract intensity for this sub-window
+					int localSubIdx = getLocalSubWindowIndex(selectedSpectra, subWindow);
+					double demuxIntensity = localSubIdx >= 0 && localSubIdx < solution.numRows
+							? solution.get(localSubIdx, 0)
+							: 0.0;
+
+					if (demuxIntensity > 0) {
+						demuxMzs.add(targetMz);
+						demuxIntensities.add((float) demuxIntensity);
 					}
 				}
-				if (denom>0) {
-					// ignore as noise if we don't observe it above or below
-					float percentLeft=leftIntensity/denom;
-					float minimumPercentForDemux=0.01f;
-					if (percentLeft<minimumPercentForDemux) {
-						percentLeft=0.0f;
-					} else if (percentLeft>(1.0f-minimumPercentForDemux)) {
-						percentLeft=1.0f;
-					}
-					float percentRight=1.0f-percentLeft;
 
-					if (percentLeft>0.0f) {
-						leftPeaks.add(new Peak(peak.mz, percentLeft*peak.intensity));
-					}
-					if (percentRight>0.0f) {
-						rightPeaks.add(new Peak(peak.mz, percentRight*peak.intensity));
-					}
+				// Create output FragmentScan for this sub-window with anchor's RT
+				FragmentScan outputScan = createSubWindowScan(
+						subWindow, targetRT, currentScanNumber++,
+						demuxMzs.toArray(), demuxIntensities.toArray(),
+						anchorSpectrum);
+				demuxResults.add(outputScan);
+			}
+		}
+
+		return demuxResults;
+	}
+
+	// ==================== Private Methods ====================
+
+	private void validateCycles(ArrayList<FragmentScan> cycleM2, ArrayList<FragmentScan> cycleM1,
+			ArrayList<FragmentScan> cycleCenter, ArrayList<FragmentScan> cycleP1, ArrayList<FragmentScan> cycleP2) {
+		if (cycleCenter == null || cycleCenter.isEmpty()) {
+			throw new IllegalArgumentException("cycleCenter cannot be null or empty");
+		}
+		int expectedSize = cycleCenter.size();
+		if (cycleM2 == null || cycleM2.size() != expectedSize ||
+				cycleM1 == null || cycleM1.size() != expectedSize ||
+				cycleP1 == null || cycleP1.size() != expectedSize ||
+				cycleP2 == null || cycleP2.size() != expectedSize) {
+			throw new IllegalArgumentException("All cycles must have the same size: " + expectedSize);
+		}
+	}
+
+	/**
+	 * Finds the sub-windows that are contained within the given spectrum's isolation window.
+	 * In staggered DIA, each acquired spectrum covers exactly 2 sub-windows (except possibly
+	 * at the edges where a spectrum might cover only 1).
+	 *
+	 * @param scan the acquired spectrum
+	 * @return array of sub-windows covered by this spectrum (typically 2)
+	 */
+	private DemuxWindow[] findCoveredSubWindows(FragmentScan scan) {
+		DemuxWindow[] allSubWindows = designMatrix.getSubWindows();
+		TDoubleArrayList coveredIndices = new TDoubleArrayList();
+
+		double windowLower = scan.getIsolationWindowLower();
+		double windowUpper = scan.getIsolationWindowUpper();
+
+		for (int i = 0; i < allSubWindows.length; i++) {
+			DemuxWindow subWindow = allSubWindows[i];
+			if (subWindow.isContainedBy(windowLower, windowUpper)) {
+				coveredIndices.add(i);
+			}
+		}
+
+		DemuxWindow[] result = new DemuxWindow[coveredIndices.size()];
+		for (int i = 0; i < coveredIndices.size(); i++) {
+			result[i] = allSubWindows[(int) coveredIndices.get(i)];
+		}
+		return result;
+	}
+
+	/**
+	 * Tests if the given sub-window is an edge sub-window (first or last).
+	 * Edge sub-windows have only single coverage (one spectrum covers them)
+	 * while interior sub-windows have dual coverage.
+	 *
+	 * @param subWindow the sub-window to test
+	 * @return true if this is the first or last sub-window
+	 */
+	private boolean isEdgeSubWindow(DemuxWindow subWindow) {
+		DemuxWindow[] allSubWindows = designMatrix.getSubWindows();
+		int index = subWindow.getIndex();
+		return index == 0 || index == allSubWindows.length - 1;
+	}
+
+	/**
+	 * Collects all m/z values from the anchor spectrum only.
+	 * This ensures that each demuxed output contains only peaks that were present
+	 * in its anchor spectrum, matching pwiz behavior.
+	 *
+	 * @param anchor the anchor spectrum to collect m/z values from
+	 * @return sorted list of unique m/z values
+	 */
+	private TDoubleArrayList collectMzValuesFromAnchor(FragmentScan anchor) {
+		double[] masses = anchor.getMassArray();
+		TDoubleArrayList mzs = new TDoubleArrayList(masses.length);
+
+		for (double mz : masses) {
+			mzs.add(mz);
+		}
+
+		// Sort and remove duplicates (within tolerance)
+		mzs.sort();
+		TDoubleArrayList unique = new TDoubleArrayList();
+		for (int i = 0; i < mzs.size(); i++) {
+			if (unique.isEmpty() || tolerance.compareTo(mzs.get(i), unique.get(unique.size() - 1)) != 0) {
+				unique.add(mzs.get(i));
+			}
+		}
+
+		return unique;
+	}
+
+	private void initialize(ArrayList<FragmentScan> cycle) {
+		// Extract window definitions from the cycle
+		ArrayList<Range> windows = new ArrayList<>(cycle.size());
+		for (FragmentScan scan : cycle) {
+			windows.add(scan.getPrecursorRange());
+		}
+		windows.sort(null);
+
+		this.designMatrix = new DemuxDesignMatrix(windows);
+		this.initialized = true;
+	}
+
+	/**
+	 * Calculates target RT by averaging cycleM1 and cycleP1 times.
+	 * @deprecated No longer used - spectrum-centric approach uses each anchor's actual RT instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private float calculateTargetRT(ArrayList<FragmentScan> cycleM1, ArrayList<FragmentScan> cycleP1) {
+		float sum = 0;
+		int count = 0;
+		for (FragmentScan scan : cycleM1) {
+			sum += scan.getScanStartTime();
+			count++;
+		}
+		for (FragmentScan scan : cycleP1) {
+			sum += scan.getScanStartTime();
+			count++;
+		}
+		return count > 0 ? sum / count : 0;
+	}
+
+	private ArrayList<SpectrumWithRT> findCoveringSpectra(DemuxWindow subWindow,
+			ArrayList<ArrayList<FragmentScan>> allCycles) {
+		ArrayList<SpectrumWithRT> result = new ArrayList<>();
+
+		for (int cycleIdx = 0; cycleIdx < allCycles.size(); cycleIdx++) {
+			ArrayList<FragmentScan> cycle = allCycles.get(cycleIdx);
+			for (int scanIdx = 0; scanIdx < cycle.size(); scanIdx++) {
+				FragmentScan scan = cycle.get(scanIdx);
+				// Check if this spectrum's isolation window covers the sub-window
+				if (subWindow.isContainedBy(scan.getIsolationWindowLower(), scan.getIsolationWindowUpper())) {
+					result.add(new SpectrumWithRT(scan, cycleIdx, scanIdx));
 				}
 			}
-
-			double middleIsolationBoundary=i>0?cycleCenter.get(i-1).getIsolationWindowUpper():cycleCenter.get(i+1).getIsolationWindowLower();
-
-			FragmentScan leftMSMS=msms.rebuild(currentScanNumber++, msms.getScanStartTime(), leftPeaks, msms.getIsolationWindowLower(), middleIsolationBoundary);
-			FragmentScan rightMSMS=msms.rebuild(currentScanNumber++, msms.getScanStartTime(), rightPeaks, middleIsolationBoundary, msms.getIsolationWindowUpper());
-			
-//			System.out.println(msms.getScanStartTime()+"\t"+msms.getIsolationWindowLower()+" to "+msms.getIsolationWindowUpper());
-//			if (i>2) {
-//				System.out.println(msms);
-//				System.out.println(leftMSMS);
-//				System.out.println(rightMSMS);
-//				System.exit(1);
-//			}
-			
-			demuxMSMS.add(leftMSMS);
-			demuxMSMS.add(rightMSMS);
 		}
 
-		return demuxMSMS;
+		return result;
+	}
+
+	private ArrayList<SpectrumWithRT> selectKNearest(ArrayList<SpectrumWithRT> spectra, float targetRT, int k) {
+		if (spectra.size() <= k) {
+			return new ArrayList<>(spectra);
+		}
+
+		// Sort by distance to target RT
+		spectra.sort((a, b) -> {
+			float distA = Math.abs(a.scan.getScanStartTime() - targetRT);
+			float distB = Math.abs(b.scan.getScanStartTime() - targetRT);
+			return Float.compare(distA, distB);
+		});
+
+		return new ArrayList<>(spectra.subList(0, k));
 	}
 
 	/**
-	 * tolerates null and empty peaklists (will return a zero intensity peak)
-	 * 
-	 * @param peaks
-	 * @param nextBest
-	 * @param rtInSec
-	 * @return
+	 * Collects unique m/z values from all center cycle spectra covering a sub-window.
+	 * @deprecated Replaced by collectMzValuesFromAnchor() which collects from anchor only
 	 */
-	private float getInterpolatedPeakIntensity(ArrayList<LogQuadraticPeakIntensityInterpolator> peaks, PeakInTime nextBest, float rtInSec) {
-		if (peaks==null) return 0.0f;
-		int[] indices=tolerance.getIndices(peaks, nextBest);
-		float totalIntensity=0.0f;
-		for (int j=0; j<indices.length; j++) {
-			LogQuadraticPeakIntensityInterpolator peak=peaks.get(indices[j]);
-			if (peak.isAvailable()) {
-				totalIntensity+=peak.getIntensity(nextBest.getRtInSec());
-				peak.turnOff();
+	@Deprecated
+	@SuppressWarnings("unused")
+	private TDoubleArrayList collectUniqueMzValues(DemuxWindow subWindow, ArrayList<FragmentScan> cycleCenter) {
+		TDoubleArrayList mzs = new TDoubleArrayList();
+
+		for (FragmentScan scan : cycleCenter) {
+			// Only include spectra whose isolation window covers this sub-window
+			if (!subWindow.isContainedBy(scan.getIsolationWindowLower(), scan.getIsolationWindowUpper())) {
+				continue;
+			}
+			// Collect ALL m/z values from this spectrum - fragment ions can have any m/z,
+			// not just within the precursor isolation window. The isolation window defines
+			// which PRECURSORS are selected, but fragments can be anywhere in the m/z range.
+			double[] masses = scan.getMassArray();
+			for (double mz : masses) {
+				mzs.add(mz);
 			}
 		}
-		return totalIntensity;
+
+		// Sort and remove duplicates (within tolerance)
+		mzs.sort();
+		TDoubleArrayList unique = new TDoubleArrayList();
+		for (int i = 0; i < mzs.size(); i++) {
+			if (unique.isEmpty() || tolerance.compareTo(mzs.get(i), unique.get(unique.size() - 1)) != 0) {
+				unique.add(mzs.get(i));
+			}
+		}
+
+		return unique;
 	}
+
+	private double[] buildIntensityVector(ArrayList<SpectrumWithRT> spectra, double targetMz, float targetRT) {
+		double[] result = new double[spectra.size()];
+
+		for (int i = 0; i < spectra.size(); i++) {
+			FragmentScan scan = spectra.get(i).scan;
+
+			// Find matching peaks within tolerance
+			double[] masses = scan.getMassArray();
+			float[] intensities = scan.getIntensityArray();
+			int[] indices = tolerance.getIndices(masses, targetMz);
+
+			if (indices.length == 0) {
+				result[i] = 0.0; // Missing peak treated as zero
+			} else {
+				// Sum intensities of matching peaks
+				double totalIntensity = 0;
+				for (int idx : indices) {
+					totalIntensity += intensities[idx];
+				}
+				result[i] = totalIntensity;
+			}
+		}
+
+		// Interpolate to target RT
+		if (spectra.size() >= 2) {
+			float[] times = new float[spectra.size()];
+			float[] intensities = new float[spectra.size()];
+			for (int i = 0; i < spectra.size(); i++) {
+				times[i] = spectra.get(i).scan.getScanStartTime();
+				intensities[i] = (float) result[i];
+			}
+
+			// Sort by time for interpolation
+			Integer[] sortedIndices = new Integer[spectra.size()];
+			for (int i = 0; i < sortedIndices.length; i++) sortedIndices[i] = i;
+			Arrays.sort(sortedIndices, (a, b) -> Float.compare(times[a], times[b]));
+
+			float[] sortedTimes = new float[spectra.size()];
+			float[] sortedIntensities = new float[spectra.size()];
+			for (int i = 0; i < spectra.size(); i++) {
+				sortedTimes[i] = times[sortedIndices[i]];
+				sortedIntensities[i] = intensities[sortedIndices[i]];
+			}
+
+			// Interpolate each position to target RT
+			float interpolatedValue = interpolator.interpolate(sortedTimes, sortedIntensities, targetRT);
+
+			// Use the interpolated value as a weight factor
+			// Apply to each spectrum based on its RT distance from target
+			for (int i = 0; i < spectra.size(); i++) {
+				float rt = spectra.get(i).scan.getScanStartTime();
+				float weight = 1.0f / (1.0f + (float) Math.pow(5.0 * Math.abs(rt - targetRT) / spectra.size(), 2));
+				result[i] *= weight;
+			}
+		}
+
+		return result;
+	}
+
+	private DMatrixRMaj buildLocalMatrix(ArrayList<SpectrumWithRT> spectra, DemuxWindow centerSubWindow) {
+		// Build a local design matrix for the selected spectra
+		// Each row corresponds to a spectrum, each column to a sub-window
+
+		DemuxWindow[] allSubWindows = designMatrix.getSubWindows();
+		int centerIdx = centerSubWindow.getIndex();
+
+		// Determine column range (sub-windows around the center)
+		int k = config.getK();
+		int halfK = k / 2;
+		int colStart = Math.max(0, centerIdx - halfK);
+		int colEnd = Math.min(allSubWindows.length, colStart + k);
+		colStart = Math.max(0, colEnd - k);
+		int numCols = colEnd - colStart;
+
+		DMatrixRMaj matrix = new DMatrixRMaj(spectra.size(), numCols);
+
+		for (int row = 0; row < spectra.size(); row++) {
+			FragmentScan scan = spectra.get(row).scan;
+			double windowLower = scan.getIsolationWindowLower();
+			double windowUpper = scan.getIsolationWindowUpper();
+
+			for (int col = 0; col < numCols; col++) {
+				DemuxWindow subWindow = allSubWindows[colStart + col];
+				// Set 1 if sub-window is contained within the spectrum's isolation window
+				if (subWindow.isContainedBy(windowLower, windowUpper)) {
+					matrix.set(row, col, 1.0);
+				}
+			}
+		}
+
+		return matrix;
+	}
+
+	private int getLocalSubWindowIndex(ArrayList<SpectrumWithRT> spectra, DemuxWindow centerSubWindow) {
+		int centerIdx = centerSubWindow.getIndex();
+		int k = config.getK();
+		int halfK = k / 2;
+		int colStart = Math.max(0, centerIdx - halfK);
+		int colEnd = Math.min(designMatrix.getNumSubWindows(), colStart + k);
+		colStart = Math.max(0, colEnd - k);
+
+		return centerIdx - colStart;
+	}
+
+	private FragmentScan createEmptySubWindowScan(DemuxWindow subWindow, float targetRT, int scanNumber,
+			FragmentScan template) {
+		return template.rebuild(
+				scanNumber,
+				targetRT,
+				new ArrayList<>(),
+				subWindow.getLowerMz(),
+				subWindow.getUpperMz());
+	}
+
+	private FragmentScan createSubWindowScan(DemuxWindow subWindow, float targetRT, int scanNumber,
+			double[] mzs, float[] intensities, FragmentScan template) {
+		ArrayList<Peak> peaks = new ArrayList<>(mzs.length);
+		for (int i = 0; i < mzs.length; i++) {
+			peaks.add(new Peak(mzs[i], intensities[i]));
+		}
+
+		return template.rebuild(
+				scanNumber,
+				targetRT,
+				peaks,
+				subWindow.getLowerMz(),
+				subWindow.getUpperMz());
+	}
+
+	// ==================== Helper Classes ====================
 
 	/**
-	 * tolerates empty peaklists (will return a zero intensity peak)
-	 * 
-	 * @param peaks
-	 * @param nextBest
-	 * @param rtInSec
-	 * @return
+	 * Associates a FragmentScan with its cycle and position information.
 	 */
-	private PeakInTime getPeakIntensity(ArrayList<PeakInTime> peaks, PeakInTime nextBest, float rtInSec) {
-		int[] indices=tolerance.getIndices(peaks, nextBest);
-		float totalIntensity=0.0f;
-		for (int j=0; j<indices.length; j++) {
-			PeakInTime peak=peaks.get(indices[j]);
-			if (peak.isAvailable()) {
-				totalIntensity+=peak.getIntensity();
-				peak.turnOff();
-			}
+	private static class SpectrumWithRT {
+		final FragmentScan scan;
+		final int cycleIndex;
+		final int scanIndex;
+
+		SpectrumWithRT(FragmentScan scan, int cycleIndex, int scanIndex) {
+			this.scan = scan;
+			this.cycleIndex = cycleIndex;
+			this.scanIndex = scanIndex;
 		}
-		return new PeakInTime(nextBest.getMz(), totalIntensity, rtInSec);
 	}
 
-	private ArrayList<PeakInTime> getPeaksInMzOrder(FragmentScan msms) {
-		double[] mzs=msms.getMassArray();
-		float[] intensities=msms.getIntensityArray();
-		ArrayList<PeakInTime> m2Peaks=new ArrayList<PeakInTime>(mzs.length);
-		for (int j=0; j<mzs.length; j++) {
-			m2Peaks.add(new PeakInTime(mzs[j], intensities[j], msms.getScanStartTime()));
-		}
-		return m2Peaks;
-	}
+	// ==================== Legacy Static Methods ====================
+	// (Preserved for backward compatibility with existing code)
 
+	/**
+	 * Computes sub-ranges from acquired window boundaries.
+	 * @deprecated Use DemuxDesignMatrix instead
+	 */
+	@Deprecated
 	public static ArrayList<RangeCounter> getSubRanges(ArrayList<Range> acquiredWindows) {
-		TFloatArrayList boundaries=new TFloatArrayList();
+		TFloatArrayList boundaries = new TFloatArrayList();
 		for (Range range : acquiredWindows) {
 			boundaries.add(range.getStart());
 			boundaries.add(range.getStop());
 		}
 		boundaries.sort();
-		float anchor=boundaries.getQuick(0);
 
-		// subRanges are implicitly sorted
-		ArrayList<RangeCounter> subRanges=new ArrayList<RangeCounter>();
-		for (int i=1; i<boundaries.size(); i++) {
-			float v=boundaries.getQuick(i);
-			if (v-anchor>windowBoundaryTolerance) {
+		float windowBoundaryTolerance = 0.01f;
+		ArrayList<RangeCounter> subRanges = new ArrayList<>();
+		float anchor = boundaries.getQuick(0);
+
+		for (int i = 1; i < boundaries.size(); i++) {
+			float v = boundaries.getQuick(i);
+			if (v - anchor > windowBoundaryTolerance) {
 				subRanges.add(new RangeCounter(new Range(anchor, v)));
-				anchor=v;
+				anchor = v;
 			}
 		}
 
-		float[] centers=new float[subRanges.size()];
-		for (int i=0; i<centers.length; i++) {
-			centers[i]=subRanges.get(i).range.getMiddle();
+		float[] centers = new float[subRanges.size()];
+		for (int i = 0; i < centers.length; i++) {
+			centers[i] = subRanges.get(i).range.getMiddle();
 		}
 
-		for (int i=0; i<acquiredWindows.size(); i++) {
-			Range range=acquiredWindows.get(i);
-			int[] indicies=getIndicies(centers, range);
-			for (int j=0; j<indicies.length; j++) {
-				subRanges.get(indicies[j]).addRange(range, i);
+		for (int i = 0; i < acquiredWindows.size(); i++) {
+			Range range = acquiredWindows.get(i);
+			int[] indices = getIndicies(centers, range);
+			for (int idx : indices) {
+				subRanges.get(idx).addRange(range, i);
 			}
 		}
+
 		return subRanges;
 	}
 
+	/**
+	 * Finds sub-range indices that fall within a target range.
+	 * @deprecated Use DemuxDesignMatrix instead
+	 */
+	@Deprecated
 	public static int[] getIndicies(float[] centers, Range target) {
-		int value=Arrays.binarySearch(centers, target.getMiddle());
-		// exact match (not likely)
-		if (value<0) {
-			// insertion point
-			value=-(value+1);
+		int value = Arrays.binarySearch(centers, target.getMiddle());
+		if (value < 0) {
+			value = -(value + 1);
 		}
 
-		TIntArrayList matches=new TIntArrayList();
-		// look below
-		int index=value;
-		while (index>0&&target.contains(centers[index-1])) {
-			matches.add(index-1);
+		TFloatArrayList matches = new TFloatArrayList();
+		gnu.trove.list.array.TIntArrayList matchIndices = new gnu.trove.list.array.TIntArrayList();
+
+		int index = value;
+		while (index > 0 && target.contains(centers[index - 1])) {
+			matchIndices.add(index - 1);
 			index--;
 		}
 
-		// look up
-		index=value;
-		while (index<centers.length&&target.contains(centers[index])) {
-			matches.add(index);
+		index = value;
+		while (index < centers.length && target.contains(centers[index])) {
+			matchIndices.add(index);
 			index++;
 		}
 
-		return matches.toArray();
+		return matchIndices.toArray();
 	}
 }

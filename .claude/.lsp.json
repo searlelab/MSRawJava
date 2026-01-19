@@ -1,0 +1,23 @@
+{
+  "java": {
+    "command": "/opt/homebrew/bin/jdtls",
+    "args": [
+      "-data",
+      "/Users/searle.brian/.jdtls/workspace"
+    ],
+    "extensionToLanguage": {
+      ".java": "java"
+    },
+    "initializationOptions": {
+      "extendedClientCapabilities": {
+        "classFileContentsSupport": true
+      }
+    },
+    "settings": {
+      "java.format.enabled": true,
+      "java.completion.enabled": true,
+      "java.references.includeDecompiledSources": true
+    },
+    "restartOnCrash": true
+  }
+}
