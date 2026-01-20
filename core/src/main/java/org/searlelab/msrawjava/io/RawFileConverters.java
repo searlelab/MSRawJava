@@ -56,8 +56,9 @@ public class RawFileConverters {
 
 		try {
 			String originalFileName=rawFile.getFile().getName();
-			progress.update("Started converting "+originalFileName+"...");
-
+			progress.update("Started converting "+originalFileName+"...", 0.0f);
+			long startTime=System.currentTimeMillis();
+			
 			outFile.setFileName(originalFileName, rawFile.toString());
 			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
 			outFile.addMetadata(rawFile.getMetadata());
@@ -90,6 +91,7 @@ public class RawFileConverters {
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
+			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");
 			progress.update("Finished converting "+originalFileName+"!", 1.0f);
 			return true;
 
@@ -105,7 +107,8 @@ public class RawFileConverters {
 		ExecutorService writer=null;
 		try {
 			String originalFileName=rawFile.getOriginalFileName();
-			progress.update("Started converting "+originalFileName+"...");
+			progress.update("Started converting "+originalFileName+"...", 0.0f);
+			long startTime=System.currentTimeMillis();
 
 			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 			Map<Range, WindowData> ranges=rawFile.getRanges();
@@ -253,6 +256,7 @@ public class RawFileConverters {
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
+			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");
 			progress.update("Finished converting "+originalFileName+"!", 1.0f);
 			return true;
 
@@ -290,6 +294,7 @@ public class RawFileConverters {
 
 		String originalFileName=timsFilePath.getFileName().toString();
 		progress.update("Started converting "+originalFileName+"...", 0.0f);
+		long startTime=System.currentTimeMillis();
 
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
@@ -403,6 +408,7 @@ public class RawFileConverters {
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
+			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");
 			progress.update("Finished converting "+originalFileName+"!", 1.0f);
 
 			return true;
