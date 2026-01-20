@@ -39,19 +39,7 @@ public class StaggeredDemultiplexer {
 	private final DemuxConfig config;
 	private final NNLSSolver nnlsSolver;
 	private final RetentionTimeInterpolator interpolator;
-
-	// Lazily initialized on first demultiplex call
-	private DemuxDesignMatrix designMatrix;
-	private boolean initialized = false;
-
-	/**
-	 * Creates a demultiplexer with default configuration (k=7, cubic hermite).
-	 *
-	 * @param tolerance mass tolerance for peak matching
-	 */
-	public StaggeredDemultiplexer(MassTolerance tolerance) {
-		this(tolerance, new DemuxConfig());
-	}
+	private final DemuxDesignMatrix designMatrix;
 
 	/**
 	 * Creates a demultiplexer with explicit window definitions.
@@ -83,22 +71,6 @@ public class StaggeredDemultiplexer {
 		ArrayList<Range> sorted = new ArrayList<>(acquiredWindows);
 		sorted.sort(null);
 		this.designMatrix = new DemuxDesignMatrix(sorted);
-		this.initialized = true;
-	}
-
-	/**
-	 * Creates a demultiplexer with the specified configuration.
-	 *
-	 * @param tolerance mass tolerance for peak matching
-	 * @param config    demultiplexing configuration
-	 */
-	public StaggeredDemultiplexer(MassTolerance tolerance, DemuxConfig config) {
-		this.tolerance = tolerance;
-		this.config = config;
-		this.nnlsSolver = new NNLSSolver();
-		this.interpolator = config.getInterpolationMethod() == InterpolationMethod.CUBIC_HERMITE
-				? new CubicHermiteInterpolator()
-				: new LogQuadraticInterpolator();
 	}
 
 	/**
@@ -134,11 +106,6 @@ public class StaggeredDemultiplexer {
 
 		// Validate input
 		validateCycles(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2);
-
-		// Initialize design matrix on first call
-		if (!initialized) {
-			initialize(cycleCenter);
-		}
 
 		// Collect all spectra indexed by their window position
 		ArrayList<ArrayList<FragmentScan>> allCycles = new ArrayList<>();
@@ -318,18 +285,6 @@ public class StaggeredDemultiplexer {
 		}
 
 		return unique;
-	}
-
-	private void initialize(ArrayList<FragmentScan> cycle) {
-		// Extract window definitions from the cycle
-		ArrayList<Range> windows = new ArrayList<>(cycle.size());
-		for (FragmentScan scan : cycle) {
-			windows.add(scan.getPrecursorRange());
-		}
-		windows.sort(null);
-
-		this.designMatrix = new DemuxDesignMatrix(windows);
-		this.initialized = true;
 	}
 
 	private ArrayList<SpectrumWithRT> findCoveringSpectra(DemuxWindow subWindow,

@@ -886,8 +886,9 @@ class PwizValidationTest {
 			for (FragmentScan scan : result) {
 				if (scan.getMassArray().length == 0) {
 					emptyCount++;
-					// Try to understand why it's empty
-					double windowCenter = (scan.getIsolationWindowLower() + scan.getIsolationWindowUpper()) / 2.0;
+					// Note: Currently empty demux MSMS in the test are only with edge subWindows, so this may be correct!
+					// TODO adjust test to require that empty windows are only edge subWindows
+					System.out.println("Found empty MSMS at ("+(scan.getScanStartTime()/60f)+" min): "+scan.toString());
 					String range = String.format("%.0f-%.0f", scan.getIsolationWindowLower(), scan.getIsolationWindowUpper());
 					emptyReasons.merge(range, 1, Integer::sum);
 				} else {
