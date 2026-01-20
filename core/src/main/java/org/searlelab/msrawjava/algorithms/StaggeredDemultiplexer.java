@@ -107,91 +107,94 @@ public class StaggeredDemultiplexer {
 		// Validate input
 		validateCycles(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2);
 
-		// Collect all spectra indexed by their window position
-		ArrayList<ArrayList<FragmentScan>> allCycles = new ArrayList<>();
-		allCycles.add(cycleM2);
-		allCycles.add(cycleM1);
-		allCycles.add(cycleCenter);
-		allCycles.add(cycleP1);
-		allCycles.add(cycleP2);
-
 		// Build output: iterate by acquired spectrum in center cycle (spectrum-centric approach)
 		ArrayList<FragmentScan> demuxResults = new ArrayList<>();
 
-		for (int specIdx = 0; specIdx < cycleCenter.size(); specIdx++) {
-			FragmentScan anchorSpectrum = cycleCenter.get(specIdx);
+		int windowCount = cycleCenter.size();
+		int numSubWindows = designMatrix.getNumSubWindows();
+		int k = Math.min(config.getK(), Math.min(windowCount, numSubWindows));
+
+		for (int anchorIdx = 0; anchorIdx < windowCount; anchorIdx++) {
+			FragmentScan anchorSpectrum = cycleCenter.get(anchorIdx);
 			float targetRT = anchorSpectrum.getScanStartTime(); // Anchor to actual spectrum RT
 
 			// Find the sub-windows covered by this spectrum
 			DemuxWindow[] coveredSubWindows = findCoveredSubWindows(anchorSpectrum);
 
+			TDoubleArrayList transitions = collectMzValuesFromAnchor(anchorSpectrum);
+			if (transitions.isEmpty()) {
+				for (DemuxWindow subWindow : coveredSubWindows) {
+					if (!config.isIncludeEdgeSubWindows() && isEdgeSubWindow(subWindow)) {
+						continue;
+					}
+					FragmentScan empty = createEmptySubWindowScan(
+							subWindow, targetRT, currentScanNumber++, anchorSpectrum);
+					demuxResults.add(empty);
+				}
+				continue;
+			}
+
 			for (DemuxWindow subWindow : coveredSubWindows) {
-				// Skip edge sub-windows if configured to exclude them
 				if (!config.isIncludeEdgeSubWindows() && isEdgeSubWindow(subWindow)) {
 					continue;
 				}
 
-				// Find spectra that cover this sub-window across all 5 cycles
-				ArrayList<SpectrumWithRT> coveringSpectra = findCoveringSpectra(subWindow, allCycles);
-
-				if (coveringSpectra.isEmpty()) {
-					// No spectra cover this sub-window - create empty output
-					FragmentScan empty = createEmptySubWindowScan(
-							subWindow, targetRT, currentScanNumber++, anchorSpectrum);
-					demuxResults.add(empty);
+				ArrayList<Integer> windowIndices = selectWindowIndicesBySubWindow(
+						cycleCenter, subWindow.getIndex(), k);
+				int blockSize = windowIndices.size();
+				if (blockSize == 0) {
 					continue;
 				}
 
-				// Select k nearest spectra for local NNLS solve
-				ArrayList<SpectrumWithRT> selectedSpectra = selectKNearest(coveringSpectra, targetRT, config.getK());
-
-				// Collect m/z values from anchor spectrum ONLY (not from other covering spectra)
-				TDoubleArrayList uniqueMzs = collectMzValuesFromAnchor(anchorSpectrum);
-
-				if (uniqueMzs.isEmpty()) {
-					FragmentScan empty = createEmptySubWindowScan(
-							subWindow, targetRT, currentScanNumber++, anchorSpectrum);
-					demuxResults.add(empty);
+				int[] colRange = computeColumnRangeForTarget(subWindow.getIndex(), blockSize);
+				int colStart = colRange[0];
+				int colEnd = colRange[1];
+				int colCount = colEnd - colStart;
+				if (colCount <= 0) {
 					continue;
 				}
 
-				// For each m/z, build intensity vector and solve NNLS
-				TDoubleArrayList demuxMzs = new TDoubleArrayList();
-				TFloatArrayList demuxIntensities = new TFloatArrayList();
+				DMatrixRMaj design = buildMaskMatrixForWindows(cycleCenter, windowIndices, colStart, colEnd);
 
-				for (int mzIdx = 0; mzIdx < uniqueMzs.size(); mzIdx++) {
-					double targetMz = uniqueMzs.get(mzIdx);
+				TDoubleArrayList mzOut = new TDoubleArrayList();
+				TFloatArrayList intOut = new TFloatArrayList();
 
-					// Build intensity vector y with RT interpolation to anchor RT
-					double[] intensityVector = buildIntensityVector(selectedSpectra, targetMz, targetRT);
+				for (int mzIdx = 0; mzIdx < transitions.size(); mzIdx++) {
+					double targetMz = transitions.get(mzIdx);
 
-					// Build local design matrix
-					DMatrixRMaj localMatrix = buildLocalMatrix(selectedSpectra, subWindow);
-
-					// Solve NNLS
-					DMatrixRMaj y = new DMatrixRMaj(intensityVector.length, 1);
-					for (int i = 0; i < intensityVector.length; i++) {
-						y.set(i, 0, intensityVector[i]);
+					double[] yValues = new double[blockSize];
+					for (int row = 0; row < blockSize; row++) {
+						int windowIdx = windowIndices.get(row);
+						FragmentScan[] spectra = new FragmentScan[] {
+								cycleM2.get(windowIdx),
+								cycleM1.get(windowIdx),
+								cycleCenter.get(windowIdx),
+								cycleP1.get(windowIdx),
+								cycleP2.get(windowIdx)
+						};
+						yValues[row] = interpolateTransitionIntensity(spectra, targetMz, targetRT);
 					}
 
-					DMatrixRMaj solution = nnlsSolver.solve(localMatrix, y);
+					DMatrixRMaj y = new DMatrixRMaj(blockSize, 1);
+					for (int i = 0; i < blockSize; i++) {
+						y.set(i, 0, yValues[i]);
+					}
 
-					// Extract intensity for this sub-window
-					int localSubIdx = getLocalSubWindowIndex(selectedSpectra, subWindow);
-					double demuxIntensity = localSubIdx >= 0 && localSubIdx < solution.numRows
-							? solution.get(localSubIdx, 0)
-							: 0.0;
-
-					if (demuxIntensity > 0) {
-						demuxMzs.add(targetMz);
-						demuxIntensities.add((float) demuxIntensity);
+					DMatrixRMaj solution = nnlsSolver.solve(design, y);
+					int colIdx = subWindow.getIndex() - colStart;
+					if (colIdx < 0 || colIdx >= solution.numRows) {
+						continue;
+					}
+					double demuxIntensity = solution.get(colIdx, 0);
+					if (demuxIntensity > 0.0) {
+						mzOut.add(targetMz);
+						intOut.add((float) demuxIntensity);
 					}
 				}
 
-				// Create output FragmentScan for this sub-window with anchor's RT
 				FragmentScan outputScan = createSubWindowScan(
 						subWindow, targetRT, currentScanNumber++,
-						demuxMzs.toArray(), demuxIntensities.toArray(),
+						mzOut.toArray(), intOut.toArray(),
 						anchorSpectrum);
 				demuxResults.add(outputScan);
 			}
@@ -422,6 +425,133 @@ public class StaggeredDemultiplexer {
 		colStart = Math.max(0, colEnd - k);
 
 		return centerIdx - colStart;
+	}
+
+	private int[] computeColumnRangeForTarget(int targetIndex, int k) {
+		int numSubWindows = designMatrix.getNumSubWindows();
+		int kLocal = Math.min(k, numSubWindows);
+		int halfK = kLocal / 2;
+		int colStart = targetIndex - halfK;
+		if (colStart < 0) {
+			colStart = 0;
+		}
+		if (colStart + kLocal > numSubWindows) {
+			colStart = Math.max(0, numSubWindows - kLocal);
+		}
+		return new int[] {colStart, colStart + kLocal};
+	}
+
+	private ArrayList<Integer> selectWindowIndicesBySubWindow(ArrayList<FragmentScan> cycleCenter, int targetSubWindowIndex, int k) {
+		ArrayList<WindowDistance> distances = new ArrayList<>();
+		for (int i = 0; i < cycleCenter.size(); i++) {
+			double center = centerOfDemuxIndices(cycleCenter.get(i));
+			distances.add(new WindowDistance(i, center - targetSubWindowIndex));
+		}
+		distances.sort((a, b) -> {
+			double diff = Math.abs(a.distance) - Math.abs(b.distance);
+			if (Math.abs(diff) > 1e-4) {
+				return diff < 0 ? -1 : 1;
+			}
+			return Double.compare(a.distance, b.distance);
+		});
+
+		int count = Math.min(k, distances.size());
+		ArrayList<WindowDistance> best = new ArrayList<>(distances.subList(0, count));
+		best.sort((a, b) -> {
+			double diff = a.distance - b.distance;
+			if (Math.abs(diff) > 1e-4) {
+				return diff < 0 ? -1 : 1;
+			}
+			return Integer.compare(a.windowIndex, b.windowIndex);
+		});
+
+		ArrayList<Integer> indices = new ArrayList<>();
+		for (WindowDistance d : best) {
+			indices.add(d.windowIndex);
+		}
+		return indices;
+	}
+
+	private double centerOfDemuxIndices(FragmentScan scan) {
+		DemuxWindow[] subWindows = designMatrix.getSubWindows();
+		double windowLower = scan.getIsolationWindowLower();
+		double windowUpper = scan.getIsolationWindowUpper();
+		double sum = 0.0;
+		int count = 0;
+		for (int i = 0; i < subWindows.length; i++) {
+			DemuxWindow sw = subWindows[i];
+			if (sw.isContainedBy(windowLower, windowUpper)) {
+				sum += sw.getIndex();
+				count++;
+			}
+		}
+		return count == 0 ? 0.0 : sum / count;
+	}
+
+	private DMatrixRMaj buildMaskMatrixForWindows(ArrayList<FragmentScan> cycleCenter,
+			ArrayList<Integer> windowIndices, int colStart, int colEnd) {
+		int rows = windowIndices.size();
+		int cols = colEnd - colStart;
+		DMatrixRMaj matrix = new DMatrixRMaj(rows, cols);
+
+		for (int row = 0; row < windowIndices.size(); row++) {
+			FragmentScan scan = cycleCenter.get(windowIndices.get(row));
+			DemuxWindow[] subWindows = findCoveredSubWindows(scan);
+			for (DemuxWindow sw : subWindows) {
+				int col = sw.getIndex() - colStart;
+				if (col >= 0 && col < cols) {
+					matrix.set(row, col, 1.0);
+				}
+			}
+		}
+		return matrix;
+	}
+
+	private double interpolateTransitionIntensity(FragmentScan[] spectra, double targetMz, float targetRT) {
+		int n = spectra.length;
+		double[] times = new double[n];
+		double[] intensities = new double[n];
+
+		for (int i = 0; i < n; i++) {
+			FragmentScan scan = spectra[i];
+			times[i] = scan.getScanStartTime();
+			intensities[i] = sumIntensity(scan, targetMz);
+		}
+
+		// Sort by time for interpolation
+		Integer[] order = new Integer[n];
+		for (int i = 0; i < n; i++) order[i] = i;
+		Arrays.sort(order, (a, b) -> Double.compare(times[a], times[b]));
+
+		double[] sortedTimes = new double[n];
+		double[] sortedIntensities = new double[n];
+		for (int i = 0; i < n; i++) {
+			sortedTimes[i] = times[order[i]];
+			sortedIntensities[i] = intensities[order[i]];
+		}
+
+		return interpolator.interpolate(sortedTimes, sortedIntensities, targetRT);
+	}
+
+	private double sumIntensity(FragmentScan scan, double targetMz) {
+		double[] masses = scan.getMassArray();
+		float[] intensities = scan.getIntensityArray();
+		int[] indices = tolerance.getIndices(masses, targetMz);
+		double total = 0.0;
+		for (int idx : indices) {
+			total += intensities[idx];
+		}
+		return total;
+	}
+
+	private static class WindowDistance {
+		private final int windowIndex;
+		private final double distance;
+
+		private WindowDistance(int windowIndex, double distance) {
+			this.windowIndex = windowIndex;
+			this.distance = distance;
+		}
 	}
 
 	private FragmentScan createEmptySubWindowScan(DemuxWindow subWindow, float targetRT, int scanNumber,

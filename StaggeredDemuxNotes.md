@@ -233,12 +233,6 @@ This is mathematically valid but physically wrong for overlapping DIA windows.
   - `buildLocalMatrix()` - optimized to only include covered sub-windows
   - Fallback logic for anchor intensity (INCORRECT - masks the issue)
 
-## Code to Revert
-The following changes should be reverted to restore the "anchor-only" m/z collection approach:
-1. Line ~148-150: Change back to `collectMzValuesFromAnchor(anchorSpectrum)`
-2. Remove the fallback logic at lines ~192-205
-3. Restore simpler `buildLocalMatrix()` implementation
-
 ## Metrics Comparison
 | Metric | Before Investigation | After Incorrect Fixes |
 |--------|---------------------|----------------------|
@@ -249,7 +243,20 @@ The following changes should be reverted to restore the "anchor-only" m/z collec
 | 95th percentile | ~0.95 | 0.88 |
 
 ## Next Steps (To Be Done Later)
+0. Code is already reverted back to the original approach
 1. User to assess NNLS implementation for this specific use case
 2. Study pwiz OverlapDemultiplexer.cpp more closely to understand their approach
 3. Consider alternative demultiplexing strategies (weighted averaging, Bayesian, etc.)
 4. Possibly implement regularized NNLS that prefers non-zero overlapping sub-window contributions
+
+### Example
+I'm going to floor the window boundaries to make it easier to explain. If you are targeting the acquired
+spectrum at RT=51.79236 from 512-528 as the anchor, the goal is to find the 512-520 component and the 520-528 component demultiplexed spectra, the
+n=7 acquired windows are [512 to 528] and the surrounding three windows on either side ([504 to 520], [496 to 512], [488 to 504] below, and [520 to
+536], [528 to 544], [536 to 552] above). We know exactly what the intensities for the [512 to 528] window at 51.79236 min because we acquired it,
+but we have to interpolate what the peak intensities would look like for the neighboring spectra at rt=51.79236 min. We use these n=7 time aligned
+spectra (Y) as well as the design matrix (X) to calculate what the sub-spectra (A) should be at rt=51.79236 min. We ignore the results of (A)
+except for the 512-520 component and the 520-528 component because they are actually based on real data, instead of interpolated data, and then we
+report those two components as the two demultiplexed spectra from the originally acquired 512-528 spectrum at rt=51.79236 min. When we go to the
+next spectrum (presumably 528-544) then we have to redo all of the calculations because that spectrum was acquired at a new retention time. Please
+let me know if you have any questions or want any clarifications about this algorithm and example.
