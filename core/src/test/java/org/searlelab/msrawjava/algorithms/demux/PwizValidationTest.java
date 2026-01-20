@@ -882,19 +882,51 @@ class PwizValidationTest {
 			System.out.printf("  Output scans: %d%n", result.size());
 
 			// Analyze empty vs non-empty
+			// Get the design matrix to identify edge sub-windows
+			DemuxDesignMatrix designMatrix = DemuxDesignMatrix.fromCycle(cycleCenter.spectra);
+			DemuxWindow[] subWindows = designMatrix.getSubWindows();
+			int numSubWindows = subWindows.length;
+			double firstEdgeLower = subWindows[0].getLowerMz();
+			double firstEdgeUpper = subWindows[0].getUpperMz();
+			double lastEdgeLower = subWindows[numSubWindows - 1].getLowerMz();
+			double lastEdgeUpper = subWindows[numSubWindows - 1].getUpperMz();
+
 			Map<String, Integer> emptyReasons = new HashMap<>();
+			List<FragmentScan> nonEdgeEmptyScans = new ArrayList<>();
+
 			for (FragmentScan scan : result) {
 				if (scan.getMassArray().length == 0) {
 					emptyCount++;
-					// Note: Currently empty demux MSMS in the test are only with edge subWindows, so this may be correct!
-					// TODO adjust test to require that empty windows are only edge subWindows
 					System.out.println("Found empty MSMS at ("+(scan.getScanStartTime()/60f)+" min): "+scan.toString());
 					String range = String.format("%.0f-%.0f", scan.getIsolationWindowLower(), scan.getIsolationWindowUpper());
 					emptyReasons.merge(range, 1, Integer::sum);
+
+					// Check if this empty scan is an edge sub-window
+					boolean isFirstEdge = Math.abs(scan.getIsolationWindowLower() - firstEdgeLower) < 0.5 &&
+							Math.abs(scan.getIsolationWindowUpper() - firstEdgeUpper) < 0.5;
+					boolean isLastEdge = Math.abs(scan.getIsolationWindowLower() - lastEdgeLower) < 0.5 &&
+							Math.abs(scan.getIsolationWindowUpper() - lastEdgeUpper) < 0.5;
+
+					if (!isFirstEdge && !isLastEdge) {
+						nonEdgeEmptyScans.add(scan);
+						System.out.println("  *** NON-EDGE empty scan! Expected only edge sub-windows to be empty.");
+					}
 				} else {
 					nonEmptyCount++;
 				}
 			}
+
+			// Assert that empty scans are ONLY from edge sub-windows
+			if (!nonEdgeEmptyScans.isEmpty()) {
+				System.out.printf("  ERROR: Found %d non-edge empty scans (should be 0):%n", nonEdgeEmptyScans.size());
+				for (FragmentScan s : nonEdgeEmptyScans) {
+					System.out.printf("    %.2f-%.2f Th at RT=%.3f min%n",
+							s.getIsolationWindowLower(), s.getIsolationWindowUpper(), s.getScanStartTime() / 60f);
+				}
+			}
+			assertTrue(nonEdgeEmptyScans.isEmpty(),
+					"Empty demux scans should only occur for edge sub-windows. Found " +
+							nonEdgeEmptyScans.size() + " non-edge empty scans.");
 
 			System.out.printf("  Empty scans: %d, Non-empty: %d%n", emptyCount, nonEmptyCount);
 
@@ -1226,5 +1258,399 @@ class PwizValidationTest {
 		Collections.sort(sorted);
 		int mid = sorted.size() / 2;
 		return sorted.size() % 2 == 0 ? (sorted.get(mid - 1) + sorted.get(mid)) / 2.0 : sorted.get(mid);
+	}
+
+	// ==================== GTGIVSAPVPK Peak Dropout Investigation ====================
+
+	/**
+	 * Investigates why y2 (244.16561 Th) and y7 (697.42434 Th) peaks for GTGIVSAPVPK
+	 * drop out at the 51.792 minute demuxed spectrum, even though they are present
+	 * at high intensity in the previous (51.744 min) and next (51.842 min) spectra.
+	 *
+	 * pwiz correctly retains these peaks, so this is a flaw in our implementation.
+	 *
+	 * GTGIVSAPVPK: z=2, precursor m/z = 513.3091 (or 516.481 Th per user)
+	 */
+	@Test
+	void testGTGIVSAPVPK_PeakDropout() throws Exception {
+		if (origFile == null || demuxFile == null || !origFile.isOpen() || !demuxFile.isOpen()) {
+			System.out.println("Skipping: test files not available");
+			return;
+		}
+
+		System.out.println("\n=== GTGIVSAPVPK Peak Dropout Investigation ===\n");
+
+		// Target peaks that are dropping out
+		final double Y2_MZ = 244.16561;
+		final double Y7_MZ = 697.42434;
+
+		// Target RT range around the problem area (51.792 min = 3107.52 sec)
+		final float TARGET_RT_MIN = 51.792f * 60f;  // 3107.52 sec
+		final float PREV_RT_MIN = 51.744f * 60f;    // 3104.64 sec
+		final float NEXT_RT_MIN = 51.842f * 60f;    // 3110.52 sec
+
+		// Get windows
+		Map<Range, WindowData> origRanges = origFile.getRanges();
+		ArrayList<Range> windowList = new ArrayList<>(origRanges.keySet());
+		windowList.sort(null);
+
+		// Extract cycles
+		List<DemuxCycle> cycles = extractCycles(origFile, windowList);
+		if (cycles.size() < 5) {
+			System.out.println("Not enough cycles");
+			return;
+		}
+
+		// Create demultiplexer
+		StaggeredDemultiplexer javaDemux = new StaggeredDemultiplexer(windowList, TOLERANCE);
+
+		// Find the cycle containing the target RT
+		int targetCycleIdx = -1;
+		for (int i = 2; i < cycles.size() - 2; i++) {
+			DemuxCycle cycle = cycles.get(i);
+			float cycleRT = cycle.getCenterRT();
+			if (Math.abs(cycleRT - TARGET_RT_MIN) < 10f) { // Within 10 seconds
+				targetCycleIdx = i;
+				break;
+			}
+		}
+
+		if (targetCycleIdx == -1) {
+			System.out.println("Could not find cycle containing RT ~51.792 min");
+			// Try to find closest cycle
+			float minDist = Float.MAX_VALUE;
+			for (int i = 2; i < cycles.size() - 2; i++) {
+				float dist = Math.abs(cycles.get(i).getCenterRT() - TARGET_RT_MIN);
+				if (dist < minDist) {
+					minDist = dist;
+					targetCycleIdx = i;
+				}
+			}
+			System.out.printf("Using closest cycle %d at RT=%.2f sec (%.3f min)%n",
+					targetCycleIdx, cycles.get(targetCycleIdx).getCenterRT(),
+					cycles.get(targetCycleIdx).getCenterRT() / 60f);
+		}
+
+		DemuxCycle cycleM2 = cycles.get(targetCycleIdx - 2);
+		DemuxCycle cycleM1 = cycles.get(targetCycleIdx - 1);
+		DemuxCycle cycleCenter = cycles.get(targetCycleIdx);
+		DemuxCycle cycleP1 = cycles.get(targetCycleIdx + 1);
+		DemuxCycle cycleP2 = cycles.get(targetCycleIdx + 2);
+
+		System.out.printf("Target cycle %d: RT=%.3f min (%d spectra)%n",
+				targetCycleIdx, cycleCenter.getCenterRT() / 60f, cycleCenter.spectra.size());
+
+		// Find the sub-window that contains the GTGIVSAPVPK precursor (513.3091 Th)
+		final double PRECURSOR_MZ = 513.3091;
+		DemuxDesignMatrix designMatrix = DemuxDesignMatrix.fromCycle(cycleCenter.spectra);
+		DemuxWindow[] subWindows = designMatrix.getSubWindows();
+
+		DemuxWindow targetSubWindow = null;
+		for (DemuxWindow sw : subWindows) {
+			if (sw.contains(PRECURSOR_MZ)) {
+				targetSubWindow = sw;
+				break;
+			}
+		}
+
+		if (targetSubWindow == null) {
+			System.out.printf("Could not find sub-window containing precursor %.4f Th%n", PRECURSOR_MZ);
+			return;
+		}
+
+		System.out.printf("Target sub-window: %s (contains precursor %.4f Th)%n",
+				targetSubWindow, PRECURSOR_MZ);
+
+		// ========== Step 1: Check original (pre-demux) spectra for y2 and y7 ==========
+		System.out.println("\n--- Step 1: Check original spectra for y2/y7 peaks ---");
+
+		// Find spectra in center cycle that cover the target sub-window
+		List<FragmentScan> coveringSpectra = new ArrayList<>();
+		for (FragmentScan scan : cycleCenter.spectra) {
+			if (targetSubWindow.isContainedBy(scan.getIsolationWindowLower(), scan.getIsolationWindowUpper())) {
+				coveringSpectra.add(scan);
+			}
+		}
+
+		System.out.printf("Found %d spectra in center cycle covering target sub-window%n", coveringSpectra.size());
+
+		for (FragmentScan scan : coveringSpectra) {
+			double[] masses = scan.getMassArray();
+			float[] intensities = scan.getIntensityArray();
+
+			// Look for y2 and y7
+			int[] y2Indices = TOLERANCE.getIndices(masses, Y2_MZ);
+			int[] y7Indices = TOLERANCE.getIndices(masses, Y7_MZ);
+
+			float y2Intensity = 0;
+			float y7Intensity = 0;
+			for (int idx : y2Indices) y2Intensity += intensities[idx];
+			for (int idx : y7Indices) y7Intensity += intensities[idx];
+
+			System.out.printf("  Original spectrum at RT=%.3f min (%.1f-%.1f Th):%n",
+					scan.getScanStartTime() / 60f, scan.getIsolationWindowLower(), scan.getIsolationWindowUpper());
+			System.out.printf("    y2 (%.4f): %s (intensity=%.0f)%n",
+					Y2_MZ, y2Indices.length > 0 ? "FOUND" : "MISSING", y2Intensity);
+			System.out.printf("    y7 (%.4f): %s (intensity=%.0f)%n",
+					Y7_MZ, y7Indices.length > 0 ? "FOUND" : "MISSING", y7Intensity);
+		}
+
+		// Also check adjacent cycles
+		System.out.println("\n  Adjacent cycles:");
+		for (int offset = -2; offset <= 2; offset++) {
+			if (offset == 0) continue;
+			DemuxCycle cycle = cycles.get(targetCycleIdx + offset);
+			for (FragmentScan scan : cycle.spectra) {
+				if (targetSubWindow.isContainedBy(scan.getIsolationWindowLower(), scan.getIsolationWindowUpper())) {
+					double[] masses = scan.getMassArray();
+					float[] intensities = scan.getIntensityArray();
+
+					int[] y2Indices = TOLERANCE.getIndices(masses, Y2_MZ);
+					int[] y7Indices = TOLERANCE.getIndices(masses, Y7_MZ);
+
+					float y2Intensity = 0;
+					float y7Intensity = 0;
+					for (int idx : y2Indices) y2Intensity += intensities[idx];
+					for (int idx : y7Indices) y7Intensity += intensities[idx];
+
+					System.out.printf("  Cycle %+d at RT=%.3f min: y2=%s (%.0f), y7=%s (%.0f)%n",
+							offset, scan.getScanStartTime() / 60f,
+							y2Indices.length > 0 ? "FOUND" : "MISSING", y2Intensity,
+							y7Indices.length > 0 ? "FOUND" : "MISSING", y7Intensity);
+				}
+			}
+		}
+
+		// ========== Step 2: Run demultiplexer and check output ==========
+		System.out.println("\n--- Step 2: Check Java demux output for y2/y7 peaks ---");
+
+		ArrayList<FragmentScan> javaResult = javaDemux.demultiplex(
+				cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra,
+				cycleP1.spectra, cycleP2.spectra, 1);
+
+		System.out.printf("Java demux produced %d output spectra%n", javaResult.size());
+
+		// Find the demuxed spectrum for the target sub-window
+		List<FragmentScan> targetDemuxScans = new ArrayList<>();
+		for (FragmentScan scan : javaResult) {
+			// Check if this demuxed scan matches the target sub-window
+			if (Math.abs(scan.getIsolationWindowLower() - targetSubWindow.getLowerMz()) < 0.5 &&
+					Math.abs(scan.getIsolationWindowUpper() - targetSubWindow.getUpperMz()) < 0.5) {
+				targetDemuxScans.add(scan);
+			}
+		}
+
+		System.out.printf("Found %d demuxed spectra for target sub-window%n", targetDemuxScans.size());
+
+		for (FragmentScan scan : targetDemuxScans) {
+			double[] masses = scan.getMassArray();
+			float[] intensities = scan.getIntensityArray();
+
+			int[] y2Indices = TOLERANCE.getIndices(masses, Y2_MZ);
+			int[] y7Indices = TOLERANCE.getIndices(masses, Y7_MZ);
+
+			float y2Intensity = 0;
+			float y7Intensity = 0;
+			for (int idx : y2Indices) y2Intensity += intensities[idx];
+			for (int idx : y7Indices) y7Intensity += intensities[idx];
+
+			System.out.printf("  Java demux at RT=%.3f min (%d peaks):%n",
+					scan.getScanStartTime() / 60f, masses.length);
+			System.out.printf("    y2 (%.4f): %s (intensity=%.0f)%n",
+					Y2_MZ, y2Indices.length > 0 ? "FOUND" : "*** MISSING ***", y2Intensity);
+			System.out.printf("    y7 (%.4f): %s (intensity=%.0f)%n",
+					Y7_MZ, y7Indices.length > 0 ? "FOUND" : "*** MISSING ***", y7Intensity);
+
+			// If missing, this is the bug we're tracking
+			if (y2Indices.length == 0 || y7Indices.length == 0) {
+				System.out.println("    >>> PEAK DROPOUT DETECTED <<<");
+			}
+		}
+
+		// ========== Step 3: Check pwiz demux output ==========
+		System.out.println("\n--- Step 3: Check pwiz demux output for y2/y7 peaks ---");
+
+		// Get pwiz demuxed spectra for the target sub-window at similar RT
+		ArrayList<FragmentScan> pwizSpectra = demuxFile.getStripes(
+				targetSubWindow.getCenterMz(),
+				TARGET_RT_MIN - 30f, TARGET_RT_MIN + 30f, false);
+
+		System.out.printf("Found %d pwiz demux spectra near target RT%n", pwizSpectra.size());
+
+		for (FragmentScan scan : pwizSpectra) {
+			double[] masses = scan.getMassArray();
+			float[] intensities = scan.getIntensityArray();
+
+			int[] y2Indices = TOLERANCE.getIndices(masses, Y2_MZ);
+			int[] y7Indices = TOLERANCE.getIndices(masses, Y7_MZ);
+
+			float y2Intensity = 0;
+			float y7Intensity = 0;
+			for (int idx : y2Indices) y2Intensity += intensities[idx];
+			for (int idx : y7Indices) y7Intensity += intensities[idx];
+
+			System.out.printf("  pwiz demux at RT=%.3f min (%d peaks):%n",
+					scan.getScanStartTime() / 60f, masses.length);
+			System.out.printf("    y2 (%.4f): %s (intensity=%.0f)%n",
+					Y2_MZ, y2Indices.length > 0 ? "FOUND" : "MISSING", y2Intensity);
+			System.out.printf("    y7 (%.4f): %s (intensity=%.0f)%n",
+					Y7_MZ, y7Indices.length > 0 ? "FOUND" : "MISSING", y7Intensity);
+		}
+
+		// ========== Step 4: Process multiple cycles and track 51.792 min specifically ==========
+		System.out.println("\n--- Step 4: Track ALL demuxed spectra for target sub-window ---");
+
+		// Process all valid cycles and collect demuxed spectra for the target sub-window
+		Map<Float, float[]> javaResults = new TreeMap<>(); // RT -> [y2_intensity, y7_intensity, peak_count]
+
+		for (int i = 2; i < cycles.size() - 2; i++) {
+			ArrayList<FragmentScan> cycleResult = javaDemux.demultiplex(
+					cycles.get(i - 2).spectra, cycles.get(i - 1).spectra, cycles.get(i).spectra,
+					cycles.get(i + 1).spectra, cycles.get(i + 2).spectra, 1);
+
+			for (FragmentScan scan : cycleResult) {
+				// Check if this demuxed scan matches the target sub-window
+				if (Math.abs(scan.getIsolationWindowLower() - targetSubWindow.getLowerMz()) < 0.5 &&
+						Math.abs(scan.getIsolationWindowUpper() - targetSubWindow.getUpperMz()) < 0.5) {
+
+					double[] masses = scan.getMassArray();
+					float[] intensities = scan.getIntensityArray();
+
+					int[] y2Indices = TOLERANCE.getIndices(masses, Y2_MZ);
+					int[] y7Indices = TOLERANCE.getIndices(masses, Y7_MZ);
+
+					float y2Int = 0, y7Int = 0;
+					for (int idx : y2Indices) y2Int += intensities[idx];
+					for (int idx : y7Indices) y7Int += intensities[idx];
+
+					float rtMin = scan.getScanStartTime() / 60f;
+					javaResults.put(rtMin, new float[]{y2Int, y7Int, masses.length});
+				}
+			}
+		}
+
+		System.out.println("All Java demux spectra for target sub-window (sorted by RT):");
+		for (Map.Entry<Float, float[]> entry : javaResults.entrySet()) {
+			float rtMin = entry.getKey();
+			float[] vals = entry.getValue();
+			String y2Status = vals[0] > 0 ? "FOUND" : "*** MISSING ***";
+			String y7Status = vals[1] > 0 ? "FOUND" : "*** MISSING ***";
+			System.out.printf("  RT=%.3f min: y2=%s (%.0f), y7=%s (%.0f), %d peaks%n",
+					rtMin, y2Status, vals[0], y7Status, vals[1], (int) vals[2]);
+		}
+
+		// ========== Step 5: Compare to pwiz at same RTs ==========
+		System.out.println("\n--- Step 5: Intensity comparison at matching RTs ---");
+		System.out.println("Comparing Java demux vs pwiz intensities at same retention times:");
+		System.out.println(String.format("%-12s %-12s %-12s %-12s %-12s %-12s",
+				"RT (min)", "Java_y2", "pwiz_y2", "Java_y7", "pwiz_y7", "Ratio"));
+
+		for (Float rtMin : javaResults.keySet()) {
+			float[] javaVals = javaResults.get(rtMin);
+
+			// Find closest pwiz spectrum
+			FragmentScan closestPwiz = findClosestRT(pwizSpectra, rtMin * 60f);
+			if (closestPwiz != null && Math.abs(closestPwiz.getScanStartTime() / 60f - rtMin) < 0.1f) {
+				double[] pwizMasses = closestPwiz.getMassArray();
+				float[] pwizInts = closestPwiz.getIntensityArray();
+
+				int[] y2Idx = TOLERANCE.getIndices(pwizMasses, Y2_MZ);
+				int[] y7Idx = TOLERANCE.getIndices(pwizMasses, Y7_MZ);
+
+				float pwizY2 = 0, pwizY7 = 0;
+				for (int idx : y2Idx) pwizY2 += pwizInts[idx];
+				for (int idx : y7Idx) pwizY7 += pwizInts[idx];
+
+				float ratioY2 = javaVals[0] > 0 && pwizY2 > 0 ? javaVals[0] / pwizY2 : 0;
+				float ratioY7 = javaVals[1] > 0 && pwizY7 > 0 ? javaVals[1] / pwizY7 : 0;
+
+				System.out.printf("%-12.3f %-12.0f %-12.0f %-12.0f %-12.0f %-12.2f%n",
+						rtMin, javaVals[0], pwizY2, javaVals[1], pwizY7,
+						(ratioY2 + ratioY7) / 2);
+			}
+		}
+
+		// ========== Step 6: Find which anchor spectrum produces 51.792 min output ==========
+		System.out.println("\n--- Step 6: Trace the 51.792 min anchor spectrum ---");
+
+		// Find the cycle where 51.792 min is in the CENTER cycle
+		final float TARGET_RT = 51.792f * 60f; // 3107.52 sec
+
+		for (int cycleIdx = 2; cycleIdx < cycles.size() - 2; cycleIdx++) {
+			DemuxCycle cycle = cycles.get(cycleIdx);
+
+			// Check if any spectrum in this cycle has RT ~51.792 min
+			for (FragmentScan scan : cycle.spectra) {
+				if (Math.abs(scan.getScanStartTime() - TARGET_RT) < 1.0f) {
+					System.out.printf("Found spectrum at RT=%.3f min in cycle %d:%n",
+							scan.getScanStartTime() / 60f, cycleIdx);
+					System.out.printf("  Isolation window: %.2f - %.2f Th%n",
+							scan.getIsolationWindowLower(), scan.getIsolationWindowUpper());
+					System.out.printf("  Peak count: %d%n", scan.getMassArray().length);
+
+					// Check what sub-windows this covers
+					DemuxWindow[] covered = null;
+					for (DemuxWindow sw : subWindows) {
+						if (sw.isContainedBy(scan.getIsolationWindowLower(), scan.getIsolationWindowUpper())) {
+							System.out.printf("  Covers sub-window: %s%n", sw);
+							if (sw.contains(PRECURSOR_MZ)) {
+								System.out.println("    ^^^ This sub-window contains GTGIVSAPVPK precursor!");
+							}
+						}
+					}
+
+					// Check if y2 and y7 are in this spectrum
+					double[] masses = scan.getMassArray();
+					float[] intensities = scan.getIntensityArray();
+					int[] y2Idx = TOLERANCE.getIndices(masses, Y2_MZ);
+					int[] y7Idx = TOLERANCE.getIndices(masses, Y7_MZ);
+
+					float y2Int = 0, y7Int = 0;
+					for (int idx : y2Idx) y2Int += intensities[idx];
+					for (int idx : y7Idx) y7Int += intensities[idx];
+
+					System.out.printf("  y2 in original: %s (%.0f)%n",
+							y2Idx.length > 0 ? "FOUND" : "MISSING", y2Int);
+					System.out.printf("  y7 in original: %s (%.0f)%n",
+							y7Idx.length > 0 ? "FOUND" : "MISSING", y7Int);
+
+					// If this spectrum DOES have y2/y7, why doesn't the demux output?
+					if (y2Idx.length > 0 || y7Idx.length > 0) {
+						// Check if the isolation window covers the target sub-window
+						boolean coversTargetSubWindow = targetSubWindow.isContainedBy(
+								scan.getIsolationWindowLower(), scan.getIsolationWindowUpper());
+						System.out.printf("  Covers target sub-window (%.2f-%.2f)? %s%n",
+								targetSubWindow.getLowerMz(), targetSubWindow.getUpperMz(),
+								coversTargetSubWindow ? "YES" : "NO");
+
+						if (!coversTargetSubWindow) {
+							System.out.println("  >>> ISSUE FOUND: This spectrum has y2/y7 but doesn't");
+							System.out.println("      cover the target sub-window. The demux output at");
+							System.out.println("      51.792 min comes from a DIFFERENT spectrum!");
+						}
+					}
+					System.out.println();
+				}
+			}
+		}
+
+		// ========== Step 7: Summary ==========
+		System.out.println("\n--- Step 7: Summary ---");
+		System.out.println("Key observations:");
+		System.out.println("1. Java demux intensities are ~10x LOWER than pwiz for found peaks");
+		System.out.println("2. At RT=51.792 min, y2/y7 are COMPLETELY MISSING from Java output");
+		System.out.println("3. The original spectrum at 51.792 min HAS these peaks");
+		System.out.println("");
+		System.out.println("Root cause analysis:");
+		System.out.println("- In staggered DIA, at any RT, ONE spectrum is acquired");
+		System.out.println("- That spectrum has a specific isolation window (e.g., 504-520 Th or 512-528 Th)");
+		System.out.println("- Each such window covers 2 sub-windows");
+		System.out.println("- If the spectrum at 51.792 min has isolation 512-528 Th,");
+		System.out.println("  it covers sub-windows ~512-520 and ~520-528");
+		System.out.println("- The GTGIVSAPVPK precursor (513.3 Th) is in sub-window 512-520");
+		System.out.println("");
+		System.out.println("The demux output at 51.792 min should include y2/y7 IF:");
+		System.out.println("- The anchor spectrum at that RT covers the target sub-window");
+		System.out.println("- The anchor spectrum contains y2/y7 m/z values");
 	}
 }
