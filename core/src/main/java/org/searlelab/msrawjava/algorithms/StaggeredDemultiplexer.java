@@ -19,6 +19,7 @@ import org.searlelab.msrawjava.model.Range;
 
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.list.array.TFloatArrayList;
+import gnu.trove.list.array.TIntArrayList;
 
 /**
  * Staggered DIA demultiplexer using Non-Negative Least Squares (NNLS).
@@ -290,143 +291,6 @@ public class StaggeredDemultiplexer {
 		return unique;
 	}
 
-	private ArrayList<SpectrumWithRT> findCoveringSpectra(DemuxWindow subWindow,
-			ArrayList<ArrayList<FragmentScan>> allCycles) {
-		ArrayList<SpectrumWithRT> result = new ArrayList<>();
-
-		for (int cycleIdx = 0; cycleIdx < allCycles.size(); cycleIdx++) {
-			ArrayList<FragmentScan> cycle = allCycles.get(cycleIdx);
-			for (int scanIdx = 0; scanIdx < cycle.size(); scanIdx++) {
-				FragmentScan scan = cycle.get(scanIdx);
-				// Check if this spectrum's isolation window covers the sub-window
-				if (subWindow.isContainedBy(scan.getIsolationWindowLower(), scan.getIsolationWindowUpper())) {
-					result.add(new SpectrumWithRT(scan, cycleIdx, scanIdx));
-				}
-			}
-		}
-
-		return result;
-	}
-
-	private ArrayList<SpectrumWithRT> selectKNearest(ArrayList<SpectrumWithRT> spectra, float targetRT, int k) {
-		if (spectra.size() <= k) {
-			return new ArrayList<>(spectra);
-		}
-
-		// Sort by distance to target RT
-		spectra.sort((a, b) -> {
-			float distA = Math.abs(a.scan.getScanStartTime() - targetRT);
-			float distB = Math.abs(b.scan.getScanStartTime() - targetRT);
-			return Float.compare(distA, distB);
-		});
-
-		return new ArrayList<>(spectra.subList(0, k));
-	}
-
-	private double[] buildIntensityVector(ArrayList<SpectrumWithRT> spectra, double targetMz, float targetRT) {
-		double[] result = new double[spectra.size()];
-
-		for (int i = 0; i < spectra.size(); i++) {
-			FragmentScan scan = spectra.get(i).scan;
-
-			// Find matching peaks within tolerance
-			double[] masses = scan.getMassArray();
-			float[] intensities = scan.getIntensityArray();
-			int[] indices = tolerance.getIndices(masses, targetMz);
-
-			if (indices.length == 0) {
-				result[i] = 0.0; // Missing peak treated as zero
-			} else {
-				// Sum intensities of matching peaks
-				double totalIntensity = 0;
-				for (int idx : indices) {
-					totalIntensity += intensities[idx];
-				}
-				result[i] = totalIntensity;
-			}
-		}
-
-		// Interpolate to target RT
-		if (spectra.size() >= 2) {
-			float[] times = new float[spectra.size()];
-			float[] intensities = new float[spectra.size()];
-			for (int i = 0; i < spectra.size(); i++) {
-				times[i] = spectra.get(i).scan.getScanStartTime();
-				intensities[i] = (float) result[i];
-			}
-
-			// Sort by time for interpolation
-			Integer[] sortedIndices = new Integer[spectra.size()];
-			for (int i = 0; i < sortedIndices.length; i++) sortedIndices[i] = i;
-			Arrays.sort(sortedIndices, (a, b) -> Float.compare(times[a], times[b]));
-
-			float[] sortedTimes = new float[spectra.size()];
-			float[] sortedIntensities = new float[spectra.size()];
-			for (int i = 0; i < spectra.size(); i++) {
-				sortedTimes[i] = times[sortedIndices[i]];
-				sortedIntensities[i] = intensities[sortedIndices[i]];
-			}
-
-			// Interpolate each position to target RT
-			float interpolatedValue = interpolator.interpolate(sortedTimes, sortedIntensities, targetRT);
-
-			// Use the interpolated value as a weight factor
-			// Apply to each spectrum based on its RT distance from target
-			for (int i = 0; i < spectra.size(); i++) {
-				float rt = spectra.get(i).scan.getScanStartTime();
-				float weight = 1.0f / (1.0f + (float) Math.pow(5.0 * Math.abs(rt - targetRT) / spectra.size(), 2));
-				result[i] *= weight;
-			}
-		}
-
-		return result;
-	}
-
-	private DMatrixRMaj buildLocalMatrix(ArrayList<SpectrumWithRT> spectra, DemuxWindow centerSubWindow) {
-		// Build a local design matrix for the selected spectra
-		// Each row corresponds to a spectrum, each column to a sub-window
-
-		DemuxWindow[] allSubWindows = designMatrix.getSubWindows();
-		int centerIdx = centerSubWindow.getIndex();
-
-		// Determine column range (sub-windows around the center)
-		int k = config.getK();
-		int halfK = k / 2;
-		int colStart = Math.max(0, centerIdx - halfK);
-		int colEnd = Math.min(allSubWindows.length, colStart + k);
-		colStart = Math.max(0, colEnd - k);
-		int numCols = colEnd - colStart;
-
-		DMatrixRMaj matrix = new DMatrixRMaj(spectra.size(), numCols);
-
-		for (int row = 0; row < spectra.size(); row++) {
-			FragmentScan scan = spectra.get(row).scan;
-			double windowLower = scan.getIsolationWindowLower();
-			double windowUpper = scan.getIsolationWindowUpper();
-
-			for (int col = 0; col < numCols; col++) {
-				DemuxWindow subWindow = allSubWindows[colStart + col];
-				// Set 1 if sub-window is contained within the spectrum's isolation window
-				if (subWindow.isContainedBy(windowLower, windowUpper)) {
-					matrix.set(row, col, 1.0);
-				}
-			}
-		}
-
-		return matrix;
-	}
-
-	private int getLocalSubWindowIndex(ArrayList<SpectrumWithRT> spectra, DemuxWindow centerSubWindow) {
-		int centerIdx = centerSubWindow.getIndex();
-		int k = config.getK();
-		int halfK = k / 2;
-		int colStart = Math.max(0, centerIdx - halfK);
-		int colEnd = Math.min(designMatrix.getNumSubWindows(), colStart + k);
-		colStart = Math.max(0, colEnd - k);
-
-		return centerIdx - colStart;
-	}
-
 	private int[] computeColumnRangeForTarget(int targetIndex, int k) {
 		int numSubWindows = designMatrix.getNumSubWindows();
 		int kLocal = Math.min(k, numSubWindows);
@@ -579,23 +443,6 @@ public class StaggeredDemultiplexer {
 				subWindow.getUpperMz());
 	}
 
-	// ==================== Helper Classes ====================
-
-	/**
-	 * Associates a FragmentScan with its cycle and position information.
-	 */
-	private static class SpectrumWithRT {
-		final FragmentScan scan;
-		final int cycleIndex;
-		final int scanIndex;
-
-		SpectrumWithRT(FragmentScan scan, int cycleIndex, int scanIndex) {
-			this.scan = scan;
-			this.cycleIndex = cycleIndex;
-			this.scanIndex = scanIndex;
-		}
-	}
-
 	// ==================== Legacy Static Methods ====================
 	// (Preserved for backward compatibility with existing code)
 
@@ -651,8 +498,7 @@ public class StaggeredDemultiplexer {
 			value = -(value + 1);
 		}
 
-		TFloatArrayList matches = new TFloatArrayList();
-		gnu.trove.list.array.TIntArrayList matchIndices = new gnu.trove.list.array.TIntArrayList();
+		TIntArrayList matchIndices = new TIntArrayList();
 
 		int index = value;
 		while (index > 0 && target.contains(centers[index - 1])) {

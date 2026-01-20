@@ -123,4 +123,48 @@ class DemuxDesignMatrixTest {
 			assertTrue(width >= 9 && width <= 11, "Sub-window width should be ~10 Th, got: " + width);
 		}
 	}
+
+	@Test
+	void testExtractLocalMatrixWithIndices() {
+		ArrayList<Range> windows = new ArrayList<>();
+		windows.add(new Range(400, 420));
+		windows.add(new Range(410, 430));
+		windows.add(new Range(420, 440));
+
+		DemuxDesignMatrix matrix = new DemuxDesignMatrix(windows);
+
+		int[] rows = {0, 1};
+		DMatrixRMaj local = matrix.extractLocalMatrix(rows, 0, 3);
+
+		assertEquals(2, local.numRows);
+		assertEquals(3, local.numCols);
+		assertEquals(1.0, local.get(0, 0), 0.001);
+		assertEquals(1.0, local.get(0, 1), 0.001);
+	}
+
+	@Test
+	void testComputeRowMask() {
+		int[] rows = {0, 2, 4, 33};
+		int mask = DemuxDesignMatrix.computeRowMask(rows, 40);
+		assertEquals((1 << 0) | (1 << 2) | (1 << 4), mask);
+	}
+
+	@Test
+	void testFromCycleAndRowIndex() {
+		ArrayList<org.searlelab.msrawjava.model.FragmentScan> cycle = new ArrayList<>();
+		cycle.add(new org.searlelab.msrawjava.model.FragmentScan(
+				"s1", "p1", 1, 500.0, 1.0f, 0, 0.0f,
+				400.0, 420.0, new double[] {100.0}, new float[] {10.0f},
+				null, (byte) 0, 400.0, 420.0));
+		cycle.add(new org.searlelab.msrawjava.model.FragmentScan(
+				"s2", "p2", 2, 510.0, 1.2f, 0, 0.0f,
+				410.0, 430.0, new double[] {100.0}, new float[] {10.0f},
+				null, (byte) 0, 410.0, 430.0));
+
+		DemuxDesignMatrix matrix = DemuxDesignMatrix.fromCycle(cycle);
+		assertEquals(2, matrix.getNumAcquiredPositions());
+
+		int row = matrix.getRowIndex(405.0);
+		assertEquals(0, row);
+	}
 }

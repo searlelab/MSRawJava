@@ -68,6 +68,28 @@ class InterpolatorTest {
 	}
 
 	@Test
+	void testCubicHermiteDuplicateTimes() {
+		CubicHermiteInterpolator interp = new CubicHermiteInterpolator();
+
+		float[] times = {1.0f, 1.0f, 2.0f};
+		float[] intensities = {10.0f, 20.0f, 30.0f};
+
+		float result = interp.interpolate(times, intensities, 1.5f);
+		assertEquals(22.5f, result, 0.5f);
+	}
+
+	@Test
+	void testCubicHermiteLengthMismatch() {
+		CubicHermiteInterpolator interp = new CubicHermiteInterpolator();
+
+		float[] times = {1.0f, 2.0f};
+		float[] intensities = {10.0f, 20.0f, 30.0f};
+
+		assertThrows(IllegalArgumentException.class,
+				() -> interp.interpolate(times, intensities, 1.5f));
+	}
+
+	@Test
 	void testLogQuadraticLinearData() {
 		LogQuadraticInterpolator interp = new LogQuadraticInterpolator();
 
@@ -78,6 +100,17 @@ class InterpolatorTest {
 		float midPoint = interp.interpolate(times, intensities, 2.5f);
 		assertTrue(midPoint > 20.0f && midPoint < 35.0f,
 				"Mid-point should be between 20 and 35, got " + midPoint);
+	}
+
+	@Test
+	void testLogQuadraticTwoPointsDoubleArray() {
+		LogQuadraticInterpolator interp = new LogQuadraticInterpolator();
+
+		double[] times = {1.0, 2.0};
+		double[] intensities = {0.0, 0.0};
+
+		double result = interp.interpolate(times, intensities, 1.5);
+		assertEquals(0.0, result, 1e-6);
 	}
 
 	@Test
@@ -122,6 +155,17 @@ class InterpolatorTest {
 		// Extrapolation should clamp to boundary values
 		assertEquals(100.0f, interp.interpolate(times, intensities, 0.0f), 0.1f);
 		assertEquals(150.0f, interp.interpolate(times, intensities, 5.0f), 0.1f);
+	}
+
+	@Test
+	void testLogQuadraticLengthMismatch() {
+		LogQuadraticInterpolator interp = new LogQuadraticInterpolator();
+
+		double[] times = {1.0, 2.0, 3.0};
+		double[] intensities = {10.0, 20.0};
+
+		assertThrows(IllegalArgumentException.class,
+				() -> interp.interpolate(times, intensities, 2.0));
 	}
 
 	@Test
