@@ -64,6 +64,11 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 		return sb.toString();
 	}
 
+	public FragmentScan renumber(int newSpectrumIndex) {
+		return new FragmentScan(spectrumName, precursorName, newSpectrumIndex, precursorMz, scanStartTime, fraction, ionInjectionTime, isolationWindowLower,
+				isolationWindowUpper, massArray, intensityArray, ionMobilityArray, charge, scanWindowLower, scanWindowUpper);
+	}
+
 	public FragmentScan rebuild(int newSpectrumIndex, ArrayList<? extends PeakInterface> peaks) {
 		return rebuild(newSpectrumIndex, scanStartTime, peaks);
 	}

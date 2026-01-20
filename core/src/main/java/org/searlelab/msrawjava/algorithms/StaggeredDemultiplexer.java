@@ -119,6 +119,7 @@ public class StaggeredDemultiplexer {
 
 		// Build output: iterate by acquired spectrum in center cycle (spectrum-centric approach)
 		ArrayList<FragmentScan> demuxResults=new ArrayList<>();
+		int baseScanNumber=currentScanNumber;
 
 		int windowCount=cycleCenter.size();
 		int numSubWindows=designMatrix.getNumSubWindows();
@@ -235,8 +236,14 @@ public class StaggeredDemultiplexer {
 					totalNanos/1e9, interpolateNanos/1e9, nnlsNanos/1e9);
 		}
 
-		Collections.sort(demuxResults);
-		return demuxResults;
+		demuxResults.sort((a, b) -> {
+			int c=Float.compare(a.getScanStartTime(), b.getScanStartTime());
+			if (c!=0) return c;
+			c=Double.compare(a.getIsolationWindowLower(), b.getIsolationWindowLower());
+			if (c!=0) return c;
+			return Double.compare(a.getIsolationWindowUpper(), b.getIsolationWindowUpper());
+		});
+		return resequenceScans(demuxResults, baseScanNumber);
 	}
 
 	// ==================== Private Methods ====================
@@ -630,6 +637,15 @@ public class StaggeredDemultiplexer {
 		}
 
 		return template.rebuild(scanNumber, targetRT, peaks, subWindow.getLowerMz(), subWindow.getUpperMz());
+	}
+
+	private ArrayList<FragmentScan> resequenceScans(ArrayList<FragmentScan> scans, int startScanNumber) {
+		ArrayList<FragmentScan> reindexed=new ArrayList<>(scans.size());
+		int scanNumber=startScanNumber;
+		for (FragmentScan scan : scans) {
+			reindexed.add(scan.renumber(scanNumber++));
+		}
+		return reindexed;
 	}
 
 	// ==================== Legacy Static Methods ====================
