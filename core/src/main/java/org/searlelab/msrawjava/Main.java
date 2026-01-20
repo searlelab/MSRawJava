@@ -1,11 +1,14 @@
 package org.searlelab.msrawjava;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 
-import org.searlelab.msrawjava.io.ExportParameters;
+import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
+import org.searlelab.msrawjava.algorithms.demux.DemuxConfig.InterpolationMethod;
+import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.VendorFileFinder;
@@ -14,7 +17,13 @@ import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
+import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
+
+import picocli.CommandLine;
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
 /**
  * Main is the command-line entry point for MSRawJava. It parses options, discovers vendor inputs via VendorFileFinder,
@@ -24,103 +33,17 @@ import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 public class Main {
 	/** Main CLI entry point for raw file conversion. */
 	public static void main(String[] args) throws Exception {
-		ExportParameters params=parseParametersFromCommandline(args);
-		if (params==null) {
-			System.exit(1);
-		}
-		convertKnownFiles(params);
-		Logger.logLine("Finished processing, bye!");
-	}
-
-	/** Parses CLI flags for downstream processing. Can return null. If null, program should exit. */
-	public static ExportParameters parseParametersFromCommandline(String[] args) {
-		ArrayList<File> fileList=new ArrayList<File>();
-		OutputType outType=OutputType.EncyclopeDIA; // default
-		Path outputDirPath=null;
-		float minimumMS1Intensity=3.0f;
-		float minimumMS2Intensity=1.0f;
-
 		System.out.println("Welcome to MSRawJava version "+Version.getVersion());
-        for (int i = 0; i < args.length; i++) {
-        	switch (args[i].toLowerCase()) {
-        		case "-h":
-        			System.out.println("Help (-h):");
-        			System.out.println("  Specify Thermo .raw or Bruker .d files or any directories that contain those files.");
-        			System.out.println("  You can specify files or directories. Paths can be relative.");
-        			System.out.println();
-        			System.out.println("Options:");
-        			System.out.println("  -dia                  Produces EncyclopeDIA .DIA files (default)");
-        			System.out.println("  -mgf                  Produces MGF files");
-        			System.out.println("  -mzml                 Produces mzML files");
-        			System.out.println("  -outputDirPath [path] Where new files get written (default same directory as input)");
-        			System.out.println("  -minMS1Threshold [#]  Sets a minimum MS1 intensity threshold for timsTOF (default 3.0)");
-        			System.out.println("  -minMS2Threshold [#]  Sets a minimum MS2 intensity threshold for timsTOF (default 1.0)");
-        			System.out.println();
-        			System.out.println("Examples:");
-        			System.out.println("> java -jar MSRawJava path/to/raws/");
-        			System.out.println("> java -jar MSRawJava -mgf ../../path/to/raws/");
-        			System.out.println("> java -jar MSRawJava -mzml /mnt/vol1/path/to/raws/ -minMS1Threshold 10.0 -minMS2Threshold 5.0");
-
-        			return null;
-        			
-        		case "-dia":
-        		case "-encyclopedia":
-        			outType=OutputType.EncyclopeDIA;
-        			continue;
-        			
-        		case "-mgf":
-        			outType=OutputType.mgf;
-        			continue;
-        			
-        		case "-mzml":
-        			outType=OutputType.mzml;
-        			continue;
-        			
-        		case "-minms1threshold":
-        			if (i + 1 < args.length) {
-            			minimumMS1Intensity=Float.parseFloat(args[++i]);
-        			} else {
-        				Logger.errorLine("The option \"-minMS1Threshold\" requires a number afterwards.");
-            			return null;
-        			}
-        			continue;
-        			
-        		case "-minms2threshold":
-        			if (i + 1 < args.length) {
-        				minimumMS2Intensity=Float.parseFloat(args[++i]);
-        			} else {
-        				Logger.errorLine("The option \"-minMS2Threshold\" requires a number afterwards.");
-            			return null;
-        			}
-        			continue;
-        			
-        		case "-outputdirpath":
-        			if (i + 1 < args.length) {
-        				outputDirPath=new File(args[++i]).toPath();
-        			} else {
-        				Logger.errorLine("The option \"-outputDirPath\" requires a path afterwards.");
-            			return null;
-        			}
-        			continue;
-        			
-        		default:
-        			fileList.add(new File(args[i]));
-        			continue;
-        	}
-        }
-        System.out.println("Found "+fileList.size()+" starting paths, export format: "+outType);
-		
-		if (fileList.size()==0) {
-			System.out.println("Access help through (-h).");
-			return null;
+		CommandLine cmd=new CommandLine(new CliArguments());
+		cmd.setCaseInsensitiveEnumValuesAllowed(true);
+		int exitCode=cmd.execute(args);
+		if (exitCode!=0) {
+			System.exit(exitCode);
 		}
-		
-		ExportParameters params=new ExportParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity);
-		return params;
 	}
 
 	/** Discovers vendor files and writes outputs using the selected format. */
-	public static void convertKnownFiles(ExportParameters params) throws IOException, InterruptedException, Exception {
+	public static void convertKnownFiles(ConversionParameters params) throws Exception {
 		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
 		VendorFiles files=new VendorFiles();
 		for (File f : params.getFileList()) {
@@ -144,7 +67,11 @@ public class Main {
 					ThermoRawFile rawFile=new ThermoRawFile();		
 					rawFile.openFile(path);
 
-					RawFileConverters.writeStandard(pool, rawFile, outputPath, params.getOutType(), new LoggingProgressIndicator());
+					if (params.isDemultiplex()) {
+						RawFileConverters.writeDemux(pool, rawFile, outputPath, params, new LoggingProgressIndicator());
+					} else {
+						RawFileConverters.writeStandard(pool, rawFile, outputPath, params, new LoggingProgressIndicator());
+					}
 					Logger.logLine("Finished writing "+params.getOutType()+" file");
 				}
 
@@ -161,10 +88,105 @@ public class Main {
 				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
 				
-				RawFileConverters.writeTims(pool, path, outputPath, params.getOutType(), new LoggingProgressIndicator(), params.getMinimumMS1Intensity(), params.getMinimumMS2Intensity());
+				if (params.isDemultiplex()) {
+					Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files");
+				}
+				RawFileConverters.writeTims(pool, path, outputPath, params, new LoggingProgressIndicator());
 				Logger.logLine("Finished writing "+params.getOutType()+" file");
 			}
 		}
 		pool.close();
+	}
+
+	@Command(name="msrawjava", mixinStandardHelpOptions=true, description="Convert vendor raw files into analysis-ready formats.", versionProvider=VersionProvider.class)
+	public static class CliArguments implements Callable<Integer> {
+		@Parameters(arity="1..*", paramLabel="PATHS", description="Input files or directories containing .raw or .d files.")
+		private List<File> paths=new ArrayList<>();
+
+		@Option(names= {"-f", "--format"}, defaultValue="dia", description="Output format: ${COMPLETION-CANDIDATES}.")
+		private OutputFormat format=OutputFormat.dia;
+
+		@Option(names= {"-o", "--output"}, paramLabel="DIR", description="Output directory (default: same directory as input).")
+		private Path outputDirPath;
+
+		@Option(names="--min-ms1", defaultValue="3.0", description="Minimum MS1 intensity threshold for timsTOF.")
+		private float minimumMS1Intensity=3.0f;
+
+		@Option(names="--min-ms2", defaultValue="1.0", description="Minimum MS2 intensity threshold for timsTOF.")
+		private float minimumMS2Intensity=1.0f;
+
+		@Option(names="--demux", defaultValue="false", description="Enable staggered window demultiplexing for Thermo DIA.")
+		private boolean demultiplex=false;
+
+		@Option(names="--demux-k", defaultValue="7", description="Local approximation size for demux (7-9).")
+		private int demuxK=DemuxConfig.DEFAULT_K;
+
+		@Option(names="--demux-interp", defaultValue="cubic", description="Interpolation method for demux: ${COMPLETION-CANDIDATES}.")
+		private DemuxInterpolation demuxInterpolation=DemuxInterpolation.cubic;
+
+		@Option(names="--demux-exclude-edges", defaultValue="false", description="Exclude edge sub-windows (single coverage) from demux output.")
+		private boolean demuxExcludeEdges=false;
+
+		@Option(names="--demux-ppm", defaultValue="10.0", description="Mass tolerance in ppm for demux ion matching.")
+		private double demuxPpm=10.0;
+
+		@Override
+		public Integer call() throws Exception {
+			ConversionParameters params=toParameters();
+			System.out.println("Found "+params.getFileList().size()+" starting paths, export format: "+params.getOutType());
+			convertKnownFiles(params);
+			Logger.logLine("Finished processing, bye!");
+			return 0;
+		}
+
+		ConversionParameters toParameters() {
+			DemuxConfig demuxConfig=DemuxConfig.builder()
+					.k(demuxK)
+					.interpolationMethod(demuxInterpolation==DemuxInterpolation.cubic?InterpolationMethod.CUBIC_HERMITE:InterpolationMethod.LOG_QUADRATIC)
+					.includeEdgeSubWindows(!demuxExcludeEdges)
+					.build();
+
+			return ConversionParameters.builder()
+					.fileList(paths)
+					.outType(format.toOutputType())
+					.outputDirPath(outputDirPath)
+					.minimumMS1Intensity(minimumMS1Intensity)
+					.minimumMS2Intensity(minimumMS2Intensity)
+					.demultiplex(demultiplex)
+					.demuxTolerance(new PPMMassTolerance(demuxPpm))
+					.demuxConfig(demuxConfig)
+					.build();
+		}
+	}
+
+	public enum OutputFormat {
+		dia,
+		mgf,
+		mzml;
+
+		public OutputType toOutputType() {
+			switch (this) {
+				case dia:
+					return OutputType.EncyclopeDIA;
+				case mgf:
+					return OutputType.mgf;
+				case mzml:
+					return OutputType.mzml;
+				default:
+					throw new IllegalArgumentException("Unknown output format "+this);
+			}
+		}
+	}
+
+	public enum DemuxInterpolation {
+		cubic,
+		logquadratic
+	}
+
+	public static class VersionProvider implements CommandLine.IVersionProvider {
+		@Override
+		public String[] getVersion() {
+			return new String[] {Version.getVersion()};
+		}
 	}
 }

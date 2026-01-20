@@ -1,5 +1,6 @@
 package org.searlelab.msrawjava;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -10,6 +11,10 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.io.ConversionParameters;
+import org.searlelab.msrawjava.io.OutputType;
+
+import picocli.CommandLine;
 
 class MainTest {
 
@@ -44,63 +49,82 @@ class MainTest {
 
 	@Test
 	void helpFlag_printsUsageAndExits() throws Exception {
-		Main.parseParametersFromCommandline(new String[] {"-h"});
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.setOut(new java.io.PrintWriter(System.out, true));
+		cmd.execute("-h");
 		String out=stdout();
-		assertTrue(out.contains("Help (-h):"));
-		assertTrue(out.contains("-mgf"));
-		assertTrue(out.contains("-mzml"));
-		assertTrue(out.contains("-dia"));
+		assertTrue(out.contains("Usage:"), "Should print usage");
+		assertTrue(out.contains("--format"), "Should document format flag");
+		assertTrue(out.contains("--demux"), "Should document demux flag");
 	}
 
 	@Test
 	void defaultOutputType_isEncyclopeDIA_andCountsStartingPaths() throws Exception {
-		Main.parseParametersFromCommandline(new String[] {"input1", "input2"});
-		String out=stdout();
-		assertTrue(out.contains("Found 2 starting paths, export format: EncyclopeDIA"), "Should report default output type and count of inputs");
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.parseArgs("input1", "input2");
+		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
+		ConversionParameters params=args.toParameters();
+		assertEquals(OutputType.EncyclopeDIA, params.getOutType());
+		assertEquals(2, params.getFileList().size());
 	}
 
 	@Test
 	void parsesOutputType_mgf_and_countsPaths() throws Exception {
-		Main.parseParametersFromCommandline(new String[] {"-mgf", "inA"});
-		String out=stdout();
-		assertTrue(out.contains("Found 1 starting paths, export format: mgf"));
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.parseArgs("-f", "mgf", "inA");
+		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
+		ConversionParameters params=args.toParameters();
+		assertEquals(OutputType.mgf, params.getOutType());
+		assertEquals(1, params.getFileList().size());
 	}
 
 	@Test
 	void parsesOutputType_mzml_and_countsPaths() throws Exception {
-		Main.parseParametersFromCommandline(new String[] {"-mzml", "inA", "inB", "inC"});
-		String out=stdout();
-		assertTrue(out.contains("Found 3 starting paths, export format: mzml"));
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.parseArgs("-f", "mzml", "inA", "inB", "inC");
+		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
+		ConversionParameters params=args.toParameters();
+		assertEquals(OutputType.mzml, params.getOutType());
+		assertEquals(3, params.getFileList().size());
 	}
 
 	@Test
 	void outputDir_missingArgument_reportsError() throws Exception {
-		Main.parseParametersFromCommandline(new String[] {"-outputDirPath"});
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.setErr(new java.io.PrintWriter(System.err, true));
+		cmd.execute("-o");
 		String err=stderr()+stdout(); // some loggers print to stdout
-		assertTrue(err.toLowerCase().contains("requires a path"), "Should warn that a path is required");
+		assertTrue(err.toLowerCase().contains("missing required"), "Should warn that a path is required");
 	}
 
 	@Test
 	void minMS1Threshold_missingNumber_reportsError() throws Exception {
-		Main.parseParametersFromCommandline(new String[] {"-minMS1Threshold"});
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.setErr(new java.io.PrintWriter(System.err, true));
+		cmd.execute("--min-ms1");
 		String err=stderr()+stdout();
-		assertTrue(err.toLowerCase().contains("requires a number"), "Should warn that a number is required");
+		assertTrue(err.toLowerCase().contains("missing required"), "Should warn that a number is required");
 	}
 
 	@Test
 	void minMS2Threshold_missingNumber_reportsError() throws Exception {
-		Main.parseParametersFromCommandline(new String[] {"-minMS2Threshold"});
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.setErr(new java.io.PrintWriter(System.err, true));
+		cmd.execute("--min-ms2");
 		String err=stderr()+stdout();
-		assertTrue(err.toLowerCase().contains("requires a number"), "Should warn that a number is required");
+		assertTrue(err.toLowerCase().contains("missing required"), "Should warn that a number is required");
 	}
 
 	@Test
 	void combinedFlags_areParsed_andCountReported() throws Exception {
-		Main.parseParametersFromCommandline(
-				new String[] {"-mzml", "-outputDirPath", "outdir", "-minMS1Threshold", "10.0", "-minMS2Threshold", "5.0", "A", "B"});
-		String out=stdout();
-		assertTrue(out.contains("Found 2 starting paths, export format: mzml"));
-		// Not asserting on thresholds directly (they are used during writing), but absence of errors implies parse success.
-		assertFalse((stderr()+out).toLowerCase().contains("requires a"), "No missing-arg errors expected");
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.parseArgs("-f", "mzml", "-o", "outdir", "--min-ms1", "10.0", "--min-ms2", "5.0", "A", "B");
+		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
+		ConversionParameters params=args.toParameters();
+		assertEquals(OutputType.mzml, params.getOutType());
+		assertEquals(2, params.getFileList().size());
+		assertEquals(10.0f, params.getMinimumMS1Intensity(), 0.0001f);
+		assertEquals(5.0f, params.getMinimumMS2Intensity(), 0.0001f);
+		assertFalse((stderr()+stdout()).toLowerCase().contains("missing required"), "No missing-arg errors expected");
 	}
 }

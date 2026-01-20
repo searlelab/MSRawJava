@@ -34,18 +34,22 @@ Bruker timsTOF-specific Rust binaries are embedded in the jar under `META-INF/li
 The CLI in `Main.java` accepts files or directories and searches them for Bruker `.d` and Thermo `.raw` files. Command line options include:
 
 ```
-  -dia                  Produces EncyclopeDIA .DIA files (default)
-  -mgf                  Produces MGF files
-  -mzml                 Produces mzML files
-  -outputDirPath [path] Where new files get written (default same directory as input)
-  -minMS1Threshold [#]  Sets a minimum MS1 intensity threshold for timsTOF (default 3.0)
-  -minMS2Threshold [#]  Sets a minimum MS2 intensity threshold for timsTOF (default 1.0)
+  -f, --format [fmt]        Output format: dia|mgf|mzml (default dia)
+  -o, --output [path]       Where new files get written (default same directory as input)
+  --min-ms1 [#]             Minimum MS1 intensity threshold for timsTOF (default 3.0)
+  --min-ms2 [#]             Minimum MS2 intensity threshold for timsTOF (default 1.0)
+  --demux                   Enable staggered window demultiplexing for Thermo DIA
+  --demux-k [#]             Local approximation size for demux (7-9, default 7)
+  --demux-interp [method]   Interpolation: cubic|logquadratic (default cubic)
+  --demux-exclude-edges     Exclude edge sub-windows from demux output
+  --demux-ppm [#]           Mass tolerance in ppm for demux (default 10.0)
 ```
 
 Examples:
 
 ```
 java -jar MSRawJava path/to/raws/
-java -jar MSRawJava -mgf ../../path/to/raws/
-java -jar MSRawJava -mzml /mnt/vol1/path/to/raws/ -minMS1Threshold 10.0 -minMS2Threshold 5.0
+java -jar MSRawJava -f mgf ../../path/to/raws/
+java -jar MSRawJava -f mzml /mnt/vol1/path/to/raws/ --min-ms1 10.0 --min-ms2 5.0
+java -jar MSRawJava -f dia --demux --demux-ppm 10.0 /mnt/vol1/path/to/raws/
 ```

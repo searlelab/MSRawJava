@@ -20,6 +20,7 @@ import java.util.function.Consumer;
 
 import org.searlelab.msrawjava.algorithms.CycleAssembler;
 import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
+import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
@@ -44,17 +45,17 @@ public class RawFileConverters {
 	 * Reads a Thermo RAW, batches spectra over time, attaches metadata and DIA ranges, streams MS1/MS2 to the chosen
 	 * writer, and saves the file.
 	 */
-	public static boolean writeThermo(ProcessingThreadPool pool, Path rawFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress)
+	public static boolean writeThermo(ProcessingThreadPool pool, Path rawFilePath, Path outputDirPath, ConversionParameters params, ProgressIndicator progress)
 			throws Exception {
 		ThermoRawFile rawFile=new ThermoRawFile();
 
 		rawFile.openFile(rawFilePath);
-		return writeStandard(pool, rawFile, outputDirPath, outType, progress);
+		return writeStandard(pool, rawFile, outputDirPath, params, progress);
 	}
 
-	public static boolean writeStandard(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType,
+	public static boolean writeStandard(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionParameters params,
 			ProgressIndicator progress) throws Exception {
-		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
+		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 		ExecutorService writer=null;
 
 		try {
@@ -112,7 +113,7 @@ public class RawFileConverters {
 				}
 			}
 
-			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
+			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
 			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");
@@ -132,9 +133,9 @@ public class RawFileConverters {
 		}
 	}
 
-	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress,
-			MassTolerance tolerance) throws Exception {
-		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
+	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionParameters params, ProgressIndicator progress)
+			throws Exception {
+		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 
 		ExecutorService writer=null;
 		try {
@@ -151,7 +152,9 @@ public class RawFileConverters {
 			ArrayList<Range> acquiredWindows=new ArrayList<>(ranges.keySet());
 			acquiredWindows.sort(null);
 
-			StaggeredDemultiplexer demultiplexer=new StaggeredDemultiplexer(acquiredWindows, tolerance);
+			DemuxConfig demuxConfig=params.getDemuxConfig()==null?new DemuxConfig():params.getDemuxConfig();
+			MassTolerance tolerance=params.getDemuxTolerance();
+			StaggeredDemultiplexer demultiplexer=new StaggeredDemultiplexer(acquiredWindows, tolerance, demuxConfig);
 
 			CycleAssembler assembler=new CycleAssembler(acquiredWindows);
 			ArrayDeque<ArrayList<FragmentScan>> last5=new ArrayDeque<>(5);
@@ -284,7 +287,7 @@ public class RawFileConverters {
 			}
 
 			// Save & close
-			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
+			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
 			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");
@@ -309,18 +312,10 @@ public class RawFileConverters {
 		}
 	}
 
-	public static boolean writeTims(ProcessingThreadPool pool, Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress)
+	public static boolean writeTims(ProcessingThreadPool pool, Path timsFilePath, Path outputDirPath, ConversionParameters params, ProgressIndicator progress)
 			throws Exception {
-		return writeTims(pool, timsFilePath, outputDirPath, outType, progress, 3, 1);
-	}
-
-	/**
-	 * Reads a Bruker timsTOF .d, peak-picks across the ion-mobility dimension, and renumbers scans in order with the
-	 * given MS1/MS2 thresholds using parallel workers, streams to the chosen writer, and saves the file. Processes IMS
-	 * using a thread pool for speed.
-	 */
-	public static boolean writeTims(ProcessingThreadPool threadPool, Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress,
-			float minimumMS1Intensity, float minimumMS2Intensity) throws Exception {
+		float minimumMS1Intensity=params.getMinimumMS1Intensity();
+		float minimumMS2Intensity=params.getMinimumMS2Intensity();
 		BrukerTIMSFile timsFile=new BrukerTIMSFile();
 		timsFile.openFile(timsFilePath);
 
@@ -328,10 +323,10 @@ public class RawFileConverters {
 		progress.update("Started converting "+originalFileName+"...", 0.0f);
 		long startTime=System.currentTimeMillis();
 
-		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
+		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 
 		int workers=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
-		ExecutorService pool=threadPool.computePool();
+		ExecutorService computePool=pool.computePool();
 		ExecutorService writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
 
 		List<CompletableFuture<Void>> writeFutures=new ArrayList<>();
@@ -367,7 +362,7 @@ public class RawFileConverters {
 				for (int j=0; j<ms1s.size(); j++) {
 					final int idx=j;
 					final int sn=baseMs1Scan+j;
-					ms1Futures.add(pool.submit(() -> {
+					ms1Futures.add(computePool.submit(() -> {
 						ArrayList<PeakWithIMS> peaks=ms1s.get(idx).getPeaks(minimumMS1Intensity);
 						Collections.sort(peaks);
 						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks);
@@ -381,7 +376,7 @@ public class RawFileConverters {
 				for (int j=0; j<ms2s.size(); j++) {
 					final int idx=j;
 					final int sn=baseMs2Scan+j;
-					ms2Futures.add(pool.submit(() -> {
+					ms2Futures.add(computePool.submit(() -> {
 						ArrayList<PeakWithIMS> peaks=ms2s.get(idx).getPeaks(minimumMS2Intensity);
 						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks);
 
@@ -437,7 +432,7 @@ public class RawFileConverters {
 				}
 			}
 
-			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
+			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
 			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");

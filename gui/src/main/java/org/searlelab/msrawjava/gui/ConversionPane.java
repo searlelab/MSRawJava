@@ -36,6 +36,7 @@ import javax.swing.UIManager;
 import javax.swing.table.AbstractTableModel;
 
 import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
+import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.VendorFileFinder;
@@ -525,19 +526,25 @@ public class ConversionPane extends JPanel {
 		public void run() {
 			try {
 				boolean ok;
+				ConversionParameters params=ConversionParameters.builder()
+						.outType(outType)
+						.outputDirPath(outputDir)
+						.demultiplex(demultiplex)
+						.demuxTolerance(new PPMMassTolerance(10.0))
+						.build();
 				if (source==Source.THERMO) {					
 					ThermoRawFile rawFile=new ThermoRawFile();		
 					rawFile.openFile(input);
 					if (demultiplex) {
-						ok=RawFileConverters.writeDemux(pool, rawFile, outputDir, outType, this, new PPMMassTolerance(10.0));
+						ok=RawFileConverters.writeDemux(pool, rawFile, outputDir, params, this);
 					} else {
-						ok=RawFileConverters.writeStandard(pool, rawFile, outputDir, outType, this);
+						ok=RawFileConverters.writeStandard(pool, rawFile, outputDir, params, this);
 					}
 				} else {
 					if (demultiplex) {
 						Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files");
 					}
-					ok=RawFileConverters.writeTims(pool, input, outputDir, outType, this);
+					ok=RawFileConverters.writeTims(pool, input, outputDir, params, this);
 				}
 				if (cancelRequested) {
 					state=JobState.CANCELED;

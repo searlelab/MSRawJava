@@ -9,6 +9,7 @@ import java.util.ArrayList;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -28,7 +29,12 @@ class StaggeredDemultiplexerTest {
 
 		EncyclopeDIAFile rawFile=new EncyclopeDIAFile();
 		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_29to31min.dia").toFile());
-		RawFileConverters.writeDemux(threads, rawFile, outDir, OutputType.mgf, new LoggingProgressIndicator(), new PPMMassTolerance(10.0));
+		ConversionParameters params=ConversionParameters.builder()
+				.outType(OutputType.mgf)
+				.demultiplex(true)
+				.demuxTolerance(new PPMMassTolerance(10.0))
+				.build();
+		RawFileConverters.writeDemux(threads, rawFile, outDir, params, new LoggingProgressIndicator());
 
 		threads.close();
 		System.out.println(System.currentTimeMillis()-time);

@@ -21,8 +21,12 @@ class RawFileConvertersIT {
 	void writeTims_toMGF_smoke(@TempDir Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(TIMS_D), "Fixture .d not present: "+TIMS_D);
 		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
-		
-		RawFileConverters.writeTims(threads, TIMS_D, outDir, OutputType.mgf, new LoggingProgressIndicator(), 1.0f, 1.0f);
+		ConversionParameters params=ConversionParameters.builder()
+				.outType(OutputType.mgf)
+				.minimumMS1Intensity(1.0f)
+				.minimumMS2Intensity(1.0f)
+				.build();
+		RawFileConverters.writeTims(threads, TIMS_D, outDir, params, new LoggingProgressIndicator());
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
 		assertTrue(Files.size(mgf)>0, "MGF should not be empty");

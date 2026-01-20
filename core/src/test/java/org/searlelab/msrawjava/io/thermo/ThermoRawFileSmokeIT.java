@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
+import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
@@ -59,7 +60,10 @@ public class ThermoRawFileSmokeIT {
 		ThermoRawFile rawFile=new ThermoRawFile();		
 		rawFile.openFile(raw);
 		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
-		RawFileConverters.writeStandard(threads, rawFile, outDir, OutputType.mzml, new LoggingProgressIndicator());
+		ConversionParameters params=ConversionParameters.builder()
+				.outType(OutputType.mzml)
+				.build();
+		RawFileConverters.writeStandard(threads, rawFile, outDir, params, new LoggingProgressIndicator());
 		Path mzml=firstWithExt(outDir, ".mzml");
 		assertNotNull(mzml, "Output .mzML should exist");
 		assertTrue(Files.size(mzml)>0, "mzML should not be empty");
@@ -85,8 +89,10 @@ public class ThermoRawFileSmokeIT {
 	void writeRawSmokeMGF(Path raw, Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
 		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
-		
-		RawFileConverters.writeThermo(threads, raw, outDir, OutputType.mgf, new LoggingProgressIndicator());
+		ConversionParameters params=ConversionParameters.builder()
+				.outType(OutputType.mgf)
+				.build();
+		RawFileConverters.writeThermo(threads, raw, outDir, params, new LoggingProgressIndicator());
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
 		assertTrue(Files.size(mgf)>0, "MGF should not be empty");

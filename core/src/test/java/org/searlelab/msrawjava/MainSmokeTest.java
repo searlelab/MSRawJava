@@ -3,9 +3,8 @@ package org.searlelab.msrawjava;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyFloat;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.times;
 
 import java.io.PrintStream;
@@ -21,7 +20,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedConstruction; // <-- added
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.searlelab.msrawjava.io.ExportParameters;
+import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.StripeFileInterface;
@@ -72,10 +71,16 @@ class MainSmokeTest {
 	@TempDir
 	Path tmp;
 
-	private ExportParameters params(Path start, OutputType out, Path outDir, float ms1, float ms2) {
+	private ConversionParameters params(Path start, OutputType out, Path outDir, float ms1, float ms2) {
 		ArrayList<java.io.File> files=new ArrayList<>();
 		files.add(start.toFile());
-		return new ExportParameters(files, out, outDir, ms1, ms2);
+		return ConversionParameters.builder()
+				.fileList(files)
+				.outType(out)
+				.outputDirPath(outDir)
+				.minimumMS1Intensity(ms1)
+				.minimumMS2Intensity(ms2)
+				.build();
 	}
 
 	@Test
@@ -90,7 +95,7 @@ class MainSmokeTest {
 		Path outDir=tmp.resolve("out");
 		Files.createDirectories(outDir);
 
-		ExportParameters p=params(start, OutputType.mgf, outDir, 2.0f, 1.0f);
+		ConversionParameters p=params(start, OutputType.mgf, outDir, 2.0f, 1.0f);
 
 		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
 				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class);
@@ -103,11 +108,11 @@ class MainSmokeTest {
 			pool.when(ThermoServerPool::port).thenReturn(12345); // harmless value
 			
 			// Static methods return boolean; stub them to succeed.
-			conv.when(
-					() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), any(Path.class), any(OutputType.class), any(ProgressIndicator.class)))
+			conv.when(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), any(Path.class), any(ConversionParameters.class),
+					any(ProgressIndicator.class)))
 					.thenReturn(true);
-			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(OutputType.class), any(ProgressIndicator.class), anyFloat(),
-					anyFloat())).thenReturn(true);
+			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(ConversionParameters.class), any(ProgressIndicator.class)))
+					.thenReturn(true);
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 
@@ -116,11 +121,12 @@ class MainSmokeTest {
 			pool.verify(ThermoServerPool::shutdown, times(1));
 
 			// Verify writers called with expected paths and any ProgressIndicator
-			conv.verify(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), eq(outDir), eq(OutputType.mgf), any(ProgressIndicator.class)),
-					times(1));
+			conv.verify(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), eq(outDir),
+					argThat(paramsArg -> paramsArg.getOutType()==OutputType.mgf), any(ProgressIndicator.class)), times(1));
 
-			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(outDir), eq(OutputType.mgf), any(ProgressIndicator.class),
-					eq(2.0f), eq(1.0f)), times(1));
+			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(outDir),
+					argThat(paramsArg -> paramsArg.getOutType()==OutputType.mgf&&paramsArg.getMinimumMS1Intensity()==2.0f&&paramsArg.getMinimumMS2Intensity()==1.0f),
+					any(ProgressIndicator.class)), times(1));
 			
 		}
 	}
@@ -132,13 +138,13 @@ class MainSmokeTest {
 		Path ddir=start.resolve("only.d");
 		Files.createDirectories(ddir);
 
-		ExportParameters p=params(start, OutputType.EncyclopeDIA, null, 3.0f, 1.0f);
+		ConversionParameters p=params(start, OutputType.EncyclopeDIA, null, 3.0f, 1.0f);
 
 		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
 				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class)) {
 
-			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(OutputType.class), any(ProgressIndicator.class), anyFloat(),
-					anyFloat())).thenReturn(true);
+			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(ConversionParameters.class), any(ProgressIndicator.class)))
+					.thenReturn(true);
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 
@@ -147,8 +153,9 @@ class MainSmokeTest {
 			pool.verify(ThermoServerPool::shutdown, times(0));
 
 			Path expectedOut=start; // parent of .d when outputDirPath == null
-			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(expectedOut), eq(OutputType.EncyclopeDIA),
-					any(ProgressIndicator.class), eq(3.0f), eq(1.0f)), times(1));
+			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(expectedOut),
+					argThat(paramsArg -> paramsArg.getOutType()==OutputType.EncyclopeDIA&&paramsArg.getMinimumMS1Intensity()==3.0f&&paramsArg.getMinimumMS2Intensity()==1.0f),
+					any(ProgressIndicator.class)), times(1));
 			
 		}
 	}
