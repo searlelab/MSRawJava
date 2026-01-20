@@ -161,33 +161,46 @@ public class StaggeredDemultiplexer {
 			double[] transitionArray=transitions.toArray();
 			WindowIntensityCache intensityCache=buildIntensityCache(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2,
 					activeSubWindows, windowBlocks, transitionArray);
+			int lastBlockSize=0;
+			double[] yValues=null;
+			DMatrixRMaj y=null;
+			double[] sortedIntensities=new double[WindowIntensityCache.SPECTRUM_COUNT];
 
 			for (DemuxWindow subWindow : activeSubWindows) {
 
 				WindowBlock block=windowBlocks[subWindow.getIndex()];
-				if (block==null||block.windowIndices.isEmpty()) {
+				if (block==null||block.windowIndices.length==0) {
 					continue;
 				}
 
-				int blockSize=block.windowIndices.size();
+				int blockSize=block.windowIndices.length;
 				DMatrixRMaj design=block.designMatrix;
 
-				TDoubleArrayList mzOut=new TDoubleArrayList();
-				TFloatArrayList intOut=new TFloatArrayList();
-				double[] yValues=new double[blockSize];
-				double[] sortedIntensities=new double[WindowIntensityCache.SPECTRUM_COUNT];
-				DMatrixRMaj y=new DMatrixRMaj(blockSize, 1);
+				TDoubleArrayList mzOut=new TDoubleArrayList(transitionArray.length);
+				TFloatArrayList intOut=new TFloatArrayList(transitionArray.length);
+				if (blockSize!=lastBlockSize) {
+					yValues=new double[blockSize];
+					y=new DMatrixRMaj(blockSize, 1);
+					lastBlockSize=blockSize;
+				}
 
 				for (int mzIdx=0; mzIdx<transitionArray.length; mzIdx++) {
 					double targetMz=transitionArray[mzIdx];
 					long interpolateStart=PROFILE ? System.nanoTime() : 0L;
+					boolean anyNonZero=false;
 					for (int row=0; row<blockSize; row++) {
-						int windowIdx=block.windowIndices.get(row);
+						int windowIdx=block.windowIndices[row];
 						WindowIntensityBlock intensities=intensityCache.get(windowIdx);
 						yValues[row]=intensities.interpolate(mzIdx, targetRT, sortedIntensities, interpolator);
+						if (!anyNonZero&&yValues[row]!=0.0) {
+							anyNonZero=true;
+						}
 					}
 					if (PROFILE) {
 						interpolateNanos+=System.nanoTime()-interpolateStart;
+					}
+					if (!anyNonZero) {
+						continue;
 					}
 
 					for (int i=0; i<blockSize; i++) {
@@ -386,13 +399,13 @@ public class StaggeredDemultiplexer {
 		return count==0?0.0:sum/count;
 	}
 
-	private DMatrixRMaj buildMaskMatrixForWindows(ArrayList<FragmentScan> cycleCenter, ArrayList<Integer> windowIndices, int colStart, int colEnd) {
-		int rows=windowIndices.size();
+	private DMatrixRMaj buildMaskMatrixForWindows(ArrayList<FragmentScan> cycleCenter, int[] windowIndices, int colStart, int colEnd) {
+		int rows=windowIndices.length;
 		int cols=colEnd-colStart;
 		DMatrixRMaj matrix=new DMatrixRMaj(rows, cols);
 
-		for (int row=0; row<windowIndices.size(); row++) {
-			FragmentScan scan=cycleCenter.get(windowIndices.get(row));
+		for (int row=0; row<windowIndices.length; row++) {
+			FragmentScan scan=cycleCenter.get(windowIndices[row]);
 			DemuxWindow[] subWindows=findCoveredSubWindows(scan);
 			for (DemuxWindow sw : subWindows) {
 				int col=sw.getIndex()-colStart;
@@ -420,8 +433,12 @@ public class StaggeredDemultiplexer {
 				blocks[subWindow.getIndex()]=null;
 				continue;
 			}
-			DMatrixRMaj design=buildMaskMatrixForWindows(cycleCenter, windowIndices, colStart, colEnd);
-			blocks[subWindow.getIndex()]=new WindowBlock(windowIndices, colStart, colEnd, subWindow.getIndex()-colStart, design);
+			int[] indices=new int[windowIndices.size()];
+			for (int i=0; i<indices.length; i++) {
+				indices[i]=windowIndices.get(i);
+			}
+			DMatrixRMaj design=buildMaskMatrixForWindows(cycleCenter, indices, colStart, colEnd);
+			blocks[subWindow.getIndex()]=new WindowBlock(indices, colStart, colEnd, subWindow.getIndex()-colStart, design);
 		}
 		return blocks;
 	}
@@ -522,13 +539,13 @@ public class StaggeredDemultiplexer {
 	}
 
 	private static class WindowBlock {
-		private final ArrayList<Integer> windowIndices;
+		private final int[] windowIndices;
 		private final int colStart;
 		private final int colEnd;
 		private final int targetColumn;
 		private final DMatrixRMaj designMatrix;
 
-		private WindowBlock(ArrayList<Integer> windowIndices, int colStart, int colEnd, int targetColumn, DMatrixRMaj designMatrix) {
+		private WindowBlock(int[] windowIndices, int colStart, int colEnd, int targetColumn, DMatrixRMaj designMatrix) {
 			this.windowIndices=windowIndices;
 			this.colStart=colStart;
 			this.colEnd=colEnd;
