@@ -17,9 +17,12 @@ public interface RetentionTimeInterpolator {
 	/**
 	 * Interpolates intensity at the target retention time.
 	 *
-	 * @param times       array of retention times (seconds), must be sorted ascending
-	 * @param intensities array of intensities corresponding to each time point
-	 * @param targetTime  the retention time at which to interpolate
+	 * @param times
+	 *            array of retention times (seconds), must be sorted ascending
+	 * @param intensities
+	 *            array of intensities corresponding to each time point
+	 * @param targetTime
+	 *            the retention time at which to interpolate
 	 * @return interpolated intensity (always >= 0)
 	 */
 	float interpolate(float[] times, float[] intensities, float targetTime);
@@ -27,9 +30,12 @@ public interface RetentionTimeInterpolator {
 	/**
 	 * Interpolates intensity at the target retention time with double precision.
 	 *
-	 * @param times       array of retention times (seconds), must be sorted ascending
-	 * @param intensities array of intensities corresponding to each time point
-	 * @param targetTime  the retention time at which to interpolate
+	 * @param times
+	 *            array of retention times (seconds), must be sorted ascending
+	 * @param intensities
+	 *            array of intensities corresponding to each time point
+	 * @param targetTime
+	 *            the retention time at which to interpolate
 	 * @return interpolated intensity (always >= 0)
 	 */
 	double interpolate(double[] times, double[] intensities, double targetTime);

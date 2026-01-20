@@ -19,13 +19,13 @@ public class DemuxConfig {
 	}
 
 	/** Minimum allowed local approximation size */
-	public static final int MIN_K = 7;
+	public static final int MIN_K=7;
 	/** Maximum allowed local approximation size */
-	public static final int MAX_K = 9;
+	public static final int MAX_K=9;
 	/** Default local approximation size (matches pwiz) */
-	public static final int DEFAULT_K = 7;
+	public static final int DEFAULT_K=7;
 	/** Default setting for including edge sub-windows */
-	public static final boolean DEFAULT_INCLUDE_EDGE_SUBWINDOWS = true;
+	public static final boolean DEFAULT_INCLUDE_EDGE_SUBWINDOWS=true;
 
 	private final int k;
 	private final InterpolationMethod interpolationMethod;
@@ -41,10 +41,13 @@ public class DemuxConfig {
 	/**
 	 * Creates a configuration with the specified settings, including edge sub-windows by default.
 	 *
-	 * @param k local approximation size (7-9), determines how many nearby spectra
-	 *          are used in the NNLS solve
-	 * @param interpolationMethod method for retention time alignment
-	 * @throws IllegalArgumentException if k is outside the valid range [7, 9]
+	 * @param k
+	 *            local approximation size (7-9), determines how many nearby spectra
+	 *            are used in the NNLS solve
+	 * @param interpolationMethod
+	 *            method for retention time alignment
+	 * @throws IllegalArgumentException
+	 *             if k is outside the valid range [7, 9]
 	 */
 	public DemuxConfig(int k, InterpolationMethod interpolationMethod) {
 		this(k, interpolationMethod, DEFAULT_INCLUDE_EDGE_SUBWINDOWS);
@@ -53,21 +56,24 @@ public class DemuxConfig {
 	/**
 	 * Creates a configuration with all settings specified.
 	 *
-	 * @param k local approximation size (7-9), determines how many nearby spectra
-	 *          are used in the NNLS solve
-	 * @param interpolationMethod method for retention time alignment
-	 * @param includeEdgeSubWindows if true, include first/last sub-windows (single coverage);
-	 *                              if false, exclude them (requires dual coverage)
-	 * @throws IllegalArgumentException if k is outside the valid range [7, 9]
+	 * @param k
+	 *            local approximation size (7-9), determines how many nearby spectra
+	 *            are used in the NNLS solve
+	 * @param interpolationMethod
+	 *            method for retention time alignment
+	 * @param includeEdgeSubWindows
+	 *            if true, include first/last sub-windows (single coverage);
+	 *            if false, exclude them (requires dual coverage)
+	 * @throws IllegalArgumentException
+	 *             if k is outside the valid range [7, 9]
 	 */
 	public DemuxConfig(int k, InterpolationMethod interpolationMethod, boolean includeEdgeSubWindows) {
-		if (k < MIN_K || k > MAX_K) {
-			throw new IllegalArgumentException(
-					"k must be between " + MIN_K + " and " + MAX_K + ", got: " + k);
+		if (k<MIN_K||k>MAX_K) {
+			throw new IllegalArgumentException("k must be between "+MIN_K+" and "+MAX_K+", got: "+k);
 		}
-		this.k = k;
-		this.interpolationMethod = interpolationMethod;
-		this.includeEdgeSubWindows = includeEdgeSubWindows;
+		this.k=k;
+		this.interpolationMethod=interpolationMethod;
+		this.includeEdgeSubWindows=includeEdgeSubWindows;
 	}
 
 	/**
@@ -113,50 +119,49 @@ public class DemuxConfig {
 	 * @return 2^k
 	 */
 	public int getNumCacheEntries() {
-		return 1 << k; // 2^k
+		return 1<<k; // 2^k
 	}
 
 	@Override
 	public String toString() {
-		return "DemuxConfig[k=" + k + ", interpolation=" + interpolationMethod +
-				", includeEdges=" + includeEdgeSubWindows + "]";
+		return "DemuxConfig[k="+k+", interpolation="+interpolationMethod+", includeEdges="+includeEdgeSubWindows+"]";
 	}
 
 	/**
 	 * Builder for creating DemuxConfig instances with fluent API.
 	 */
 	public static class Builder {
-		private int k = DEFAULT_K;
-		private InterpolationMethod interpolationMethod = InterpolationMethod.CUBIC_HERMITE;
-		private boolean includeEdgeSubWindows = DEFAULT_INCLUDE_EDGE_SUBWINDOWS;
+		private int k=DEFAULT_K;
+		private InterpolationMethod interpolationMethod=InterpolationMethod.CUBIC_HERMITE;
+		private boolean includeEdgeSubWindows=DEFAULT_INCLUDE_EDGE_SUBWINDOWS;
 
 		public Builder k(int k) {
-			this.k = k;
+			this.k=k;
 			return this;
 		}
 
 		public Builder interpolationMethod(InterpolationMethod method) {
-			this.interpolationMethod = method;
+			this.interpolationMethod=method;
 			return this;
 		}
 
 		public Builder useCubicHermite() {
-			this.interpolationMethod = InterpolationMethod.CUBIC_HERMITE;
+			this.interpolationMethod=InterpolationMethod.CUBIC_HERMITE;
 			return this;
 		}
 
 		public Builder useLogQuadratic() {
-			this.interpolationMethod = InterpolationMethod.LOG_QUADRATIC;
+			this.interpolationMethod=InterpolationMethod.LOG_QUADRATIC;
 			return this;
 		}
 
 		public Builder includeEdgeSubWindows(boolean include) {
-			this.includeEdgeSubWindows = include;
+			this.includeEdgeSubWindows=include;
 			return this;
 		}
 
 		public Builder excludeEdgeSubWindows() {
-			this.includeEdgeSubWindows = false;
+			this.includeEdgeSubWindows=false;
 			return this;
 		}
 
