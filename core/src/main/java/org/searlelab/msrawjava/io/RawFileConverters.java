@@ -44,48 +44,72 @@ public class RawFileConverters {
 	 * Reads a Thermo RAW, batches spectra over time, attaches metadata and DIA ranges, streams MS1/MS2 to the chosen
 	 * writer, and saves the file.
 	 */
-	public static boolean writeThermo(ProcessingThreadPool pool, Path rawFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
+	public static boolean writeThermo(ProcessingThreadPool pool, Path rawFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress)
+			throws Exception {
 		ThermoRawFile rawFile=new ThermoRawFile();
 
 		rawFile.openFile(rawFilePath);
 		return writeStandard(pool, rawFile, outputDirPath, outType, progress);
 	}
 
-	public static boolean writeStandard(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
+	public static boolean writeStandard(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType,
+			ProgressIndicator progress) throws Exception {
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
+		ExecutorService writer=null;
 
 		try {
 			String originalFileName=rawFile.getFile().getName();
 			progress.update("Started converting "+originalFileName+"...", 0.0f);
 			long startTime=System.currentTimeMillis();
-			
+
 			outFile.setFileName(originalFileName, rawFile.toString());
 			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
 			outFile.addMetadata(rawFile.getMetadata());
+
+			writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
+			ArrayDeque<CompletableFuture<Void>> writeFutures=new ArrayDeque<>();
+			AtomicReference<Throwable> firstWriteError=new AtomicReference<>();
+			final ExecutorService writerRef=writer;
+			final ArrayDeque<CompletableFuture<Void>> writeFuturesRef=writeFutures;
+			final AtomicReference<Throwable> firstWriteErrorRef=firstWriteError;
 
 			float gradientLength=rawFile.getGradientLength();
 			int sections=NUMBER_OF_REPORTING_SECTIONS;
 			float start=0.0f;
 			float sectionTime=gradientLength/sections;
 			for (int i=0; i<sections; i++) {
-				float stop;
-				if (i==sections-1) {
-					stop=Float.MAX_VALUE;
-				} else {
-					stop=start+sectionTime;
-				}
+				float stop=(i==sections-1)?Float.MAX_VALUE:start+sectionTime;
 
 				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, stop);
 				if (progress.isCanceled()) return false;
 				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, stop, false);
 				if (progress.isCanceled()) return false;
 
-				outFile.addSpectra(ms1s, ms2s);
-
+				submitWrite(outFile, ms1s, ms2s, writerRef, writeFuturesRef, firstWriteErrorRef);
 				progress.update("Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
 						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/(sections+NUMBER_OF_REPORTING_SECTIONS/20f));
+
+				drainWriteFutures(writeFuturesRef, 1, firstWriteErrorRef);
+
 				start=stop;
 				if (progress.isCanceled()) return false;
+			}
+
+			drainWriteFutures(writeFuturesRef, 0, firstWriteErrorRef);
+			writerRef.shutdown();
+			writerRef.awaitTermination(365, TimeUnit.DAYS);
+			try {
+				CompletableFuture.allOf(writeFuturesRef.toArray(new CompletableFuture[0])).join();
+			} catch (CompletionException ce) {
+				Throwable error=firstWriteErrorRef.get();
+				if (error instanceof Exception) {
+					throw (Exception)error;
+				}
+				throw new Exception(error);
+			} finally {
+				if (!writer.awaitTermination(30, TimeUnit.SECONDS)) {
+					writer.shutdownNow();
+				}
 			}
 
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
@@ -98,10 +122,18 @@ public class RawFileConverters {
 		} finally {
 			rawFile.close();
 			outFile.close();
+			if (writer!=null) {
+				try {
+					writer.shutdownNow();
+				} catch (Throwable t) {
+					/* ignore */
+				}
+			}
 		}
 	}
 
-	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress, MassTolerance tolerance) throws Exception {
+	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress,
+			MassTolerance tolerance) throws Exception {
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
 		ExecutorService writer=null;
@@ -112,8 +144,7 @@ public class RawFileConverters {
 
 			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 			Map<Range, WindowData> ranges=rawFile.getRanges();
-			
-			
+
 			outFile.setRanges(new HashMap<Range, WindowData>(ranges));
 			outFile.addMetadata(rawFile.getMetadata());
 
@@ -219,7 +250,7 @@ public class RawFileConverters {
 					ArrayList<FragmentScan> center=last5.stream().skip(2).findFirst().get();
 					ArrayList<FragmentScan> cP1=last5.stream().skip(3).findFirst().get();
 					ArrayList<FragmentScan> cP2=last5.stream().skip(4).findFirst().get();
-					
+
 					// only flush if it's a full cycle
 					if (cM2.size()==cM1.size()&&cM2.size()==cP1.size()&&cM2.size()==cP2.size()) {
 						int baseScanNumber=currentScanNumber;
@@ -278,7 +309,8 @@ public class RawFileConverters {
 		}
 	}
 
-	public static boolean writeTims(ProcessingThreadPool pool, Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress) throws Exception {
+	public static boolean writeTims(ProcessingThreadPool pool, Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress)
+			throws Exception {
 		return writeTims(pool, timsFilePath, outputDirPath, outType, progress, 3, 1);
 	}
 
@@ -287,8 +319,8 @@ public class RawFileConverters {
 	 * given MS1/MS2 thresholds using parallel workers, streams to the chosen writer, and saves the file. Processes IMS
 	 * using a thread pool for speed.
 	 */
-	public static boolean writeTims(ProcessingThreadPool threadPool, Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress, float minimumMS1Intensity,
-			float minimumMS2Intensity) throws Exception {
+	public static boolean writeTims(ProcessingThreadPool threadPool, Path timsFilePath, Path outputDirPath, OutputType outType, ProgressIndicator progress,
+			float minimumMS1Intensity, float minimumMS2Intensity) throws Exception {
 		BrukerTIMSFile timsFile=new BrukerTIMSFile();
 		timsFile.openFile(timsFilePath);
 
@@ -299,7 +331,7 @@ public class RawFileConverters {
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
 		int workers=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
-		ExecutorService pool = threadPool.computePool();
+		ExecutorService pool=threadPool.computePool();
 		ExecutorService writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
 
 		List<CompletableFuture<Void>> writeFutures=new ArrayList<>();
@@ -436,9 +468,8 @@ public class RawFileConverters {
 		return Math.max(1, cores-1);
 	}
 
-	private static void submitWrite(OutputSpectrumFile outFile, ArrayList<PrecursorScan> ms1s,
-			ArrayList<FragmentScan> ms2s, ExecutorService writer, ArrayDeque<CompletableFuture<Void>> writeFutures,
-			AtomicReference<Throwable> firstWriteError) {
+	private static void submitWrite(OutputSpectrumFile outFile, ArrayList<PrecursorScan> ms1s, ArrayList<FragmentScan> ms2s, ExecutorService writer,
+			ArrayDeque<CompletableFuture<Void>> writeFutures, AtomicReference<Throwable> firstWriteError) {
 		writeFutures.add(CompletableFuture.runAsync(() -> {
 			try {
 				outFile.addSpectra(ms1s, ms2s);
@@ -449,8 +480,8 @@ public class RawFileConverters {
 		}, writer));
 	}
 
-	private static void drainWriteFutures(ArrayDeque<CompletableFuture<Void>> writeFutures, int maxInflight,
-			AtomicReference<Throwable> firstWriteError) throws Exception {
+	private static void drainWriteFutures(ArrayDeque<CompletableFuture<Void>> writeFutures, int maxInflight, AtomicReference<Throwable> firstWriteError)
+			throws Exception {
 		while (writeFutures.size()>maxInflight) {
 			CompletableFuture<Void> future=writeFutures.removeFirst();
 			try {
