@@ -120,6 +120,10 @@ public class RawFileConverters {
 
 			CycleAssembler assembler=new CycleAssembler(acquiredWindows);
 			ArrayDeque<ArrayList<FragmentScan>> last5=new ArrayDeque<>(5);
+			ArrayDeque<Future<ArrayList<FragmentScan>>> demuxQueue=new ArrayDeque<>();
+			ExecutorService compute=pool.computePool();
+			int workers=getWorkerCount(compute);
+			int maxInflight=Math.max(1, workers*2);
 
 			final Consumer<ArrayList<FragmentScan>> publishDemuxedCycle=(cycleDemuxed) -> {
 				try {
@@ -169,16 +173,9 @@ public class RawFileConverters {
 							ArrayList<FragmentScan> cP1=last5.stream().skip(3).findFirst().get();
 							ArrayList<FragmentScan> cP2=last5.stream().skip(4).findFirst().get();
 
-							try {
-								// Run demultiplexing for the middle cycle
-								ArrayList<FragmentScan> demuxed=demultiplexer.demultiplex(cM2, cM1, center, cP1, cP2, currentScanNumber);
-								currentScanNumber=currentScanNumber+2*cM1.size(); // split each window in two
-	
-								publishDemuxedCycle.accept(demuxed);
-							} catch (Exception e) {
-								Logger.logLine("Error in demux");
-								Logger.errorException(e);
-							}
+							int baseScanNumber=currentScanNumber;
+							currentScanNumber=currentScanNumber+2*cM1.size(); // split each window in two
+							demuxQueue.addLast(compute.submit(() -> demultiplexer.demultiplex(cM2, cM1, center, cP1, cP2, baseScanNumber)));
 
 							// Remove the oldest cycle (we just published it), keep the last 4
 							last5.removeFirst();
@@ -191,6 +188,11 @@ public class RawFileConverters {
 
 				progress.update("Processed "+String.format("%.1f–%.1f", start/60f, Math.min(stop, start+sectionTime)/60f)+" min: "+ms1s.size()+" MS1, "
 						+ms2s.size()+" MS2", (i+1)*100f/(sections+NUMBER_OF_REPORTING_SECTIONS/20f));
+
+				while (demuxQueue.size()>maxInflight) {
+					ArrayList<FragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
+					publishDemuxedCycle.accept(demuxed);
+				}
 
 				start=stop;
 				if (progress.isCanceled()) return false;
@@ -213,18 +215,17 @@ public class RawFileConverters {
 					
 					// only flush if it's a full cycle
 					if (cM2.size()==cM1.size()&&cM2.size()==cP1.size()&&cM2.size()==cP2.size()) {
-						try {
-							ArrayList<FragmentScan> demuxed=demultiplexer.demultiplex(cM2, cM1, center, cP1, cP2, currentScanNumber);
-							currentScanNumber=currentScanNumber+2*cM1.size();
-							
-							publishDemuxedCycle.accept(demuxed);
-						} catch (Exception e) {
-							Logger.logLine("Error in demux");
-							Logger.errorException(e);
-						}
+						int baseScanNumber=currentScanNumber;
+						currentScanNumber=currentScanNumber+2*cM1.size();
+						demuxQueue.addLast(compute.submit(() -> demultiplexer.demultiplex(cM2, cM1, center, cP1, cP2, baseScanNumber)));
 						last5.removeFirst();
 					}
 				}
+			}
+
+			while (!demuxQueue.isEmpty()) {
+				ArrayList<FragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
+				publishDemuxedCycle.accept(demuxed);
 			}
 
 			// Save & close
@@ -392,6 +393,24 @@ public class RawFileConverters {
 			t.setDaemon(true);
 			return t;
 		};
+	}
+
+	private static int getWorkerCount(ExecutorService pool) {
+		if (pool instanceof java.util.concurrent.ThreadPoolExecutor) {
+			return ((java.util.concurrent.ThreadPoolExecutor)pool).getCorePoolSize();
+		}
+		int cores=Runtime.getRuntime().availableProcessors();
+		return Math.max(1, cores-1);
+	}
+
+	private static ArrayList<FragmentScan> getDemuxResult(Future<ArrayList<FragmentScan>> future) {
+		try {
+			return future.get();
+		} catch (Exception e) {
+			Logger.logLine("Error in demux");
+			Logger.errorException(e);
+			return new ArrayList<>();
+		}
 	}
 
 	private static <T> T getOrNull(Future<T> f) {
