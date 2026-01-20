@@ -102,6 +102,7 @@ public class RawFileConverters {
 	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, OutputType outType, ProgressIndicator progress, MassTolerance tolerance) throws Exception {
 		OutputSpectrumFile outFile=outType.getOutputSpectrumFile();
 
+		ExecutorService writer=null;
 		try {
 			String originalFileName=rawFile.getOriginalFileName();
 			progress.update("Started converting "+originalFileName+"...");
@@ -124,14 +125,16 @@ public class RawFileConverters {
 			ExecutorService compute=pool.computePool();
 			int workers=getWorkerCount(compute);
 			int maxInflight=Math.max(1, workers*2);
+			writer=Executors.newSingleThreadExecutor(namedFactory("demux-writer"));
+			ArrayDeque<CompletableFuture<Void>> writeFutures=new ArrayDeque<>();
+			AtomicReference<Throwable> firstWriteError=new AtomicReference<>();
+			final ExecutorService writerRef=writer;
+			final ArrayDeque<CompletableFuture<Void>> writeFuturesRef=writeFutures;
+			final AtomicReference<Throwable> firstWriteErrorRef=firstWriteError;
 
 			final Consumer<ArrayList<FragmentScan>> publishDemuxedCycle=(cycleDemuxed) -> {
-				try {
-					if (cycleDemuxed!=null&&!cycleDemuxed.isEmpty()) {
-						outFile.addSpectra(new ArrayList<PrecursorScan>(), cycleDemuxed);
-					}
-				} catch (Exception e) {
-					throw new RuntimeException(e);
+				if (cycleDemuxed!=null&&!cycleDemuxed.isEmpty()) {
+					submitWrite(outFile, new ArrayList<PrecursorScan>(), cycleDemuxed, writerRef, writeFuturesRef, firstWriteErrorRef);
 				}
 			};
 
@@ -184,7 +187,7 @@ public class RawFileConverters {
 				}
 
 				// Publish the MS1s for this section (as before)
-				outFile.addSpectra(ms1s, new ArrayList<FragmentScan>());
+				submitWrite(outFile, ms1s, new ArrayList<FragmentScan>(), writerRef, writeFuturesRef, firstWriteErrorRef);
 
 				progress.update("Processed "+String.format("%.1f–%.1f", start/60f, Math.min(stop, start+sectionTime)/60f)+" min: "+ms1s.size()+" MS1, "
 						+ms2s.size()+" MS2", (i+1)*100f/(sections+NUMBER_OF_REPORTING_SECTIONS/20f));
@@ -193,6 +196,7 @@ public class RawFileConverters {
 					ArrayList<FragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
 					publishDemuxedCycle.accept(demuxed);
 				}
+				drainWriteFutures(writeFuturesRef, maxInflight, firstWriteErrorRef);
 
 				start=stop;
 				if (progress.isCanceled()) return false;
@@ -227,6 +231,23 @@ public class RawFileConverters {
 				ArrayList<FragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
 				publishDemuxedCycle.accept(demuxed);
 			}
+			drainWriteFutures(writeFuturesRef, 0, firstWriteErrorRef);
+
+			writerRef.shutdown();
+			writerRef.awaitTermination(365, TimeUnit.DAYS);
+			try {
+				CompletableFuture.allOf(writeFuturesRef.toArray(new CompletableFuture[0])).join();
+			} catch (CompletionException ce) {
+				Throwable error=firstWriteErrorRef.get();
+				if (error instanceof Exception) {
+					throw (Exception)error;
+				}
+				throw new Exception(error);
+			} finally {
+				if (!writerRef.awaitTermination(30, TimeUnit.SECONDS)) {
+					writerRef.shutdownNow();
+				}
+			}
 
 			// Save & close
 			outFile.saveAsFile(outType.getOutputFilePath(outputDirPath, originalFileName).toFile());
@@ -244,6 +265,12 @@ public class RawFileConverters {
 				outFile.close();
 			} catch (Throwable t) {
 				/* ignore */ }
+			if (writer!=null) {
+				try {
+					writer.shutdownNow();
+				} catch (Throwable t) {
+					/* ignore */ }
+			}
 		}
 	}
 
@@ -401,6 +428,35 @@ public class RawFileConverters {
 		}
 		int cores=Runtime.getRuntime().availableProcessors();
 		return Math.max(1, cores-1);
+	}
+
+	private static void submitWrite(OutputSpectrumFile outFile, ArrayList<PrecursorScan> ms1s,
+			ArrayList<FragmentScan> ms2s, ExecutorService writer, ArrayDeque<CompletableFuture<Void>> writeFutures,
+			AtomicReference<Throwable> firstWriteError) {
+		writeFutures.add(CompletableFuture.runAsync(() -> {
+			try {
+				outFile.addSpectra(ms1s, ms2s);
+			} catch (Throwable t) {
+				firstWriteError.compareAndSet(null, t);
+				throw new CompletionException(t);
+			}
+		}, writer));
+	}
+
+	private static void drainWriteFutures(ArrayDeque<CompletableFuture<Void>> writeFutures, int maxInflight,
+			AtomicReference<Throwable> firstWriteError) throws Exception {
+		while (writeFutures.size()>maxInflight) {
+			CompletableFuture<Void> future=writeFutures.removeFirst();
+			try {
+				future.join();
+			} catch (CompletionException ce) {
+				Throwable error=firstWriteError.get();
+				if (error instanceof Exception) {
+					throw (Exception)error;
+				}
+				throw new Exception(error);
+			}
+		}
 	}
 
 	private static ArrayList<FragmentScan> getDemuxResult(Future<ArrayList<FragmentScan>> future) {

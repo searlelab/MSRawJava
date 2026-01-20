@@ -2,6 +2,7 @@ package org.searlelab.msrawjava.algorithms;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 
 import org.ejml.data.DMatrixRMaj;
 import org.searlelab.msrawjava.algorithms.demux.CubicHermiteInterpolator;
@@ -234,6 +235,7 @@ public class StaggeredDemultiplexer {
 					totalNanos/1e9, interpolateNanos/1e9, nnlsNanos/1e9);
 		}
 
+		Collections.sort(demuxResults);
 		return demuxResults;
 	}
 
