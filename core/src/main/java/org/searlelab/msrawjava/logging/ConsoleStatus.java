@@ -24,7 +24,6 @@ public class ConsoleStatus {
 		this.err=err;
 		if (enabled) {
 			out.print(ESC+"?25l");
-			out.print("\n\n"+ESC+"2A");
 			out.flush();
 			render();
 		}
@@ -62,12 +61,12 @@ public class ConsoleStatus {
 			return;
 		}
 		synchronized (lock) {
-			clearStatus();
-			out.print(ESC+"1A");
-			out.print('\r');
-			out.print(ESC+"2K");
-			out.print(COLOR_WHITE+text+COLOR_RESET);
-			out.println();
+			if (newline) {
+				out.print(COLOR_WHITE+text+COLOR_RESET);
+				out.println();
+			} else {
+				out.print(COLOR_WHITE+text+COLOR_RESET);
+			}
 			renderLocked();
 		}
 	}
@@ -82,12 +81,12 @@ public class ConsoleStatus {
 			return;
 		}
 		synchronized (lock) {
-			clearStatus();
-			out.print(ESC+"1A");
-			out.print('\r');
-			out.print(ESC+"2K");
-			out.print(COLOR_RED+text+COLOR_RESET);
-			out.println();
+			if (newline) {
+				out.print(COLOR_RED+text+COLOR_RESET);
+				out.println();
+			} else {
+				out.print(COLOR_RED+text+COLOR_RESET);
+			}
 			renderLocked();
 		}
 	}
@@ -95,7 +94,7 @@ public class ConsoleStatus {
 	public void close() {
 		if (!enabled) return;
 		synchronized (lock) {
-			clearStatus();
+			renderLocked();
 			out.print(ESC+"?25h");
 			out.flush();
 		}
@@ -113,21 +112,14 @@ public class ConsoleStatus {
 		if (msgLine==null) msgLine="";
 		String barLine=buildBarLine();
 		StringBuilder out=new StringBuilder();
-		out.append('\r').append(ESC).append("2K");
-		out.append(COLOR_CYAN).append(msgLine).append(COLOR_RESET);
-		out.append(ESC).append("1B");
+		out.append(ESC).append("s");
+		out.append(ESC).append("999;1H");
 		out.append('\r').append(ESC).append("2K");
 		out.append(COLOR_CYAN).append(barLine).append(COLOR_RESET);
 		out.append(ESC).append("1A");
-		this.out.print(out.toString());
-		this.out.flush();
-	}
-
-	private void clearStatus() {
-		StringBuilder out=new StringBuilder();
 		out.append('\r').append(ESC).append("2K");
-		out.append(ESC).append("1B").append('\r').append(ESC).append("2K");
-		out.append(ESC).append("1A");
+		out.append(COLOR_CYAN).append(msgLine).append(COLOR_RESET);
+		out.append(ESC).append("u");
 		this.out.print(out.toString());
 		this.out.flush();
 	}
