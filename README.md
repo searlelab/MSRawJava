@@ -36,6 +36,7 @@ The CLI in `Main.java` accepts files or directories and searches them for Bruker
 ```
   -f, --format [fmt]        Output format: dia|mgf|mzml (default dia)
   -o, --output [path]       Where new files get written (default same directory as input)
+  --log-file [path]         Write log output to a file (overwrites on each run)
   --min-ms1 [#]             Minimum MS1 intensity threshold for timsTOF (default 3.0)
   --min-ms2 [#]             Minimum MS2 intensity threshold for timsTOF (default 1.0)
   --demux                   Enable staggered window demultiplexing for Thermo DIA
@@ -43,6 +44,9 @@ The CLI in `Main.java` accepts files or directories and searches them for Bruker
   --demux-interp [method]   Interpolation: cubic|logquadratic (default cubic)
   --demux-exclude-edges     Exclude edge sub-windows from demux output
   --demux-ppm [#]           Mass tolerance in ppm for demux (default 10.0)
+  --batch                   Disable status bar and progress updates
+  --no-ansi                 Disable ANSI output, even on TTYs
+  --silent                  Suppress all non-error output
 ```
 
 Examples:
@@ -52,4 +56,5 @@ java -jar MSRawJava path/to/raws/
 java -jar MSRawJava -f mgf ../../path/to/raws/
 java -jar MSRawJava -f mzml /mnt/vol1/path/to/raws/ --min-ms1 10.0 --min-ms2 5.0
 java -jar MSRawJava -f dia --demux --demux-ppm 10.0 /mnt/vol1/path/to/raws/
+java -jar MSRawJava -f dia --log-file run.log /mnt/vol1/path/to/raws/
 ```

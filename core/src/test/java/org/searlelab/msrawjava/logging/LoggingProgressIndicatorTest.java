@@ -16,29 +16,27 @@ class LoggingProgressIndicatorTest {
 
 	@Test
 	void defaultConstructorStartsAtZeroProgress() {
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 		assertEquals(0.0f, indicator.getTotalProgress(), 1e-6);
 	}
 
 	@Test
 	void defaultConstructorIsNotCanceled() {
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 		assertFalse(indicator.isCanceled());
 	}
 
 	@Test
 	void constructorWithPrintFlagWorks() {
-		LoggingProgressIndicator withPrint = new LoggingProgressIndicator(true);
-		LoggingProgressIndicator withoutPrint = new LoggingProgressIndicator(false);
+		LoggingProgressIndicator withoutPrint = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
-		// Both should start at 0
-		assertEquals(0.0f, withPrint.getTotalProgress(), 1e-6);
+		// Should start at 0
 		assertEquals(0.0f, withoutPrint.getTotalProgress(), 1e-6);
 	}
 
 	@Test
 	void updateWithProgressSetsProgress() {
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
 		indicator.update("Starting", 0.25f);
 		assertEquals(0.25f, indicator.getTotalProgress(), 1e-6);
@@ -52,7 +50,7 @@ class LoggingProgressIndicatorTest {
 
 	@Test
 	void updateWithoutProgressKeepsCurrentProgress() {
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
 		indicator.update("Starting", 0.5f);
 		assertEquals(0.5f, indicator.getTotalProgress(), 1e-6);
@@ -63,7 +61,7 @@ class LoggingProgressIndicatorTest {
 
 	@Test
 	void setCanceledWorks() {
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
 		assertFalse(indicator.isCanceled());
 
@@ -77,7 +75,7 @@ class LoggingProgressIndicatorTest {
 	@Test
 	void progressCanGoBackwards() {
 		// Not necessarily desired behavior, but documenting current behavior
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
 		indicator.update("Forward", 0.8f);
 		assertEquals(0.8f, indicator.getTotalProgress(), 1e-6);
@@ -88,25 +86,25 @@ class LoggingProgressIndicatorTest {
 
 	@Test
 	void progressCanExceedOne() {
-		// Documenting current behavior - no bounds checking
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		// Documenting current behavior - clamped to 1.0
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
 		indicator.update("Over", 1.5f);
-		assertEquals(1.5f, indicator.getTotalProgress(), 1e-6);
+		assertEquals(1.0f, indicator.getTotalProgress(), 1e-6);
 	}
 
 	@Test
 	void progressCanBeNegative() {
-		// Documenting current behavior - no bounds checking
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		// Documenting current behavior - clamped to 0.0
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
 		indicator.update("Negative", -0.5f);
-		assertEquals(-0.5f, indicator.getTotalProgress(), 1e-6);
+		assertEquals(0.0f, indicator.getTotalProgress(), 1e-6);
 	}
 
 	@Test
 	void implementsProgressIndicatorInterface() {
-		ProgressIndicator indicator = new LoggingProgressIndicator();
+		ProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
 		indicator.update("Test", 0.5f);
 		assertEquals(0.5f, indicator.getTotalProgress(), 1e-6);
@@ -115,7 +113,7 @@ class LoggingProgressIndicatorTest {
 
 	@Test
 	void threadSafeProgressUpdates() throws InterruptedException {
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 		int threadCount = 10;
 		int updatesPerThread = 100;
 		ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -151,7 +149,7 @@ class LoggingProgressIndicatorTest {
 
 	@Test
 	void threadSafeCancellation() throws InterruptedException {
-		LoggingProgressIndicator indicator = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 		CountDownLatch started = new CountDownLatch(1);
 		CountDownLatch canCheck = new CountDownLatch(1);
 
@@ -178,8 +176,8 @@ class LoggingProgressIndicatorTest {
 
 	@Test
 	void multipleIndicatorsAreIndependent() {
-		LoggingProgressIndicator indicator1 = new LoggingProgressIndicator();
-		LoggingProgressIndicator indicator2 = new LoggingProgressIndicator();
+		LoggingProgressIndicator indicator1 = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
+		LoggingProgressIndicator indicator2 = new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 
 		indicator1.update("One", 0.3f);
 		indicator2.update("Two", 0.7f);

@@ -1,31 +1,63 @@
 package org.searlelab.msrawjava.logging;
 
 public class LoggingProgressIndicator implements ProgressIndicator {
+	private static final long HEARTBEAT_MS=500L;
+
+	public enum Mode {
+		DEFAULT,
+		BATCH,
+		SILENT
+	}
+
 	volatile private float totalProgress=0.0f;
-	private final boolean print;
-	private boolean canceled;
+	private final Mode mode;
+	private final boolean useAnsi;
+	private volatile boolean canceled;
+	private volatile boolean done;
+	private Thread heartbeatThread;
 
 	public LoggingProgressIndicator() {
-		this.print=false;
+		this(Mode.DEFAULT, true);
 	}
+
+	public LoggingProgressIndicator(boolean showProgress) {
+		this(showProgress?Mode.DEFAULT:Mode.SILENT, true);
+	}
+
+	public LoggingProgressIndicator(Mode mode) {
+		this(mode, true);
+	 }
 	
-	public LoggingProgressIndicator(boolean print) {
-		this.print=print;
+	public LoggingProgressIndicator(Mode mode, boolean useAnsi) {
+		this.mode=mode;
+		this.useAnsi=useAnsi;
+		if (mode==Mode.DEFAULT&&useAnsi) {
+			startHeartbeat();
+		}
 	}
 
 	@Override
 	public void update(String message, float totalProgress) {
-		if (print) {
-			Logger.logLine(((int)(totalProgress*100f))+"%\t"+message);
+		float p=totalProgress;
+		if (Float.isNaN(p)||Float.isInfinite(p)) p=0f;
+		if (p>2.0f&&p<=100.0f) p=p/100f;
+		p=Math.max(0f, Math.min(1f, p));
+		this.totalProgress=p;
+		if (message!=null) {
+			updateMessage(message);
 		}
-		this.totalProgress=totalProgress;
+		render();
+		if (p>=1.0f) {
+			done=true;
+		}
 	}
 	
 	@Override
 	public void update(String message) {
-		if (print) {
-			Logger.logLine(((int)(totalProgress*100f))+"%\t"+message);
+		if (message!=null) {
+			updateMessage(message);
 		}
+		render();
 	}
 	
 	@Override
@@ -40,5 +72,55 @@ public class LoggingProgressIndicator implements ProgressIndicator {
 	
 	public void setCanceled(boolean canceled) {
 		this.canceled=canceled;
+	}
+
+	public void close() {
+		done=true;
+		if (mode==Mode.DEFAULT&&useAnsi) {
+			render();
+			System.out.println();
+		}
+	}
+
+	private void startHeartbeat() {
+		heartbeatThread=new Thread(() -> {
+			while (!done) {
+				try {
+					Thread.sleep(HEARTBEAT_MS);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				if (!done) {
+					ConsoleStatus status=Logger.getConsoleStatus();
+					if (status!=null) {
+						status.tick();
+					}
+				}
+			}
+		}, "cli-progress-heartbeat");
+		heartbeatThread.setDaemon(true);
+		heartbeatThread.start();
+	}
+
+	private void updateMessage(String message) {
+		if (mode!=Mode.DEFAULT) return;
+		if (useAnsi) {
+			ConsoleStatus status=Logger.getConsoleStatus();
+			if (status!=null) {
+				status.setMessage(message);
+			}
+		} else {
+			Logger.logLine(message);
+		}
+	}
+
+	private void render() {
+		if (mode!=Mode.DEFAULT) return;
+		if (useAnsi) {
+			ConsoleStatus status=Logger.getConsoleStatus();
+			if (status!=null) {
+				status.setProgress(totalProgress);
+			}
+		}
 	}
 }

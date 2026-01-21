@@ -116,7 +116,9 @@ public class RawFileConverters {
 			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
-			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");
+			String message="Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.";
+			Logger.logLine(message);
+			progress.update(message);
 			progress.update("Finished converting "+originalFileName+"!", 1.0f);
 			return true;
 
@@ -290,7 +292,9 @@ public class RawFileConverters {
 			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
-			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");
+			String message="Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.";
+			Logger.logLine(message);
+			progress.update(message);
 			progress.update("Finished converting "+originalFileName+"!", 1.0f);
 			return true;
 
@@ -435,7 +439,9 @@ public class RawFileConverters {
 			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
-			progress.update("Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.");
+			String message="Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.";
+			Logger.logLine(message);
+			progress.update(message);
 			progress.update("Finished converting "+originalFileName+"!", 1.0f);
 
 			return true;

@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava;
 
 import java.io.File;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,8 @@ import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
+import org.searlelab.msrawjava.logging.ConsoleStatus;
+import org.searlelab.msrawjava.logging.FileLogRecorder;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
@@ -33,7 +36,6 @@ import picocli.CommandLine.Parameters;
 public class Main {
 	/** Main CLI entry point for raw file conversion. */
 	public static void main(String[] args) throws Exception {
-		System.out.println("Welcome to MSRawJava version "+Version.getVersion());
 		CommandLine cmd=new CommandLine(new CliArguments());
 		cmd.setCaseInsensitiveEnumValuesAllowed(true);
 		int exitCode=cmd.execute(args);
@@ -46,6 +48,7 @@ public class Main {
 	public static void convertKnownFiles(ConversionParameters params) throws Exception {
 		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
 		VendorFiles files=new VendorFiles();
+		LoggingProgressIndicator indicator=null;
 		for (File f : params.getFileList()) {
 			if (f.exists()&&f.canRead()) {
 				VendorFileFinder.findAndAddRawAndD(f.toPath(), files);
@@ -67,10 +70,15 @@ public class Main {
 					ThermoRawFile rawFile=new ThermoRawFile();		
 					rawFile.openFile(path);
 
-					if (params.isDemultiplex()) {
-						RawFileConverters.writeDemux(pool, rawFile, outputPath, params, new LoggingProgressIndicator());
-					} else {
-						RawFileConverters.writeStandard(pool, rawFile, outputPath, params, new LoggingProgressIndicator());
+					indicator=createIndicator(params);
+					try {
+						if (params.isDemultiplex()) {
+							RawFileConverters.writeDemux(pool, rawFile, outputPath, params, indicator);
+						} else {
+							RawFileConverters.writeStandard(pool, rawFile, outputPath, params, indicator);
+						}
+					} finally {
+						indicator.close();
 					}
 					Logger.logLine("Finished writing "+params.getOutType()+" file");
 				}
@@ -91,11 +99,27 @@ public class Main {
 				if (params.isDemultiplex()) {
 					Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files");
 				}
-				RawFileConverters.writeTims(pool, path, outputPath, params, new LoggingProgressIndicator());
+				indicator=createIndicator(params);
+				try {
+					RawFileConverters.writeTims(pool, path, outputPath, params, indicator);
+				} finally {
+					indicator.close();
+				}
 				Logger.logLine("Finished writing "+params.getOutType()+" file");
 			}
 		}
 		pool.close();
+	}
+
+	private static LoggingProgressIndicator createIndicator(ConversionParameters params) {
+		boolean useAnsi=System.console()!=null&&!params.isNoAnsi();
+		if (params.isSilent()) {
+			return new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, useAnsi);
+		}
+		if (params.isBatch()) {
+			return new LoggingProgressIndicator(LoggingProgressIndicator.Mode.BATCH, useAnsi);
+		}
+		return new LoggingProgressIndicator(LoggingProgressIndicator.Mode.DEFAULT, useAnsi);
 	}
 
 	@Command(name="msrawjava", mixinStandardHelpOptions=true, description="Convert vendor raw files into analysis-ready formats.", versionProvider=VersionProvider.class)
@@ -108,6 +132,9 @@ public class Main {
 
 		@Option(names= {"-o", "--output"}, paramLabel="DIR", description="Output directory (default: same directory as input).")
 		private Path outputDirPath;
+
+		@Option(names="--log-file", paramLabel="FILE", description="Write logs to a file (overwrites on each run).")
+		private Path logFilePath;
 
 		@Option(names="--min-ms1", defaultValue="3.0", description="Minimum MS1 intensity threshold for timsTOF.")
 		private float minimumMS1Intensity=3.0f;
@@ -130,12 +157,31 @@ public class Main {
 		@Option(names="--demux-ppm", defaultValue="10.0", description="Mass tolerance in ppm for demux ion matching.")
 		private double demuxPpm=10.0;
 
+		@Option(names="--batch", defaultValue="false", description="Disable status bar and progress updates.")
+		private boolean batch=false;
+
+		@Option(names="--silent", defaultValue="false", description="Suppress all non-error output.")
+		private boolean silent=false;
+
+		@Option(names="--no-ansi", defaultValue="false", description="Disable ANSI output, even on TTYs.")
+		private boolean noAnsi=false;
+
 		@Override
 		public Integer call() throws Exception {
 			ConversionParameters params=toParameters();
-			System.out.println("Found "+params.getFileList().size()+" starting paths, export format: "+params.getOutType());
-			convertKnownFiles(params);
-			Logger.logLine("Finished processing, bye!");
+			configureLogging(params);
+			if (!params.isSilent()) {
+				Logger.logLine("Welcome to MSRawJava version "+Version.getVersion());
+			}
+			if (!params.isSilent()) {
+				Logger.logLine("Found "+params.getFileList().size()+" starting paths, export format: "+params.getOutType());
+			}
+			try {
+				convertKnownFiles(params);
+				Logger.logLine("Finished processing, bye!");
+			} finally {
+				Logger.close();
+			}
 			return 0;
 		}
 
@@ -150,12 +196,36 @@ public class Main {
 					.fileList(paths)
 					.outType(format.toOutputType())
 					.outputDirPath(outputDirPath)
+					.logFilePath(logFilePath)
 					.minimumMS1Intensity(minimumMS1Intensity)
 					.minimumMS2Intensity(minimumMS2Intensity)
 					.demultiplex(demultiplex)
 					.demuxTolerance(new PPMMassTolerance(demuxPpm))
 					.demuxConfig(demuxConfig)
+					.batch(batch)
+					.silent(silent)
+					.noAnsi(noAnsi)
 					.build();
+		}
+
+		private void configureLogging(ConversionParameters params) throws Exception {
+			if (params.isSilent()) {
+				Logger.PRINT_TO_STDOUT=false;
+				Logger.PRINT_TO_STDERR=true;
+			}
+			boolean useAnsi=System.console()!=null&&!params.isNoAnsi()&&!params.isBatch()&&!params.isSilent();
+			if (useAnsi) {
+				PrintStream stdout=System.out;
+				PrintStream stderr=System.err;
+				Logger.setConsoleStatus(new ConsoleStatus(true, stdout, stderr));
+				System.setOut(new PrintStream(java.io.OutputStream.nullOutputStream()));
+				System.setErr(new PrintStream(java.io.OutputStream.nullOutputStream()));
+			} else {
+				Logger.setConsoleStatus(null);
+			}
+			if (params.getLogFilePath()!=null) {
+				Logger.addRecorder(new FileLogRecorder(params.getLogFilePath(), true));
+			}
 		}
 	}
 

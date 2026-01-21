@@ -34,7 +34,7 @@ class StaggeredDemultiplexerTest {
 				.demultiplex(true)
 				.demuxTolerance(new PPMMassTolerance(10.0))
 				.build();
-		RawFileConverters.writeDemux(threads, rawFile, outDir, params, new LoggingProgressIndicator());
+		RawFileConverters.writeDemux(threads, rawFile, outDir, params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false));
 
 		threads.close();
 		System.out.println(System.currentTimeMillis()-time);

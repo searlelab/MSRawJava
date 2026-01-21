@@ -63,7 +63,7 @@ public class ThermoRawFileSmokeIT {
 		ConversionParameters params=ConversionParameters.builder()
 				.outType(OutputType.mzml)
 				.build();
-		RawFileConverters.writeStandard(threads, rawFile, outDir, params, new LoggingProgressIndicator());
+		RawFileConverters.writeStandard(threads, rawFile, outDir, params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false));
 		Path mzml=firstWithExt(outDir, ".mzml");
 		assertNotNull(mzml, "Output .mzML should exist");
 		assertTrue(Files.size(mzml)>0, "mzML should not be empty");
@@ -92,7 +92,7 @@ public class ThermoRawFileSmokeIT {
 		ConversionParameters params=ConversionParameters.builder()
 				.outType(OutputType.mgf)
 				.build();
-		RawFileConverters.writeThermo(threads, raw, outDir, params, new LoggingProgressIndicator());
+		RawFileConverters.writeThermo(threads, raw, outDir, params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false));
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
 		assertTrue(Files.size(mgf)>0, "MGF should not be empty");

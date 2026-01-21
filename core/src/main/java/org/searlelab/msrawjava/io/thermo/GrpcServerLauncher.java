@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 
 import org.searlelab.msrawjava.io.utils.ResourceTreeExtractor;
+import org.searlelab.msrawjava.logging.Logger;
 
 /**
  * GrpcServerLauncher prepares and supervises the self-contained Thermo gRPC server used by the Java client: it extracts
@@ -99,7 +100,11 @@ final class GrpcServerLauncher implements AutoCloseable {
 		pb.environment().put("MSRAW_THERMO_URL", "http://127.0.0.1:"+port);
 		pb.directory(workDir.toFile()); // critical: loader probes base dir for ThermoFisher.*.dll + runtimes/
 		pb.redirectErrorStream(true);
-		pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+		if (Logger.getConsoleStatus()!=null&&Logger.getConsoleStatus().isEnabled()) {
+			pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+		} else {
+			pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+		}
 
 		this.proc=pb.start();
 

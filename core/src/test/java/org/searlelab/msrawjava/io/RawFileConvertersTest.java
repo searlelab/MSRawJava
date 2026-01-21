@@ -18,7 +18,7 @@ class RawFileConvertersTest {
 				.minimumMS1Intensity(1.0f)
 				.minimumMS2Intensity(1.0f)
 				.build();
-		assertThrows(Exception.class, () -> RawFileConverters.writeTims(threads, missing, missing.getParent(), params, new LoggingProgressIndicator()));
+		assertThrows(Exception.class, () -> RawFileConverters.writeTims(threads, missing, missing.getParent(), params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false)));
 		threads.close();
 	}
 }

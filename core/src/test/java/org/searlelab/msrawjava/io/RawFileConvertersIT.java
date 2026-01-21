@@ -26,7 +26,7 @@ class RawFileConvertersIT {
 				.minimumMS1Intensity(1.0f)
 				.minimumMS2Intensity(1.0f)
 				.build();
-		RawFileConverters.writeTims(threads, TIMS_D, outDir, params, new LoggingProgressIndicator());
+		RawFileConverters.writeTims(threads, TIMS_D, outDir, params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false));
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
 		assertTrue(Files.size(mgf)>0, "MGF should not be empty");

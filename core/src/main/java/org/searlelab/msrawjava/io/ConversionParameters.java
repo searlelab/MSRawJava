@@ -22,9 +22,13 @@ public class ConversionParameters {
 	private final boolean demultiplex;
 	private final MassTolerance demuxTolerance;
 	private final DemuxConfig demuxConfig;
+	private final Path logFilePath;
+	private final boolean batch;
+	private final boolean silent;
+	private final boolean noAnsi;
 
 	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity,
-			float minimumMS2Intensity, boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig) {
+			float minimumMS2Intensity, boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi) {
 		this.fileList=new ArrayList<>(fileList==null?Collections.emptyList():fileList);
 		this.outType=outType;
 		this.outputDirPath=outputDirPath;
@@ -33,6 +37,10 @@ public class ConversionParameters {
 		this.demultiplex=demultiplex;
 		this.demuxTolerance=demuxTolerance;
 		this.demuxConfig=demuxConfig;
+		this.logFilePath=logFilePath;
+		this.batch=batch;
+		this.silent=silent;
+		this.noAnsi=noAnsi;
 	}
 
 	public ArrayList<File> getFileList() {
@@ -67,10 +75,27 @@ public class ConversionParameters {
 		return demuxConfig;
 	}
 
+	public Path getLogFilePath() {
+		return logFilePath;
+	}
+
+	public boolean isBatch() {
+		return batch;
+	}
+
+	public boolean isSilent() {
+		return silent;
+	}
+
+	public boolean isNoAnsi() {
+		return noAnsi;
+	}
+
 	@Override
 	public String toString() {
 		return "ConversionParameters[outType="+outType+", outputDirPath="+outputDirPath+", minMS1="+minimumMS1Intensity+", minMS2="+minimumMS2Intensity
-				+", demux="+demultiplex+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig+"]";
+				+", demux="+demultiplex+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig+", logFilePath="+logFilePath+", batch="+batch+", silent="+silent
+				+", noAnsi="+noAnsi+"]";
 	}
 
 	public static Builder builder() {
@@ -86,6 +111,10 @@ public class ConversionParameters {
 		private boolean demultiplex=false;
 		private MassTolerance demuxTolerance=new PPMMassTolerance(10.0);
 		private DemuxConfig demuxConfig=new DemuxConfig();
+		private Path logFilePath=null;
+		private boolean batch=false;
+		private boolean silent=false;
+		private boolean noAnsi=false;
 
 		public Builder fileList(List<File> files) {
 			this.fileList=new ArrayList<>(files);
@@ -132,8 +161,29 @@ public class ConversionParameters {
 			return this;
 		}
 
+		public Builder logFilePath(Path logFilePath) {
+			this.logFilePath=logFilePath;
+			return this;
+		}
+
+		public Builder batch(boolean batch) {
+			this.batch=batch;
+			return this;
+		}
+
+		public Builder silent(boolean silent) {
+			this.silent=silent;
+			return this;
+		}
+
+		public Builder noAnsi(boolean noAnsi) {
+			this.noAnsi=noAnsi;
+			return this;
+		}
+
 		public ConversionParameters build() {
-			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance, demuxConfig);
+			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance, demuxConfig,
+					logFilePath, batch, silent, noAnsi);
 		}
 	}
 }

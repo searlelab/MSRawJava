@@ -33,7 +33,7 @@ class ConversionParametersTest {
 		MassTolerance tol=new PPMMassTolerance(5.0);
 		DemuxConfig demux=new DemuxConfig();
 
-		ConversionParameters p=new ConversionParameters(files, type, out, ms1, ms2, true, tol, demux);
+		ConversionParameters p=new ConversionParameters(files, type, out, ms1, ms2, true, tol, demux, tmp.resolve("log.txt"), true, false, true);
 		assertEquals(files, p.getFileList());
 		assertEquals(type, p.getOutType());
 		assertEquals(out, p.getOutputDirPath());
@@ -42,9 +42,14 @@ class ConversionParametersTest {
 		assertTrue(p.isDemultiplex());
 		assertEquals(tol, p.getDemuxTolerance());
 		assertEquals(demux, p.getDemuxConfig());
+		assertEquals(tmp.resolve("log.txt"), p.getLogFilePath());
+		assertTrue(p.isBatch());
+		assertFalse(p.isSilent());
+		assertTrue(p.isNoAnsi());
 
-		ConversionParameters p2=new ConversionParameters(files, type, null, ms1, ms2, false, tol, demux);
+		ConversionParameters p2=new ConversionParameters(files, type, null, ms1, ms2, false, tol, demux, null, false, true, false);
 		assertNull(p2.getOutputDirPath(), "null output directory should be allowed");
 		assertFalse(p2.isDemultiplex());
+		assertTrue(p2.isSilent());
 	}
 }
