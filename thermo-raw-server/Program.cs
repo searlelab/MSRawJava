@@ -2,9 +2,11 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Runtime.InteropServices;
 using Grpc.Core;
 using MSRaw.Thermo.Proto;
 using ThermoFisher.CommonCore.Data.Business;
@@ -21,6 +23,11 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;   // HttpProtocols
 /// be published as a single-file, RID-specific bundle and launched on demand by the Java
 /// GrpcServerLauncher/ThermoServerPool.
 
+var startupClock = Stopwatch.StartNew();
+var proc = Process.GetCurrentProcess();
+var sinceProcessStart = DateTime.Now - proc.StartTime;
+Console.WriteLine($"Thermo server: startup begin (pid {proc.Id}, since process start {sinceProcessStart.TotalSeconds:F2} s)");
+Console.WriteLine($"Thermo server: runtime {RuntimeInformation.FrameworkDescription}, arch {RuntimeInformation.ProcessArchitecture}, OS {RuntimeInformation.OSDescription}");
 var builder = WebApplication.CreateBuilder(args);
 
 // Resolve listening URL (plaintext HTTP/2)
@@ -37,6 +44,7 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.Listen(ip, port, lo => { lo.Protocols = HttpProtocols.Http2; });
 });
+Console.WriteLine($"Thermo server: Kestrel configured in {startupClock.Elapsed.TotalSeconds:F2} s");
 
 builder.Logging.ClearProviders(); // drop defaults
 builder.Logging.AddSimpleConsole(o => {
@@ -50,13 +58,16 @@ builder.Logging.AddFilter("Grpc", LogLevel.Error);
 builder.Services.Configure<ConsoleLifetimeOptions>(o => o.SuppressStatusMessages = true);
 
 builder.Services.AddGrpc();
+Console.WriteLine($"Thermo server: gRPC services registered in {startupClock.Elapsed.TotalSeconds:F2} s");
 
 var app = builder.Build();
+Console.WriteLine($"Thermo server: app built in {startupClock.Elapsed.TotalSeconds:F2} s");
 app.MapGrpcService<ThermoRawServiceImpl>();
 app.MapGet("/", () => "MSRaw Thermo gRPC ready (HTTP/2 plaintext)");
 Console.WriteLine("ThermoRawService methods:");
 foreach (var m in ThermoRawService.Descriptor.Methods) Console.WriteLine("  " + m.Name);
 Console.WriteLine($"LISTENING h2c on {ip}:{port}");
+Console.WriteLine($"Thermo server: ready to accept connections in {startupClock.Elapsed.TotalSeconds:F2} s");
 app.Run();
 
 public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase

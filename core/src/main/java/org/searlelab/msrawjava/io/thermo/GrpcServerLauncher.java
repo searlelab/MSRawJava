@@ -82,10 +82,16 @@ final class GrpcServerLauncher implements AutoCloseable {
 
 		// Extract everything including runtimes/
 		// 1.1) extract common managed DLLs
+		Logger.logLine("Thermo server: extracting common runtime files...");
+		long t0=System.nanoTime();
 		ResourceTreeExtractor.extractDirectory(GrpcServerLauncher.class, "/msraw/thermo/bin/common", workDir);
+		Logger.logLine(String.format(Locale.ROOT, "Thermo server: common files extracted in %.2f s", (System.nanoTime()-t0)/1_000_000_000.0));
 
 		// 1.2) extract RID-specific payload (apphost, runtimes/, deps/runtimeconfig, etc.)
+		Logger.logLine("Thermo server: extracting "+rid+" runtime files...");
+		long t1=System.nanoTime();
 		ResourceTreeExtractor.extractDirectory(GrpcServerLauncher.class, "/msraw/thermo/bin/"+rid, workDir);
+		Logger.logLine(String.format(Locale.ROOT, "Thermo server: "+rid+" files extracted in %.2f s", (System.nanoTime()-t1)/1_000_000_000.0));
 
 		// 2) Build command
 		String exeName=isWin()?"MSRaw.Thermo.Server.exe":"MSRaw.Thermo.Server";
@@ -106,9 +112,13 @@ final class GrpcServerLauncher implements AutoCloseable {
 			pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 		}
 
+		Logger.logLine("Thermo server: starting process...");
+		long t2=System.nanoTime();
 		this.proc=pb.start();
+		Logger.logLine(String.format(Locale.ROOT, "Thermo server: process started (pid %d) in %.2f s", proc.pid(), (System.nanoTime()-t2)/1_000_000_000.0));
 
 		// 3) Wait for port readiness
+		Logger.logLine("Thermo server: waiting for gRPC port "+port+" to accept connections...");
 		long start=System.nanoTime();
 		final long timeoutNs=60_000_000_000L;
 		while (true) {
@@ -130,6 +140,7 @@ final class GrpcServerLauncher implements AutoCloseable {
 				}
 			}
 		}
+		Logger.logLine(String.format(Locale.ROOT, "Thermo server: port "+port+" ready in %.2f s", (System.nanoTime()-start)/1_000_000_000.0));
 	}
 
 	int port() {
