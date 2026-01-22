@@ -167,7 +167,7 @@ public class ConsoleStatus {
 		for (int i=0; i<BAR_WIDTH; i++) {
 			char c=' ';
 			if (i<filled) {
-				c='-';
+				c='=';
 			}
 			bar.append(c);
 		}
@@ -176,15 +176,14 @@ public class ConsoleStatus {
 
 	public static void main(String[] args) throws Exception {
 		ConsoleStatus console=new ConsoleStatus(true, System.out, System.err);
+		Logger.setConsoleStatus(console);
+		LoggingProgressIndicator indicator=new LoggingProgressIndicator(LoggingProgressIndicator.Mode.DEFAULT, true);
 		for (int i=0; i<10; i++) {
-			console.setMessage("Status tick "+i);
-			console.setProgress(i/10f);
-			console.tick();
-			Thread.sleep(Math.round(Math.random()*2000));
+			indicator.update("Status tick "+i, i/10f);
+			Thread.sleep(500);
 		}
-		console.setMessage("Done");
-		console.setProgress(1.0f);
-		console.tick();
-		console.close();
+		indicator.update("Done", 1.0f);
+		indicator.close();
+		Logger.close();
 	}
 }
