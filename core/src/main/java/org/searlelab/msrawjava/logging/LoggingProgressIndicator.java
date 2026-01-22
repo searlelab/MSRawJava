@@ -1,7 +1,7 @@
 package org.searlelab.msrawjava.logging;
 
 public class LoggingProgressIndicator implements ProgressIndicator {
-	private static final long HEARTBEAT_MS=500L;
+	private static final long HEARTBEAT_MS=100L;
 
 	public enum Mode {
 		DEFAULT,
