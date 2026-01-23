@@ -1,5 +1,6 @@
 package org.searlelab.msrawjava.gui;
 
+import java.awt.EventQueue;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -45,6 +46,7 @@ import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.TOFLoadingPanel;
 import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.VendorFiles;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 public class RawFileBrowser extends JFrame {
@@ -129,11 +131,18 @@ public class RawFileBrowser extends JFrame {
 		File dir=node.getFile();
 		if (dir==null||!dir.isDirectory()) return;
 
-		rememberLastDirectory(dir);
+		Object event=EventQueue.getCurrentEvent();
+		boolean userEvent=event instanceof MouseEvent;
+		String eventType=(event==null)?"null":event.getClass().getName();
+		Logger.logLine("RawFileBrowser selection event: userEvent="+userEvent+", eventType="+eventType);
+		if (userEvent) {
+			rememberLastDirectory(dir);
+		}
 		updateDirectory(dir);
 	}
 
 	private void updateDirectory(File dir) {
+		Logger.logLine("RawFileBrowser opened directory: "+dir.getAbsolutePath());
 		// Cancel any in-flight worker (directory or file loader)
 		SwingWorker<JComponent, String> prev=currentLoad;
 		if (prev!=null) prev.cancel(true);
@@ -253,6 +262,7 @@ public class RawFileBrowser extends JFrame {
 		try {
 			if (dir!=null&&dir.isDirectory()) {
 				prefs.put(PREF_LAST_DIR, dir.getAbsolutePath());
+				Logger.logLine("RawFileBrowser remembered directory: "+dir.getAbsolutePath());
 			}
 		} catch (Exception ignore) {
 		}

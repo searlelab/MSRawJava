@@ -10,6 +10,8 @@ import javax.swing.filechooser.FileSystemView;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 
+import org.searlelab.msrawjava.logging.Logger;
+
 public class DirectoryTreeModel extends DefaultTreeModel {
 	private static final long serialVersionUID=1L;
 	private final DirectoryNode virtualRoot;
@@ -61,8 +63,9 @@ public class DirectoryTreeModel extends DefaultTreeModel {
 
 	public void loadChildren(DirectoryNode node, FileSystemView fsv) {
 		if (node.isLoaded()||node.getFile()==null) return;
-		node.removeAllChildren();
 		File dir=node.getFile();
+		if (dir!=null) Logger.logLine("DirectoryTreeModel loaded directory: "+dir.getAbsolutePath());
+		node.removeAllChildren();
 
 		// Only subdirectories that are NOT dot-dirs
 		File[] kids=dir.listFiles(f -> f.isDirectory()&&!f.getName().startsWith("."));

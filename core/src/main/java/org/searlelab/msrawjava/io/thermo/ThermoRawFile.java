@@ -209,13 +209,20 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 	@Override
 	public void close() {
 		try {
-			this.stub.close(CloseRequest.newBuilder().setSessionId(sessionId).build());
+			if (stub!=null&&sessionId!=null) {
+				stub.withDeadlineAfter(3, TimeUnit.SECONDS).close(CloseRequest.newBuilder().setSessionId(sessionId).build());
+			}
 		} catch (Exception ignored) {
 			// swallow on close
 		} finally {
 			try {
-				channel.shutdownNow();
-				channel.awaitTermination(2, TimeUnit.SECONDS);
+				if (channel!=null) {
+					channel.shutdown();
+					if (!channel.awaitTermination(2, TimeUnit.SECONDS)) {
+						channel.shutdownNow();
+						channel.awaitTermination(2, TimeUnit.SECONDS);
+					}
+				}
 			} catch (InterruptedException ie) {
 				Thread.currentThread().interrupt();
 			} catch (Exception ignored) {
