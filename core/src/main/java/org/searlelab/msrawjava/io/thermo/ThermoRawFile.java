@@ -48,7 +48,7 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 
 	@Override
 	public String getOriginalFileName() {
-		return rawPath.toString();
+		return rawPath.getFileName().toString();
 	}
 
 	@Override

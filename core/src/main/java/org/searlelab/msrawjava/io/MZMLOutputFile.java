@@ -179,12 +179,14 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("        <cvParam cvRef=\"MS\" accession=\""+formatAcc+"\" name=\""+formatName+"\" value=\"\"/>\n");
 
 		// SHA-1 checksum
-		String sha1;
-		if (sourcePath.endsWith(".d")) {
-			// hack to use tdf
-			sha1=computeSHA1Safe(sourcePath+File.separator+"Analysis.tdf");
-		} else {
-			sha1=computeSHA1Safe(sourcePath);
+		String sha1=null;
+		if (sourcePath!=null) {
+			if (sourcePath.endsWith(".d")) {
+				// hack to use tdf
+				sha1=computeSHA1Safe(sourcePath+File.separator+"Analysis.tdf");
+			} else {
+				sha1=computeSHA1Safe(sourcePath);
+			}
 		}
 		
 		if (sha1==null) sha1="0000000000000000000000000000000000000000"; // worst case placeholder
@@ -331,8 +333,9 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""
 				+fmtTimeInSec(scan.getScanStartTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
 		if (scan.getIonInjectionTime()!=null) {
+			double iitMs=scan.getIonInjectionTime()*1000.0;
 			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""
-					+fmtTimeInSec(scan.getIonInjectionTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+					+fmtTimeInMs(iitMs)+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
 		}
 		
 		writeScanWindow(scan.getScanWindowLower(), scan.getScanWindowUpper());
@@ -366,8 +369,9 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 				+fmtTimeInSec(scan.getScanStartTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
 
 		if (scan.getIonInjectionTime()!=null) {
+			double iitMs=scan.getIonInjectionTime()*1000.0;
 			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""
-					+fmtTimeInSec(scan.getIonInjectionTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+					+fmtTimeInMs(iitMs)+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
 		}
 		
 		writeScanWindow(scan.getScanWindowLower(), scan.getScanWindowUpper());
@@ -479,6 +483,10 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 	}
 
 	private static String fmtTimeInSec(double v) {
+		return String.format("%.3f", v);
+	}
+	
+	private static String fmtTimeInMs(double v) {
 		return String.format("%.3f", v);
 	}
 

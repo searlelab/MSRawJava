@@ -57,7 +57,7 @@ class ThermoRawFileStubTest {
 		setField(rawFile, "sessionId", "session-1");
 
 		assertEquals("file.raw", rawFile.getFile().getName());
-		assertEquals(tmp.resolve("file.raw").toString(), rawFile.getOriginalFileName());
+		assertEquals("file.raw", rawFile.getOriginalFileName());
 		assertTrue(rawFile.isOpen());
 
 		Map<String, String> metadata=rawFile.getMetadata();

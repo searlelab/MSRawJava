@@ -565,7 +565,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				while (rs.next()) {
 					int frameId=rs.getInt(1);
 					float rt=rs.getFloat(2);
-					float injTime=rs.getFloat(3)/1000f; //msec to sec
+					float injTime=accumulationTimeSeconds(rs.getFloat(3));
 					double t1=rs.getDouble(4);
 					int numScans=rs.getInt(5);
 					
@@ -713,7 +713,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 									precursorTargetMz, // precursor
 									rt, // scanStartTime
 									0, // fraction
-									1000f*acc, // IonInjectionTime (sec) = 1000 * AccumulationTime
+									accumulationTimeSeconds(acc),
 									isoLo, isoHi, // isolation window bounds
 									triplet.x, intens, ims, charge, // precursor charge
 									scanWindowLower, scanWindowUpper
@@ -914,6 +914,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		}
 	}
 
+	static float accumulationTimeSeconds(double accumulationMs) {
+		return (float)(accumulationMs/1000.0);
+	}
+
 	private ArrayList<FragmentScan> extractDIASpectra(ArrayList<Meta> metas, final boolean sqrt, double scanWindowLower, double scanWindowUpper) {
 		ArrayList<FragmentScan> out=new ArrayList<>();
 		// For each frame, emit one FragmentScan per window using IM scan bounds if present
@@ -935,7 +939,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 					final int n=triplet.x==null?0:triplet.x.length;
 					if (n==0) {
-						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, 1000f*(float)m.acc, isoL, isoH, new double[0], new float[0], new float[0], (byte)0, scanWindowLower, scanWindowUpper));
+						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), isoL, isoH, new double[0], new float[0], new float[0], (byte)0, scanWindowLower, scanWindowUpper));
 					} else {
 						// Optionally sqrt intensities
 						float[] intens=triplet.y;
@@ -950,7 +954,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 							ims[i]=getIMSFromScanNumber(triplet.z[i], m.scanMax);
 						}
 
-						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, 1000f*(float)m.acc, isoL, isoH, triplet.x, intens, ims, (byte)0, scanWindowLower, scanWindowUpper));
+						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), isoL, isoH, triplet.x, intens, ims, (byte)0, scanWindowLower, scanWindowUpper));
 					}
 				} catch (Exception ex) {
 					// propagate after closing iterator

@@ -78,4 +78,51 @@ class MZMLOutputFileTest {
 		assertTrue(xml.contains("name=\"64-bit float\""));
 		assertTrue(xml.contains("name=\"32-bit float\""));
 	}
+
+	@Test
+	void writesIonInjectionTimeInMilliseconds() throws Exception {
+		MZMLOutputFile writer=new MZMLOutputFile();
+		writer.openFile();
+		writer.setFileName("iit_run", "/data/iit_run");
+
+		ArrayList<PrecursorScan> ms1s=new ArrayList<>();
+		ms1s.add(new PrecursorScan("ms1-1", 1, 1.0f, 0, 100.0, 1000.0, 0.25f, new double[] {100.0}, new float[] {10.0f}, null));
+
+		ArrayList<FragmentScan> ms2s=new ArrayList<>();
+		ms2s.add(new FragmentScan("ms2-2", "prec", 2, 500.0, 2.0f, 0, 0.5f, 499.9, 500.1, new double[] {150.0}, new float[] {5.0f}, null,
+				(byte)2, 0.0, 3000.0));
+
+		writer.addSpectra(ms1s, ms2s);
+
+		Path out=tmp.resolve("iit.mzML");
+		writer.saveAsFile(out.toFile());
+		writer.close();
+
+		String xml=Files.readString(out, StandardCharsets.UTF_8);
+
+		assertTrue(xml.contains("name=\"ion injection time\""), "ion injection time should be present");
+		assertTrue(xml.contains("unitAccession=\"UO:0000028\""), "ion injection time should be in milliseconds");
+		assertTrue(xml.contains("value=\"250.000\""), "MS1 ion injection time should be 250.000 ms");
+		assertTrue(xml.contains("value=\"500.000\""), "MS2 ion injection time should be 500.000 ms");
+	}
+
+	@Test
+	void handlesNullSourcePathWhenWritingHeader() throws Exception {
+		MZMLOutputFile writer=new MZMLOutputFile();
+		writer.openFile();
+		writer.setFileName("null_source", null);
+
+		ArrayList<PrecursorScan> ms1s=new ArrayList<>();
+		ms1s.add(ms1("ms1-1", 1, 1.0f, 100.0, 1000.0, new double[] {100.0}, new float[] {10.0f}, null));
+
+		writer.addSpectra(ms1s, new ArrayList<>());
+
+		Path out=tmp.resolve("null_source.mzML");
+		writer.saveAsFile(out.toFile());
+		writer.close();
+
+		String xml=Files.readString(out, StandardCharsets.UTF_8);
+		assertTrue(xml.contains("<sourceFile "), "sourceFile element should be present");
+		assertTrue(xml.contains("location=\"file:///\""), "null source path should default to file:///");
+	}
 }

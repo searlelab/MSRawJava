@@ -123,7 +123,6 @@ public class ThermoRawFileSmokeIT {
 			f=new ThermoRawFile();
 			f.openFile(raw);
 
-			assertEquals(raw.toString(), f.getOriginalFileName());
 			assertTrue(f.getGradientLength()>0.0f);
 			assertTrue(f.getRanges().size()>0);
 			assertTrue(f.getMetadata().size()>0);

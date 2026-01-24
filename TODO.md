@@ -16,14 +16,10 @@
 
   - Highest-risk correctness issue: FragmentScan.rebuild(int, float, …) ignores the provided RT, so demultiplexed scans keep the original scan time
     and violate the demux algorithm’s intended time alignment.
-  - Scientific metadata risk: mzML “ion injection time” is written in seconds but labeled as milliseconds; Bruker TIMS uses conflicting units across
-    MS1/MS2 paths.
   - Thermo DIA precursor m/z is a known approximation (center of isolation window) with a FIXME, which can bias downstream matching when offsets
     exist.
   - Demux pipeline can drop or error on partial cycles because CycleAssembler emits partial cycles while StaggeredDemultiplexer demands same-sized
     cycles.
-  - Output location bug for Thermo demux: ThermoRawFile.getOriginalFileName() returns a full path, which can cause output to ignore the requested
-    output directory.
   - Concurrency risk in logging: global recorder list is unsynchronized; log writes occur across multiple worker threads.
   - Strengths: strong demux test coverage, clear separation of vendor I/O from core model, deterministic output ordering and serialization in writers.
   - Strengths: well-tested model primitives and base utilities (Range, MassTolerance, Peak types).
@@ -70,32 +66,7 @@
       - Suggested tests:
           - Update FragmentScanTest#rebuildWithRt to assert RT equals input RT.
           - Add demux integration test that checks monotonic RT in demux outputs.
-  2. [Major][High][High] mzML ion-injection time units are inconsistent
-      - Where: org.searlelab.msrawjava.io.MZMLOutputFile#writeSpectrumMS1 and #writeSpectrumMS2
-      - Why it matters:
-          - Ion injection time is labeled as milliseconds but written as seconds.
-          - This propagates incorrect instrument metadata to downstream pipelines.
-      - Evidence:
-          - AcquiredSpectrum#getIonInjectionTime is documented as seconds.
-          - mzML writer uses fmtTimeInSec with unit accession “millisecond” in both MS1 and MS2.
-      - Suggested fix:
-          - Either convert seconds → milliseconds or change unit metadata to seconds.
-          - Ensure consistency with Thermo/Bruker readers (see issues 3 & 4).
-      - Suggested tests:
-          - Add mzML writer test that asserts correct numeric value + unit.
-  3. [Major][High][Med] Bruker TIMS ion-injection time uses inconsistent scaling
-      - Where: org.searlelab.msrawjava.io.tims.BrukerTIMSFile#getStripes(...) and #extractDIASpectra(...)
-      - Why it matters:
-          - MS2 injection time is computed as 1000f * acc while MS1 uses acc/1000f, creating a 1e6 swing depending on path.
-          - Metadata inconsistency can corrupt time-based QC and acquisition summaries.
-      - Evidence:
-          - MS1: getPrecursors sets injTime = rs.getFloat(3) / 1000f.
-          - MS2: getStripes and extractDIASpectra pass 1000f * acc with comment “IonInjectionTime (sec) = 1000 * AccumulationTime”.
-      - Suggested fix:
-          - Normalize to a single unit (seconds) across MS1/MS2; confirm the units of AccumulationTime.
-      - Suggested tests:
-          - Add TIMS unit test asserting consistent injection time scaling across MS1/MS2.
-  4. [Major][Med][High] Thermo DIA precursor m/z is a heuristic (center of isolation window)
+  2. [Major][Med][High] Thermo DIA precursor m/z is a heuristic (center of isolation window)
       - Where: org.searlelab.msrawjava.io.thermo.ThermoRawFile#getStripes(...)
       - Why it matters:
           - DIA isolation windows are not always symmetric; using midpoint can misreport precursor m/z.
@@ -107,19 +78,7 @@
           - If only bounds are available, preserve bounds and mark precursor m/z as “center” explicitly.
       - Suggested tests:
           - Stub test with asymmetric isolation bounds to ensure chosen precursor m/z matches expected behavior.
-  5. [Major][High][High] Thermo demux output path can ignore the requested output directory
-      - Where: org.searlelab.msrawjava.io.thermo.ThermoRawFile#getOriginalFileName
-      - Why it matters:
-          - In demux, RawFileConverters.writeDemux uses getOriginalFileName() to name output.
-          - If it returns a full path, OutputType.getOutputFilePath can resolve to the original absolute path, ignoring --output.
-      - Evidence:
-          - ThermoRawFile.getOriginalFileName() returns rawPath.toString() (full path).
-          - RawFileConverters.writeDemux uses that string as the filename for output path resolution.
-      - Suggested fix:
-          - Return rawPath.getFileName().toString() in getOriginalFileName().
-      - Suggested tests:
-          - Add test for demux output path resolution with an absolute input path.
-  6. [Major][Med][Med] Partial cycles can destabilize demux pipeline
+  3. [Major][Med][Med] Partial cycles can destabilize demux pipeline
       - Where: org.searlelab.msrawjava.algorithms.CycleAssembler#finalizeCurrentIfNonEmpty,
         org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer#demultiplex
       - Why it matters:
@@ -134,7 +93,7 @@
           - Add a warning when partial cycles are dropped.
       - Suggested tests:
           - Demux test with missing windows to assert graceful skip instead of error.
-  7. [Major][Med][Med] Logger recorder list is not thread-safe
+  4. [Major][Med][Med] Logger recorder list is not thread-safe
       - Where: org.searlelab.msrawjava.logging.Logger
       - Why it matters:
           - Multiple worker threads call Logger during conversion/demux.
@@ -145,18 +104,7 @@
           - Use a thread-safe collection (e.g., CopyOnWriteArrayList) or synchronize access.
       - Suggested tests:
           - Concurrency test that adds a recorder while worker threads log.
-  8. [Major][Low][High] mzML writer can NPE when sourcePath is missing
-      - Where: org.searlelab.msrawjava.io.MZMLOutputFile#writeFileDescription
-      - Why it matters:
-          - If setFileName is called with null fileLocation and metadata doesn’t include filelocation, sourcePath remains null.
-          - sourcePath.endsWith(".d") then throws, aborting conversion.
-      - Evidence:
-          - sourcePath assigned with fileLocation or meta default; no null guard before .endsWith.
-      - Suggested fix:
-          - Guard sourcePath before .endsWith, and compute SHA-1 only if non-null.
-      - Suggested tests:
-          - Add mzML test that calls setFileName with null location.
-  9. [Major][Low][Med] QuickMedian pivot selection can choose out-of-range index
+  5. [Major][Low][Med] QuickMedian pivot selection can choose out-of-range index
       - Where: org.searlelab.msrawjava.algorithms.QuickMedian#select(float[]/double[])
       - Why it matters:
           - randomInt can be negative; pivotIndex can drop below left and is clamped to 0, which can be outside the active partition.
@@ -168,7 +116,7 @@
           - Clamp pivot index to [left, right] and ensure RNG produces [0,1].
       - Suggested tests:
           - Add QuickMedian test with large arrays to detect regression against a sorted baseline.
-  10. [Major][Low][Med] mzML writer builds full base64 arrays in memory
+  6. [Major][Low][Med] mzML writer builds full base64 arrays in memory
 
   - Where: org.searlelab.msrawjava.io.MZMLOutputFile#writeBinaryDataArrayList
   - Why it matters:
@@ -181,7 +129,7 @@
   - Suggested tests:
       - Add a large-spectrum performance test (or memory budget test) for mzML output.
 
-  11. [Minor][Low][Med] IMS mapping may be slightly biased at the upper bound
+  7. [Minor][Low][Med] IMS mapping may be slightly biased at the upper bound
 
   - Where: org.searlelab.msrawjava.io.tims.BrukerTIMSFile#getIMSFromScanNumber
   - Why it matters:
@@ -289,20 +237,16 @@
 
   Grades
 
-  - Code correctness: B-
+  - Code correctness: B
   - Scientific correctness: B
   - Clarity: B
-  - Brittleness/Reliability: C
+  - Brittleness/Reliability: B-
   - Test adequacy: B
 
   Findings
 
-  - [Major][High][High] Thermo demux output path may ignore --output due to getOriginalFileName() returning full path.
-      - Evidence: RawFileConverters#writeDemux, ThermoRawFile#getOriginalFileName, OutputType#getOutputFilePath.
   - [Major][Med][Med] Demux pipeline can enqueue partial cycles that later cause errors or dropped output.
       - Evidence: RawFileConverters#writeDemux, CycleAssembler#finalizeCurrentIfNonEmpty.
-  - [Major][Low][High] mzML writer can NPE when sourcePath is null.
-      - Evidence: MZMLOutputFile#writeFileDescription.
 
   Scientific Validations
 
@@ -331,7 +275,7 @@
 
   Grades
 
-  - Code correctness: B-
+  - Code correctness: B
   - Scientific correctness: C+
   - Clarity: B
   - Brittleness/Reliability: B
@@ -341,8 +285,6 @@
 
   - [Major][Med][High] Precursor m/z is approximated as window midpoint; known FIXME.
       - Evidence: ThermoRawFile#getStripes.
-  - [Major][Med][High] getOriginalFileName() returns full path, conflicting with interface intent.
-      - Evidence: ThermoRawFile#getOriginalFileName, interface doc in StripeFileInterface.
   - [Minor][Low][Med] Channel and server lifecycle are robust, but log suppression uses console state and can hide errors.
       - Evidence: GrpcServerLauncher output redirection.
 
@@ -372,7 +314,7 @@
 
   Grades
 
-  - Code correctness: B-
+  - Code correctness: B
   - Scientific correctness: C
   - Clarity: B
   - Brittleness/Reliability: C+
@@ -380,8 +322,6 @@
 
   Findings
 
-  - [Major][High][Med] Ion injection time scaling inconsistent between MS1 and MS2.
-      - Evidence: BrukerTIMSFile#getPrecursors vs getStripes/extractDIASpectra.
   - [Minor][Low][Med] IMS mapping uses scanMax denominator without -1, potentially skewing bounds.
       - Evidence: BrukerTIMSFile#getIMSFromScanNumber.
   - [Minor][Low][Med] NativeLibraryLoader hardcodes Apple Silicon RID; Intel macs may fail.
@@ -653,5 +593,3 @@
     caching.
   - Concurrency: Demux compute + writer pipeline is sound, but partial cycles can trigger exceptions and drop data.
   - Reproducibility: Output ordering is deterministic, but RT misassignment undermines time-based reproducibility.
-
-
