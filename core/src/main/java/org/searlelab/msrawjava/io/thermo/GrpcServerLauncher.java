@@ -1,21 +1,17 @@
 package org.searlelab.msrawjava.io.thermo;
 
-import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Consumer;
 
 import org.searlelab.msrawjava.io.utils.ResourceTreeExtractor;
 import org.searlelab.msrawjava.logging.Logger;
@@ -74,18 +70,10 @@ final class GrpcServerLauncher implements AutoCloseable {
 	}
 
 	GrpcServerLauncher() throws IOException, InterruptedException {
-		this(pickFreePort(), null);
-	}
-
-	GrpcServerLauncher(Consumer<String> statusSink) throws IOException, InterruptedException {
-		this(pickFreePort(), statusSink);
+		this(pickFreePort());
 	}
 
 	GrpcServerLauncher(int port) throws IOException, InterruptedException {
-		this(port, null);
-	}
-
-	GrpcServerLauncher(int port, Consumer<String> statusSink) throws IOException, InterruptedException {
 		this.port=port;
 
 		// 1) Extract entire published folder from resources into a fresh temp dir
@@ -118,13 +106,15 @@ final class GrpcServerLauncher implements AutoCloseable {
 		pb.environment().put("MSRAW_THERMO_URL", "http://127.0.0.1:"+port);
 		pb.directory(workDir.toFile()); // critical: loader probes base dir for ThermoFisher.*.dll + runtimes/
 		pb.redirectErrorStream(true);
-		pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
+		if (Logger.getConsoleStatus()!=null&&Logger.getConsoleStatus().isEnabled()) {
+			pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+		} else {
+			pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+		}
 
 		Logger.logLine("Thermo server: starting process...");
 		long t2=System.nanoTime();
 		this.proc=pb.start();
-		boolean forwardStdout=Logger.getConsoleStatus()==null||!Logger.getConsoleStatus().isEnabled();
-		startStdoutReader(proc, statusSink, forwardStdout);
 		Logger.logLine(String.format(Locale.ROOT, "Thermo server: process started (pid %d) in %.2f s", proc.pid(), (System.nanoTime()-t2)/1_000_000_000.0));
 
 		// 3) Wait for port readiness
@@ -155,21 +145,6 @@ final class GrpcServerLauncher implements AutoCloseable {
 
 	int port() {
 		return port;
-	}
-
-	private static void startStdoutReader(Process proc, Consumer<String> statusSink, boolean forwardStdout) {
-		Thread t=new Thread(() -> {
-			try (BufferedReader reader=new BufferedReader(new InputStreamReader(proc.getInputStream(), StandardCharsets.UTF_8))) {
-				String line;
-				while ((line=reader.readLine())!=null) {
-					if (statusSink!=null) statusSink.accept(line);
-					if (forwardStdout) System.out.println(line);
-				}
-			} catch (IOException ignored) {
-			}
-		}, "thermo-server-stdout");
-		t.setDaemon(true);
-		t.start();
 	}
 
 	@Override

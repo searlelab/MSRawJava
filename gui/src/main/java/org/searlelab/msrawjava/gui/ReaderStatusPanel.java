@@ -63,28 +63,16 @@ public class ReaderStatusPanel extends JPanel {
 	private void refreshStatuses() {
 		boolean ready=ThermoServerPool.isReady();
 		boolean starting=ThermoServerPool.isStarting();
-		boolean failed=ThermoServerPool.isFailed();
 
 		if (ready) {
 			thermoLine.setState(StatusState.OK);
 			thermoLine.setStatusText("Available");
 		} else if (starting) {
 			thermoLine.setState(StatusState.WAITING);
-			String note=ThermoServerPool.lastStatusNote();
-			if (note==null||note.isBlank()) note="Waiting for Thermo server...";
-			thermoLine.setStatusText(note);
-		} else if (failed) {
+			thermoLine.setStatusText("Waiting for Thermo server...");
+		} else {
 			thermoLine.setState(StatusState.ERROR);
 			thermoLine.setStatusText("Problem");
-		} else {
-			String note=ThermoServerPool.lastStatusNote();
-			if (note!=null&&!note.isBlank()) {
-				thermoLine.setState(StatusState.WAITING);
-				thermoLine.setStatusText(note);
-			} else {
-				thermoLine.setState(StatusState.ERROR);
-				thermoLine.setStatusText("Problem");
-			}
 		}
 
 		blinkOn=!blinkOn;
