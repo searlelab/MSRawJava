@@ -11,9 +11,11 @@ import java.awt.RenderingHints;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -24,6 +26,8 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
+import javax.swing.RowSorter;
+import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
@@ -55,9 +59,11 @@ public class DirectorySummaryPanel extends JPanel {
 		table=new JTable(model);
 		TableRowSorter<DirSummaryModel> sorter=new TableRowSorter<>(model);
 		sorter.setSortable(0, false); // "#" not sortable
-		sorter.setComparator(4, Comparator.nullsLast(Float::compareTo)); // gradient
-		sorter.setComparator(5, Comparator.nullsLast(Float::compareTo)); // total tic
-		sorter.setSortable(6, false); // tic spark 
+		sorter.setComparator(3, Comparator.nullsLast(Comparator.naturalOrder())); // date modified
+		sorter.setComparator(5, Comparator.nullsLast(Float::compareTo)); // gradient
+		sorter.setComparator(6, Comparator.nullsLast(Float::compareTo)); // total tic
+		sorter.setSortable(7, false); // tic spark 
+		sorter.setSortKeys(List.of(new RowSorter.SortKey(3, SortOrder.DESCENDING)));
 
 		table.setRowSorter(sorter);
 
@@ -68,16 +74,18 @@ public class DirectorySummaryPanel extends JPanel {
 		// Stripe renderers so it blends in
 		table.setDefaultRenderer(String.class, StripeTableCellRenderer.BASE_RENDERER);
 		table.setDefaultRenderer(Long.class, StripeTableCellRenderer.SIZE_RENDERER);
+		table.setDefaultRenderer(Date.class, new DateOnlyRenderer());
 		table.setDefaultRenderer(Float.class, new GradientRenderer()); // formats "X.Y min"
 		table.setDefaultRenderer(SparkData.class, new SparkRenderer()); // red filled spark
 
 		table.getColumnModel().getColumn(0).setCellRenderer(StripeTableCellRenderer.ROW_NUMBER_RENDERER);
 		table.getColumnModel().getColumn(1).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
 		table.getColumnModel().getColumn(2).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
-		table.getColumnModel().getColumn(3).setCellRenderer(StripeTableCellRenderer.SIZE_RENDERER);
-		table.getColumnModel().getColumn(4).setCellRenderer(new GradientRenderer());
-		table.getColumnModel().getColumn(5).setCellRenderer(StripeTableCellRenderer.SCI_RENDERER);
-		table.getColumnModel().getColumn(6).setCellRenderer(new SparkRenderer());
+		table.getColumnModel().getColumn(3).setCellRenderer(new DateOnlyRenderer());
+		table.getColumnModel().getColumn(4).setCellRenderer(StripeTableCellRenderer.SIZE_RENDERER);
+		table.getColumnModel().getColumn(5).setCellRenderer(new GradientRenderer());
+		table.getColumnModel().getColumn(6).setCellRenderer(StripeTableCellRenderer.SCI_RENDERER);
+		table.getColumnModel().getColumn(7).setCellRenderer(new SparkRenderer());
 
 		// Column widths (tweak as you like)
 		JScrollPane sp=new JScrollPane(table);
@@ -86,10 +94,11 @@ public class DirectorySummaryPanel extends JPanel {
 			table.getColumnModel().getColumn(0).setPreferredWidth(50); // #
 			table.getColumnModel().getColumn(1).setPreferredWidth(320); // File
 			table.getColumnModel().getColumn(2).setPreferredWidth(80); // Vendor
-			table.getColumnModel().getColumn(3).setPreferredWidth(100); // Size
-			table.getColumnModel().getColumn(4).setPreferredWidth(110); // Gradient
-			table.getColumnModel().getColumn(5).setPreferredWidth(110); // total tic
-			table.getColumnModel().getColumn(6).setPreferredWidth(220); // TIC
+			table.getColumnModel().getColumn(3).setPreferredWidth(110); // Date Modified
+			table.getColumnModel().getColumn(4).setPreferredWidth(100); // Size
+			table.getColumnModel().getColumn(5).setPreferredWidth(110); // Gradient
+			table.getColumnModel().getColumn(6).setPreferredWidth(110); // total tic
+			table.getColumnModel().getColumn(7).setPreferredWidth(220); // TIC
 		});
 
 		// Seed fast info (file name/vendor/size) synchronously so table appears immediately
@@ -210,9 +219,9 @@ public class DirectorySummaryPanel extends JPanel {
 		pool.shutdownNow();
 	}
 
-	/** Table model: File | Vendor | Size | Gradient (min) | TIC spark */
+	/** Table model: File | Vendor | Date Modified | Size | Gradient (min) | TIC spark */
 	private static final class DirSummaryModel extends AbstractTableModel {
-		private static final String[] COLS= {"#", "File", "Vendor", "Size", "Gradient (min)", "Total TIC", "TIC"};
+		private static final String[] COLS= {"#", "File", "Vendor", "Date Modified", "Size", "Gradient (min)", "Total TIC", "TIC"};
 		private static final long serialVersionUID=1L;
 
 		private final CopyOnWriteArrayList<DirRow> rows=new CopyOnWriteArrayList<>();
@@ -255,10 +264,11 @@ public class DirectorySummaryPanel extends JPanel {
 		public Class<?> getColumnClass(int c) {
 			return switch (c) {
 				case 0, 1, 2 -> String.class;
-				case 3 -> Long.class; // SIZE_RENDERER will humanize it
-				case 4 -> Float.class; // we format "X.Y min" in renderer
-				case 5 -> Float.class; // total TIC
-				case 6 -> SparkData.class;
+				case 3 -> Date.class;
+				case 4 -> Long.class; // SIZE_RENDERER will humanize it
+				case 5 -> Float.class; // we format "X.Y min" in renderer
+				case 6 -> Float.class; // total TIC
+				case 7 -> SparkData.class;
 				default -> Object.class;
 			};
 		}
@@ -270,10 +280,11 @@ public class DirectorySummaryPanel extends JPanel {
 				case 0 -> null;
 				case 1 -> row.fileName;
 				case 2 -> row.vendor.label;
-				case 3 -> row.sizeBytes;
-				case 4 -> row.gradientMin; // may be null
-				case 5 -> row.totalTIC; // may be null
-				case 6 -> row.spark; // may be null
+				case 3 -> row.lastModified;
+				case 4 -> row.sizeBytes;
+				case 5 -> row.gradientMin; // may be null
+				case 6 -> row.totalTIC; // may be null
+				case 7 -> row.spark; // may be null
 				default -> null;
 			};
 		}
@@ -295,16 +306,18 @@ public class DirectorySummaryPanel extends JPanel {
 		final String fileName;
 		final Vendor vendor;
 		final long sizeBytes;
+		final Date lastModified;
 
 		volatile Float gradientMin; // null until computed
 		volatile Float totalTIC; // null until computed
 		volatile SparkData spark; // null until computed
 
-		private DirRow(Path p, Vendor v, long size) {
+		private DirRow(Path p, Vendor v, long size, Date lastModified) {
 			this.path=p;
 			this.fileName=p.getFileName().toString();
 			this.vendor=v;
 			this.sizeBytes=Math.max(0L, size);
+			this.lastModified=lastModified;
 		}
 
 		@Override
@@ -319,12 +332,20 @@ public class DirectorySummaryPanel extends JPanel {
 
 		static DirRow fromThermo(Path p) {
 			long size=(Files.isRegularFile(p)?p.toFile().length():0L);
-			return new DirRow(p, Vendor.THERMO, size);
+			Date modified=null;
+			try {
+				modified=new Date(Files.getLastModifiedTime(p).toMillis());
+			} catch (IOException e) {
+				Logger.errorException(e);
+			}
+			return new DirRow(p, Vendor.THERMO, size, modified);
 		}
 
 		static DirRow fromBruker(Path p) {
 			long size;
+			Date modified=null;
 			try {
+				modified=new Date(Files.getLastModifiedTime(p).toMillis());
 				size=Files.walk(p).filter(Files::isRegularFile).mapToLong(f -> {
 					try {
 						return Files.size(f);
@@ -337,7 +358,7 @@ public class DirectorySummaryPanel extends JPanel {
 				Logger.errorException(e);
 				size=0;
 			}
-			return new DirRow(p, Vendor.BRUKER, size);
+			return new DirRow(p, Vendor.BRUKER, size, modified);
 		}
 	}
 
@@ -382,6 +403,23 @@ public class DirectorySummaryPanel extends JPanel {
 			if (value instanceof Float f) {
 				setHorizontalAlignment(SwingConstants.RIGHT);
 				setText(String.format(Locale.ROOT, "%.1f min", f));
+			} else {
+				setText("");
+			}
+			return this;
+		}
+	}
+
+	private static final class DateOnlyRenderer extends StripeTableCellRenderer {
+		private static final long serialVersionUID=1L;
+		private final DateFormat format=DateFormat.getDateInstance(DateFormat.SHORT);
+
+		@Override
+		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
+			if (value instanceof Date d) {
+				setHorizontalAlignment(SwingConstants.RIGHT);
+				setText(format.format(d));
 			} else {
 				setText("");
 			}
