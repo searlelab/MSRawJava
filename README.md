@@ -11,7 +11,7 @@ Thermo RAW access is implemented in `src/main/java/org/searlelab/msrawjava/io/th
 Example file writers show how data is organized for streaming and reproducible output. `MZMLOutputFile`, `MGFOutputFile`, and `EncyclopeDIAFile` write spectra and metadata to disk while enforcing deterministic ordering. `OutputSpectrumFile` and `OutputType` provide small abstractions over destination formats. Optional developer plots reside under `gui` (`IMSChromatogramChart`, `SpectrumChart`, and `MobilogramHeatmap`) and are not required for headless use. 
 
 ## Building the code
-This project targets Java 17 and builds with Maven. Packaging compiles Java and stages the native components (Rust/JNI for Bruker, self-contained .NET gRPC server for Thermo). Dependencies include: JDK 17+, Maven 3.9+, .NET SDK 8.0.x (for the Thermo server), Rust toolchain (rustup, rustc, cargo), and Zig (version≥0.12) and `cargo-zigbuild` for cross-compiling JNI. The software can be built using the command:
+Complete build instructions are in `QUICKSTART.md`. This project targets Java 17 and builds with Maven. Packaging compiles Java and stages the native components (Rust/JNI for Bruker, self-contained .NET gRPC server for Thermo). Dependencies include: JDK 17+, Maven 3.9+, .NET SDK 8.0.x (for the Thermo server), Rust toolchain (rustup, rustc, cargo), and Zig (version≥0.12) and `cargo-zigbuild` for cross-compiling JNI. The software can be built using the command:
 
 ```
 mvn -DskipTests package
