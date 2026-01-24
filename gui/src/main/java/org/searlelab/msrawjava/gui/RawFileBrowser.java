@@ -11,7 +11,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.prefs.Preferences;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
@@ -52,9 +51,6 @@ import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 public class RawFileBrowser extends JFrame {
 	private static final long serialVersionUID=1L;
-	private static final String PREF_LAST_DIR="lastDir";
-
-	private final Preferences prefs=Preferences.userNodeForPackage(RawFileBrowser.class);
 
 	private final FileSystemView fsv=FileSystemView.getFileSystemView();
 
@@ -93,7 +89,7 @@ public class RawFileBrowser extends JFrame {
 		treeScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
 		// ---- Top is the directory table (set later); Bottom is the lowerSplit
-		conversionPane=new ConversionPane(prefs, pool);
+		conversionPane=new ConversionPane(GUIPreferences.getPreferences(), pool);
 		fileSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JPanel(), conversionPane);
 		fileSplit.setResizeWeight(0.5);
 		fileSplit.setContinuousLayout(true);
@@ -113,7 +109,7 @@ public class RawFileBrowser extends JFrame {
 		setSize(1280, 700);
 		setLocationByPlatform(true);
 
-		String lastPath=prefs.get(PREF_LAST_DIR, null);
+		String lastPath=GUIPreferences.getLastDirectory();
 		File startDir=(lastPath!=null)?new File(lastPath):fsv.getHomeDirectory();
 		if (startDir==null||!startDir.isDirectory()) startDir=fsv.getHomeDirectory();
 		selectDirectoryInTree(startDir);
@@ -145,7 +141,7 @@ public class RawFileBrowser extends JFrame {
 		if (!programmaticSelection&&userEvent) {
 			node.setLoaded(false);
 			treeModel.loadChildren(node, fsv);
-			rememberLastDirectory(dir);
+			GUIPreferences.rememberLastDirectory(dir);
 		}
 		updateDirectory(dir);
 	}
@@ -265,16 +261,6 @@ public class RawFileBrowser extends JFrame {
 		menu.add(selectAll);
 		menu.add(showDir);
 		menu.show(tbl, e.getX(), e.getY());
-	}
-
-	private void rememberLastDirectory(File dir) {
-		try {
-			if (dir!=null&&dir.isDirectory()) {
-				prefs.put(PREF_LAST_DIR, dir.getAbsolutePath());
-				Logger.logLine("RawFileBrowser remembered directory: "+dir.getAbsolutePath());
-			}
-		} catch (Exception ignore) {
-		}
 	}
 
 	private static double dividerProportion(JSplitPane sp) {

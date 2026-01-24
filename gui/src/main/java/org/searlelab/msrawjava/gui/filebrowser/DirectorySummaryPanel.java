@@ -34,6 +34,7 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableRowSorter;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
+import org.searlelab.msrawjava.gui.GUIPreferences;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
@@ -63,7 +64,24 @@ public class DirectorySummaryPanel extends JPanel {
 		sorter.setComparator(5, Comparator.nullsLast(Float::compareTo)); // gradient
 		sorter.setComparator(6, Comparator.nullsLast(Float::compareTo)); // total tic
 		sorter.setSortable(7, false); // tic spark 
-		sorter.setSortKeys(List.of(new RowSorter.SortKey(3, SortOrder.DESCENDING)));
+		List<RowSorter.SortKey> savedSortKeys=GUIPreferences.getDirectorySummarySortKeys();
+		ArrayList<RowSorter.SortKey> validSortKeys=new ArrayList<>(savedSortKeys.size());
+		for (RowSorter.SortKey key : savedSortKeys) {
+			if (key==null) continue;
+			int col=key.getColumn();
+			if (col>=0&&col<model.getColumnCount()) {
+				validSortKeys.add(key);
+			}
+		}
+		if (!validSortKeys.isEmpty()) {
+			sorter.setSortKeys(validSortKeys);
+		} else {
+			sorter.setSortKeys(List.of(new RowSorter.SortKey(3, SortOrder.DESCENDING)));
+		}
+		sorter.addRowSorterListener(e -> {
+			RowSorter<?> src=(RowSorter<?>)e.getSource();
+			GUIPreferences.setDirectorySummarySortKeys(src.getSortKeys());
+		});
 
 		table.setRowSorter(sorter);
 
