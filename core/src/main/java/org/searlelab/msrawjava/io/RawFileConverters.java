@@ -87,8 +87,10 @@ public class RawFileConverters {
 				if (progress.isCanceled()) return false;
 
 				submitWrite(outFile, ms1s, ms2s, writerRef, writeFuturesRef, firstWriteErrorRef);
+
+				float totalProgress=(i+1)/(float)(sections+NUMBER_OF_REPORTING_SECTIONS/20f); // only go up to 95%	
 				progress.update("Found "+ms1s.size()+" MS1s and "+ms2s.size()+" MS2s in range: "+String.format("%.1f", start/60f)+" to "
-						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", (i+1)*100f/(sections+NUMBER_OF_REPORTING_SECTIONS/20f));
+						+String.format("%.1f", (start+sectionTime)/60f)+" minutes", totalProgress);
 
 				drainWriteFutures(writeFuturesRef, 1, firstWriteErrorRef);
 
@@ -228,8 +230,9 @@ public class RawFileConverters {
 				// Publish the MS1s for this section (as before)
 				submitWrite(outFile, ms1s, new ArrayList<FragmentScan>(), writerRef, writeFuturesRef, firstWriteErrorRef);
 
+				float totalProgress=(i+1)/(float)(sections+NUMBER_OF_REPORTING_SECTIONS/20f); // only go up to 95%	
 				progress.update("Processed "+String.format("%.1f–%.1f", start/60f, Math.min(stop, start+sectionTime)/60f)+" min: "+ms1s.size()+" MS1, "
-						+ms2s.size()+" MS2", (i+1)*100f/(sections+NUMBER_OF_REPORTING_SECTIONS/20f));
+						+ms2s.size()+" MS2", totalProgress);
 
 				while (demuxQueue.size()>maxInflight) {
 					ArrayList<FragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
