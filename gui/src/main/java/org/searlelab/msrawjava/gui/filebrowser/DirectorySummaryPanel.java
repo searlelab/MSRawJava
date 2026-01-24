@@ -16,8 +16,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -31,6 +33,11 @@ import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableColumn;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.TableColumnModelEvent;
+import javax.swing.event.TableColumnModelListener;
 import javax.swing.table.TableRowSorter;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
@@ -53,6 +60,8 @@ public class DirectorySummaryPanel extends JPanel {
 	// A tiny pool so we don’t thrash the disk; adjust if you want more parallelism.
 	private final ExecutorService pool=Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()/2);
 	private volatile boolean closed=false;
+	private boolean applyingSavedLayout=false;
+	private boolean pendingColumnSave=false;
 
 	public DirectorySummaryPanel(VendorFiles files) {
 		super(new BorderLayout());
@@ -105,19 +114,10 @@ public class DirectorySummaryPanel extends JPanel {
 		table.getColumnModel().getColumn(6).setCellRenderer(StripeTableCellRenderer.SCI_RENDERER);
 		table.getColumnModel().getColumn(7).setCellRenderer(new SparkRenderer());
 
-		// Column widths (tweak as you like)
 		JScrollPane sp=new JScrollPane(table);
 		add(sp, BorderLayout.CENTER);
-		SwingUtilities.invokeLater(() -> {
-			table.getColumnModel().getColumn(0).setPreferredWidth(50); // #
-			table.getColumnModel().getColumn(1).setPreferredWidth(320); // File
-			table.getColumnModel().getColumn(2).setPreferredWidth(80); // Vendor
-			table.getColumnModel().getColumn(3).setPreferredWidth(110); // Date Modified
-			table.getColumnModel().getColumn(4).setPreferredWidth(100); // Size
-			table.getColumnModel().getColumn(5).setPreferredWidth(110); // Gradient
-			table.getColumnModel().getColumn(6).setPreferredWidth(110); // total tic
-			table.getColumnModel().getColumn(7).setPreferredWidth(220); // TIC
-		});
+		SwingUtilities.invokeLater(this::applySavedColumnLayout);
+		installColumnPreferenceListeners();
 
 		// Seed fast info (file name/vendor/size) synchronously so table appears immediately
 		ArrayList<DirRow> brukerRows=new ArrayList<DirRow>();
@@ -222,6 +222,122 @@ public class DirectorySummaryPanel extends JPanel {
 	private void safeRowUpdate(DirRow row) {
 		if (closed) return;
 		SwingUtilities.invokeLater(() -> model.rowUpdated(row));
+	}
+
+	private void applySavedColumnLayout() {
+		applyingSavedLayout=true;
+		try {
+			applyDefaultColumnWidths();
+			List<Integer> order=GUIPreferences.getDirectorySummaryColumnOrder();
+			if (!order.isEmpty()) {
+				applyColumnOrder(order);
+			}
+			Map<Integer, Integer> widths=GUIPreferences.getDirectorySummaryColumnWidths();
+			if (!widths.isEmpty()) {
+				applyColumnWidths(widths);
+			}
+		} finally {
+			applyingSavedLayout=false;
+		}
+	}
+
+	private void applyDefaultColumnWidths() {
+		setColumnWidth(0, 50); // #
+		setColumnWidth(1, 320); // File
+		setColumnWidth(2, 80); // Vendor
+		setColumnWidth(3, 110); // Date Modified
+		setColumnWidth(4, 100); // Size
+		setColumnWidth(5, 110); // Gradient
+		setColumnWidth(6, 110); // total tic
+		setColumnWidth(7, 220); // TIC
+	}
+
+	private void applyColumnOrder(List<Integer> order) {
+		int columnCount=table.getColumnModel().getColumnCount();
+		int target=0;
+		for (Integer modelIndex : order) {
+			if (modelIndex==null) continue;
+			if (modelIndex<0||modelIndex>=columnCount) continue;
+			int current=table.convertColumnIndexToView(modelIndex);
+			if (current<0) continue;
+			if (current!=target) {
+				table.getColumnModel().moveColumn(current, target);
+			}
+			target++;
+		}
+	}
+
+	private void applyColumnWidths(Map<Integer, Integer> widths) {
+		int columnCount=table.getColumnModel().getColumnCount();
+		for (Map.Entry<Integer, Integer> entry : widths.entrySet()) {
+			Integer modelIndex=entry.getKey();
+			Integer width=entry.getValue();
+			if (modelIndex==null||width==null) continue;
+			if (modelIndex<0||modelIndex>=columnCount) continue;
+			if (width.intValue()<=0) continue;
+			setColumnWidth(modelIndex.intValue(), width.intValue());
+		}
+	}
+
+	private void setColumnWidth(int modelIndex, int width) {
+		int viewIndex=table.convertColumnIndexToView(modelIndex);
+		if (viewIndex<0) return;
+		TableColumn col=table.getColumnModel().getColumn(viewIndex);
+		col.setPreferredWidth(width);
+		col.setWidth(width);
+	}
+
+	private void installColumnPreferenceListeners() {
+		table.getColumnModel().addColumnModelListener(new TableColumnModelListener() {
+			@Override
+			public void columnAdded(TableColumnModelEvent e) {
+				scheduleColumnSave();
+			}
+
+			@Override
+			public void columnRemoved(TableColumnModelEvent e) {
+				scheduleColumnSave();
+			}
+
+			@Override
+			public void columnMoved(TableColumnModelEvent e) {
+				scheduleColumnSave();
+			}
+
+			@Override
+			public void columnMarginChanged(ChangeEvent e) {
+				scheduleColumnSave();
+			}
+
+			@Override
+			public void columnSelectionChanged(ListSelectionEvent e) {
+			}
+		});
+	}
+
+	private void scheduleColumnSave() {
+		if (applyingSavedLayout) return;
+		if (pendingColumnSave) return;
+		pendingColumnSave=true;
+		SwingUtilities.invokeLater(() -> {
+			pendingColumnSave=false;
+			saveColumnPreferences();
+		});
+	}
+
+	private void saveColumnPreferences() {
+		if (applyingSavedLayout) return;
+		int count=table.getColumnModel().getColumnCount();
+		List<Integer> order=new ArrayList<>(count);
+		Map<Integer, Integer> widths=new HashMap<>(count);
+		for (int view=0; view<count; view++) {
+			TableColumn col=table.getColumnModel().getColumn(view);
+			int modelIndex=col.getModelIndex();
+			order.add(modelIndex);
+			widths.put(modelIndex, Math.max(1, col.getWidth()));
+		}
+		GUIPreferences.setDirectorySummaryColumnOrder(order);
+		GUIPreferences.setDirectorySummaryColumnWidths(widths);
 	}
 
 	@Override

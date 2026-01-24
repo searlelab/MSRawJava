@@ -54,7 +54,7 @@ mvn -pl core,gui -am -Dskip.build.natives=true test
 - Do not introduce new build steps, toolchains, or dependencies unless explicitly requested.
 
 ## Final output expectation
-When done, report:
+Always attempt to compile the Java code before finishing. When done, report:
 - Commands you ran (including focused tests and/or full tests)
 - What changed (files/modules)
 - How correctness was verified (test names, fixtures, golden checks)
