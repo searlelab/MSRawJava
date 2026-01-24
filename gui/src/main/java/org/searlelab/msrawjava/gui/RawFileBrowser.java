@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui;
 
 import java.awt.EventQueue;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -65,6 +66,8 @@ public class RawFileBrowser extends JFrame {
 	private final JSplitPane fileSplit;
 	private volatile SwingWorker<JComponent, String> currentLoad;
 	private final AtomicLong loadSeq=new AtomicLong();
+	private boolean restoringSelection=false;
+	private boolean programmaticSelection=false;
 
 	public RawFileBrowser(ProcessingThreadPool pool) {
 		super("Raw File Browser");
@@ -125,6 +128,10 @@ public class RawFileBrowser extends JFrame {
 	}
 
 	private void onTreeSelectionChanged(TreeSelectionEvent e) {
+		if (restoringSelection) {
+			restoringSelection=false;
+			return;
+		}
 		DirectoryNode node=(DirectoryNode)dirTree.getLastSelectedPathComponent();
 		if (node==null) return;
 
@@ -132,10 +139,12 @@ public class RawFileBrowser extends JFrame {
 		if (dir==null||!dir.isDirectory()) return;
 
 		Object event=EventQueue.getCurrentEvent();
-		boolean userEvent=event instanceof MouseEvent;
+		boolean userEvent=isUserEvent(event);
 		String eventType=(event==null)?"null":event.getClass().getName();
 		Logger.logLine("RawFileBrowser selection event: userEvent="+userEvent+", eventType="+eventType);
-		if (userEvent) {
+		if (!programmaticSelection&&userEvent) {
+			node.setLoaded(false);
+			treeModel.loadChildren(node, fsv);
 			rememberLastDirectory(dir);
 		}
 		updateDirectory(dir);
@@ -282,9 +291,14 @@ public class RawFileBrowser extends JFrame {
 		TreePath path=treePathForDirectory(virtualRoot, targetDir);
 		if (path!=null) {
 			// Expand along the path
-			dirTree.expandPath(path);
-			dirTree.setSelectionPath(path);
-			dirTree.scrollPathToVisible(path);
+			programmaticSelection=true;
+			try {
+				dirTree.expandPath(path);
+				dirTree.setSelectionPath(path);
+				dirTree.scrollPathToVisible(path);
+			} finally {
+				programmaticSelection=false;
+			}
 		}
 	}
 
@@ -375,6 +389,10 @@ public class RawFileBrowser extends JFrame {
 		public void treeWillExpand(TreeExpansionEvent event) {
 			Object last=event.getPath().getLastPathComponent();
 			if (last instanceof DirectoryNode dn) {
+				Object evt=EventQueue.getCurrentEvent();
+				if (!programmaticSelection&&isUserEvent(evt)) {
+					dn.setLoaded(false);
+				}
 				treeModel.loadChildren(dn, fsv);
 			}
 		}
@@ -382,5 +400,9 @@ public class RawFileBrowser extends JFrame {
 		@Override
 		public void treeWillCollapse(TreeExpansionEvent event) {
 		}
+	}
+
+	private static boolean isUserEvent(Object event) {
+		return event instanceof MouseEvent||event instanceof KeyEvent;
 	}
 }
