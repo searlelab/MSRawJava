@@ -241,7 +241,7 @@ public class Main {
 				case mgf:
 					return OutputType.mgf;
 				case mzml:
-					return OutputType.mzml;
+					return OutputType.mzML;
 				default:
 					throw new IllegalArgumentException("Unknown output format "+this);
 			}

@@ -84,7 +84,7 @@ class MainTest {
 		cmd.parseArgs("-f", "mzml", "inA", "inB", "inC");
 		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
 		ConversionParameters params=args.toParameters();
-		assertEquals(OutputType.mzml, params.getOutType());
+		assertEquals(OutputType.mzML, params.getOutType());
 		assertEquals(3, params.getFileList().size());
 	}
 
@@ -121,7 +121,7 @@ class MainTest {
 		cmd.parseArgs("-f", "mzml", "-o", "outdir", "--min-ms1", "10.0", "--min-ms2", "5.0", "A", "B");
 		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
 		ConversionParameters params=args.toParameters();
-		assertEquals(OutputType.mzml, params.getOutType());
+		assertEquals(OutputType.mzML, params.getOutType());
 		assertEquals(2, params.getFileList().size());
 		assertEquals(10.0f, params.getMinimumMS1Intensity(), 0.0001f);
 		assertEquals(5.0f, params.getMinimumMS2Intensity(), 0.0001f);

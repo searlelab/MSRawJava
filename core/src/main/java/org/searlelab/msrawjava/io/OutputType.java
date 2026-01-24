@@ -11,7 +11,7 @@ import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
  * logic decoupled from concrete writer classes.
  */
 public enum OutputType {
-	EncyclopeDIA, mgf, mzml;
+	EncyclopeDIA, mgf, mzML;
 
 	public OutputSpectrumFile getOutputSpectrumFile() throws Exception {
 		switch (this) {
@@ -25,7 +25,7 @@ public enum OutputType {
 				mgf.openFile();
 				return mgf;
 				
-			case mzml:
+			case mzML:
 				MZMLOutputFile mzml=new MZMLOutputFile();
 				mzml.openFile();
 				return mzml;
@@ -41,7 +41,7 @@ public enum OutputType {
 				return outputDirPath.resolve(changeExtension(filename, EncyclopeDIAFile.DIA_EXTENSION));
 			case mgf:
 				return outputDirPath.resolve(changeExtension(filename, MGFOutputFile.MGF_EXTENSION));
-			case mzml:
+			case mzML:
 				return outputDirPath.resolve(changeExtension(filename, MZMLOutputFile.MZML_EXTENSION));
 
 			default:

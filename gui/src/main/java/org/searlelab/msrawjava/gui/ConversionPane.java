@@ -147,7 +147,7 @@ public class ConversionPane extends JPanel {
 
 		JPanel left=new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
 
-		String savedType=prefs.get(PREF_OUT_TYPE, OutputType.mzml.name());
+		String savedType=prefs.get(PREF_OUT_TYPE, OutputType.mzML.name());
 		try {
 			outTypeBox.setSelectedItem(OutputType.valueOf(savedType));
 		} catch (Exception ignore) {

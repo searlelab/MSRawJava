@@ -61,7 +61,7 @@ public class ThermoRawFileSmokeIT {
 		rawFile.openFile(raw);
 		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
 		ConversionParameters params=ConversionParameters.builder()
-				.outType(OutputType.mzml)
+				.outType(OutputType.mzML)
 				.build();
 		RawFileConverters.writeStandard(threads, rawFile, outDir, params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false));
 		Path mzml=firstWithExt(outDir, ".mzml");

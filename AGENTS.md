@@ -1,40 +1,61 @@
-# CLAUDE.md
+# AGENTS.md
+Agent guidance for this repository.
 
-## Collaboration rules (follow strictly)
-1. Before making any major change (API changes, refactors, moving files, changing build/test wiring, modifying data formats), propose a plan in 3 to 7 bullet points and wait for confirmation.
-2. Do not speculate about code you have not opened. If a conclusion depends on specific behavior, open and read the relevant files first (source, tests, build config, scripts).
-3. Prefer the simplest solution that solves the problem. Avoid cleverness, deep refactors, and broad rewrites unless explicitly requested.
-4. Minimize blast radius:
-   - Change the fewest files possible.
-   - Keep diffs small and easy to review.
-   - Prefer additive changes over rewiring existing behavior.
-5. When you make a claim about behavior, include the evidence path: file names and the exact methods or sections you relied on.
+## Read-first
+- Before making changes, read `README.md` at least once to understand architecture, module boundaries, and existing patterns.
 
-## How to investigate (do this before coding)
-1. Identify the entry points and interfaces involved.
-2. Read the current implementation and existing tests that exercise it.
-3. Search for references (prefer LSP if available, otherwise grep/ripgrep).
-4. If behavior is unclear, create or extend a small test that demonstrates current behavior before changing it.
+## Repo layout (high level)
+- Maven multi-module project: parent (root `pom.xml`) with submodules:
+  - `core/` (Java core library)
+  - `gui/` (Swing GUI tools)
+- Native/vendor integrations:
+  - `rust-jni/`: Rust JNI bridge for Bruker readers, exposed to Java via JNI
+  - `thermo-raw-server/`: C# .NET gRPC server for Thermo RAW
+  - `proto/`: protobuf definitions and build artifacts used for Java <-> C# interface
 
-## Coding standards (match the repository)
-1. Preserve formatting and conventions already present in nearby files.
-   - Follow existing indentation and brace style (this repo commonly uses tabs and K&R braces).
-   - Do not reformat unrelated code.
-2. Preserve and maintain comments:
-   - Keep existing comments unless they are incorrect.
-   - Update comments when behavior changes.
-   - Use the same comment style as nearby code (JavaDoc blocks for public classes and core components, concise `//` comments for local intent).
-3. Documentation:
-   - If the repo has a documentation file or folder (README, docs, etc.), keep additions consistent in tone and structure.
-   - When a change affects user-visible behavior, formats, CLI flags, configuration, or build steps, update documentation in the same style as existing docs.
+## Build and test commands
+### Fast compile, no native rebuild, no tests
+mvn -pl core,gui -am -Dskip.build.natives=true -Dmaven.test.skip=true compile
 
-## Change management expectations
-1. Every change should include a rationale and a verification step.
-2. Prefer tests that already exist. Add a new test only when necessary, keep it minimal and focused.
-3. If a task spans multiple languages (Java plus native/.NET/Rust/scripts), keep the boundaries explicit:
-   - Do not change cross-language interfaces without first showing the plan and getting confirmation.
-   - Verify assumptions by reading the relevant bridge points (JNI bindings, CLI contracts, schemas, scripts).
+### Full test suite (core + gui), skip native rebuild
+mvn -pl core,gui -am -Dskip.build.natives=true test
 
-## Communication conventions
-- If you are blocked due to missing fixtures, missing external tools, or ambiguous requirements, explain exactly what you checked and what is missing, then offer the smallest next step.
-- When proposing alternatives, list tradeoffs briefly and recommend the option that best matches existing patterns in the repo.
+### Recommended: run selected tests
+- Focus a module:
+  - `mvn -pl core -am -Dskip.build.natives=true -Dtest=<TestClass> test`
+  - `mvn -pl gui  -am -Dskip.build.natives=true -Dtest=<TestClass> test`
+- Focus a single test method (Surefire):
+  - `mvn -pl core -am -Dskip.build.natives=true -Dtest=<TestClass>#<methodName> test`
+
+## What “good autonomy” looks like
+- Prefer changes in `core/` and `gui/` unless the task explicitly requires native or server changes.
+- Reuse existing code paths and utilities, especially for file parsing, object models, windowing, and output writers.
+- Do not speculate about code you have not opened. If a conclusion depends on specific behavior, open and read the relevant files first (source, tests, build config, scripts).
+-  Minimize blast radius:
+  - Change the fewest files possible.
+  - Keep diffs small and easy to review.
+  - Prefer additive changes over rewiring existing behavior.
+- Make success checkable:
+  - Add or update a runnable test, or a deterministic golden-output check using fixtures under `core/src/test/resources` or `gui/src/test/resources`.
+  - Ensure outputs are deterministic (ordering, rounding/epsilon, fixed seeds if randomness exists).
+
+## Coding standards
+- Preserve formatting and conventions already present in nearby files.
+- Preserve and maintain comments, update comments when behavior changes and use the same comment style as nearby code.
+
+## Swing rules (gui/)
+- UI updates must happen on the Swing EDT.
+- Long-running work must not block the EDT, use existing background patterns already present in the codebase.
+- Prefer testing state, view-model logic, and data model transformations in `gui/` without timing sleeps.
+
+## Native and cross-language boundaries (only if needed)
+- If a task requires Bruker changes, scope work to `rust-jni/` plus the Java JNI interface layer, keep the Java public surface stable.
+- If a task requires Thermo changes, scope work to `thermo-raw-server/` and `proto/`, keep the Java client contract stable.
+- Do not introduce new build steps, toolchains, or dependencies unless explicitly requested.
+
+## Final output expectation
+When done, report:
+- Commands you ran (including focused tests and/or full tests)
+- What changed (files/modules)
+- How correctness was verified (test names, fixtures, golden checks)
+- When you make a claim about behavior, include the evidence path: file names and the exact methods or sections you relied on.

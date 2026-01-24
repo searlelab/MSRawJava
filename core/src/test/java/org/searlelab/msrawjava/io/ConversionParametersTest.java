@@ -26,7 +26,7 @@ class ConversionParametersTest {
 		files.add(new File("a.raw"));
 		files.add(new File("b.d"));
 
-		OutputType type=OutputType.mzml;
+		OutputType type=OutputType.mzML;
 		Path out=tmp.resolve("out");
 		float ms1=7.5f;
 		float ms2=3.25f;
