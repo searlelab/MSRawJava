@@ -52,4 +52,21 @@ class ConversionParametersTest {
 		assertFalse(p2.isDemultiplex());
 		assertTrue(p2.isSilent());
 	}
+
+	@Test
+	void builderDefaults_areStable_andToStringIncludesKeyFields() {
+		ConversionParameters params=ConversionParameters.builder().build();
+		assertEquals(OutputType.EncyclopeDIA, params.getOutType());
+		assertEquals(3.0f, params.getMinimumMS1Intensity());
+		assertEquals(1.0f, params.getMinimumMS2Intensity());
+		assertFalse(params.isDemultiplex());
+		assertFalse(params.isBatch());
+		assertFalse(params.isSilent());
+		assertFalse(params.isNoAnsi());
+
+		String text=params.toString();
+		assertTrue(text.contains("outType=EncyclopeDIA"));
+		assertTrue(text.contains("minMS1=3.0"));
+		assertTrue(text.contains("minMS2=1.0"));
+	}
 }
