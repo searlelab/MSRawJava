@@ -88,6 +88,11 @@ public class RawFileBrowser extends JFrame {
 		JScrollPane treeScroll=new JScrollPane(dirTree);
 		treeScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
+		ReaderStatusPanel statusPanel=new ReaderStatusPanel();
+		JPanel treeWithStatus=new JPanel(new java.awt.BorderLayout());
+		treeWithStatus.add(treeScroll, java.awt.BorderLayout.CENTER);
+		treeWithStatus.add(statusPanel, java.awt.BorderLayout.SOUTH);
+
 		// ---- Top is the directory table (set later); Bottom is the lowerSplit
 		conversionPane=new ConversionPane(GUIPreferences.getPreferences(), pool);
 		fileSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JPanel(), conversionPane);
@@ -97,7 +102,7 @@ public class RawFileBrowser extends JFrame {
 		SwingUtilities.invokeLater(() -> fileSplit.setDividerLocation(0.5));
 
 		// ---- Main split (tree on left, fileSplit on right) stays the same
-		JSplitPane leftAndCenter=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treeScroll, fileSplit);
+		JSplitPane leftAndCenter=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treeWithStatus, fileSplit);
 		leftAndCenter.setResizeWeight(0.3);
 		leftAndCenter.setContinuousLayout(true);
 		leftAndCenter.setOneTouchExpandable(true);
