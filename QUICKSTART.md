@@ -86,6 +86,7 @@ brew install openjdk@17 maven dotnet@8 rustup zig
 
 # 4) Install Rust toolchain
 rustup-init -y
+rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu
 source "$HOME/.cargo/env"
 
 # 5) Install cargo-zigbuild
@@ -99,7 +100,7 @@ dotnet --list-sdks
 rustc -V
 cargo -V
 zig version
-cargo zigbuild --version
+cargo zigbuild --help
 ```
 
 Optional links (if you prefer links over `xcode-select`):
@@ -164,12 +165,8 @@ dotnet --list-sdks
 rustc -V
 cargo -V
 zig version
-cargo zigbuild --version
+cargo zigbuild --help
 ```
-
-Also note:
-- Run Maven inside WSL.
-- Use Linux paths like `/home/<user>/...`.
 
 ---
 
