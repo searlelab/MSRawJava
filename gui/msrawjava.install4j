@@ -1,25 +1,34 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <install4j version="12.0.2" transformSequenceNumber="12">
-  <directoryPresets config="/Users/searle.brian/Documents/java/MSRawJava/gui" />
+  <directoryPresets config="/Users/searle.brian/Documents/java/MSRawJava/gui/target/msrawjava-0.5.292.jar" />
   <application name="MSRawJava" applicationId="7985-7208-6179-2855" mediaDir="target/install4j" shortName="MSRawJava" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="0.0.1" macVolumeId="c048ca009eaf9ba9">
-    <jreBundles jdkProviderId="Adoptium" release="21/jdk-25+36" />
+    <jreBundles jdkProviderId="Adoptium" release="21/latest" />
   </application>
   <files>
     <mountPoints>
       <mountPoint id="34" />
     </mountPoints>
     <entries>
-      <dirEntry mountPoint="34" file="/Users/searle.brian/Documents/java/MSRawJava/gui/target/lib" entryMode="subdir" subDirectory="lib" />
-      <fileEntry mountPoint="34" file="/Users/searle.brian/Documents/java/MSRawJava/gui/target/msrawjava-0.5.292.jar" />
+      <dirEntry mountPoint="34" file="./target/lib" entryMode="subdir" subDirectory="lib" />
+      <fileEntry mountPoint="34" file="./target/msrawjava-0.5.292.jar" />
     </entries>
   </files>
   <launchers>
     <launcher name="MSRawJava" id="35">
       <executable name="MSRawJava" iconSet="true" stderrMode="append" redirectStdout="true" executableMode="gui" changeWorkingDirectory="false" checkConsoleParameter="true" />
-      <splashScreen show="true" bitmapFile="/Users/searle.brian/Documents/java/MSRawJava/gui/splash.png" textOverlay="true" />
-      <java mainClass="org.searlelab.msrawjava.gui.GuiMain" vmParameters="-Xms2g" />
+      <splashScreen show="true" bitmapFile="./splash.png" textOverlay="true">
+        <text>
+          <versionLine x="10" y="10" text="version ${compiler:sys.version}" fontColor="153,153,153" />
+        </text>
+      </splashScreen>
+      <java mainClass="org.searlelab.msrawjava.gui.GuiMain" vmParameters="-Xms2g">
+        <classPath>
+          <archive location="msrawjava-0.5.292.jar" failOnError="false" />
+          <directory location="lib" failOnError="false" />
+        </classPath>
+      </java>
       <iconImageFiles>
-        <file path="/Users/searle.brian/Documents/java/MSRawJava/gui/icon.png" />
+        <file path="./icon256.png" />
       </iconImageFiles>
     </launcher>
   </launchers>
