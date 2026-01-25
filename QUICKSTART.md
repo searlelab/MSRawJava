@@ -86,6 +86,7 @@ brew install openjdk@17 maven dotnet@8 rustup zig
 
 # 4) Install Rust toolchain
 rustup-init -y
+rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu
 source "$HOME/.cargo/env"
 
 # 5) Install cargo-zigbuild
@@ -95,19 +96,19 @@ cargo install cargo-zigbuild
 java -version
 mvn -v
 dotnet --info
+dotnet --list-sdks
 rustc -V
 cargo -V
 zig version
-cargo zigbuild --version
+cargo zigbuild --help
 ```
 
-Optional links (if you prefer links over `xcode-select`):
-- Xcode Command Line Tools  
-  - https://developer.apple.com/download/all/  
-  - https://developer.apple.com/xcode/resources/
-
-Rust cross targets that may be required by scripts:
-- `rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu`
+Homebrew note for .NET 8 on macOS:
+- `dotnet@8` is keg-only, so it won’t automatically replace other dotnet installs.
+- If `dotnet --list-sdks` shows 7.x after installing dotnet@8, ensure your PATH points at Homebrew’s dotnet first:
+  - Add to your shell profile: `export PATH="/opt/homebrew/opt/dotnet@8/bin:$PATH"`
+  - Verify: `which dotnet` should return `/opt/homebrew/opt/dotnet@8/bin/dotnet`
+  - Then re-open the terminal and re-check `dotnet --list-sdks`.
 
 ---
 
@@ -152,15 +153,12 @@ cargo install cargo-zigbuild
 java -version
 mvn -v
 dotnet --info
+dotnet --list-sdks
 rustc -V
 cargo -V
 zig version
-cargo zigbuild --version
+cargo zigbuild --help
 ```
-
-Also note:
-- Run Maven inside WSL.
-- Use Linux paths like `/home/<user>/...`.
 
 ---
 
@@ -198,6 +196,25 @@ Fix:
 ### "dotnet publish" fails
 Fix:
 - Confirm `.NET SDK 8.0.x` is installed: `dotnet --info`.
+
+### NETSDK1045: “The current .NET SDK does not support targeting .NET 8.0”
+Cause:
+- `dotnet` is resolving to an older SDK (often 7.x) even though 8.x is installed.
+
+Simplest fix (macOS/Homebrew):
+- Install .NET 8 and make sure your PATH prefers Homebrew’s dotnet@8:
+  - `brew install dotnet@8`
+  - Add to your shell profile: `export PATH="/opt/homebrew/opt/dotnet@8/bin:$PATH"`
+- Re-open the terminal, then re-check with `dotnet --list-sdks`.
+
+If you previously installed Microsoft’s .pkg (.NET 7) and it still takes precedence:
+- Run `which dotnet` to see which `dotnet` is being used.
+- If it points to `/usr/local/share/dotnet/dotnet`, either adjust PATH as above or uninstall the old .pkg.
+
+Simplest fix (WSL/Ubuntu):
+- Ensure `dotnet-sdk-8.0` is installed and the `dotnet` on PATH comes from `/usr/share/dotnet`:
+  - `dotnet --list-sdks`
+  - If only 7.x is listed, reinstall with `sudo apt-get install -y dotnet-sdk-8.0`.
 - Confirm you can reach nuget.org from your network.
 - If a corporate proxy exists, configure NuGet and Maven proxy settings.
 
