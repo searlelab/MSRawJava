@@ -43,3 +43,7 @@ replay_pid*
 # binary generation
 /core/src/main/resources/msraw/
 *.versionsBackup
+thermo-raw-server/obj/project.nuget.cache
+thermo-raw-server/obj/project.assets.json
+thermo-raw-server/obj/MSRaw.Thermo.Server.csproj.nuget.g.props
+thermo-raw-server/obj/MSRaw.Thermo.Server.csproj.nuget.dgspec.json
