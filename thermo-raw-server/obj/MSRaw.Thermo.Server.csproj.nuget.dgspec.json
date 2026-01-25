@@ -1,26 +1,26 @@
 {
   "format": 1,
   "restore": {
-    "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj": {}
+    "/Users/searleb/Documents/encyclopedia/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj": {}
   },
   "projects": {
-    "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj": {
+    "/Users/searleb/Documents/encyclopedia/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj",
+        "projectUniqueName": "/Users/searleb/Documents/encyclopedia/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj",
         "projectName": "MSRaw.Thermo.Server",
-        "projectPath": "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj",
-        "packagesPath": "/Users/searle.brian/.nuget/packages/",
-        "outputPath": "/Users/searle.brian/Documents/java/MSRawJava/thermo-raw-server/obj/",
+        "projectPath": "/Users/searleb/Documents/encyclopedia/MSRawJava/thermo-raw-server/MSRaw.Thermo.Server.csproj",
+        "packagesPath": "/Users/searleb/.nuget/packages/",
+        "outputPath": "/Users/searleb/Documents/encyclopedia/MSRawJava/thermo-raw-server/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/searle.brian/Documents/java/MSRawJava/NuGet.config"
+          "/Users/searleb/Documents/encyclopedia/MSRawJava/NuGet.config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
-          "/Users/searle.brian/Documents/java/MSRawJava/third_party/thermo/Net8": {},
+          "/Users/searleb/Documents/encyclopedia/MSRawJava/third_party/thermo/Net8": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -33,11 +33,6 @@
           "warnAsError": [
             "NU1605"
           ]
-        },
-        "restoreAuditProperties": {
-          "enableAudit": "true",
-          "auditLevel": "low",
-          "auditMode": "direct"
         }
       },
       "frameworks": {
@@ -92,15 +87,15 @@
           "downloadDependencies": [
             {
               "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
-              "version": "[8.0.20, 8.0.20]"
+              "version": "[8.0.23, 8.0.23]"
             },
             {
               "name": "Microsoft.NETCore.App.Host.win-x64",
-              "version": "[8.0.20, 8.0.20]"
+              "version": "[8.0.23, 8.0.23]"
             },
             {
               "name": "Microsoft.NETCore.App.Runtime.win-x64",
-              "version": "[8.0.20, 8.0.20]"
+              "version": "[8.0.23, 8.0.23]"
             }
           ],
           "frameworkReferences": {
@@ -111,7 +106,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/8.0.414/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/opt/homebrew/Cellar/dotnet@8/8.0.123/libexec/sdk/8.0.123/PortableRuntimeIdentifierGraph.json"
         }
       },
       "runtimes": {
