@@ -86,6 +86,7 @@ brew install openjdk@17 maven dotnet@8 rustup zig
 
 # 4) Install Rust toolchain
 rustup-init -y
+rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu
 source "$HOME/.cargo/env"
 
 # 5) Install cargo-zigbuild
@@ -100,14 +101,6 @@ cargo -V
 zig version
 cargo zigbuild --help
 ```
-
-Optional links (if you prefer links over `xcode-select`):
-- Xcode Command Line Tools  
-  - https://developer.apple.com/download/all/  
-  - https://developer.apple.com/xcode/resources/
-
-Rust cross targets that may be required by scripts:
-- `rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu`
 
 ---
 
@@ -157,10 +150,6 @@ cargo -V
 zig version
 cargo zigbuild --help
 ```
-
-Also note:
-- Run Maven inside WSL.
-- Use Linux paths like `/home/<user>/...`.
 
 ---
 
