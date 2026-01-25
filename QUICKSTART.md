@@ -103,14 +103,6 @@ zig version
 cargo zigbuild --help
 ```
 
-Optional links (if you prefer links over `xcode-select`):
-- Xcode Command Line Tools  
-  - https://developer.apple.com/download/all/  
-  - https://developer.apple.com/xcode/resources/
-
-Rust cross targets that may be required by scripts:
-- `rustup target add x86_64-unknown-linux-gnu x86_64-pc-windows-gnu`
-
 Homebrew note for .NET 8 on macOS:
 - `dotnet@8` is keg-only, so it won’t automatically replace other dotnet installs.
 - If `dotnet --list-sdks` shows 7.x after installing dotnet@8, ensure your PATH points at Homebrew’s dotnet first:
