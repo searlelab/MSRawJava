@@ -98,7 +98,7 @@ dotnet --info
 rustc -V
 cargo -V
 zig version
-cargo zigbuild --version
+cargo zigbuild --help
 ```
 
 Optional links (if you prefer links over `xcode-select`):
@@ -155,7 +155,7 @@ dotnet --info
 rustc -V
 cargo -V
 zig version
-cargo zigbuild --version
+cargo zigbuild --help
 ```
 
 Also note:
