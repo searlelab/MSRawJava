@@ -108,7 +108,10 @@ public class RawFileBrowser extends JFrame {
 		fileSplit.setResizeWeight(GUIPreferences.getRawFileBrowserFileSplitRatio());
 		fileSplit.setContinuousLayout(true);
 		fileSplit.setOneTouchExpandable(true);
-		SwingUtilities.invokeLater(() -> applySplitRatio(fileSplit, GUIPreferences.getRawFileBrowserFileSplitRatio()));
+		SwingUtilities.invokeLater(() -> {
+			applySplitRatio(fileSplit, GUIPreferences.getRawFileBrowserFileSplitRatio());
+			SwingUtilities.invokeLater(conversionPane::applySavedSplitRatio);
+		});
 		registerSplitPreference(fileSplit, GUIPreferences::setRawFileBrowserFileSplitRatio);
 
 		// ---- Main split (tree on left, fileSplit on right) stays the same

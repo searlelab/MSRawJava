@@ -135,11 +135,14 @@ public class ConversionPane extends JPanel {
 		queueAndConsole.setResizeWeight(GUIPreferences.getConversionPaneSplitRatio());
 		queueAndConsole.setContinuousLayout(true);
 		queueAndConsole.setOneTouchExpandable(true);
-		SwingUtilities.invokeLater(() -> applySplitRatio(queueAndConsole, GUIPreferences.getConversionPaneSplitRatio()));
 		registerSplitPreference(queueAndConsole, GUIPreferences::setConversionPaneSplitRatio);
 
 		add(controls, BorderLayout.NORTH);
 		add(queueAndConsole, BorderLayout.CENTER);
+	}
+
+	public void applySavedSplitRatio() {
+		applySplitRatio(queueAndConsole, GUIPreferences.getConversionPaneSplitRatio());
 	}
 
 	// Exposed to RawFileBrowser
