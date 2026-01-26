@@ -77,6 +77,20 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private long selectionToken=0L;
 	private int suppressSplitSave=0;
 
+	private static final class SelectionResult {
+		private final List<AcquiredSpectrum> entries;
+		private final AcquiredSpectrum displaySpectrum;
+		private final float minRT;
+		private final float maxRT;
+
+		private SelectionResult(List<AcquiredSpectrum> entries, AcquiredSpectrum displaySpectrum, float minRT, float maxRT) {
+			this.entries=entries;
+			this.displaySpectrum=displaySpectrum;
+			this.minRT=minRT;
+			this.maxRT=maxRT;
+		}
+	}
+
 	public RawBrowserPanel(StripeFileInterface stripe, String displayName) {
 		super(new BorderLayout());
 		this.stripe=stripe;
@@ -255,22 +269,41 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			summaries.add(entry);
 		}
 		long token=++selectionToken;
-		new javax.swing.SwingWorker<List<AcquiredSpectrum>, Void>() {
+		new javax.swing.SwingWorker<SelectionResult, Void>() {
 			@Override
-			protected List<AcquiredSpectrum> doInBackground() throws Exception {
+			protected SelectionResult doInBackground() throws Exception {
 				ArrayList<AcquiredSpectrum> spectra=new ArrayList<>();
 				for (ScanSummary summary : summaries) {
 					AcquiredSpectrum spectrum=stripe.getSpectrum(summary);
 					if (spectrum!=null) spectra.add(spectrum);
 				}
-				return spectra;
+				if (spectra.isEmpty()) return new SelectionResult(spectra, null, Float.NaN, Float.NaN);
+
+				final AcquiredSpectrum merged;
+				float minRT=Float.MAX_VALUE;
+				float maxRT=-Float.MAX_VALUE;
+				if (spectra.size()==1) {
+					merged=spectra.get(0);
+					float rt=merged.getScanStartTime()/60f;
+					minRT=rt;
+					maxRT=rt;
+				} else {
+					merged=RawSpectrumMergeUtils.mergeSpectra(spectra, new PPMMassTolerance(10.0));
+					for (AcquiredSpectrum entry : spectra) {
+						float rt=entry.getScanStartTime()/60f;
+						minRT=Math.min(minRT, rt);
+						maxRT=Math.max(maxRT, rt);
+					}
+				}
+				AcquiredSpectrum display=peakPickSpectrumIfIMS(merged);
+				return new SelectionResult(spectra, display, minRT, maxRT);
 			}
 			@Override
 			protected void done() {
 				if (token!=selectionToken) return;
 				try {
-					List<AcquiredSpectrum> spectra=get();
-					resetScan(spectra);
+					SelectionResult result=get();
+					resetScan(result);
 					primaryTabs.setSelectedIndex(0);
 				} catch (Exception ex) {
 					Logger.logException(ex);
@@ -279,33 +312,21 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		}.execute();
 	}
 
-	private void resetScan(List<AcquiredSpectrum> entries) {
-		if (entries==null||entries.isEmpty()) {
+	private void resetScan(SelectionResult result) {
+		if (result==null||result.entries==null||result.entries.isEmpty()) {
 			rawSplit.setTopComponent(buildTicChart());
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
 			spectrumSplit.setRightComponent(new JLabel(""));
 			return;
 		}
 
-		final AcquiredSpectrum spectrum;
-		float minRT=Float.MAX_VALUE;
-		float maxRT=-Float.MAX_VALUE;
-
-		if (entries.size()==1) {
-			spectrum=entries.get(0);
-			float rt=spectrum.getScanStartTime()/60f;
-			minRT=rt;
-			maxRT=rt;
-		} else {
-			spectrum=RawSpectrumMergeUtils.mergeSpectra(entries, new PPMMassTolerance(10.0));
-			for (AcquiredSpectrum entry : entries) {
-				float rt=entry.getScanStartTime()/60f;
-				minRT=Math.min(minRT, rt);
-				maxRT=Math.max(maxRT, rt);
-			}
+		AcquiredSpectrum displaySpectrum=result.displaySpectrum;
+		if (displaySpectrum==null) {
+			rawSplit.setTopComponent(buildTicChart());
+			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
+			spectrumSplit.setRightComponent(new JLabel(""));
+			return;
 		}
-
-		AcquiredSpectrum displaySpectrum=peakPickSpectrumIfIMS(spectrum);
 		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new XYTrace(displaySpectrum));
 		boolean hasIms=displaySpectrum.getIonMobilityArray().isPresent()&&MatrixMath.max(displaySpectrum.getIntensityArray())>0.0f;
 		if (hasIms) {
@@ -319,15 +340,15 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		}
 
 		XYTrace intensityHistogram=HistogramUtils.histogramFromLog10(displaySpectrum.getIntensityArray(), "Log10 Fragment Intensity Distribution");
-		ExtendedChartPanel spectrumHistogram=BasicChartGenerator.getChart("Log10 Intensity", "Count (N="+spectrum.getIntensityArray().length+")", false, intensityHistogram);
+		ExtendedChartPanel spectrumHistogram=BasicChartGenerator.getChart("Log10 Intensity", "Count (N="+displaySpectrum.getIntensityArray().length+")", false, intensityHistogram);
 		spectrumSplit.setRightComponent(spectrumHistogram);
 
 		ArrayList<XYTraceInterface> markers=new ArrayList<>();
-		if (minRT==maxRT) {
-			markers.add(new XYTrace(new double[] {minRT, minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker"));
+		if (result.minRT==result.maxRT) {
+			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker"));
 		} else {
-			markers.add(new XYTrace(new double[] {minRT, minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-min"));
-			markers.add(new XYTrace(new double[] {maxRT, maxRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-max"));
+			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-min"));
+			markers.add(new XYTrace(new double[] {result.maxRT, result.maxRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-max"));
 		}
 		rawSplit.setTopComponent(buildTicChart(markers.toArray(new XYTraceInterface[0])));
 
