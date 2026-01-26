@@ -10,7 +10,6 @@
 - lock demux to thermo only
 - a mini low-impact loading waiter table cell before thermo data comes up (ideas: taylor cone? maybe just ..... with animation?)
 - a way to bring up the loading panels for demos
-- save jsplitpane settings to GUI settings for the main view
 - build menu system
   - open (changes to file/directory)
   - visualize (opens to file and then opens visualizer)

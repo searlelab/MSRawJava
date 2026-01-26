@@ -1,6 +1,10 @@
 package org.searlelab.msrawjava.gui;
 
 import java.awt.Dimension;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
+import java.awt.Point;
+import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -15,7 +19,7 @@ import org.searlelab.msrawjava.logging.Logger;
 
 public final class GUIPreferences {
 	private static final Preferences PREFS=Preferences.userNodeForPackage(GUIPreferences.class);
-	private static final boolean VERBOSE_GUI_LOGGING=false;
+	private static final boolean VERBOSE_GUI_LOGGING=true;
 
 	public static final int DEFAULT_RAW_BROWSER_WIDTH=1280;
 	public static final int DEFAULT_RAW_BROWSER_HEIGHT=700;
@@ -225,13 +229,11 @@ public final class GUIPreferences {
 		logRead(PREF_RAW_BROWSER_X, x);
 		logRead(PREF_RAW_BROWSER_Y, y);
 		if (x==Integer.MIN_VALUE||y==Integer.MIN_VALUE) return null;
-		if (x<0||y<0) return null;
 		return new java.awt.Point(x, y);
 	}
 
 	public static void setRawBrowserWindowLocation(java.awt.Point location) {
 		if (location==null) return;
-		if (location.x<0||location.y<0) return;
 		PREFS.putInt(PREF_RAW_BROWSER_X, location.x);
 		PREFS.putInt(PREF_RAW_BROWSER_Y, location.y);
 		logWrite(PREF_RAW_BROWSER_X, location.x);
@@ -330,13 +332,11 @@ public final class GUIPreferences {
 		logRead(PREF_RAW_FILE_BROWSER_X, x);
 		logRead(PREF_RAW_FILE_BROWSER_Y, y);
 		if (x==Integer.MIN_VALUE||y==Integer.MIN_VALUE) return null;
-		if (x<0||y<0) return null;
 		return new java.awt.Point(x, y);
 	}
 
 	public static void setRawFileBrowserWindowLocation(java.awt.Point location) {
 		if (location==null) return;
-		if (location.x<0||location.y<0) return;
 		PREFS.putInt(PREF_RAW_FILE_BROWSER_X, location.x);
 		PREFS.putInt(PREF_RAW_FILE_BROWSER_Y, location.y);
 		logWrite(PREF_RAW_FILE_BROWSER_X, location.x);
@@ -381,6 +381,31 @@ public final class GUIPreferences {
 		if (value<=0.0||value>=1.0) return;
 		PREFS.putDouble(key, value);
 		logWrite(key, value);
+	}
+
+	public static Point clampToScreens(Point location, Dimension size) {
+		logRead("window.clamp.input.location", location);
+		logRead("window.clamp.input.size", size);
+		if (location==null||size==null) return null;
+		Rectangle window=new Rectangle(location, size);
+		GraphicsEnvironment env=GraphicsEnvironment.getLocalGraphicsEnvironment();
+		GraphicsDevice[] devices=env.getScreenDevices();
+		logRead("window.clamp.devices", devices.length);
+		for (GraphicsDevice device : devices) {
+			Rectangle bounds=device.getDefaultConfiguration().getBounds();
+			logRead("window.clamp.device.bounds", bounds);
+			if (bounds.intersects(window)) {
+				logRead("window.clamp.result", location);
+				return location;
+			}
+		}
+		if (devices.length==0) return null;
+		Rectangle primary=devices[0].getDefaultConfiguration().getBounds();
+		int x=primary.x+Math.max(0, (primary.width-size.width)/2);
+		int y=primary.y+Math.max(0, (primary.height-size.height)/2);
+		Point clamped=new Point(x, y);
+		logRead("window.clamp.result", clamped);
+		return clamped;
 	}
 
 	public static void resetAll() {

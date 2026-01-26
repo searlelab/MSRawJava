@@ -127,8 +127,11 @@ public class RawFileBrowser extends JFrame {
 		setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 		setSize(GUIPreferences.getRawFileBrowserWindowSize());
 		Point location=GUIPreferences.getRawFileBrowserWindowLocation();
-		if (location!=null) {
-			setLocation(location);
+		Logger.logLine("RawFileBrowser location (saved): "+location);
+		Point clamped=GUIPreferences.clampToScreens(location, getSize());
+		Logger.logLine("RawFileBrowser location (clamped): "+clamped);
+		if (clamped!=null) {
+			setLocation(clamped);
 		} else {
 			setLocationByPlatform(true);
 		}

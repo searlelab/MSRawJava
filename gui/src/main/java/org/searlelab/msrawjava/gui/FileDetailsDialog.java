@@ -54,8 +54,11 @@ public class FileDetailsDialog {
 	    dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 	    dlg.setSize(GUIPreferences.getRawBrowserWindowSize());
 	    java.awt.Point location=GUIPreferences.getRawBrowserWindowLocation();
-	    if (location!=null) {
-	    	dlg.setLocation(location);
+	    org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (saved): "+location);
+	    java.awt.Point clamped=GUIPreferences.clampToScreens(location, dlg.getSize());
+	    org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (clamped): "+clamped);
+	    if (clamped!=null) {
+	    	dlg.setLocation(clamped);
 	    } else {
 	    	dlg.setLocationRelativeTo(frame);
 	    }
