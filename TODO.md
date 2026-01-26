@@ -2,8 +2,10 @@
 - option to merge IMS (one peak per m/z), smarter method to choose IMS center (mode? median intensity?)
 - better spectrum naming for Thermo, maybe for Bruker as well that match proteowizard
 - readers for mzML and DIA, check for missing data. Remember status lights!
+- migrate todo into a real todo/changelog split to make it easier to track higher-level changes
 
 ## GUI
+- refactor charts to remove classes that are unused. refactor xytrace etc into utils, refactor histogram into utils
 - searchbar for files in the table
 - lock demux to thermo only
 - a mini low-impact loading waiter table cell before thermo data comes up (ideas: taylor cone? maybe just ..... with animation?)
