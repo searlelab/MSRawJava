@@ -5,7 +5,6 @@
 
 ## GUI
 - searchbar for files in the table
-- smarter visualization for double click to open
 - a mini low-impact loading table cell before thermo data comes up
 - a way to bring up the loading panels for demos
 - menu system

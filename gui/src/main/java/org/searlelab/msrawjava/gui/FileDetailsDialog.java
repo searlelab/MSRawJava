@@ -1,6 +1,9 @@
 package org.searlelab.msrawjava.gui;
 
+import java.awt.Dimension;
 import java.awt.Frame;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.io.File;
@@ -60,7 +63,16 @@ public class FileDetailsDialog {
 	    };
 	    final LoadingPanel loading = loadingPanels[(int) (Math.random() * loadingPanels.length)];
 
-	    dlg.setContentPane(loading);
+	    Dimension loadingSize=new Dimension(900, 350);
+	    loading.setPreferredSize(loadingSize);
+	    loading.setMaximumSize(loadingSize);
+	    java.awt.Container loadingWrapper=new javax.swing.JPanel(new GridBagLayout());
+	    GridBagConstraints gbc=new GridBagConstraints();
+	    gbc.gridx=0;
+	    gbc.gridy=0;
+	    gbc.anchor=GridBagConstraints.CENTER;
+	    loadingWrapper.add(loading, gbc);
+	    dlg.setContentPane(loadingWrapper);
 	    dlg.setVisible(true);
 
 	    final RawBrowserPanel[] panelRef=new RawBrowserPanel[1];
