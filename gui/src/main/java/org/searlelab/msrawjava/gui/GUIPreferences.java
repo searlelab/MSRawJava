@@ -19,7 +19,8 @@ import org.searlelab.msrawjava.logging.Logger;
 
 public final class GUIPreferences {
 	private static final Preferences PREFS=Preferences.userNodeForPackage(GUIPreferences.class);
-	private static final boolean VERBOSE_GUI_LOGGING=true;
+	private static final String PREF_VERBOSE_GUI_LOGGING="gui.verboseLogging";
+	private static boolean verboseGuiLogging=PREFS.getBoolean(PREF_VERBOSE_GUI_LOGGING, true);
 
 	public static final int DEFAULT_RAW_BROWSER_WIDTH=1280;
 	public static final int DEFAULT_RAW_BROWSER_HEIGHT=700;
@@ -61,6 +62,17 @@ public final class GUIPreferences {
 	public static Preferences getPreferences() {
 		logRead("preferences.node", PREFS.absolutePath());
 		return PREFS;
+	}
+
+	public static boolean isVerboseGuiLogging() {
+		logRead(PREF_VERBOSE_GUI_LOGGING, verboseGuiLogging);
+		return verboseGuiLogging;
+	}
+
+	public static void setVerboseGuiLogging(boolean enabled) {
+		verboseGuiLogging=enabled;
+		PREFS.putBoolean(PREF_VERBOSE_GUI_LOGGING, enabled);
+		logWrite(PREF_VERBOSE_GUI_LOGGING, enabled);
 	}
 
 	public static String getLastDirectory() {
@@ -451,13 +463,60 @@ public final class GUIPreferences {
 		logWrite(PREF_CONVERSION_PANE_SPLIT, null);
 	}
 
+	public static void resetWindowPreferences() {
+		PREFS.remove(PREF_RAW_BROWSER_WIDTH);
+		logWrite(PREF_RAW_BROWSER_WIDTH, null);
+		PREFS.remove(PREF_RAW_BROWSER_HEIGHT);
+		logWrite(PREF_RAW_BROWSER_HEIGHT, null);
+		PREFS.remove(PREF_RAW_BROWSER_X);
+		logWrite(PREF_RAW_BROWSER_X, null);
+		PREFS.remove(PREF_RAW_BROWSER_Y);
+		logWrite(PREF_RAW_BROWSER_Y, null);
+		PREFS.remove(PREF_RAW_FILE_BROWSER_WIDTH);
+		logWrite(PREF_RAW_FILE_BROWSER_WIDTH, null);
+		PREFS.remove(PREF_RAW_FILE_BROWSER_HEIGHT);
+		logWrite(PREF_RAW_FILE_BROWSER_HEIGHT, null);
+		PREFS.remove(PREF_RAW_FILE_BROWSER_X);
+		logWrite(PREF_RAW_FILE_BROWSER_X, null);
+		PREFS.remove(PREF_RAW_FILE_BROWSER_Y);
+		logWrite(PREF_RAW_FILE_BROWSER_Y, null);
+	}
+
+	public static void resetSplitPanePreferences() {
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_MAIN);
+		logWrite(PREF_RAW_BROWSER_SPLIT_MAIN, null);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_SCANS);
+		logWrite(PREF_RAW_BROWSER_SPLIT_SCANS, null);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_SPECTRUM);
+		logWrite(PREF_RAW_BROWSER_SPLIT_SPECTRUM, null);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_IMS);
+		logWrite(PREF_RAW_BROWSER_SPLIT_IMS, null);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_BOXPLOT);
+		logWrite(PREF_RAW_BROWSER_SPLIT_BOXPLOT, null);
+		PREFS.remove(PREF_RAW_FILE_BROWSER_SPLIT_MAIN);
+		logWrite(PREF_RAW_FILE_BROWSER_SPLIT_MAIN, null);
+		PREFS.remove(PREF_RAW_FILE_BROWSER_SPLIT_FILE);
+		logWrite(PREF_RAW_FILE_BROWSER_SPLIT_FILE, null);
+		PREFS.remove(PREF_CONVERSION_PANE_SPLIT);
+		logWrite(PREF_CONVERSION_PANE_SPLIT, null);
+	}
+
+	public static void resetTablePreferences() {
+		PREFS.remove(PREF_DIR_TABLE_SORT_KEYS);
+		logWrite(PREF_DIR_TABLE_SORT_KEYS, null);
+		PREFS.remove(PREF_DIR_TABLE_COLUMN_ORDER);
+		logWrite(PREF_DIR_TABLE_COLUMN_ORDER, null);
+		PREFS.remove(PREF_DIR_TABLE_COLUMN_WIDTHS);
+		logWrite(PREF_DIR_TABLE_COLUMN_WIDTHS, null);
+	}
+
 	private static void logRead(String key, Object value) {
-		if (!VERBOSE_GUI_LOGGING) return;
+		if (!verboseGuiLogging) return;
 		Logger.logLine("GUIPreferences read: "+key+"="+String.valueOf(value));
 	}
 
 	private static void logWrite(String key, Object value) {
-		if (!VERBOSE_GUI_LOGGING) return;
+		if (!verboseGuiLogging) return;
 		Logger.logLine("GUIPreferences write: "+key+"="+String.valueOf(value));
 	}
 }

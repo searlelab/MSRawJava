@@ -9,6 +9,7 @@ import java.awt.event.KeyListener;
 import java.util.TreeSet;
 
 import org.searlelab.msrawjava.gui.GUIPreferences;
+import org.searlelab.msrawjava.gui.PreferencesDialog;
 import org.searlelab.msrawjava.logging.Logger;
 
 public class BackgroundKeyboardListener implements KeyListener, ContainerListener {
@@ -79,6 +80,15 @@ public class BackgroundKeyboardListener implements KeyListener, ContainerListene
 			void run() {
 				Logger.logLine("Resetting GUI preferences to defaults.");
 				GUIPreferences.resetAll();
+			}
+		});
+		registerEasterEgg(new EasterEgg(KeyEvent.VK_F2, "Open Preferences dialog") {
+			@Override
+			void run() {
+				Logger.logLine("Opening Preferences dialog.");
+				java.awt.Component focus=java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+				java.awt.Frame frame=(focus instanceof java.awt.Frame)?(java.awt.Frame)focus:javax.swing.JOptionPane.getRootFrame();
+				javax.swing.SwingUtilities.invokeLater(() -> PreferencesDialog.showDialog(frame));
 			}
 		});
 	}

@@ -51,6 +51,7 @@ import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
+import org.searlelab.msrawjava.COREPreferences;
 
 /**
  * Owns the conversion parameter bar, queue, dispatcher and details console.
@@ -593,7 +594,9 @@ public class ConversionPane extends JPanel {
 						.outType(outType)
 						.outputDirPath(outputDir)
 						.demultiplex(demultiplex)
-						.demuxTolerance(new PPMMassTolerance(10.0))
+						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
+						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity())
+						.minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity())
 						.build();
 				if (source==Source.THERMO) {					
 					ThermoRawFile rawFile=new ThermoRawFile();		
