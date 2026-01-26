@@ -343,10 +343,10 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		ArrayList<XYTraceInterface> markers=new ArrayList<>();
 		if (result.minRT==result.maxRT) {
-			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker"));
+			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker", java.awt.Color.black, 2.0f));
 		} else {
-			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-min"));
-			markers.add(new XYTrace(new double[] {result.maxRT, result.maxRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-max"));
+			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-min", java.awt.Color.black, 2.0f));
+			markers.add(new XYTrace(new double[] {result.maxRT, result.maxRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-max", java.awt.Color.black, 2.0f));
 		}
 		rawSplit.setTopComponent(buildTicChart(markers.toArray(new XYTraceInterface[0])));
 

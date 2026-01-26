@@ -38,7 +38,7 @@ public final class RawBrowserDataLoader {
 		try {
 			Pair<float[], float[]> tic=stripe.getTICTrace();
 			float[] mins=MatrixMath.divide(tic.x, 60.0f);
-			chromatogramTrace=new XYTrace(mins, tic.y, GraphType.area, "Precursor TIC");
+			chromatogramTrace=new XYTrace(mins, tic.y, GraphType.area, "Precursor TIC", new java.awt.Color(0x55, 0x55, 0xF6), null);
 			for (int i=0; i<mins.length; i++) {
 				ticX.add(mins[i]);
 				ticY.add(tic.y[i]);
@@ -46,7 +46,7 @@ public final class RawBrowserDataLoader {
 			}
 		} catch (Exception e) {
 			Logger.logException(e);
-			chromatogramTrace=new XYTrace(ticX.toArray(), ticY.toArray(), GraphType.area, "Precursor TIC");
+			chromatogramTrace=new XYTrace(ticX.toArray(), ticY.toArray(), GraphType.area, "Precursor TIC", new java.awt.Color(0x55, 0x55, 0xF6), null);
 		}
 		float minRT=Float.MAX_VALUE;
 		float maxRT=0.0f;
