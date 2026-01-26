@@ -4,6 +4,7 @@ import java.awt.BorderLayout;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.DoubleConsumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -18,6 +19,8 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
+import javax.swing.plaf.basic.BasicSplitPaneUI;
+import javax.swing.plaf.basic.BasicSplitPaneDivider;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 
@@ -380,10 +383,37 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private void registerSplitPreference(JSplitPane pane, DoubleConsumer saver) {
+		AtomicBoolean dragging=new AtomicBoolean(false);
+		installDividerDragListener(pane, dragging, saver);
 		pane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, evt -> {
 			if (suppressSplitSave>0) return;
+			if (!dragging.get()) return;
 			double ratio=getSplitRatio(pane);
 			if (ratio>0.0) saver.accept(ratio);
+		});
+	}
+
+	private void installDividerDragListener(JSplitPane pane, AtomicBoolean dragging, DoubleConsumer saver) {
+		if (pane.getClientProperty("rawBrowser.dividerListener")!=null) return;
+		pane.putClientProperty("rawBrowser.dividerListener", Boolean.TRUE);
+		SwingUtilities.invokeLater(() -> {
+			if (!(pane.getUI() instanceof BasicSplitPaneUI)) return;
+			BasicSplitPaneUI ui=(BasicSplitPaneUI)pane.getUI();
+			BasicSplitPaneDivider divider=ui.getDivider();
+			if (divider==null) return;
+			divider.addMouseListener(new java.awt.event.MouseAdapter() {
+				@Override
+				public void mousePressed(java.awt.event.MouseEvent e) {
+					dragging.set(true);
+				}
+				@Override
+				public void mouseReleased(java.awt.event.MouseEvent e) {
+					dragging.set(false);
+					if (suppressSplitSave>0) return;
+					double ratio=getSplitRatio(pane);
+					if (ratio>0.0) saver.accept(ratio);
+				}
+			});
 		});
 	}
 
