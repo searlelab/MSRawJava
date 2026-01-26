@@ -27,6 +27,7 @@ import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
 import gnu.trove.list.array.TDoubleArrayList;
@@ -904,6 +905,89 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		} else {
 			return new ArrayList<>();
 		}
+	}
+
+	@Override
+	public ArrayList<ScanSummary> getScanSummaries(float rtStart, float rtEnd) throws IOException, SQLException {
+		ensureOpen();
+		Map<String, String> meta=getMetadata();
+		double scanWindowLower;
+		double scanWindowUpper;
+		try {
+			scanWindowLower=Double.parseDouble(meta.get("meta.MzAcqRangeLower"));
+			scanWindowUpper=Double.parseDouble(meta.get("meta.MzAcqRangeUpper"));
+		} catch (Exception e) {
+			scanWindowLower=0.0;
+			scanWindowUpper=2000.0;
+		}
+
+		ArrayList<ScanSummary> out=new ArrayList<>();
+
+		String ms1Sql="SELECT Id, Time, AccumulationTime FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
+		try (PreparedStatement ps=conn.prepareStatement(ms1Sql)) {
+			ps.setInt(1, ms1Key);
+			ps.setDouble(2, rtStart);
+			ps.setDouble(3, rtEnd);
+			try (ResultSet rs=ps.executeQuery()) {
+				while (rs.next()) {
+					int frameId=rs.getInt(1);
+					float rt=rs.getFloat(2);
+					float injTime=accumulationTimeSeconds(rs.getFloat(3));
+					out.add(new ScanSummary(Integer.toString(frameId), frameId, rt, 0, -1.0, true,
+							injTime, scanWindowLower, scanWindowUpper, scanWindowLower, scanWindowUpper, (byte)0));
+				}
+			}
+		}
+
+		if (tableExists("DiaFrameMsMsWindows")&&tableExists("DiaFrameMsMsInfo")) {
+			String ms2Sql="SELECT F.Id, F.Time, F.AccumulationTime, W.IsolationMz, W.IsolationWidth "
+					+"FROM Frames F "
+					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
+					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
+					+"WHERE F.MsMsType = ? AND F.Time BETWEEN ? AND ? "
+					+"ORDER BY F.Time ASC, W.IsolationMz ASC";
+			try (PreparedStatement ps=conn.prepareStatement(ms2Sql)) {
+				ps.setInt(1, ms2Key);
+				ps.setDouble(2, rtStart);
+				ps.setDouble(3, rtEnd);
+				try (ResultSet rs=ps.executeQuery()) {
+					while (rs.next()) {
+						int frameId=rs.getInt(1);
+						float rt=rs.getFloat(2);
+						float injTime=accumulationTimeSeconds(rs.getFloat(3));
+						double center=rs.getDouble(4);
+						double width=rs.getDouble(5);
+						double lo=center-0.5*width;
+						double hi=center+0.5*width;
+						out.add(new ScanSummary(Integer.toString(frameId), frameId, rt, 0, center, false,
+								injTime, lo, hi, scanWindowLower, scanWindowUpper, (byte)0));
+					}
+				}
+			}
+		}
+
+		out.sort((a, b) -> Float.compare(a.getScanStartTime(), b.getScanStartTime()));
+		return out;
+	}
+
+	@Override
+	public org.searlelab.msrawjava.model.AcquiredSpectrum getSpectrum(ScanSummary summary) throws IOException, SQLException, DataFormatException {
+		if (summary==null) return null;
+		float rt=summary.getScanStartTime();
+		float delta=1.0f; // seconds
+		if (summary.isPrecursor()) {
+			ArrayList<PrecursorScan> scans=getPrecursors(rt-delta, rt+delta);
+			for (PrecursorScan scan : scans) {
+				if (scan.getSpectrumIndex()==summary.getSpectrumIndex()) return scan;
+			}
+			return scans.isEmpty()?null:scans.get(0);
+		}
+		Range range=new Range((float)summary.getIsolationWindowLower(), (float)summary.getIsolationWindowUpper());
+		ArrayList<FragmentScan> scans=getStripes(range, rt-delta, rt+delta, false);
+		for (FragmentScan scan : scans) {
+			if (scan.getSpectrumIndex()==summary.getSpectrumIndex()) return scan;
+		}
+		return scans.isEmpty()?null:scans.get(0);
 	}
 	
 	private float getIMSFromScanNumber(int scanNumber, int scanMax) {

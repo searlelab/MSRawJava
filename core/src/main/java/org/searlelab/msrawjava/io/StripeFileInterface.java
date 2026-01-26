@@ -8,9 +8,11 @@ import java.util.Map;
 import java.util.zip.DataFormatException;
 
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
 /**
@@ -81,6 +83,16 @@ public interface StripeFileInterface {
 	 * @throws SQLException
 	 */
 	ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, final boolean sqrt) throws IOException, SQLException;
+
+	/**
+	 * Fast metadata-only scan summaries for UI listing without loading spectra arrays.
+	 */
+	ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) throws IOException, SQLException;
+
+	/**
+	 * On-demand spectrum fetch based on summary (avoids full-file parsing).
+	 */
+	AcquiredSpectrum getSpectrum(ScanSummary summary) throws IOException, SQLException, DataFormatException;
 
 	/**
 	 * returns total precursor ion current across entire file

@@ -37,6 +37,7 @@ import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -781,6 +782,75 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		} finally {
 			c.close();
 		}
+	}
+
+	@Override
+	public ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) throws IOException, SQLException {
+		ArrayList<ScanSummary> out=new ArrayList<>();
+		Connection c=getConnection();
+		try {
+			Statement s=c.createStatement();
+			try {
+				ResultSet rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper "
+						+"from precursor where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
+				while (rs.next()) {
+					String name=rs.getString(1);
+					int index=rs.getInt(2);
+					float rt=rs.getFloat(3);
+					Float iit=rs.getFloat(4);
+					if (rs.wasNull()) iit=null;
+					double isoLo=rs.getDouble(5);
+					double isoHi=rs.getDouble(6);
+					out.add(new ScanSummary(name, index, rt, 0, -1.0, true, iit, isoLo, isoHi, isoLo, isoHi, (byte)0));
+				}
+				rs.close();
+
+				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper, "
+						+"IsolationWindowCenter, PrecursorCharge, ScanWindowLower, ScanWindowUpper from spectra "
+						+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
+				while (rs.next()) {
+					String name=rs.getString(1);
+					int index=rs.getInt(2);
+					float rt=rs.getFloat(3);
+					Float iit=rs.getFloat(4);
+					if (rs.wasNull()) iit=null;
+					double isoLo=rs.getDouble(5);
+					double isoHi=rs.getDouble(6);
+					double center=rs.getDouble(7);
+					byte charge=(byte)rs.getInt(8);
+					double scanLo=rs.getDouble(9);
+					double scanHi=rs.getDouble(10);
+					out.add(new ScanSummary(name, index, rt, 0, center, false, iit, isoLo, isoHi, scanLo, scanHi, charge));
+				}
+				rs.close();
+			} finally {
+				s.close();
+			}
+		} finally {
+			c.close();
+		}
+		out.sort((a, b) -> Float.compare(a.getScanStartTime(), b.getScanStartTime()));
+		return out;
+	}
+
+	@Override
+	public AcquiredSpectrum getSpectrum(ScanSummary summary) throws IOException, SQLException, DataFormatException {
+		if (summary==null) return null;
+		float rt=summary.getScanStartTime();
+		float delta=1.0f;
+		if (summary.isPrecursor()) {
+			ArrayList<PrecursorScan> scans=getPrecursors(rt-delta, rt+delta);
+			for (PrecursorScan scan : scans) {
+				if (scan.getSpectrumIndex()==summary.getSpectrumIndex()) return scan;
+			}
+			return scans.isEmpty()?null:scans.get(0);
+		}
+		Range range=new Range((float)summary.getIsolationWindowLower(), (float)summary.getIsolationWindowUpper());
+		ArrayList<FragmentScan> scans=getStripes(range, rt-delta, rt+delta, false);
+		for (FragmentScan scan : scans) {
+			if (scan.getSpectrumIndex()==summary.getSpectrumIndex()) return scan;
+		}
+		return scans.isEmpty()?null:scans.get(0);
 	}
 
 	@Override public void close() {

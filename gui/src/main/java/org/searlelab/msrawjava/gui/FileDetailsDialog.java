@@ -3,26 +3,46 @@ package org.searlelab.msrawjava.gui;
 import java.awt.Frame;
 import java.io.File;
 
-import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.SwingWorker;
 
-import org.searlelab.msrawjava.algorithms.MatrixMath;
-import org.searlelab.msrawjava.gui.charts.BasicChartGenerator;
-import org.searlelab.msrawjava.gui.charts.GraphType;
-import org.searlelab.msrawjava.gui.charts.XYTrace;
 import org.searlelab.msrawjava.gui.loadingpanels.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.TOFLoadingPanel;
-import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.VendorFileFinder;
+import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
-import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.gui.visualization.RawBrowserData;
+import org.searlelab.msrawjava.gui.visualization.RawBrowserDataLoader;
+import org.searlelab.msrawjava.gui.visualization.RawBrowserPanel;
 
 public class FileDetailsDialog {
+	private static final class StripeResult {
+		private final StripeFileInterface stripe;
+		private final String displayName;
+		private final RawBrowserData data;
+		private final String error;
+
+		private StripeResult(StripeFileInterface stripe, String displayName, RawBrowserData data, String error) {
+			this.stripe=stripe;
+			this.displayName=displayName;
+			this.data=data;
+			this.error=error;
+		}
+
+		static StripeResult error(String message) {
+			return new StripeResult(null, null, null, message);
+		}
+
+		static StripeResult success(StripeFileInterface stripe, String displayName, RawBrowserData data) {
+			return new StripeResult(stripe, displayName, data, null);
+		}
+	}
+
 	public static void showFileDetailsDialog(Frame frame, File f) {
 	    final JDialog dlg = new JDialog(frame, f.getName(), false); // non-modal
 	    dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
@@ -39,39 +59,61 @@ public class FileDetailsDialog {
 	    dlg.setContentPane(loading);
 	    dlg.setVisible(true);
 
-	    SwingWorker<JComponent, String> worker = new SwingWorker<>() {
+	    final RawBrowserPanel[] panelRef=new RawBrowserPanel[1];
+	    SwingWorker<StripeResult, String> worker = new SwingWorker<>() {
 	        @Override
-	        protected JComponent doInBackground() throws Exception {
-	            if (VendorFileFinder.isDotDFile(f.toPath())) {
-	                BrukerTIMSFile raw = new BrukerTIMSFile();
-	                try {
-	                    raw.openFile(f.toPath());
-	                    Pair<float[], float[]> tic = raw.getTICTrace();
-	                    XYTrace trace = new XYTrace(MatrixMath.divide(tic.x, 60.0f), tic.y, GraphType.area,
-	                            OutputType.changeExtension(raw.getOriginalFileName(), ""), null, null);
-	                    return BasicChartGenerator.getChart("Time (min)", "Total Ion Current", false, trace);
-	                } finally { try { raw.close(); } catch (Throwable ignore) {} }
-	            } else if (VendorFileFinder.isThermoFile(f.toPath())) {
-	                ThermoRawFile raw = new ThermoRawFile();
-	                try {
-	                    raw.openFile(f.toPath());
-	                    Pair<float[], float[]> tic = raw.getTICTrace();
-	                    XYTrace trace = new XYTrace(MatrixMath.divide(tic.x, 60.0f), tic.y, GraphType.area,
-	                            OutputType.changeExtension(raw.getOriginalFileName(), ""), null, null);
-	                    return BasicChartGenerator.getChart("Time (min)", "Total Ion Current", false, trace);
-	                } finally { try { raw.close(); } catch (Throwable ignore) {} }
-	            } else {
-	                return new JLabel("Unsupported file");
-	            }
+	        protected StripeResult doInBackground() throws Exception {
+	        	StripeFileInterface stripe=null;
+	        	try {
+		            if (VendorFileFinder.isDotDFile(f.toPath())) {
+		                BrukerTIMSFile raw = new BrukerTIMSFile();
+		                raw.openFile(f.toPath());
+		                stripe=raw;
+		                RawBrowserData data=RawBrowserDataLoader.build(raw);
+		                return StripeResult.success(raw, f.getName(), data);
+		            } else if (VendorFileFinder.isThermoFile(f.toPath())) {
+		                ThermoRawFile raw = new ThermoRawFile();
+		                raw.openFile(f.toPath());
+		                stripe=raw;
+		                RawBrowserData data=RawBrowserDataLoader.build(raw);
+		                return StripeResult.success(raw, f.getName(), data);
+		            } else if (f.getName().toLowerCase().endsWith(".dia")) {
+		            	EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		            	dia.openFile(f);
+		            	stripe=dia;
+		            	RawBrowserData data=RawBrowserDataLoader.build(dia);
+		            	return StripeResult.success(dia, f.getName(), data);
+		            } else {
+		                return StripeResult.error("Unsupported file");
+		            }
+	        	} catch (Exception e) {
+	        		if (stripe!=null) {
+	        			try { stripe.close(); } catch (Throwable ignore) {}
+	        		}
+	        		throw e;
+	        	}
 	        }
 
 	        @Override
 	        protected void done() {
 	            loading.stop();
 	            try {
-	                if (isCancelled()) { dlg.dispose(); return; }
-	                JComponent panel = get();
-	                dlg.setContentPane(panel != null ? panel : new JLabel("Cannot parse file!"));
+	                if (isCancelled()) {
+	                	StripeResult cancelled=get();
+	                	if (cancelled!=null&&cancelled.stripe!=null) {
+	                		try { cancelled.stripe.close(); } catch (Throwable ignore) {}
+	                	}
+	                	dlg.dispose();
+	                	return;
+	                }
+	                StripeResult result=get();
+	                if (result==null||result.error!=null) {
+	                	dlg.setContentPane(new JLabel(result!=null?result.error:"Cannot parse file!"));
+	                } else {
+	                	RawBrowserPanel panel=new RawBrowserPanel(result.stripe, result.displayName, result.data);
+	                	panelRef[0]=panel;
+	                	dlg.setContentPane(panel);
+	                }
 	                dlg.revalidate();
 	                dlg.repaint();
 	            } catch (Exception ex) {
@@ -85,7 +127,12 @@ public class FileDetailsDialog {
 	    // Cancel load if dialog closes
 	    dlg.addWindowListener(new java.awt.event.WindowAdapter() {
 	        @Override public void windowClosing(java.awt.event.WindowEvent e) { worker.cancel(true); }
-	        @Override public void windowClosed (java.awt.event.WindowEvent e) { worker.cancel(true); }
+	        @Override public void windowClosed (java.awt.event.WindowEvent e) {
+	        	worker.cancel(true);
+	        	if (panelRef[0]!=null) {
+	        		try { panelRef[0].close(); } catch (Throwable ignore) {}
+	        	}
+	        }
 	    });
 
 	    worker.execute();

@@ -14,6 +14,7 @@ service ThermoRawService {
   rpc Close(CloseRequest) returns (CloseReply);
   rpc GetPrecursors(PrecursorsRequest) returns (stream Spectrum);
   rpc GetStripes(StripesRequest) returns (stream Spectrum);
+  rpc GetScanSummaries(Session) returns (SummariesReply);
   rpc GetRunSummary(Session) returns (RunSummary);
   rpc GetRanges(Session) returns (RangesReply);
   rpc GetMetadata(Session) returns (MetadataReply);
@@ -91,4 +92,22 @@ message Spectrum {
   double ion_injection_time_s = 18;
   double scan_window_lower = 19;
   double scan_window_upper = 20;
+}
+
+message SpectrumSummary {
+  int32  scan_number = 1;
+  double rt_seconds  = 2;
+  int32  ms_level    = 3;
+  double iso_lower   = 4;
+  double iso_upper   = 5;
+  int32  charge      = 6;
+  string spectrum_name  = 7;
+  string precursor_name = 8;
+  double ion_injection_time_s = 9;
+  double scan_window_lower = 10;
+  double scan_window_upper = 11;
+}
+
+message SummariesReply {
+  repeated SpectrumSummary summaries = 1;
 }

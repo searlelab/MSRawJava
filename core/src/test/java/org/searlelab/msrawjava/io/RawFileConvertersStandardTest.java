@@ -20,6 +20,7 @@ import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
@@ -198,6 +199,34 @@ class RawFileConvertersStandardTest {
 		@Override
 		public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) {
 			return minRT==0.0f?ms2s:new ArrayList<>();
+		}
+
+		@Override
+		public ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) {
+			ArrayList<ScanSummary> out=new ArrayList<>();
+			for (PrecursorScan ms1 : ms1s) {
+				out.add(new ScanSummary(ms1.getSpectrumName(), ms1.getSpectrumIndex(), ms1.getScanStartTime(), ms1.getFraction(), -1.0, true,
+						ms1.getIonInjectionTime(), ms1.getIsolationWindowLower(), ms1.getIsolationWindowUpper(), ms1.getScanWindowLower(), ms1.getScanWindowUpper(),
+						(byte)0));
+			}
+			for (FragmentScan ms2 : ms2s) {
+				out.add(new ScanSummary(ms2.getSpectrumName(), ms2.getSpectrumIndex(), ms2.getScanStartTime(), ms2.getFraction(), ms2.getPrecursorMZ(), false,
+						ms2.getIonInjectionTime(), ms2.getIsolationWindowLower(), ms2.getIsolationWindowUpper(), ms2.getScanWindowLower(), ms2.getScanWindowUpper(),
+						ms2.getCharge()));
+			}
+			return out;
+		}
+
+		@Override
+		public org.searlelab.msrawjava.model.AcquiredSpectrum getSpectrum(ScanSummary summary) {
+			if (summary==null) return null;
+			for (PrecursorScan ms1 : ms1s) {
+				if (ms1.getSpectrumIndex()==summary.getSpectrumIndex()) return ms1;
+			}
+			for (FragmentScan ms2 : ms2s) {
+				if (ms2.getSpectrumIndex()==summary.getSpectrumIndex()) return ms2;
+			}
+			return null;
 		}
 
 		@Override

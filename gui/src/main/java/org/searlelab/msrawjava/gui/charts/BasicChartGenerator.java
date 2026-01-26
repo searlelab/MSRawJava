@@ -310,8 +310,18 @@ public class BasicChartGenerator {
 				}
 
 				double maxIntensity=MatrixMath.max(y);
+				if (!(maxIntensity>0.0)||Double.isNaN(maxIntensity)) {
+					// No signal to render; avoid NaN/Inf sizes.
+					break;
+				}
 				int seriesCount=0;
 				for (int i=0; i<x.length; i++) {
+					if (!Double.isFinite(x[i])||!Double.isFinite(y[i])) {
+						continue;
+					}
+					if (ims.length>i&&!Float.isFinite(ims[i])) {
+						continue;
+					}
 					if (y[i]/maxIntensity<0.01) {
 						// ignore peaks that are less than 1%
 						continue;

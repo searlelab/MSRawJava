@@ -329,6 +329,103 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        throw new RpcException(new Status(StatusCode.Internal, "GetRanges failed: " + ex));
 	    }
     }
+
+    public override Task<SummariesReply> GetScanSummaries(Session request, ServerCallContext context)
+    {
+	    try
+	    {
+	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
+	            throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
+
+	        int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
+	        int last  = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum  : raw.RunHeader.LastSpectrum;
+
+	        var reply = new SummariesReply();
+
+	        for (int scan = first; scan <= last; scan++)
+	        {
+	            IScanFilter filter;
+	            try { filter = raw.GetFilterForScanNumber(scan); }
+	            catch { continue; }
+	            if (filter == null) continue;
+
+	            int msLevel = filter.MSOrder == MSOrderType.Ms ? 1 : 2;
+
+	            double rtSec = raw.RetentionTimeFromScanNumber(scan) * 60.0;
+
+	            double isoLo = double.PositiveInfinity;
+	            double isoHi = double.NegativeInfinity;
+
+	            IScanEvent evt = null;
+	            try { evt = raw.GetScanEventForScanNumber(scan); } catch { }
+	            if (evt != null)
+	            {
+	                if (msLevel == 1)
+	                {
+	                    int n = 0;
+	                    try { n = evt.MassRangeCount; } catch { n = 0; }
+	                    for (int i = 0; i < n; i++)
+	                    {
+	                        var r = evt.GetMassRange(i);
+	                        double l = r.Low, h = r.High;
+	                        if (h > l && l > 0)
+	                        {
+	                            if (l < isoLo) isoLo = l;
+	                            if (h > isoHi) isoHi = h;
+	                        }
+	                    }
+	                    if (!(isoHi > isoLo))
+	                    {
+	                        isoLo = 0.0;
+	                        isoHi = double.PositiveInfinity;
+	                    }
+	                }
+	                else
+	                {
+	                    double center = evt.GetMass(0);
+	                    double width = evt.GetIsolationWidth(0);
+	                    isoLo = center - 0.5 * width;
+	                    isoHi = center + 0.5 * width;
+	                }
+	            }
+	            if (!(isoHi > isoLo) || !double.IsFinite(isoLo) || !double.IsFinite(isoHi))
+	            {
+	                isoLo = 0.0;
+	                isoHi = double.PositiveInfinity;
+	            }
+
+	            double injS;
+	            int charge;
+	            int precursorScan;
+	            ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan);
+
+	            double swLo, swHi;
+	            GetScanWindow(evt, out swLo, out swHi);
+
+	            var summary = new SpectrumSummary
+	            {
+	                ScanNumber = scan,
+	                RtSeconds = rtSec,
+	                MsLevel = msLevel,
+	                IsoLower = isoLo,
+	                IsoUpper = isoHi,
+	                Charge = charge,
+	                SpectrumName = scan.ToString(CultureInfo.InvariantCulture),
+	                PrecursorName = precursorScan.ToString(CultureInfo.InvariantCulture),
+	                IonInjectionTimeS = injS,
+	                ScanWindowLower = swLo,
+	                ScanWindowUpper = swHi
+	            };
+	            reply.Summaries.Add(summary);
+	        }
+	        return Task.FromResult(reply);
+	    }
+	    catch (RpcException) { throw; }
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "GetScanSummaries failed: " + ex));
+	    }
+    }
     
     private static int GetReactionCount(IScanEvent evt)
 	{
@@ -532,39 +629,76 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         var cs = raw.GetCentroidStream(scan, false);
         ReadMzAndIntensity(raw, scan, out var mz, out var intensF);
         
-        double injS = 0;
-        int charge = 0;
-        int precursorScan=0;
-        
-        double swLo = double.PositiveInfinity;
-	    double swHi = double.NegativeInfinity;
-	    try
-	    {
-	        var evt2 = raw.GetScanEventForScanNumber(scan);
-	        if (evt2 != null)
-	        {
-	            int n = 0;
-	            try { n = evt2.MassRangeCount; } catch { n = 0; }
-	            for (int i = 0; i < n; i++)
-	            {
-	                var r = evt2.GetMassRange(i);
-	                double l = r.Low, h = r.High;
-	                if (h > l && l > 0)
-	                {
-	                    if (l < swLo) swLo = l;
-	                    if (h > swHi) swHi = h;
-	                }
-	            }
-	        }
-	    }
-	    catch { }
-	    if (!(swHi > swLo) || !double.IsFinite(swLo) || !double.IsFinite(swHi))
-	    {
-	        // fallback when no range is reported
-	        swLo = 0.0;
-	        swHi = double.PositiveInfinity;
-	    }
+        double injS;
+        int charge;
+        int precursorScan;
+        ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan);
 
+        double swLo, swHi;
+        GetScanWindow(raw, scan, out swLo, out swHi);
+
+        var s = new Spectrum
+        {
+            ScanNumber = scan,
+            RtSeconds  = raw.RetentionTimeFromScanNumber(scan)*60f,
+            MsLevel    = isMs1 ? 1 : 2,
+            IsoLower   = isoLo,
+            IsoUpper   = isoHi,
+            Charge     = charge,
+            SpectrumName    = scan.ToString(CultureInfo.InvariantCulture),
+            PrecursorName   = precursorScan.ToString(CultureInfo.InvariantCulture),
+            IonInjectionTimeS = injS,
+	        ScanWindowLower = swLo,
+	        ScanWindowUpper = swHi
+        };
+
+        s.Mz.AddRange(mz);
+        s.Intensity.AddRange(intensF);
+        return s;
+    }
+
+    private static void GetScanWindow(IRawDataPlus raw, int scan, out double swLo, out double swHi)
+    {
+        IScanEvent evt2 = null;
+        try { evt2 = raw.GetScanEventForScanNumber(scan); } catch { }
+        GetScanWindow(evt2, out swLo, out swHi);
+    }
+
+    private static void GetScanWindow(IScanEvent evt2, out double swLo, out double swHi)
+    {
+        swLo = double.PositiveInfinity;
+        swHi = double.NegativeInfinity;
+        try
+        {
+            if (evt2 != null)
+            {
+                int n = 0;
+                try { n = evt2.MassRangeCount; } catch { n = 0; }
+                for (int i = 0; i < n; i++)
+                {
+                    var r = evt2.GetMassRange(i);
+                    double l = r.Low, h = r.High;
+                    if (h > l && l > 0)
+                    {
+                        if (l < swLo) swLo = l;
+                        if (h > swHi) swHi = h;
+                    }
+                }
+            }
+        }
+        catch { }
+        if (!(swHi > swLo) || !double.IsFinite(swLo) || !double.IsFinite(swHi))
+        {
+            swLo = 0.0;
+            swHi = double.PositiveInfinity;
+        }
+    }
+
+    private static void ExtractTrailerInfo(IRawDataPlus raw, int scan, out double injS, out int charge, out int precursorScan)
+    {
+        injS = 0;
+        charge = 0;
+        precursorScan = 0;
         try
         {
             var trailers = raw.GetTrailerExtraInformation(scan); // ILogEntryAccess with Labels/Values
@@ -585,33 +719,14 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
                         charge = ch;
                 }
                 if (precursorScan == 0 && (label.IndexOf("Master Scan Number", StringComparison.OrdinalIgnoreCase) >= 0 ||
-            			label.IndexOf("Master Index", StringComparison.OrdinalIgnoreCase) >= 0))
-            	{
+                         label.IndexOf("Master Index", StringComparison.OrdinalIgnoreCase) >= 0))
+                {
                     if (int.TryParse(ExtractInteger(value), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ps))
                         precursorScan = ps;
-				}
+                }
             }
         }
         catch { }
-
-        var s = new Spectrum
-        {
-            ScanNumber = scan,
-            RtSeconds  = raw.RetentionTimeFromScanNumber(scan)*60f,
-            MsLevel    = isMs1 ? 1 : 2,
-            IsoLower   = isoLo,
-            IsoUpper   = isoHi,
-            Charge     = charge,
-            SpectrumName    = scan.ToString(CultureInfo.InvariantCulture),
-            PrecursorName   = precursorScan.ToString(CultureInfo.InvariantCulture),
-            IonInjectionTimeS = injS,
-	        ScanWindowLower = swLo,
-	        ScanWindowUpper = swHi
-        };
-
-        s.Mz.AddRange(mz);
-        s.Intensity.AddRange(intensF);
-        return s;
     }
 
     private static bool TryParseNumber(string s, out double value)

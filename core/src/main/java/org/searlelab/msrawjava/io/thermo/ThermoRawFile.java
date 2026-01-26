@@ -18,14 +18,18 @@ import org.searlelab.msrawjava.io.thermo.rpc.OpenRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.PrecursorsRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.Session;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
+import org.searlelab.msrawjava.io.thermo.rpc.SpectrumSummary;
+import org.searlelab.msrawjava.io.thermo.rpc.SummariesReply;
 import org.searlelab.msrawjava.io.thermo.rpc.StripesRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
 import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.TicRequest;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
 import io.grpc.ManagedChannel;
@@ -204,6 +208,52 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 	public ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException {
 		double half=1e-4;
 		return getStripes(new Range(targetMz-half, targetMz+half), minRT, maxRT, sqrt);
+	}
+
+	@Override
+	public ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) throws IOException {
+		var req=Session.newBuilder().setSessionId(sessionId).build();
+		SummariesReply reply=stub.getScanSummaries(req);
+		ArrayList<ScanSummary> out=new ArrayList<>(reply.getSummariesCount());
+		for (SpectrumSummary s : reply.getSummariesList()) {
+			boolean precursor=s.getMsLevel()==1;
+			out.add(new ScanSummary(
+					s.getSpectrumName(),
+					s.getScanNumber(),
+					(float)s.getRtSeconds(),
+					0,
+					precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0,
+					precursor,
+					(float)s.getIonInjectionTimeS(),
+					s.getIsoLower(),
+					s.getIsoUpper(),
+					s.getScanWindowLower(),
+					s.getScanWindowUpper(),
+					(byte)s.getCharge()
+			));
+		}
+		out.sort(Comparator.comparingDouble(ScanSummary::getScanStartTime));
+		return out;
+	}
+
+	@Override
+	public AcquiredSpectrum getSpectrum(ScanSummary summary) throws IOException {
+		if (summary==null) return null;
+		float rt=summary.getScanStartTime();
+		float delta=1.0f;
+		if (summary.isPrecursor()) {
+			ArrayList<PrecursorScan> scans=getPrecursors(rt-delta, rt+delta);
+			for (PrecursorScan scan : scans) {
+				if (scan.getSpectrumIndex()==summary.getSpectrumIndex()) return scan;
+			}
+			return scans.isEmpty()?null:scans.get(0);
+		}
+		Range range=new Range((float)summary.getIsolationWindowLower(), (float)summary.getIsolationWindowUpper());
+		ArrayList<FragmentScan> scans=getStripes(range, rt-delta, rt+delta, false);
+		for (FragmentScan scan : scans) {
+			if (scan.getSpectrumIndex()==summary.getSpectrumIndex()) return scan;
+		}
+		return scans.isEmpty()?null:scans.get(0);
 	}
 
 	@Override
