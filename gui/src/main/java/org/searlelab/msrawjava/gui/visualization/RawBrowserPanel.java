@@ -32,6 +32,9 @@ import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.ScanSummary;
+import org.searlelab.msrawjava.model.PeakWithIMS;
+import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
+import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 
 
 public class RawBrowserPanel extends JPanel implements AutoCloseable {
@@ -41,9 +44,12 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final String GLOBAL_TITLE="Global";
 	private static final String INTENSITY_DISTRIBUTION_TITLE="Intensity Distributions";
 	private static final String BOXPLOT_TITLE="Range Statistics";
+	private static final float MINIMUM_MS1_INTENSITY=3.0f;
+	private static final float MINIMUM_MS2_INTENSITY=1.0f;
 
 	private final StripeFileInterface stripe;
 	private final String displayName;
+	private final boolean peakPickAcrossIMS;
 
 	private RawScanTableModel model;
 	private JTable table;
@@ -69,6 +75,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		super(new BorderLayout());
 		this.stripe=stripe;
 		this.displayName=(displayName==null||displayName.isBlank())?"Raw Browser":displayName;
+		this.peakPickAcrossIMS=stripe instanceof BrukerTIMSFile;
 
 		initUi();
 		startLoad();
@@ -78,6 +85,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		super(new BorderLayout());
 		this.stripe=stripe;
 		this.displayName=(displayName==null||displayName.isBlank())?"Raw Browser":displayName;
+		this.peakPickAcrossIMS=stripe instanceof BrukerTIMSFile;
 
 		initUi();
 		if (data!=null) {
@@ -298,9 +306,11 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			}
 		}
 
-		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new AcquiredSpectrumWrapper(spectrum));
-		if (spectrum.getIonMobilityArray().isPresent()&&MatrixMath.max(spectrum.getIntensityArray())>0.0f) {
-			ExtendedChartPanel imsChart=BasicChartGenerator.getChart("Ion Mobility", "m/z", false, new ImsSpectrumWrapper(spectrum));
+		AcquiredSpectrum displaySpectrum=peakPickSpectrumIfIMS(spectrum);
+		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new AcquiredSpectrumWrapper(displaySpectrum));
+		boolean hasIms=displaySpectrum.getIonMobilityArray().isPresent()&&MatrixMath.max(displaySpectrum.getIntensityArray())>0.0f;
+		if (hasIms) {
+			ExtendedChartPanel imsChart=BasicChartGenerator.getChart("Ion Mobility", "m/z", false, new ImsSpectrumWrapper(displaySpectrum));
 			int dividerLocation=imsSpectrumSplit.getDividerLocation();
 			imsSpectrumSplit.setLeftComponent(spectrumChart);
 			imsSpectrumSplit.setRightComponent(imsChart);
@@ -310,7 +320,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			spectrumSplit.setLeftComponent(spectrumChart);
 		}
 
-		XYTrace intensityHistogram=HistogramUtils.histogramFromLog10(spectrum.getIntensityArray(), "Log10 Fragment Intensity Distribution");
+		XYTrace intensityHistogram=HistogramUtils.histogramFromLog10(displaySpectrum.getIntensityArray(), "Log10 Fragment Intensity Distribution");
 		ExtendedChartPanel spectrumHistogram=BasicChartGenerator.getChart("Log10 Intensity", "Count (N="+spectrum.getIntensityArray().length+")", false, intensityHistogram);
 		spectrumSplit.setRightComponent(spectrumHistogram);
 
@@ -329,6 +339,52 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		spectrumSplit.setDividerLocation(locationSpectrum);
 		rawSplit.setDividerLocation(locationRaw);
 		split.setDividerLocation(location);
+	}
+
+	private AcquiredSpectrum peakPickSpectrumIfIMS(AcquiredSpectrum spectrum) {
+		if (spectrum==null) return null;
+		if (!peakPickAcrossIMS) return spectrum;
+		if (spectrum.getIonMobilityArray().isEmpty()) return spectrum;
+
+		double[] mz=spectrum.getMassArray();
+		float[] intensity=spectrum.getIntensityArray();
+		float[] ims=spectrum.getIonMobilityArray().get();
+		if (mz.length==0||intensity.length==0||ims.length==0) return spectrum;
+
+		float minIntensity=(spectrum.getPrecursorMZ()<0.0)?MINIMUM_MS1_INTENSITY:MINIMUM_MS2_INTENSITY;
+		ArrayList<PeakWithIMS> peaks=new ArrayList<>(mz.length);
+		for (int i=0; i<mz.length; i++) {
+			if (intensity[i]>minIntensity) {
+				peaks.add(new PeakWithIMS(mz[i], intensity[i], ims[i]));
+			}
+		}
+		if (peaks.isEmpty()) return spectrum;
+		ArrayList<PeakWithIMS> picked=TIMSPeakPicker.peakPickAcrossIMS(peaks);
+		if (picked==null||picked.isEmpty()) return spectrum;
+
+		picked.sort(null);
+		double[] mzOut=new double[picked.size()];
+		float[] intensityOut=new float[picked.size()];
+		float[] imsOut=new float[picked.size()];
+		for (int i=0; i<picked.size(); i++) {
+			PeakWithIMS p=picked.get(i);
+			mzOut[i]=p.mz;
+			intensityOut[i]=p.intensity;
+			imsOut[i]=p.ims;
+		}
+
+		return new org.searlelab.msrawjava.model.PrecursorScan(
+				spectrum.getSpectrumName(),
+				spectrum.getSpectrumIndex(),
+				spectrum.getScanStartTime(),
+				spectrum.getFraction(),
+				spectrum.getIsolationWindowLower(),
+				spectrum.getIsolationWindowUpper(),
+				spectrum.getIonInjectionTime(),
+				mzOut,
+				intensityOut,
+				imsOut
+		);
 	}
 
 	@Override
