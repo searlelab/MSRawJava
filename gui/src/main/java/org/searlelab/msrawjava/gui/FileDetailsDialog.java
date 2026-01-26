@@ -13,6 +13,7 @@ import org.searlelab.msrawjava.gui.loadingpanels.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.TOFLoadingPanel;
+import org.searlelab.msrawjava.gui.utils.BackgroundKeyboardListener;
 import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -48,8 +49,9 @@ public class FileDetailsDialog {
 	public static void showFileDetailsDialog(Frame frame, File f) {
 	    final JDialog dlg = new JDialog(frame, f.getName(), false); // non-modal
 	    dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-	    dlg.setSize(GUIPreferences.getRawBrowserWindowSize(1280, 700));
+	    dlg.setSize(GUIPreferences.getRawBrowserWindowSize());
 	    dlg.setLocationRelativeTo(frame);
+	    new BackgroundKeyboardListener().addKeyAndContainerListenerRecursively(dlg);
 
 	    final LoadingPanel[] loadingPanels = new LoadingPanel[]{
 	            new FTICRLoadingPanel("Reading " + f.getName()),

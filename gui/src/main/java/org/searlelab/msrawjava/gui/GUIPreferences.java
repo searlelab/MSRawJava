@@ -16,6 +16,14 @@ import org.searlelab.msrawjava.logging.Logger;
 public final class GUIPreferences {
 	private static final Preferences PREFS=Preferences.userNodeForPackage(GUIPreferences.class);
 
+	public static final int DEFAULT_RAW_BROWSER_WIDTH=1280;
+	public static final int DEFAULT_RAW_BROWSER_HEIGHT=700;
+	public static final double DEFAULT_RAW_BROWSER_MAIN_SPLIT=0.3;
+	public static final double DEFAULT_RAW_BROWSER_SCANS_SPLIT=0.5;
+	public static final double DEFAULT_RAW_BROWSER_SPECTRUM_SPLIT=0.8;
+	public static final double DEFAULT_RAW_BROWSER_IMS_SPLIT=0.5/DEFAULT_RAW_BROWSER_SPECTRUM_SPLIT;
+	public static final double DEFAULT_RAW_BROWSER_BOXPLOT_SPLIT=0.5;
+
 	private static final String PREF_LAST_DIR="lastDir";
 	private static final String PREF_DIR_SORT_KEYS="dirSummary.sortKeys";
 	private static final String PREF_DIR_COLUMN_ORDER="dirSummary.columnOrder";
@@ -165,6 +173,10 @@ public final class GUIPreferences {
 		return new Dimension(width, height);
 	}
 
+	public static Dimension getRawBrowserWindowSize() {
+		return getRawBrowserWindowSize(DEFAULT_RAW_BROWSER_WIDTH, DEFAULT_RAW_BROWSER_HEIGHT);
+	}
+
 	public static void setRawBrowserWindowSize(Dimension size) {
 		if (size==null) return;
 		if (size.width<10||size.height<10) return;
@@ -176,12 +188,20 @@ public final class GUIPreferences {
 		return getSplitRatio(PREF_RAW_BROWSER_SPLIT_MAIN, defaultValue);
 	}
 
+	public static double getRawBrowserMainSplitRatio() {
+		return getRawBrowserMainSplitRatio(DEFAULT_RAW_BROWSER_MAIN_SPLIT);
+	}
+
 	public static void setRawBrowserMainSplitRatio(double value) {
 		setSplitRatio(PREF_RAW_BROWSER_SPLIT_MAIN, value);
 	}
 
 	public static double getRawBrowserScansSplitRatio(double defaultValue) {
 		return getSplitRatio(PREF_RAW_BROWSER_SPLIT_SCANS, defaultValue);
+	}
+
+	public static double getRawBrowserScansSplitRatio() {
+		return getRawBrowserScansSplitRatio(DEFAULT_RAW_BROWSER_SCANS_SPLIT);
 	}
 
 	public static void setRawBrowserScansSplitRatio(double value) {
@@ -192,6 +212,10 @@ public final class GUIPreferences {
 		return getSplitRatio(PREF_RAW_BROWSER_SPLIT_SPECTRUM, defaultValue);
 	}
 
+	public static double getRawBrowserSpectrumSplitRatio() {
+		return getRawBrowserSpectrumSplitRatio(DEFAULT_RAW_BROWSER_SPECTRUM_SPLIT);
+	}
+
 	public static void setRawBrowserSpectrumSplitRatio(double value) {
 		setSplitRatio(PREF_RAW_BROWSER_SPLIT_SPECTRUM, value);
 	}
@@ -200,12 +224,20 @@ public final class GUIPreferences {
 		return getSplitRatio(PREF_RAW_BROWSER_SPLIT_IMS, defaultValue);
 	}
 
+	public static double getRawBrowserImsSplitRatio() {
+		return getRawBrowserImsSplitRatio(DEFAULT_RAW_BROWSER_IMS_SPLIT);
+	}
+
 	public static void setRawBrowserImsSplitRatio(double value) {
 		setSplitRatio(PREF_RAW_BROWSER_SPLIT_IMS, value);
 	}
 
 	public static double getRawBrowserBoxplotSplitRatio(double defaultValue) {
 		return getSplitRatio(PREF_RAW_BROWSER_SPLIT_BOXPLOT, defaultValue);
+	}
+
+	public static double getRawBrowserBoxplotSplitRatio() {
+		return getRawBrowserBoxplotSplitRatio(DEFAULT_RAW_BROWSER_BOXPLOT_SPLIT);
 	}
 
 	public static void setRawBrowserBoxplotSplitRatio(double value) {
@@ -221,5 +253,19 @@ public final class GUIPreferences {
 	private static void setSplitRatio(String key, double value) {
 		if (value<=0.0||value>=1.0) return;
 		PREFS.putDouble(key, value);
+	}
+
+	public static void resetAll() {
+		PREFS.remove(PREF_LAST_DIR);
+		PREFS.remove(PREF_DIR_SORT_KEYS);
+		PREFS.remove(PREF_DIR_COLUMN_ORDER);
+		PREFS.remove(PREF_DIR_COLUMN_WIDTHS);
+		PREFS.remove(PREF_RAW_BROWSER_WIDTH);
+		PREFS.remove(PREF_RAW_BROWSER_HEIGHT);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_MAIN);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_SCANS);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_SPECTRUM);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_IMS);
+		PREFS.remove(PREF_RAW_BROWSER_SPLIT_BOXPLOT);
 	}
 }

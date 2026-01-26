@@ -44,6 +44,7 @@ import org.searlelab.msrawjava.gui.loadingpanels.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.TOFLoadingPanel;
+import org.searlelab.msrawjava.gui.utils.BackgroundKeyboardListener;
 import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.logging.Logger;
@@ -111,8 +112,9 @@ public class RawFileBrowser extends JFrame {
 		setContentPane(leftAndCenter);
 
 		setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-		setSize(1280, 700);
+		setSize(GUIPreferences.DEFAULT_RAW_BROWSER_WIDTH, GUIPreferences.DEFAULT_RAW_BROWSER_HEIGHT);
 		setLocationByPlatform(true);
+		new BackgroundKeyboardListener().addKeyAndContainerListenerRecursively(this);
 
 		String lastPath=GUIPreferences.getLastDirectory();
 		File startDir=(lastPath!=null)?new File(lastPath):fsv.getHomeDirectory();

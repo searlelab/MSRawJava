@@ -50,11 +50,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final String BOXPLOT_TITLE="Range Statistics";
 	private static final float MINIMUM_MS1_INTENSITY=3.0f;
 	private static final float MINIMUM_MS2_INTENSITY=1.0f;
-	private static final double DEFAULT_MAIN_SPLIT=0.3;
-	private static final double DEFAULT_SCANS_SPLIT=0.5;
-	private static final double DEFAULT_SPECTRUM_SPLIT=0.85;
-	private static final double DEFAULT_IMS_SPLIT=50.0/85.0;
-	private static final double DEFAULT_BOXPLOT_SPLIT=0.5;
 
 	private final StripeFileInterface stripe;
 	private final String displayName;
@@ -336,7 +331,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			ExtendedChartPanel imsChart=BasicChartGenerator.getChart("Ion Mobility", "m/z", false, new ImsSpectrumWrapper(displaySpectrum));
 			imsSpectrumSplit.setLeftComponent(spectrumChart);
 			imsSpectrumSplit.setRightComponent(imsChart);
-			applySplitRatio(imsSpectrumSplit, GUIPreferences.getRawBrowserImsSplitRatio(DEFAULT_IMS_SPLIT));
+			applySplitRatio(imsSpectrumSplit, GUIPreferences.getRawBrowserImsSplitRatio());
 			spectrumSplit.setLeftComponent(imsSpectrumSplit);
 		} else {
 			spectrumSplit.setLeftComponent(spectrumChart);
@@ -360,11 +355,11 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 	private void applySplitPreferences() {
 		withSplitSaveSuppressed(() -> {
-			applySplitRatio(split, GUIPreferences.getRawBrowserMainSplitRatio(DEFAULT_MAIN_SPLIT));
-			applySplitRatio(rawSplit, GUIPreferences.getRawBrowserScansSplitRatio(DEFAULT_SCANS_SPLIT));
-			applySplitRatio(spectrumSplit, GUIPreferences.getRawBrowserSpectrumSplitRatio(DEFAULT_SPECTRUM_SPLIT));
-			applySplitRatio(imsSpectrumSplit, GUIPreferences.getRawBrowserImsSplitRatio(DEFAULT_IMS_SPLIT));
-			applySplitRatio(boxplotSplit, GUIPreferences.getRawBrowserBoxplotSplitRatio(DEFAULT_BOXPLOT_SPLIT));
+			applySplitRatio(split, GUIPreferences.getRawBrowserMainSplitRatio());
+			applySplitRatio(rawSplit, GUIPreferences.getRawBrowserScansSplitRatio());
+			applySplitRatio(spectrumSplit, GUIPreferences.getRawBrowserSpectrumSplitRatio());
+			applySplitRatio(imsSpectrumSplit, GUIPreferences.getRawBrowserImsSplitRatio());
+			applySplitRatio(boxplotSplit, GUIPreferences.getRawBrowserBoxplotSplitRatio());
 		});
 	}
 
