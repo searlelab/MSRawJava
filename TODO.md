@@ -1,14 +1,23 @@
 ## CORE
 - option to merge IMS (one peak per m/z), smarter method to choose IMS center (mode? median intensity?)
-- better spectrum naming for Thermo, maybe for Bruker as well
-- readers for mzML and DIA
+- better spectrum naming for Thermo, maybe for Bruker as well that match proteowizard
+- readers for mzML and DIA, check for missing data. Remember status lights!
 
 ## GUI
 - searchbar for files in the table
-- a mini low-impact loading table cell before thermo data comes up
+- lock demux to thermo only
+- a mini low-impact loading waiter table cell before thermo data comes up (ideas: taylor cone? maybe just ..... with animation?)
 - a way to bring up the loading panels for demos
-- menu system
-
+- save jsplitpane settings to GUI settings for the main view
+- build menu system
+  - open (changes to file/directory)
+  - visualize (opens to file and then opens visualizer)
+  - settings (for main app)
+    - reset GUI settings
+  - close (exit app gracefully)
+  - help
+  - website
+  - citation
 
 # Codebase Review Report
 
