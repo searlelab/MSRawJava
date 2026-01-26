@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui.visualization;
 
 import java.awt.Color;
+import java.awt.BasicStroke;
 import java.awt.Font;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
@@ -83,6 +84,10 @@ public final class VisualizationCharts {
 		yAxis.setAutoRangeIncludesZero(false);
 		BoxAndWhiskerRenderer renderer=new BoxAndWhiskerRenderer();
 		renderer.setMeanVisible(false);
+		renderer.setArtifactPaint(Color.black);
+		renderer.setUseOutlinePaintForWhiskers(true);
+		renderer.setDefaultOutlinePaint(Color.black);
+		renderer.setDefaultOutlineStroke(new BasicStroke(1.0f));
 
 		CategoryPlot plot=new CategoryPlot(dataset, xAxis, yAxis, renderer);
 

@@ -3,6 +3,7 @@ package org.searlelab.msrawjava.gui.visualization;
 import java.awt.BorderLayout;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.DoubleConsumer;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -12,6 +13,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.RowFilter;
+import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
@@ -21,12 +23,12 @@ import javax.swing.table.TableRowSorter;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.algorithms.RawSpectrumMergeUtils;
-import org.searlelab.msrawjava.gui.charts.AcquiredSpectrumWrapper;
 import org.searlelab.msrawjava.gui.charts.BasicChartGenerator;
 import org.searlelab.msrawjava.gui.charts.ExtendedChartPanel;
 import org.searlelab.msrawjava.gui.charts.GraphType;
 import org.searlelab.msrawjava.gui.charts.XYTrace;
 import org.searlelab.msrawjava.gui.charts.XYTraceInterface;
+import org.searlelab.msrawjava.gui.GUIPreferences;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
@@ -42,10 +44,14 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 	private static final String STRUCTURE_TITLE="Structure";
 	private static final String GLOBAL_TITLE="Global";
-	private static final String INTENSITY_DISTRIBUTION_TITLE="Intensity Distributions";
 	private static final String BOXPLOT_TITLE="Range Statistics";
 	private static final float MINIMUM_MS1_INTENSITY=3.0f;
 	private static final float MINIMUM_MS2_INTENSITY=1.0f;
+	private static final double DEFAULT_MAIN_SPLIT=0.3;
+	private static final double DEFAULT_SCANS_SPLIT=0.5;
+	private static final double DEFAULT_SPECTRUM_SPLIT=0.85;
+	private static final double DEFAULT_IMS_SPLIT=50.0/85.0;
+	private static final double DEFAULT_BOXPLOT_SPLIT=0.5;
 
 	private final StripeFileInterface stripe;
 	private final String displayName;
@@ -57,7 +63,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private JTextField filterField;
 
 	private final JSplitPane boxplotSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-	private final JSplitPane distributionSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane rawSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane spectrumSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JSplitPane imsSpectrumSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
@@ -70,6 +75,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private ExtendedChartPanel structureChart;
 	private ExtendedChartPanel globalChart;
 	private long selectionToken=0L;
+	private int suppressSplitSave=0;
 
 	public RawBrowserPanel(StripeFileInterface stripe, String displayName) {
 		super(new BorderLayout());
@@ -127,7 +133,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		primaryTabs.addTab("Scans", rawSplit);
 		rawSplit.setBottomComponent(spectrumSplit);
-		primaryTabs.addTab(INTENSITY_DISTRIBUTION_TITLE, distributionSplit);
 		primaryTabs.addTab(BOXPLOT_TITLE, boxplotSplit);
 		primaryTabs.addTab(STRUCTURE_TITLE, new JLabel("Loading..."));
 		primaryTabs.addTab(GLOBAL_TITLE, new JLabel("Loading..."));
@@ -145,8 +150,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		boxplotSplit.setContinuousLayout(true);
 		boxplotSplit.setOneTouchExpandable(true);
-		distributionSplit.setContinuousLayout(true);
-		distributionSplit.setOneTouchExpandable(true);
 		rawSplit.setContinuousLayout(true);
 		rawSplit.setOneTouchExpandable(true);
 		split.setContinuousLayout(true);
@@ -161,6 +164,14 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		imsSpectrumSplit.setDividerSize(8);
 		imsSpectrumSplit.setContinuousLayout(true);
 		imsSpectrumSplit.setOneTouchExpandable(true);
+
+		registerSplitPreference(split, GUIPreferences::setRawBrowserMainSplitRatio);
+		registerSplitPreference(rawSplit, GUIPreferences::setRawBrowserScansSplitRatio);
+		registerSplitPreference(spectrumSplit, GUIPreferences::setRawBrowserSpectrumSplitRatio);
+		registerSplitPreference(imsSpectrumSplit, GUIPreferences::setRawBrowserImsSplitRatio);
+		registerSplitPreference(boxplotSplit, GUIPreferences::setRawBrowserBoxplotSplitRatio);
+
+		applySplitPreferences();
 	}
 
 	private void updateFilter() {
@@ -210,16 +221,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		ExtendedChartPanel ticChart=buildTicChart();
 		rawSplit.setTopComponent(ticChart);
 
-		JTabbedPane distributionTabs=new JTabbedPane();
-		distributionTabs.addTab("Precursor Intensity", BasicChartGenerator.getChart("Log10 Precursor Intensity", "Count", false, data.getPrecursorIntensityHistogram()));
-		distributionTabs.addTab("Fragment Intensity", BasicChartGenerator.getChart("Log10 Fragment Intensity", "Count", false, data.getFragmentIntensityHistogram()));
-		distributionSplit.setTopComponent(BasicChartGenerator.getChart("Time (min)", "Basepeak Intensity", false, data.getBasepeakTrace()));
-		distributionSplit.setBottomComponent(distributionTabs);
-		distributionSplit.setDividerLocation(400);
-
 		boxplotSplit.setTopComponent(VisualizationCharts.getBoxplotChart(null, "Precursor Isolation Window", "Ion Injection Time (ms)", data.getIitByRange()));
 		boxplotSplit.setBottomComponent(VisualizationCharts.getBoxplotChart(null, "Retention Time Bin (min)", "Ion Injection Time (ms)", data.getIitByRt()));
-		boxplotSplit.setDividerLocation(400);
 
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(STRUCTURE_TITLE), structureChart);
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(GLOBAL_TITLE), globalChart);
@@ -227,6 +230,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		if (model.getRowCount()>0) {
 			table.addRowSelectionInterval(0, 0);
 		}
+
+		SwingUtilities.invokeLater(this::applySplitPreferences);
 	}
 
 	private ExtendedChartPanel buildTicChart(XYTraceInterface... markerTraces) {
@@ -275,12 +280,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private void resetScan(List<AcquiredSpectrum> entries) {
-		int location=split.getDividerLocation();
-		if (location<=5) location=400;
-		int locationRaw=rawSplit.getDividerLocation();
-		if (locationRaw<=5) locationRaw=400;
-		int locationSpectrum=spectrumSplit.getDividerLocation();
-
 		if (entries==null||entries.isEmpty()) {
 			rawSplit.setTopComponent(buildTicChart());
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
@@ -307,14 +306,13 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		}
 
 		AcquiredSpectrum displaySpectrum=peakPickSpectrumIfIMS(spectrum);
-		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new AcquiredSpectrumWrapper(displaySpectrum));
+		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new XYTrace(displaySpectrum));
 		boolean hasIms=displaySpectrum.getIonMobilityArray().isPresent()&&MatrixMath.max(displaySpectrum.getIntensityArray())>0.0f;
 		if (hasIms) {
 			ExtendedChartPanel imsChart=BasicChartGenerator.getChart("Ion Mobility", "m/z", false, new ImsSpectrumWrapper(displaySpectrum));
-			int dividerLocation=imsSpectrumSplit.getDividerLocation();
 			imsSpectrumSplit.setLeftComponent(spectrumChart);
 			imsSpectrumSplit.setRightComponent(imsChart);
-			if (dividerLocation!=0) imsSpectrumSplit.setDividerLocation(dividerLocation);
+			applySplitRatio(imsSpectrumSplit, GUIPreferences.getRawBrowserImsSplitRatio(DEFAULT_IMS_SPLIT));
 			spectrumSplit.setLeftComponent(imsSpectrumSplit);
 		} else {
 			spectrumSplit.setLeftComponent(spectrumChart);
@@ -333,12 +331,48 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		}
 		rawSplit.setTopComponent(buildTicChart(markers.toArray(new XYTraceInterface[0])));
 
-		if (locationSpectrum<=5) {
-			locationSpectrum=Math.round(split.getWidth()*0.8f);
+		applySplitPreferences();
+	}
+
+	private void applySplitPreferences() {
+		withSplitSaveSuppressed(() -> {
+			applySplitRatio(split, GUIPreferences.getRawBrowserMainSplitRatio(DEFAULT_MAIN_SPLIT));
+			applySplitRatio(rawSplit, GUIPreferences.getRawBrowserScansSplitRatio(DEFAULT_SCANS_SPLIT));
+			applySplitRatio(spectrumSplit, GUIPreferences.getRawBrowserSpectrumSplitRatio(DEFAULT_SPECTRUM_SPLIT));
+			applySplitRatio(imsSpectrumSplit, GUIPreferences.getRawBrowserImsSplitRatio(DEFAULT_IMS_SPLIT));
+			applySplitRatio(boxplotSplit, GUIPreferences.getRawBrowserBoxplotSplitRatio(DEFAULT_BOXPLOT_SPLIT));
+		});
+	}
+
+	private void applySplitRatio(JSplitPane pane, double ratio) {
+		if (ratio<=0.0||ratio>=1.0) return;
+		pane.setResizeWeight(ratio);
+		pane.setDividerLocation(ratio);
+	}
+
+	private double getSplitRatio(JSplitPane pane) {
+		int size=(pane.getOrientation()==JSplitPane.HORIZONTAL_SPLIT)?pane.getWidth():pane.getHeight();
+		if (size<10) return -1.0;
+		double ratio=pane.getDividerLocation()/(double)size;
+		if (ratio<=0.0||ratio>=1.0) return -1.0;
+		return ratio;
+	}
+
+	private void registerSplitPreference(JSplitPane pane, DoubleConsumer saver) {
+		pane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, evt -> {
+			if (suppressSplitSave>0) return;
+			double ratio=getSplitRatio(pane);
+			if (ratio>0.0) saver.accept(ratio);
+		});
+	}
+
+	private void withSplitSaveSuppressed(Runnable action) {
+		suppressSplitSave++;
+		try {
+			action.run();
+		} finally {
+			suppressSplitSave--;
 		}
-		spectrumSplit.setDividerLocation(locationSpectrum);
-		rawSplit.setDividerLocation(locationRaw);
-		split.setDividerLocation(location);
 	}
 
 	private AcquiredSpectrum peakPickSpectrumIfIMS(AcquiredSpectrum spectrum) {

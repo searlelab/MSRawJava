@@ -263,7 +263,8 @@ public class BasicChartGenerator {
 
 			case spectrum:
 				renderer=new XYLineAndShapeRenderer();
-				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(false);
+				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(true);
+				((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
 				renderer.setDefaultPaint(Color.DARK_GRAY);
 
 				break;

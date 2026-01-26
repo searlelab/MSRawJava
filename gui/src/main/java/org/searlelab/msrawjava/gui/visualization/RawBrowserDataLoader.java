@@ -23,13 +23,12 @@ public final class RawBrowserDataLoader {
 
 	public static RawBrowserData build(StripeFileInterface stripe) throws Exception {
 		ArrayList<ScanSummary> scans=new ArrayList<>();
-
-		var structure=StructureChartBuilder.buildLocalStructureChart(stripe.getRanges());
-		var global=StructureChartBuilder.buildGlobalStructureChart(stripe.getRanges());
-
 		List<ScanSummary> summaries=stripe.getScanSummaries(-Float.MAX_VALUE, Float.MAX_VALUE);
 		scans.addAll(summaries);
 		Collections.sort(scans, new ScanSummaryComparator());
+
+		var structure=StructureChartBuilder.buildLocalStructureChart(stripe.getRanges(), summaries);
+		var global=StructureChartBuilder.buildGlobalStructureChart(stripe.getRanges());
 
 		float maxTicLocal=0.0f;
 		TFloatArrayList ticX=new TFloatArrayList();

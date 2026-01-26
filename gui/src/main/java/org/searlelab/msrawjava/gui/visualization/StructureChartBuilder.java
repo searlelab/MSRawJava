@@ -6,6 +6,7 @@ import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -17,6 +18,7 @@ import org.searlelab.msrawjava.gui.charts.GraphType;
 import org.searlelab.msrawjava.gui.charts.XYTrace;
 import org.searlelab.msrawjava.gui.charts.XYTraceInterface;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
 public final class StructureChartBuilder {
@@ -26,20 +28,42 @@ public final class StructureChartBuilder {
 	private StructureChartBuilder() {
 	}
 
-	public static ExtendedChartPanel buildLocalStructureChart(Map<Range, WindowData> ranges) {
-		if (ranges==null||ranges.isEmpty()) {
+	public static ExtendedChartPanel buildLocalStructureChart(Map<Range, WindowData> ranges, List<ScanSummary> summaries) {
+		if ((ranges==null||ranges.isEmpty())&&(summaries==null||summaries.isEmpty())) {
 			return BasicChartGenerator.getChart("m/z", "Retention Time (secs)", false, new XYTraceInterface[0]);
 		}
-		TreeMap<Range, WindowData> sorted=new TreeMap<>(Comparator.naturalOrder());
-		sorted.putAll(ranges);
+
+		HashMap<Range, ArrayList<Float>> stripeRts=new HashMap<>();
+		HashMap<Range, ArrayList<Float>> precursorRts=new HashMap<>();
+		if (summaries!=null) {
+			for (ScanSummary summary : summaries) {
+				float rt=summary.getScanStartTime();
+				if (summary.isPrecursor()) {
+					Range r=new Range((float)summary.getScanWindowLower(), (float)summary.getScanWindowUpper());
+					precursorRts.computeIfAbsent(r, k -> new ArrayList<>()).add(rt);
+				} else {
+					Range r=new Range((float)summary.getIsolationWindowLower(), (float)summary.getIsolationWindowUpper());
+					stripeRts.computeIfAbsent(r, k -> new ArrayList<>()).add(rt);
+				}
+			}
+		}
+
+		TreeMap<Range, ArrayList<Float>> sortedStripes=new TreeMap<>(Comparator.naturalOrder());
+		sortedStripes.putAll(stripeRts);
 
 		List<XYTraceInterface> traces=new ArrayList<>();
 		boolean everyOther=false;
-		for (Map.Entry<Range, WindowData> entry : sorted.entrySet()) {
+		float firstScan=Float.MAX_VALUE;
+		float lastScan=0.0f;
+
+		for (Map.Entry<Range, ArrayList<Float>> entry : sortedStripes.entrySet()) {
 			Range range=entry.getKey();
-			WindowData data=entry.getValue();
-			float rt0=0.0f;
-			float rt1=Math.max(0.0f, data.getAverageDutyCycle());
+			ArrayList<Float> rts=entry.getValue();
+			if (rts.isEmpty()) continue;
+			rts.sort(Float::compare);
+			float rt0=rts.get(0);
+			firstScan=Math.min(firstScan, rt0);
+			lastScan=Math.max(lastScan, rt0);
 			everyOther=!everyOther;
 			Color color=everyOther?BASE_COLOR:ALT_COLOR;
 
@@ -51,15 +75,53 @@ public final class StructureChartBuilder {
 					color,
 					5.0f
 			));
-			traces.add(new XYTrace(
-					new double[] {range.getStart(), range.getStop()},
-					new double[] {rt1, rt1},
-					GraphType.squaredline,
-					range.toString(),
-					color,
-					5.0f
-			));
+			if (rts.size()>1) {
+				float rt1=rts.get(1);
+				firstScan=Math.min(firstScan, rt1);
+				lastScan=Math.max(lastScan, rt1);
+				traces.add(new XYTrace(
+						new double[] {range.getStart(), range.getStop()},
+						new double[] {rt1, rt1},
+						GraphType.squaredline,
+						range.toString(),
+						color,
+						5.0f
+				));
+				traces.add(new XYTrace(
+						new double[] {range.getStop(), range.getStop()},
+						new double[] {rt0, rt1},
+						GraphType.dashedline,
+						range.toString(),
+						Color.gray,
+						1.0f
+				));
+			}
 		}
+
+		TreeMap<Range, ArrayList<Float>> sortedPrecursors=new TreeMap<>(Comparator.naturalOrder());
+		sortedPrecursors.putAll(precursorRts);
+		if (firstScan<Float.MAX_VALUE) {
+			float rtRangeMargin=(lastScan-firstScan)*0.2f;
+			float minRt=firstScan-rtRangeMargin;
+			float maxRt=lastScan+rtRangeMargin;
+			for (Map.Entry<Range, ArrayList<Float>> entry : sortedPrecursors.entrySet()) {
+				Range range=entry.getKey();
+				ArrayList<Float> rts=entry.getValue();
+				for (float rt : rts) {
+					if (rt>=minRt&&rt<=maxRt) {
+						traces.add(new XYTrace(
+								new double[] {range.getStart(), range.getStop()},
+								new double[] {rt, rt},
+								GraphType.squaredline,
+								range.toString(),
+								Color.LIGHT_GRAY,
+								5.0f
+						));
+					}
+				}
+			}
+		}
+
 		return BasicChartGenerator.getChart("m/z", "Retention Time (secs)", false, traces.toArray(new XYTraceInterface[0]));
 	}
 

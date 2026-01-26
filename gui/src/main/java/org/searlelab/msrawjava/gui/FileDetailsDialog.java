@@ -1,6 +1,8 @@
 package org.searlelab.msrawjava.gui;
 
 import java.awt.Frame;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.io.File;
 
 import javax.swing.JDialog;
@@ -46,7 +48,7 @@ public class FileDetailsDialog {
 	public static void showFileDetailsDialog(Frame frame, File f) {
 	    final JDialog dlg = new JDialog(frame, f.getName(), false); // non-modal
 	    dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-	    dlg.setSize(800, 500);
+	    dlg.setSize(GUIPreferences.getRawBrowserWindowSize(1280, 700));
 	    dlg.setLocationRelativeTo(frame);
 
 	    final LoadingPanel[] loadingPanels = new LoadingPanel[]{
@@ -134,6 +136,12 @@ public class FileDetailsDialog {
 	        	}
 	        }
 	    });
+	    dlg.addComponentListener(new ComponentAdapter() {
+	    	@Override
+	    	public void componentResized(ComponentEvent e) {
+	    		GUIPreferences.setRawBrowserWindowSize(dlg.getSize());
+	    	}
+		});
 
 	    worker.execute();
 	}
