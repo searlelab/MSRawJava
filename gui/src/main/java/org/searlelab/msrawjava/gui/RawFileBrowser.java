@@ -1,6 +1,9 @@
 package org.searlelab.msrawjava.gui;
 
 import java.awt.EventQueue;
+import java.awt.Point;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -11,6 +14,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.DoubleConsumer;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
@@ -35,6 +40,8 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
+import javax.swing.plaf.basic.BasicSplitPaneDivider;
+import javax.swing.plaf.basic.BasicSplitPaneUI;
 
 import org.searlelab.msrawjava.gui.filebrowser.DirectoryNode;
 import org.searlelab.msrawjava.gui.filebrowser.DirectorySummaryPanel;
@@ -58,9 +65,10 @@ public class RawFileBrowser extends JFrame {
 	private final JTree dirTree;
 	private final DirectoryTreeModel treeModel;
 
-	private ConversionPane conversionPane;
+	private final ConversionPane conversionPane;
 
 	private final JSplitPane fileSplit;
+	private final JSplitPane leftAndCenter;
 	private volatile SwingWorker<JComponent, String> currentLoad;
 	private final AtomicLong loadSeq=new AtomicLong();
 	private boolean restoringSelection=false;
@@ -97,23 +105,40 @@ public class RawFileBrowser extends JFrame {
 		// ---- Top is the directory table (set later); Bottom is the lowerSplit
 		conversionPane=new ConversionPane(GUIPreferences.getPreferences(), pool);
 		fileSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JPanel(), conversionPane);
-		fileSplit.setResizeWeight(0.5);
+		fileSplit.setResizeWeight(GUIPreferences.getRawFileBrowserFileSplitRatio());
 		fileSplit.setContinuousLayout(true);
 		fileSplit.setOneTouchExpandable(true);
-		SwingUtilities.invokeLater(() -> fileSplit.setDividerLocation(0.5));
+		SwingUtilities.invokeLater(() -> applySplitRatio(fileSplit, GUIPreferences.getRawFileBrowserFileSplitRatio()));
+		registerSplitPreference(fileSplit, GUIPreferences::setRawFileBrowserFileSplitRatio);
 
 		// ---- Main split (tree on left, fileSplit on right) stays the same
-		JSplitPane leftAndCenter=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treeWithStatus, fileSplit);
-		leftAndCenter.setResizeWeight(0.3);
+		leftAndCenter=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treeWithStatus, fileSplit);
+		leftAndCenter.setResizeWeight(GUIPreferences.getRawFileBrowserMainSplitRatio());
 		leftAndCenter.setContinuousLayout(true);
 		leftAndCenter.setOneTouchExpandable(true);
-		SwingUtilities.invokeLater(() -> leftAndCenter.setDividerLocation(0.3));
+		SwingUtilities.invokeLater(() -> applySplitRatio(leftAndCenter, GUIPreferences.getRawFileBrowserMainSplitRatio()));
+		registerSplitPreference(leftAndCenter, GUIPreferences::setRawFileBrowserMainSplitRatio);
 
 		setContentPane(leftAndCenter);
 
 		setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-		setSize(GUIPreferences.DEFAULT_RAW_BROWSER_WIDTH, GUIPreferences.DEFAULT_RAW_BROWSER_HEIGHT);
-		setLocationByPlatform(true);
+		setSize(GUIPreferences.getRawFileBrowserWindowSize());
+		Point location=GUIPreferences.getRawFileBrowserWindowLocation();
+		if (location!=null) {
+			setLocation(location);
+		} else {
+			setLocationByPlatform(true);
+		}
+		addComponentListener(new ComponentAdapter() {
+			@Override
+			public void componentResized(ComponentEvent e) {
+				GUIPreferences.setRawFileBrowserWindowSize(getSize());
+			}
+			@Override
+			public void componentMoved(ComponentEvent e) {
+				GUIPreferences.setRawFileBrowserWindowLocation(getLocation());
+			}
+		});
 		new BackgroundKeyboardListener().addKeyAndContainerListenerRecursively(this);
 
 		String lastPath=GUIPreferences.getLastDirectory();
@@ -210,6 +235,53 @@ public class RawFileBrowser extends JFrame {
 		};
 
 		currentLoad.execute();
+	}
+
+	private void applySplitRatio(JSplitPane pane, double ratio) {
+		if (ratio<=0.0||ratio>=1.0) return;
+		pane.setResizeWeight(ratio);
+		pane.setDividerLocation(ratio);
+	}
+
+	private double getSplitRatio(JSplitPane pane) {
+		int size=(pane.getOrientation()==JSplitPane.HORIZONTAL_SPLIT)?pane.getWidth():pane.getHeight();
+		if (size<10) return -1.0;
+		double ratio=pane.getDividerLocation()/(double)size;
+		if (ratio<=0.0||ratio>=1.0) return -1.0;
+		return ratio;
+	}
+
+	private void registerSplitPreference(JSplitPane pane, DoubleConsumer saver) {
+		AtomicBoolean dragging=new AtomicBoolean(false);
+		installDividerDragListener(pane, dragging, saver);
+		pane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, evt -> {
+			if (!dragging.get()) return;
+			double ratio=getSplitRatio(pane);
+			if (ratio>0.0) saver.accept(ratio);
+		});
+	}
+
+	private void installDividerDragListener(JSplitPane pane, AtomicBoolean dragging, DoubleConsumer saver) {
+		if (pane.getClientProperty("rawFileBrowser.dividerListener")!=null) return;
+		pane.putClientProperty("rawFileBrowser.dividerListener", Boolean.TRUE);
+		SwingUtilities.invokeLater(() -> {
+			if (!(pane.getUI() instanceof BasicSplitPaneUI)) return;
+			BasicSplitPaneUI ui=(BasicSplitPaneUI)pane.getUI();
+			BasicSplitPaneDivider divider=ui.getDivider();
+			if (divider==null) return;
+			divider.addMouseListener(new java.awt.event.MouseAdapter() {
+				@Override
+				public void mousePressed(java.awt.event.MouseEvent e) {
+					dragging.set(true);
+				}
+				@Override
+				public void mouseReleased(java.awt.event.MouseEvent e) {
+					dragging.set(false);
+					double ratio=getSplitRatio(pane);
+					if (ratio>0.0) saver.accept(ratio);
+				}
+			});
+		});
 	}
 
 	private void setTopComponent(JComponent c) {

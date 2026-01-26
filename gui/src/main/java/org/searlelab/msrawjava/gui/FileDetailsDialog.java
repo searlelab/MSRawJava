@@ -53,7 +53,12 @@ public class FileDetailsDialog {
 	    final JDialog dlg = new JDialog(frame, f.getName(), false); // non-modal
 	    dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 	    dlg.setSize(GUIPreferences.getRawBrowserWindowSize());
-	    dlg.setLocationRelativeTo(frame);
+	    java.awt.Point location=GUIPreferences.getRawBrowserWindowLocation();
+	    if (location!=null) {
+	    	dlg.setLocation(location);
+	    } else {
+	    	dlg.setLocationRelativeTo(frame);
+	    }
 	    new BackgroundKeyboardListener().addKeyAndContainerListenerRecursively(dlg);
 
 	    final LoadingPanel[] loadingPanels = new LoadingPanel[]{
@@ -154,6 +159,10 @@ public class FileDetailsDialog {
 	    	@Override
 	    	public void componentResized(ComponentEvent e) {
 	    		GUIPreferences.setRawBrowserWindowSize(dlg.getSize());
+	    	}
+	    	@Override
+	    	public void componentMoved(ComponentEvent e) {
+	    		GUIPreferences.setRawBrowserWindowLocation(dlg.getLocation());
 	    	}
 		});
 

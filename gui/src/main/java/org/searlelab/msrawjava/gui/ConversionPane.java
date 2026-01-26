@@ -7,6 +7,7 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Insets;
+import java.awt.EventQueue;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
@@ -15,6 +16,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.DoubleConsumer;
 import java.util.function.Supplier;
 import java.util.prefs.Preferences;
 
@@ -34,6 +37,9 @@ import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.table.AbstractTableModel;
+import java.awt.event.MouseEvent;
+import javax.swing.plaf.basic.BasicSplitPaneDivider;
+import javax.swing.plaf.basic.BasicSplitPaneUI;
 
 import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
 import org.searlelab.msrawjava.io.ConversionParameters;
@@ -89,6 +95,8 @@ public class ConversionPane extends JPanel {
 	private final ExecutorService executor=Executors.newCachedThreadPool();
 	private final QueueDispatcher dispatcher=new QueueDispatcher(queueModel, executor);
 
+	private JSplitPane queueAndConsole;
+
 	public ConversionPane(Preferences prefs, ProcessingThreadPool pool) {
 		super(new BorderLayout());
 		this.prefs=Objects.requireNonNull(prefs, "prefs");
@@ -123,10 +131,12 @@ public class ConversionPane extends JPanel {
 		controls.add(params);
 
 		// ---- lower split (queue + console) ----
-		JSplitPane queueAndConsole=new JSplitPane(JSplitPane.VERTICAL_SPLIT, queueScroll, console);
-		queueAndConsole.setResizeWeight(0.75); // 75% queue, 25% console
+		queueAndConsole=new JSplitPane(JSplitPane.VERTICAL_SPLIT, queueScroll, console);
+		queueAndConsole.setResizeWeight(GUIPreferences.getConversionPaneSplitRatio());
 		queueAndConsole.setContinuousLayout(true);
 		queueAndConsole.setOneTouchExpandable(true);
+		SwingUtilities.invokeLater(() -> applySplitRatio(queueAndConsole, GUIPreferences.getConversionPaneSplitRatio()));
+		registerSplitPreference(queueAndConsole, GUIPreferences::setConversionPaneSplitRatio);
 
 		add(controls, BorderLayout.NORTH);
 		add(queueAndConsole, BorderLayout.CENTER);
@@ -241,6 +251,56 @@ public class ConversionPane extends JPanel {
 		b.setContentAreaFilled(true);
 		b.setBackground(BUTTON_COLOR_BACKGROUND);
 		b.setFocusPainted(false);
+	}
+
+	private void applySplitRatio(JSplitPane pane, double ratio) {
+		if (ratio<=0.0||ratio>=1.0) return;
+		pane.setResizeWeight(ratio);
+		pane.setDividerLocation(ratio);
+	}
+
+	private double getSplitRatio(JSplitPane pane) {
+		int size=(pane.getOrientation()==JSplitPane.HORIZONTAL_SPLIT)?pane.getWidth():pane.getHeight();
+		if (size<10) return -1.0;
+		double ratio=pane.getDividerLocation()/(double)size;
+		if (ratio<=0.0||ratio>=1.0) return -1.0;
+		return ratio;
+	}
+
+	private void registerSplitPreference(JSplitPane pane, DoubleConsumer saver) {
+		AtomicBoolean dragging=new AtomicBoolean(false);
+		installDividerDragListener(pane, dragging, saver);
+		pane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, evt -> {
+			if (!dragging.get()) {
+				Object event=EventQueue.getCurrentEvent();
+				if (!(event instanceof MouseEvent)) return;
+			}
+			double ratio=getSplitRatio(pane);
+			if (ratio>0.0) saver.accept(ratio);
+		});
+	}
+
+	private void installDividerDragListener(JSplitPane pane, AtomicBoolean dragging, DoubleConsumer saver) {
+		if (pane.getClientProperty("conversionPane.dividerListener")!=null) return;
+		pane.putClientProperty("conversionPane.dividerListener", Boolean.TRUE);
+		SwingUtilities.invokeLater(() -> {
+			if (!(pane.getUI() instanceof BasicSplitPaneUI)) return;
+			BasicSplitPaneUI ui=(BasicSplitPaneUI)pane.getUI();
+			BasicSplitPaneDivider divider=ui.getDivider();
+			if (divider==null) return;
+			divider.addMouseListener(new java.awt.event.MouseAdapter() {
+				@Override
+				public void mousePressed(java.awt.event.MouseEvent e) {
+					dragging.set(true);
+				}
+				@Override
+				public void mouseReleased(java.awt.event.MouseEvent e) {
+					dragging.set(false);
+					double ratio=getSplitRatio(pane);
+					if (ratio>0.0) saver.accept(ratio);
+				}
+			});
+		});
 	}
 
 	// ---------- actions ----------
