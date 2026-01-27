@@ -229,9 +229,11 @@ public class RawFileBrowser extends JFrame {
 					if (top instanceof DirectorySummaryPanel panel) {
 						installSummaryInteractions(panel); // double-click + right-click menu
 						conversionPane.setSelectedPathsSupplier(() -> (panel!=null)?panel.getSelectedPaths():java.util.List.of());
+						conversionPane.updateDemuxAvailability(panel.getSelectedPaths());
 						setTopComponent(panel);
 					} else {
 						conversionPane.setSelectedPathsSupplier(java.util.List::of); // nothing to queue
+						conversionPane.updateDemuxAvailability(java.util.List.of());
 						setTopComponent(top!=null?top:new JPanel());
 					}
 				} catch (Exception ex) {
@@ -318,6 +320,11 @@ public class RawFileBrowser extends JFrame {
 			@Override
 			public void mouseReleased(MouseEvent e) {
 				maybeShowPopup(e, panel);
+			}
+		});
+		tbl.getSelectionModel().addListSelectionListener(e -> {
+			if (!e.getValueIsAdjusting()) {
+				conversionPane.updateDemuxAvailability(panel.getSelectedPaths());
 			}
 		});
 	}

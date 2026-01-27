@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui;
 
 import java.awt.BorderLayout;
+import java.awt.FileDialog;
 import java.awt.FlowLayout;
 import java.awt.Frame;
 import java.awt.GridBagConstraints;
@@ -12,7 +13,6 @@ import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
-import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -173,14 +173,26 @@ public class PreferencesDialog extends JDialog {
 	}
 
 	private void chooseLastDir() {
-		JFileChooser chooser=new JFileChooser();
-		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-		chooser.setDialogTitle("Select last directory");
-		int result=chooser.showOpenDialog(this);
-		if (result==JFileChooser.APPROVE_OPTION) {
-			lastDirSelection=chooser.getSelectedFile();
+		String previous=System.getProperty("apple.awt.fileDialogForDirectories");
+		System.setProperty("apple.awt.fileDialogForDirectories", "true");
+		try {
+			Frame owner=(getOwner() instanceof Frame)?(Frame)getOwner():null;
+			FileDialog dialog=new FileDialog(owner, "Select last directory", FileDialog.LOAD);
+			dialog.setVisible(true);
+			File[] files=dialog.getFiles();
+			if (files!=null&&files.length>0) {
+				lastDirSelection=files[0];
+			} else if (dialog.getDirectory()!=null&&dialog.getFile()!=null) {
+				lastDirSelection=new File(dialog.getDirectory(), dialog.getFile());
+			}
 			if (lastDirSelection!=null) {
 				lastDirField.setText(lastDirSelection.getAbsolutePath());
+			}
+		} finally {
+			if (previous==null) {
+				System.clearProperty("apple.awt.fileDialogForDirectories");
+			} else {
+				System.setProperty("apple.awt.fileDialogForDirectories", previous);
 			}
 		}
 	}

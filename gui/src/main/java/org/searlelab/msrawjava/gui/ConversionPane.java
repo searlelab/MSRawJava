@@ -83,6 +83,8 @@ public class ConversionPane extends JPanel {
 	private final JComboBox<OutputType> outTypeBox=new JComboBox<>(OutputType.values());
 	private final JCheckBox demultiplexBox=new JCheckBox("Demux");
 	private JSpinner threadSpinner;
+	private boolean lastDemuxSelection=false;
+	private boolean suppressDemuxChange=false;
 
 	// ---- queue UI ----
 	private final JobTableModel queueModel=new JobTableModel();
@@ -151,6 +153,39 @@ public class ConversionPane extends JPanel {
 		this.selectedPathsSupplier=(supplier!=null)?supplier:List::of;
 	}
 
+	public void updateDemuxAvailability(List<Path> paths) {
+		boolean hasBruker=false;
+		if (paths!=null) {
+			for (Path path : paths) {
+				if (path==null) continue;
+				if (VendorFileFinder.isDotDFile(path)) {
+					hasBruker=true;
+					break;
+				}
+			}
+		}
+		if (hasBruker) {
+			if (demultiplexBox.isEnabled()) {
+				lastDemuxSelection=demultiplexBox.isSelected();
+			}
+			suppressDemuxChange=true;
+			try {
+				demultiplexBox.setSelected(false);
+				demultiplexBox.setEnabled(false);
+			} finally {
+				suppressDemuxChange=false;
+			}
+		} else {
+			suppressDemuxChange=true;
+			try {
+				demultiplexBox.setEnabled(true);
+				demultiplexBox.setSelected(lastDemuxSelection);
+			} finally {
+				suppressDemuxChange=false;
+			}
+		}
+	}
+
 	public void shutdown() {
 		executor.shutdownNow();
 	}
@@ -173,7 +208,12 @@ public class ConversionPane extends JPanel {
 
 		boolean savedDemux=prefs.getBoolean(PREF_DEMULTIPLEX, false);
 		demultiplexBox.setSelected(savedDemux);
-		demultiplexBox.addActionListener(e -> prefs.putBoolean(PREF_DEMULTIPLEX, demultiplexBox.isSelected()));
+		lastDemuxSelection=savedDemux;
+		demultiplexBox.addActionListener(e -> {
+			if (suppressDemuxChange) return;
+			lastDemuxSelection=demultiplexBox.isSelected();
+			prefs.putBoolean(PREF_DEMULTIPLEX, lastDemuxSelection);
+		});
 
 		int defaultThreads=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
 		int savedThreads=Math.max(1, prefs.getInt(PREF_THREADS, defaultThreads));

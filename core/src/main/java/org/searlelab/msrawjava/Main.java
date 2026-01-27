@@ -97,7 +97,7 @@ public class Main {
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
 				
 				if (params.isDemultiplex()) {
-					Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files");
+					Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files. Processing without demultiplexing.");
 				}
 				indicator=createIndicator(params);
 				try {
