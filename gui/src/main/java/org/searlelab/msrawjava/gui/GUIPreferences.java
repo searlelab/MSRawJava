@@ -86,7 +86,9 @@ public final class GUIPreferences {
 			if (dir!=null&&dir.isDirectory()) {
 				PREFS.put(PREF_LAST_DIR, dir.getAbsolutePath());
 				logWrite(PREF_LAST_DIR, dir.getAbsolutePath());
-				Logger.logLine("RawFileBrowser remembered directory: "+dir.getAbsolutePath());
+				if (isVerboseGuiLogging()) {
+					Logger.logLine("RawFileBrowser remembered directory: "+dir.getAbsolutePath());
+				}
 			}
 		} catch (Exception ignore) {
 		}

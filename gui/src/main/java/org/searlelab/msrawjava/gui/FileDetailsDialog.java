@@ -48,13 +48,18 @@ public class FileDetailsDialog {
 	}
 
 	public static void showFileDetailsDialog(Frame frame, File f) {
-	    final JDialog dlg = new JDialog(frame, f.getName(), false); // non-modal
+	    // Use a non-owned dialog so it doesn't stay above the main window on macOS.
+	    final JDialog dlg = new JDialog((Frame)null, f.getName(), false); // non-modal
 	    dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 	    dlg.setSize(GUIPreferences.getRawBrowserWindowSize());
 	    java.awt.Point location=GUIPreferences.getRawBrowserWindowLocation();
-	    org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (saved): "+location);
+	    if (GUIPreferences.isVerboseGuiLogging()) {
+	    	org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (saved): "+location);
+	    }
 	    java.awt.Point clamped=GUIPreferences.clampToScreens(location, dlg.getSize());
-	    org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (clamped): "+clamped);
+	    if (GUIPreferences.isVerboseGuiLogging()) {
+	    	org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (clamped): "+clamped);
+	    }
 	    if (clamped!=null) {
 	    	dlg.setLocation(clamped);
 	    } else {

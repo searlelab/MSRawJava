@@ -131,9 +131,13 @@ public class RawFileBrowser extends JFrame {
 		setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 		setSize(GUIPreferences.getRawFileBrowserWindowSize());
 		Point location=GUIPreferences.getRawFileBrowserWindowLocation();
-		Logger.logLine("RawFileBrowser location (saved): "+location);
+		if (GUIPreferences.isVerboseGuiLogging()) {
+			Logger.logLine("RawFileBrowser location (saved): "+location);
+		}
 		Point clamped=GUIPreferences.clampToScreens(location, getSize());
-		Logger.logLine("RawFileBrowser location (clamped): "+clamped);
+		if (GUIPreferences.isVerboseGuiLogging()) {
+			Logger.logLine("RawFileBrowser location (clamped): "+clamped);
+		}
 		if (clamped!=null) {
 			setLocation(clamped);
 		} else {
@@ -179,7 +183,9 @@ public class RawFileBrowser extends JFrame {
 		Object event=EventQueue.getCurrentEvent();
 		boolean userEvent=isUserEvent(event);
 		String eventType=(event==null)?"null":event.getClass().getName();
-		Logger.logLine("RawFileBrowser selection event: userEvent="+userEvent+", eventType="+eventType);
+		if (GUIPreferences.isVerboseGuiLogging()) {
+			Logger.logLine("RawFileBrowser selection event: userEvent="+userEvent+", eventType="+eventType);
+		}
 		if (!programmaticSelection&&userEvent) {
 			node.setLoaded(false);
 			treeModel.loadChildren(node, fsv);
@@ -189,7 +195,9 @@ public class RawFileBrowser extends JFrame {
 	}
 
 	private void updateDirectory(File dir) {
-		Logger.logLine("RawFileBrowser opened directory: "+dir.getAbsolutePath());
+		if (GUIPreferences.isVerboseGuiLogging()) {
+			Logger.logLine("RawFileBrowser opened directory: "+dir.getAbsolutePath());
+		}
 		// Cancel any in-flight worker (directory or file loader)
 		SwingWorker<JComponent, String> prev=currentLoad;
 		if (prev!=null) prev.cancel(true);
@@ -369,10 +377,10 @@ public class RawFileBrowser extends JFrame {
 
 		JPopupMenu menu=new JPopupMenu();
 
-		JMenuItem selectAll=new JMenuItem("Select all");
-		selectAll.addActionListener(ae -> tbl.selectAll());
+		JMenuItem visualize=new JMenuItem("Visualize");
+		visualize.addActionListener(ae -> FileDetailsDialog.showFileDetailsDialog(RawFileBrowser.this, p.toFile()));
 
-		JMenuItem showDir=new JMenuItem("Show directory");
+		JMenuItem showDir=new JMenuItem("Show Enclosing Folder");
 		showDir.addActionListener(ae -> {
 			File f=p.toFile();
 			File parent=f.isDirectory()?f:f.getParentFile();
@@ -381,8 +389,13 @@ public class RawFileBrowser extends JFrame {
 			}
 		});
 
-		menu.add(selectAll);
+		JMenuItem selectAll=new JMenuItem("Select all");
+		selectAll.addActionListener(ae -> tbl.selectAll());
+
+		menu.add(visualize);
 		menu.add(showDir);
+		menu.addSeparator();
+		menu.add(selectAll);
 		menu.show(tbl, e.getX(), e.getY());
 	}
 

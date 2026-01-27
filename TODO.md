@@ -7,17 +7,7 @@
 ## GUI
 - searchbar for files in the table
 - a way to bring up the loading panels for demos
-- build menu system
-  - "File"
-    - "Open" should have the user select a raw file and change the jtree and table to that parent directory and file, respectively and select it in both views.
-    - "Preferences" launches the PreferencesDialog
-    - "Quit" should exit app gracefully
-  - "View"
-    - "Visualize Raw File" should have the user select a raw file, "Open" it as above, and then open visualizer RawBrowserPanel for that file
-  - "Help"
-    - "How to cite" based on edu.washington.gs.maccoss.encyclopedia.gui.general.AboutDialog, except that it uses gui/src/main/resources/icons/icon.svg for the icon and the code website for the citation (https://github.com/searlelab/MSRawJava). It should note that this is a Searle Lab (searlelab.org) project at the Mayo Clinic (https://www.mayoclinic.org) in the Department of Quantitative Health Sciences.
-
-Note: on the Mac, "About App" should route to the "How to cite" dialog.
+- bug where visualization only really works for DIA data and either doesn't see DDA data for Bruker or takes forever to build for Thermo. PRM data for Thermo has problems with the structure charts
 
 # Codebase Review Report
 
