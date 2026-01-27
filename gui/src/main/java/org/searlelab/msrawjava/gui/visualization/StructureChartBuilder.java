@@ -12,11 +12,11 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import org.jfree.chart.annotations.XYShapeAnnotation;
-import org.searlelab.msrawjava.gui.charts.BasicChartGenerator;
-import org.searlelab.msrawjava.gui.charts.ExtendedChartPanel;
-import org.searlelab.msrawjava.gui.charts.GraphType;
-import org.searlelab.msrawjava.gui.charts.XYTrace;
-import org.searlelab.msrawjava.gui.charts.XYTraceInterface;
+import org.searlelab.msrawjava.gui.graphing.BasicChartGenerator;
+import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
+import org.searlelab.msrawjava.gui.graphing.GraphType;
+import org.searlelab.msrawjava.gui.graphing.XYTrace;
+import org.searlelab.msrawjava.gui.graphing.XYTraceInterface;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;

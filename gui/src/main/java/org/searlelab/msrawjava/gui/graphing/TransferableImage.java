@@ -1,4 +1,4 @@
-package org.searlelab.msrawjava.gui.charts;
+package org.searlelab.msrawjava.gui.graphing;
 
 import java.awt.Image;
 import java.awt.datatransfer.DataFlavor;

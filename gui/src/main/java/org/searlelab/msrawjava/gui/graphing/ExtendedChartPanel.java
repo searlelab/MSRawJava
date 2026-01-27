@@ -1,4 +1,4 @@
-package org.searlelab.msrawjava.gui.charts;
+package org.searlelab.msrawjava.gui.graphing;
 
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;

@@ -26,12 +26,13 @@ import javax.swing.table.TableRowSorter;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.algorithms.RawSpectrumMergeUtils;
-import org.searlelab.msrawjava.gui.charts.BasicChartGenerator;
-import org.searlelab.msrawjava.gui.charts.ExtendedChartPanel;
-import org.searlelab.msrawjava.gui.charts.GraphType;
-import org.searlelab.msrawjava.gui.charts.XYTrace;
-import org.searlelab.msrawjava.gui.charts.XYTraceInterface;
 import org.searlelab.msrawjava.gui.GUIPreferences;
+import org.searlelab.msrawjava.gui.graphing.BasicChartGenerator;
+import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
+import org.searlelab.msrawjava.gui.graphing.GraphType;
+import org.searlelab.msrawjava.gui.graphing.HistogramUtils;
+import org.searlelab.msrawjava.gui.graphing.XYTrace;
+import org.searlelab.msrawjava.gui.graphing.XYTraceInterface;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;

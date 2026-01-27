@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import org.searlelab.msrawjava.gui.charts.ExtendedChartPanel;
-import org.searlelab.msrawjava.gui.charts.XYTrace;
+import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
+import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.model.ScanSummary;
 
 import gnu.trove.list.array.TFloatArrayList;

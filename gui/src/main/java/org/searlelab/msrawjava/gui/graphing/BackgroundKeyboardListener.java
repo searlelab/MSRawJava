@@ -1,4 +1,4 @@
-package org.searlelab.msrawjava.gui.utils;
+package org.searlelab.msrawjava.gui.graphing;
 
 import java.awt.Component;
 import java.awt.Container;

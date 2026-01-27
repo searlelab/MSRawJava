@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Map;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
-import org.searlelab.msrawjava.gui.charts.GraphType;
-import org.searlelab.msrawjava.gui.charts.XYTrace;
+import org.searlelab.msrawjava.gui.graphing.GraphType;
+import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.Logger;

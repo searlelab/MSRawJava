@@ -1,7 +1,7 @@
 package org.searlelab.msrawjava.gui.visualization;
 
-import org.searlelab.msrawjava.gui.charts.AcquiredSpectrumWrapper;
-import org.searlelab.msrawjava.gui.charts.GraphType;
+import org.searlelab.msrawjava.gui.graphing.AcquiredSpectrumWrapper;
+import org.searlelab.msrawjava.gui.graphing.GraphType;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 
 public class ImsSpectrumWrapper extends AcquiredSpectrumWrapper {

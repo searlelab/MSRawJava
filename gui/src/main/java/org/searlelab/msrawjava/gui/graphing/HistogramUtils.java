@@ -1,7 +1,4 @@
-package org.searlelab.msrawjava.gui.visualization;
-
-import org.searlelab.msrawjava.gui.charts.GraphType;
-import org.searlelab.msrawjava.gui.charts.XYTrace;
+package org.searlelab.msrawjava.gui.graphing;
 
 public final class HistogramUtils {
 	private HistogramUtils() {

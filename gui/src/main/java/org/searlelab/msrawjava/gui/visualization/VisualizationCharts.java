@@ -23,8 +23,8 @@ import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.statistics.DefaultBoxAndWhiskerCategoryDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
-import org.searlelab.msrawjava.gui.charts.BasicChartGenerator;
-import org.searlelab.msrawjava.gui.charts.ExtendedChartPanel;
+import org.searlelab.msrawjava.gui.graphing.BasicChartGenerator;
+import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
 
 import gnu.trove.list.array.TFloatArrayList;
 
