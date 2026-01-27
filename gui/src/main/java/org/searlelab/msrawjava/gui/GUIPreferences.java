@@ -20,6 +20,7 @@ import org.searlelab.msrawjava.logging.Logger;
 public final class GUIPreferences {
 	private static final Preferences PREFS=Preferences.userNodeForPackage(GUIPreferences.class);
 	private static final String PREF_VERBOSE_GUI_LOGGING="gui.verboseLogging";
+	private static final String PREF_LOOK_AND_FEEL="gui.lookAndFeel";
 	private static boolean verboseGuiLogging=PREFS.getBoolean(PREF_VERBOSE_GUI_LOGGING, true);
 
 	public static final int DEFAULT_RAW_BROWSER_WIDTH=1280;
@@ -73,6 +74,22 @@ public final class GUIPreferences {
 		verboseGuiLogging=enabled;
 		PREFS.putBoolean(PREF_VERBOSE_GUI_LOGGING, enabled);
 		logWrite(PREF_VERBOSE_GUI_LOGGING, enabled);
+	}
+
+	public static String getLookAndFeelId(String defaultValue) {
+		String value=PREFS.get(PREF_LOOK_AND_FEEL, defaultValue);
+		logRead(PREF_LOOK_AND_FEEL, value);
+		return value;
+	}
+
+	public static void setLookAndFeelId(String value) {
+		if (value==null) {
+			PREFS.remove(PREF_LOOK_AND_FEEL);
+			logWrite(PREF_LOOK_AND_FEEL, null);
+			return;
+		}
+		PREFS.put(PREF_LOOK_AND_FEEL, value);
+		logWrite(PREF_LOOK_AND_FEEL, value);
 	}
 
 	public static String getLastDirectory() {
@@ -463,6 +480,8 @@ public final class GUIPreferences {
 		logWrite(PREF_RAW_FILE_BROWSER_SPLIT_FILE, null);
 		PREFS.remove(PREF_CONVERSION_PANE_SPLIT);
 		logWrite(PREF_CONVERSION_PANE_SPLIT, null);
+		PREFS.remove(PREF_LOOK_AND_FEEL);
+		logWrite(PREF_LOOK_AND_FEEL, null);
 	}
 
 	public static void resetWindowPreferences() {

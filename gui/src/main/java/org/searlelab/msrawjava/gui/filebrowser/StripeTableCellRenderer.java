@@ -20,9 +20,6 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 	public static final SciRenderer SCI_RENDERER=new SciRenderer();
 	public static final RowNumberRenderer ROW_NUMBER_RENDERER=new RowNumberRenderer();
 
-	private final Color altBg=or(UIManager.getColor("Table.alternateRowColor"), new Color(247, 247, 247)); // very light gray
-	private final Color grid=or(UIManager.getColor("Table.gridColor"), new Color(220, 220, 220));
-
 	protected StripeTableCellRenderer() {
 		setOpaque(true);
 	}
@@ -47,18 +44,48 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 			setForeground(table.getSelectionForeground());
 		} else {
 			setForeground(table.getForeground());
-			setBackground((row%2==0)?Color.WHITE:altBg);
+			setBackground((row%2==0)?table.getBackground():getAlternateRowColor(table));
 		}
 
 		int top=(row==0)?0:1;
-		setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(top, 0, 0, 0, grid),
+		setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(top, 0, 0, 0, getGridColor(table)),
 				BorderFactory.createMatteBorder(0, 2, 0, 2, getBackground())));
 
 		return this;
 	}
 
-	private static <T> T or(T a, T b) {
-		return (a!=null)?a:b;
+	private Color getAlternateRowColor(JTable table) {
+		Color alt=UIManager.getColor("Table.alternateRowColor");
+		if (alt!=null) return alt;
+		Color base=table.getBackground();
+		if (base==null) return new Color(247, 247, 247);
+		return adjustColor(base);
+	}
+
+	private Color getGridColor(JTable table) {
+		Color grid=UIManager.getColor("Table.gridColor");
+		if (grid!=null) return grid;
+		Color tableGrid=table.getGridColor();
+		if (tableGrid!=null) return tableGrid;
+		return new Color(220, 220, 220);
+	}
+
+	private Color adjustColor(Color base) {
+		int r=base.getRed();
+		int g=base.getGreen();
+		int b=base.getBlue();
+		double brightness=0.2126*r+0.7152*g+0.0722*b;
+		double factor=(brightness>128.0)?0.92:1.08;
+		int nr=clamp((int)Math.round(r*factor));
+		int ng=clamp((int)Math.round(g*factor));
+		int nb=clamp((int)Math.round(b*factor));
+		return new Color(nr, ng, nb);
+	}
+
+	private int clamp(int value) {
+		if (value<0) return 0;
+		if (value>255) return 255;
+		return value;
 	}
 
 	private static class IconStripeBorderRenderer extends StripeTableCellRenderer {

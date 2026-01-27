@@ -10,7 +10,7 @@ import com.formdev.flatlaf.FlatLightLaf;
 public class GuiMain {
 
 	public static void main(String[] args) {
-		FlatLightLaf.setup();
+		LookAndFeelManager.applyLookAndFeel(GUIPreferences.getLookAndFeelId(LookAndFeelManager.LAF_FLAT_LIGHT));
 		ThermoServerPool.startAsync();
 		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
 

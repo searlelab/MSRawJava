@@ -12,6 +12,7 @@ import java.io.File;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -31,11 +32,13 @@ public class PreferencesDialog extends JDialog {
 
 	private final JCheckBox verboseGuiBox=new JCheckBox("Enable verbose logging");
 	private final JTextField lastDirField=new JTextField(28);
+	private final JComboBox<LookAndFeelOption> lookAndFeelBox=new JComboBox<>();
 	private File lastDirSelection=null;
 
 	private boolean resetWindows=false;
 	private boolean resetSplits=false;
 	private boolean resetTables=false;
+	private String lookAndFeelSelection=null;
 
 	public static void showDialog(Frame owner) {
 		PreferencesDialog dlg=new PreferencesDialog(owner);
@@ -120,6 +123,8 @@ public class PreferencesDialog extends JDialog {
 		String lastDir=GUIPreferences.getLastDirectory();
 		if (lastDir!=null) lastDirField.setText(lastDir);
 
+		loadLookAndFeelOptions();
+
 		JButton browse=new JButton("Browse...");
 		browse.addActionListener(e -> chooseLastDir());
 
@@ -133,6 +138,13 @@ public class PreferencesDialog extends JDialog {
 		gbc.weightx=0.0;
 		panel.add(browse, gbc);
 		gbc.weightx=1.0;
+
+		gbc.gridx=0;
+		gbc.gridy=2;
+		gbc.gridwidth=1;
+		panel.add(new JLabel("Look and feel:"), gbc);
+		gbc.gridx=1;
+		panel.add(lookAndFeelBox, gbc);
 
 		JButton resetWindowsButton=new JButton("Reset Window Location and Dimensions");
 		resetWindowsButton.addActionListener(e -> {
@@ -156,19 +168,43 @@ public class PreferencesDialog extends JDialog {
 		});
 
 		gbc.gridx=0;
-		gbc.gridy=2;
+		gbc.gridy=3;
 		gbc.gridwidth=2;
 		panel.add(resetWindowsButton, gbc);
-		gbc.gridy=3;
-		panel.add(resetSplitsButton, gbc);
 		gbc.gridy=4;
+		panel.add(resetSplitsButton, gbc);
+		gbc.gridy=5;
 		panel.add(resetTablesButton, gbc);
 
 		verboseGuiBox.setSelected(GUIPreferences.isVerboseGuiLogging());
-		gbc.gridy=5;
+		gbc.gridy=6;
 		panel.add(verboseGuiBox, gbc);
 
 		return panel;
+	}
+
+	private void loadLookAndFeelOptions() {
+		lookAndFeelBox.removeAllItems();
+		String osName=System.getProperty("os.name", "").toLowerCase();
+		String systemLabel="System";
+		if (osName.contains("mac")) {
+			systemLabel="System (macOS)";
+		} else if (osName.contains("win")) {
+			systemLabel="System (Windows)";
+		}
+		lookAndFeelBox.addItem(new LookAndFeelOption(LookAndFeelManager.LAF_FLAT_LIGHT, "Flat Light"));
+		lookAndFeelBox.addItem(new LookAndFeelOption(LookAndFeelManager.LAF_FLAT_DARK, "Flat Dark"));
+		lookAndFeelBox.addItem(new LookAndFeelOption(LookAndFeelManager.LAF_SYSTEM, systemLabel));
+
+		String current=GUIPreferences.getLookAndFeelId(LookAndFeelManager.LAF_FLAT_LIGHT);
+		for (int i=0;i<lookAndFeelBox.getItemCount();i++) {
+			LookAndFeelOption option=lookAndFeelBox.getItemAt(i);
+			if (option.id.equals(current)) {
+				lookAndFeelBox.setSelectedIndex(i);
+				break;
+			}
+		}
+		lookAndFeelSelection=current;
 	}
 
 	private void chooseLastDir() {
@@ -221,9 +257,32 @@ public class PreferencesDialog extends JDialog {
 			}
 			GUIPreferences.setVerboseGuiLogging(verboseGuiBox.isSelected());
 
+			LookAndFeelOption selected=(LookAndFeelOption)lookAndFeelBox.getSelectedItem();
+			String lafId=(selected==null)?LookAndFeelManager.LAF_FLAT_LIGHT:selected.id;
+			if (!lafId.equals(lookAndFeelSelection)) {
+				GUIPreferences.setLookAndFeelId(lafId);
+				LookAndFeelManager.applyLookAndFeel(lafId);
+				lookAndFeelSelection=lafId;
+			}
+
 			dispose();
 		} catch (NumberFormatException ex) {
 			JOptionPane.showMessageDialog(this, "Please enter valid numeric values.", "Invalid input", JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	private static final class LookAndFeelOption {
+		private final String id;
+		private final String label;
+
+		private LookAndFeelOption(String id, String label) {
+			this.id=id;
+			this.label=label;
+		}
+
+		@Override
+		public String toString() {
+			return label;
 		}
 	}
 }
