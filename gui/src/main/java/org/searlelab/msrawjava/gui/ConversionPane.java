@@ -67,7 +67,6 @@ public class ConversionPane extends JPanel {
 	private static final String PREF_DEMULTIPLEX="queue.demultiplex";
 
 	// ---- UI constants ----
-	private static final Color BUTTON_COLOR_BACKGROUND=new Color(250, 245, 235);
 	private static final Color GREEN=new Color(0x2e7d32);
 	private static final Color RED=new Color(0xc62828);
 	private static final Color GRAY=new Color(0x757575);
@@ -293,7 +292,6 @@ public class ConversionPane extends JPanel {
 	private static void wireButton(JButton b) {
 		b.setOpaque(true);
 		b.setContentAreaFilled(true);
-		b.setBackground(BUTTON_COLOR_BACKGROUND);
 		b.setFocusPainted(false);
 	}
 

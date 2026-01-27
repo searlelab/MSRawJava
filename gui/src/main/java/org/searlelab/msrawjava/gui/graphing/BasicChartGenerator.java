@@ -30,6 +30,7 @@ import java.util.HashMap;
 import javax.swing.JComponent;
 import javax.swing.JMenuItem;
 import javax.swing.RepaintManager;
+import javax.swing.UIManager;
 
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.annotations.XYTextAnnotation;
@@ -110,23 +111,33 @@ public class BasicChartGenerator {
 			count++;
 		}
 
-		plot.setBackgroundPaint(Color.white);
-		plot.setDomainGridlinePaint(Color.white);
+		Color chartBackground=getChartBackground();
+		Color chartForeground=getChartForeground();
+		plot.setBackgroundPaint(chartBackground);
+		plot.setDomainGridlinePaint(chartBackground);
 		plot.setDomainGridlinesVisible(false);
-		plot.setRangeGridlinePaint(Color.white);
+		plot.setRangeGridlinePaint(chartBackground);
 		plot.setRangeGridlinesVisible(false);
 		JFreeChart chart=new JFreeChart(plot);
-		chart.setBackgroundPaint(Color.white);
+		chart.setBackgroundPaint(chartBackground);
 		chart.setPadding(new RectangleInsets(10, 10, 10, 10));
 
 		NumberAxis rangeAxis=(NumberAxis)((XYPlot)plot).getRangeAxis();
 		rangeAxis.setLabelFont(font2);
 		rangeAxis.setTickLabelFont(font);
+		rangeAxis.setLabelPaint(chartForeground);
+		rangeAxis.setTickLabelPaint(chartForeground);
+		rangeAxis.setAxisLinePaint(chartForeground);
+		rangeAxis.setTickMarkPaint(chartForeground);
 
 		NumberAxis domainAxis=(NumberAxis)((XYPlot)plot).getDomainAxis();
 		if (domainAxis!=null) {
 			domainAxis.setLabelFont(font2);
 			domainAxis.setTickLabelFont(font);
+			domainAxis.setLabelPaint(chartForeground);
+			domainAxis.setTickLabelPaint(chartForeground);
+			domainAxis.setAxisLinePaint(chartForeground);
+			domainAxis.setTickMarkPaint(chartForeground);
 		}
 		
 		String name;
@@ -164,6 +175,7 @@ public class BasicChartGenerator {
 		AbstractXYItemRenderer renderer=new XYLineAndShapeRenderer();
 		XYSeriesCollection dataset=new XYSeriesCollection();
 		ArrayList<XYTextAnnotation> annotations=new ArrayList<>();
+		Color chartForeground=getChartForeground();
 		
 		
 		switch (trace.getType()) {
@@ -265,7 +277,7 @@ public class BasicChartGenerator {
 				renderer=new XYLineAndShapeRenderer();
 				((XYLineAndShapeRenderer)renderer).setDefaultLinesVisible(true);
 				((XYLineAndShapeRenderer)renderer).setDefaultShapesVisible(false);
-				renderer.setDefaultPaint(Color.DARK_GRAY);
+				renderer.setDefaultPaint(chartForeground);
 
 				break;
 
@@ -338,7 +350,7 @@ public class BasicChartGenerator {
 					double diameter=intensity*20.0;
 					double negHalfDiameter=-diameter/2.0;
 
-					Color color=new Color(0.0f, 0.0f, 0.0f, (float)intensity);
+					Color color=buildForegroundAlpha(intensity);
 					renderer.setSeriesShape(seriesCount, new Ellipse2D.Double(negHalfDiameter, negHalfDiameter, diameter, diameter));
 					renderer.setSeriesPaint(seriesCount, color);
 					seriesCount++;
@@ -361,12 +373,12 @@ public class BasicChartGenerator {
 						dataset.addSeries(peakSeries);
 
 						renderer.setSeriesStroke(i, peakStroke);
-						renderer.setSeriesPaint(i, Color.DARK_GRAY);
+						renderer.setSeriesPaint(i, chartForeground);
 
 						boolean aboveThreshold=y[i]<0?y[i]<-yThreshold:y[i]>yThreshold;
 						if (aboveThreshold) {
 							XYTextAnnotation xytextannotation=new XYTextAnnotation(MASS_FORMAT.format(x[i]), x[i], y[i]);
-							xytextannotation.setPaint(Color.DARK_GRAY);
+							xytextannotation.setPaint(chartForeground);
 							xytextannotation.setTextAnchor(y[i]<0?TextAnchor.TOP_CENTER:TextAnchor.BOTTOM_CENTER);
 							annotations.add(xytextannotation);
 						}
@@ -420,6 +432,31 @@ public class BasicChartGenerator {
 
 		Triplet<AbstractXYItemRenderer, XYSeriesCollection, ArrayList<XYTextAnnotation>> traceData=new Triplet<>(renderer, dataset, annotations);
 		return traceData;
+	}
+
+	private static Color getChartBackground() {
+		Color bg=UIManager.getColor("Panel.background");
+		if (bg!=null&&isDarkBackground(bg)) {
+			return bg;
+		}
+		return Color.WHITE;
+	}
+
+	private static Color getChartForeground() {
+		Color bg=getChartBackground();
+		double brightness=0.2126*bg.getRed()+0.7152*bg.getGreen()+0.0722*bg.getBlue();
+		return (brightness<128.0)?Color.LIGHT_GRAY:Color.BLACK;
+	}
+
+	private static boolean isDarkBackground(Color color) {
+		double brightness=0.2126*color.getRed()+0.7152*color.getGreen()+0.0722*color.getBlue();
+		return brightness<128.0;
+	}
+
+	private static Color buildForegroundAlpha(double intensity) {
+		Color fg=getChartForeground();
+		float alpha=(float)intensity;
+		return new Color(fg.getRed()/255.0f, fg.getGreen()/255.0f, fg.getBlue()/255.0f, alpha);
 	}
 
 	private static void addSaveMenu(final String xAxis, final ExtendedChartPanel chartPanel, final XYTraceInterface... traces) {

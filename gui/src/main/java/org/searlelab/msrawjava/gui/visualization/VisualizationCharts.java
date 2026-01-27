@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import javax.swing.UIManager;
+
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.annotations.XYShapeAnnotation;
 import org.jfree.chart.axis.CategoryAxis;
@@ -94,23 +96,33 @@ public final class VisualizationCharts {
 		Font axisFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
 		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 10);
 
-		plot.setBackgroundPaint(Color.white);
-		plot.setDomainGridlinePaint(Color.white);
+		Color chartBackground=getChartBackground();
+		plot.setBackgroundPaint(chartBackground);
+		plot.setDomainGridlinePaint(chartBackground);
 		plot.setDomainGridlinesVisible(false);
-		plot.setRangeGridlinePaint(Color.white);
+		plot.setRangeGridlinePaint(chartBackground);
 		plot.setRangeGridlinesVisible(false);
 
+		Color axisPaint=getChartForeground();
 		xAxis.setLabelFont(axisFont);
 		xAxis.setTickLabelFont(tickFont);
+		xAxis.setLabelPaint(axisPaint);
+		xAxis.setTickLabelPaint(axisPaint);
+		xAxis.setAxisLinePaint(axisPaint);
+		xAxis.setTickMarkPaint(axisPaint);
 		xAxis.setCategoryLabelPositions(CategoryLabelPositions.UP_90);
 		xAxis.setMaximumCategoryLabelLines(1);
 		xAxis.setMaximumCategoryLabelWidthRatio(2f);
 
 		yAxis.setLabelFont(axisFont);
 		yAxis.setTickLabelFont(tickFont);
+		yAxis.setLabelPaint(axisPaint);
+		yAxis.setTickLabelPaint(axisPaint);
+		yAxis.setAxisLinePaint(axisPaint);
+		yAxis.setTickMarkPaint(axisPaint);
 
 		JFreeChart chart=new JFreeChart(title, axisFont, plot, true);
-		chart.setBackgroundPaint(Color.white);
+		chart.setBackgroundPaint(chartBackground);
 		chart.setPadding(new RectangleInsets(10, 10, 10, 10));
 		if (chart.getLegend()!=null) chart.removeLegend();
 
@@ -130,13 +142,22 @@ public final class VisualizationCharts {
 
 		Font axisFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
 		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 10);
+		Color axisPaint=getChartForeground();
 		xAxis.setLabelFont(axisFont);
 		xAxis.setTickLabelFont(tickFont);
+		xAxis.setLabelPaint(axisPaint);
+		xAxis.setTickLabelPaint(axisPaint);
+		xAxis.setAxisLinePaint(axisPaint);
+		xAxis.setTickMarkPaint(axisPaint);
 		yAxis.setLabelFont(axisFont);
 		yAxis.setTickLabelFont(tickFont);
+		yAxis.setLabelPaint(axisPaint);
+		yAxis.setTickLabelPaint(axisPaint);
+		yAxis.setAxisLinePaint(axisPaint);
+		yAxis.setTickMarkPaint(axisPaint);
 
 		JFreeChart chart=new JFreeChart(title, axisFont, plot, false);
-		chart.setBackgroundPaint(Color.white);
+		chart.setBackgroundPaint(getChartBackground());
 		String name=(title==null||title.isBlank())?"empty":title;
 		ExtendedChartPanel panel=new ExtendedChartPanel(chart, name, false, 1f);
 		return panel;
@@ -175,19 +196,29 @@ public final class VisualizationCharts {
 		Font axisFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
 		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 10);
 
+		Color axisPaint=getChartForeground();
 		xAxis.setLabelFont(axisFont);
 		xAxis.setTickLabelFont(tickFont);
+		xAxis.setLabelPaint(axisPaint);
+		xAxis.setTickLabelPaint(axisPaint);
+		xAxis.setAxisLinePaint(axisPaint);
+		xAxis.setTickMarkPaint(axisPaint);
 		yAxis.setLabelFont(axisFont);
 		yAxis.setTickLabelFont(tickFont);
+		yAxis.setLabelPaint(axisPaint);
+		yAxis.setTickLabelPaint(axisPaint);
+		yAxis.setAxisLinePaint(axisPaint);
+		yAxis.setTickMarkPaint(axisPaint);
 
-		plot.setBackgroundPaint(Color.white);
-		plot.setDomainGridlinePaint(Color.white);
+		Color chartBackground=getChartBackground();
+		plot.setBackgroundPaint(chartBackground);
+		plot.setDomainGridlinePaint(chartBackground);
 		plot.setDomainGridlinesVisible(false);
-		plot.setRangeGridlinePaint(Color.white);
+		plot.setRangeGridlinePaint(chartBackground);
 		plot.setRangeGridlinesVisible(false);
 
 		JFreeChart chart=new JFreeChart(title, axisFont, plot, true);
-		chart.setBackgroundPaint(Color.white);
+		chart.setBackgroundPaint(chartBackground);
 		chart.setPadding(new RectangleInsets(10, 10, 10, 10));
 		if (chart.getLegend()!=null) chart.removeLegend();
 
@@ -198,5 +229,16 @@ public final class VisualizationCharts {
 		panel.setMaximumDrawWidth(Integer.MAX_VALUE);
 		panel.setMaximumDrawHeight(Integer.MAX_VALUE);
 		return panel;
+	}
+
+	private static Color getChartBackground() {
+		Color bg=UIManager.getColor("Panel.background");
+		return (bg!=null)?bg:Color.WHITE;
+	}
+
+	private static Color getChartForeground() {
+		Color bg=getChartBackground();
+		double brightness=0.2126*bg.getRed()+0.7152*bg.getGreen()+0.0722*bg.getBlue();
+		return (brightness<128.0)?Color.LIGHT_GRAY:Color.BLACK;
 	}
 }

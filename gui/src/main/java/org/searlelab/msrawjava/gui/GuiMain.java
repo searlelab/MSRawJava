@@ -5,8 +5,6 @@ import javax.swing.SwingUtilities;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
-import com.formdev.flatlaf.FlatLightLaf;
-
 public class GuiMain {
 
 	public static void main(String[] args) {
