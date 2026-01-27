@@ -332,7 +332,6 @@ public class RawFileConverters {
 
 		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 
-		int workers=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
 		ExecutorService computePool=pool.computePool();
 		ExecutorService writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
 

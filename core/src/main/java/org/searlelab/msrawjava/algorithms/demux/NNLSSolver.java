@@ -152,7 +152,6 @@ public class NNLSSolver {
 				} else {
 					// Find alpha and move indices from P to Z
 					double alpha=Double.MAX_VALUE;
-					int moveIdx=-1;
 
 					for (int i=0; i<pCount; i++) {
 						if (zp.get(i, 0)<=EPSILON) {
@@ -161,7 +160,6 @@ public class NNLSSolver {
 							double ratio=xi/(xi-zi);
 							if (ratio<alpha) {
 								alpha=ratio;
-								moveIdx=pIndices[i];
 							}
 						}
 					}

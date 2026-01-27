@@ -3,8 +3,8 @@ package org.searlelab.msrawjava.gui.visualization;
 import java.awt.BorderLayout;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.DoubleConsumer;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.DoubleConsumer;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -19,8 +19,8 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
-import javax.swing.plaf.basic.BasicSplitPaneUI;
 import javax.swing.plaf.basic.BasicSplitPaneDivider;
+import javax.swing.plaf.basic.BasicSplitPaneUI;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 
@@ -34,13 +34,13 @@ import org.searlelab.msrawjava.gui.graphing.HistogramUtils;
 import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.gui.graphing.XYTraceInterface;
 import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
+import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
-import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.PeakWithIMS;
-import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
-import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
+import org.searlelab.msrawjava.model.ScanSummary;
 
 
 public class RawBrowserPanel extends JPanel implements AutoCloseable {
@@ -53,7 +53,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final float MINIMUM_MS2_INTENSITY=1.0f;
 
 	private final StripeFileInterface stripe;
-	private final String displayName;
 	private final boolean peakPickAcrossIMS;
 
 	private RawScanTableModel model;
@@ -90,20 +89,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		}
 	}
 
-	public RawBrowserPanel(StripeFileInterface stripe, String displayName) {
+	public RawBrowserPanel(StripeFileInterface stripe, RawBrowserData data) {
 		super(new BorderLayout());
 		this.stripe=stripe;
-		this.displayName=(displayName==null||displayName.isBlank())?"Raw Browser":displayName;
-		this.peakPickAcrossIMS=stripe instanceof BrukerTIMSFile;
-
-		initUi();
-		startLoad();
-	}
-
-	public RawBrowserPanel(StripeFileInterface stripe, String displayName, RawBrowserData data) {
-		super(new BorderLayout());
-		this.stripe=stripe;
-		this.displayName=(displayName==null||displayName.isBlank())?"Raw Browser":displayName;
 		this.peakPickAcrossIMS=stripe instanceof BrukerTIMSFile;
 
 		initUi();

@@ -13,6 +13,8 @@ import gnu.trove.list.array.TFloatArrayList;
 /**
  * Utilities for merging multiple acquired spectra into a single combined spectrum.
  * This mirrors EncyclopeDIA's SpectrumUtils behavior but uses MSRawJava's model types.
+ * 
+ * FIXME: precursor scans seem like a potential problem here, since this class merges spectra of all types
  */
 public final class RawSpectrumMergeUtils {
 	private static final int BINNED_MERGE_THRESHOLD = 50;
@@ -51,7 +53,6 @@ public final class RawSpectrumMergeUtils {
 
 		float totalIIT=0.0f;
 		float minRT=Float.MAX_VALUE;
-		float tic=0.0f;
 		int minFraction=Integer.MAX_VALUE;
 		double isolationWindowLower=Double.MAX_VALUE;
 		double isolationWindowUpper=-Double.MAX_VALUE;
@@ -80,7 +81,6 @@ public final class RawSpectrumMergeUtils {
 					imsBins[index]=(imsBins[index]*prev+imsVal*intens[i])/(prev+intens[i]);
 				}
 			}
-			tic+=spectrum.getTIC();
 		}
 
 		if (minFraction==Integer.MAX_VALUE) minFraction=0;
@@ -109,7 +109,6 @@ public final class RawSpectrumMergeUtils {
 
 		float totalIIT=0.0f;
 		float averageRT=0.0f;
-		float tic=0.0f;
 		int minFraction=Integer.MAX_VALUE;
 		double isolationWindowLower=Double.MAX_VALUE;
 		double isolationWindowUpper=-Double.MAX_VALUE;
@@ -146,7 +145,6 @@ public final class RawSpectrumMergeUtils {
 					}
 				}
 			}
-			tic+=spectrum.getTIC();
 		}
 
 		if (!spectra.isEmpty()) {

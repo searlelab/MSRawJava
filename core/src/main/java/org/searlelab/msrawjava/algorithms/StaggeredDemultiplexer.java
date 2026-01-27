@@ -2,7 +2,6 @@ package org.searlelab.msrawjava.algorithms;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 
 import org.ejml.data.DMatrixRMaj;
 import org.searlelab.msrawjava.algorithms.demux.CubicHermiteInterpolator;
@@ -447,7 +446,7 @@ public class StaggeredDemultiplexer {
 				indices[i]=windowIndices.get(i);
 			}
 			DMatrixRMaj design=buildMaskMatrixForWindows(cycleCenter, indices, colStart, colEnd);
-			blocks[subWindow.getIndex()]=new WindowBlock(indices, colStart, colEnd, subWindow.getIndex()-colStart, design);
+			blocks[subWindow.getIndex()]=new WindowBlock(indices, subWindow.getIndex()-colStart, design);
 		}
 		return blocks;
 	}
@@ -499,44 +498,6 @@ public class StaggeredDemultiplexer {
 		return results;
 	}
 
-	private double interpolateTransitionIntensity(FragmentScan[] spectra, double targetMz, float targetRT) {
-		int n=spectra.length;
-		double[] times=new double[n];
-		double[] intensities=new double[n];
-
-		for (int i=0; i<n; i++) {
-			FragmentScan scan=spectra[i];
-			times[i]=scan.getScanStartTime();
-			intensities[i]=sumIntensity(scan, targetMz);
-		}
-
-		// Sort by time for interpolation
-		Integer[] order=new Integer[n];
-		for (int i=0; i<n; i++)
-			order[i]=i;
-		Arrays.sort(order, (a, b) -> Double.compare(times[a], times[b]));
-
-		double[] sortedTimes=new double[n];
-		double[] sortedIntensities=new double[n];
-		for (int i=0; i<n; i++) {
-			sortedTimes[i]=times[order[i]];
-			sortedIntensities[i]=intensities[order[i]];
-		}
-
-		return interpolator.interpolate(sortedTimes, sortedIntensities, targetRT);
-	}
-
-	private double sumIntensity(FragmentScan scan, double targetMz) {
-		double[] masses=scan.getMassArray();
-		float[] intensities=scan.getIntensityArray();
-		int[] indices=tolerance.getIndices(masses, targetMz);
-		double total=0.0;
-		for (int idx : indices) {
-			total+=intensities[idx];
-		}
-		return total;
-	}
-
 	private static class WindowDistance {
 		private final int windowIndex;
 		private final double distance;
@@ -549,15 +510,11 @@ public class StaggeredDemultiplexer {
 
 	private static class WindowBlock {
 		private final int[] windowIndices;
-		private final int colStart;
-		private final int colEnd;
 		private final int targetColumn;
 		private final DMatrixRMaj designMatrix;
 
-		private WindowBlock(int[] windowIndices, int colStart, int colEnd, int targetColumn, DMatrixRMaj designMatrix) {
+		private WindowBlock(int[] windowIndices, int targetColumn, DMatrixRMaj designMatrix) {
 			this.windowIndices=windowIndices;
-			this.colStart=colStart;
-			this.colEnd=colEnd;
 			this.targetColumn=targetColumn;
 			this.designMatrix=designMatrix;
 		}
