@@ -32,6 +32,7 @@ import javax.swing.RowSorter;
 import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumn;
 import javax.swing.event.ChangeEvent;
@@ -59,6 +60,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private final DirSummaryModel model=new DirSummaryModel();
 	// A tiny pool so we don’t thrash the disk; adjust if you want more parallelism.
 	private final ExecutorService pool=Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()/2);
+	private final Timer loadingTimer;
 	private volatile boolean closed=false;
 	private boolean applyingSavedLayout=false;
 	private boolean pendingColumnSave=false;
@@ -116,6 +118,10 @@ public class DirectorySummaryPanel extends JPanel {
 
 		JScrollPane sp=new JScrollPane(table);
 		add(sp, BorderLayout.CENTER);
+		loadingTimer=new Timer(500, e -> {
+			SparkRenderer.advanceLoadingPhase();
+			table.repaint();
+		});
 		SwingUtilities.invokeLater(this::applySavedColumnLayout);
 		installColumnPreferenceListeners();
 
@@ -344,10 +350,12 @@ public class DirectorySummaryPanel extends JPanel {
 	public void addNotify() {
 		super.addNotify();
 		closed=false;
+		if (loadingTimer!=null) loadingTimer.start();
 	}
 
 	@Override
 	public void removeNotify() {
+		if (loadingTimer!=null) loadingTimer.stop();
 		super.removeNotify();
 		closed=true;
 		pool.shutdownNow();
@@ -566,6 +574,20 @@ public class DirectorySummaryPanel extends JPanel {
 		private static final long serialVersionUID=1L;
 		private static final Color RED_FILL=new Color(0xC62828);
 		private static final int PAD=2;
+		private static int loadingPhase=0;
+
+		private static String getLoadingText() {
+			int dots=3+loadingPhase;
+			StringBuilder sb=new StringBuilder("<html>Reading File");
+			for (int i=0; i<dots; i++) sb.append('.');
+			for (int i=dots; i<5; i++) sb.append("&nbsp;");
+			sb.append("</html>");
+			return sb.toString();
+		}
+
+		private static void advanceLoadingPhase() {
+			loadingPhase=(loadingPhase+1)%3;
+		}
 
 		@Override
 		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
@@ -581,7 +603,7 @@ public class DirectorySummaryPanel extends JPanel {
 
 			if (!(value instanceof SparkData sd)||sd==null||sd.yNorm==null||sd.yNorm.length==0) {
 				setHorizontalAlignment(SwingConstants.CENTER);
-				setText("Reading File...");
+				setText(getLoadingText());
 				putClientProperty("spark", null);
 				return this;
 			}

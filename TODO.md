@@ -7,8 +7,6 @@
 ## GUI
 - refactor charts to remove classes that are unused. refactor xytrace etc into utils, refactor histogram into utils
 - searchbar for files in the table
-- lock demux to thermo only
-- a mini low-impact loading waiter table cell before thermo data comes up (ideas: taylor cone? maybe just ..... with animation?)
 - a way to bring up the loading panels for demos
 - build menu system
   - open (changes to file/directory)
