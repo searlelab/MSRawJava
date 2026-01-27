@@ -21,7 +21,7 @@ public final class TimsReader implements AutoCloseable {
 		this.datasetHandle=datasetHandle;
 		this.calibrator=calibrator;
 	}
-	
+
 	public long getDatasetHandle() {
 		return datasetHandle;
 	}
@@ -51,10 +51,10 @@ public final class TimsReader implements AutoCloseable {
 	public Triplet<double[], float[], int[]> readFrameWithRange(int frameId, int scanLoInclusive, int scanHiInclusive) {
 		try {
 			Object res=TimsNative.readRawFrameRange(this.datasetHandle, frameId, scanLoInclusive, scanHiInclusive);
-			
+
 			if (res==null) return null;
 			Object[] arr=(Object[])res;
-			
+
 			double[] intensityArrayDouble=(double[])arr[1];
 			//double[] imsArrayDouble=(double[])arr[2];
 			float[] intensityArrayFloat=new float[intensityArrayDouble.length];
@@ -63,43 +63,44 @@ public final class TimsReader implements AutoCloseable {
 				intensityArrayFloat[i]=(float)intensityArrayDouble[i];
 				//imsArrayFloat[i]=(float)imsArrayDouble[i];
 			}
-	
+
 			return new Triplet<double[], float[], int[]>((double[])arr[0], intensityArrayFloat, (int[])arr[2]);
 		} catch (TdfFormatException tdf) {
 			return null;
 		}
 	}
-	
+
 	public Triplet<double[], float[], int[]> readRawFrameAndCalibrate(int frameId, int scanLoInclusive, int scanHiInclusive, double realT1) {
 		if (calibrator.isEmpty()) {
 			return readFrameWithRange(frameId, scanLoInclusive, scanHiInclusive);
 		}
-		
+
 		try {
 			Object res=TimsNative.readRawFrameTofIntRange(this.datasetHandle, frameId, scanLoInclusive, scanHiInclusive);
-			
+
 			if (res==null) return null;
 			Object[] raw=(Object[])res;
 
-			int[] tofRaw = (int[]) raw[0];
-			int[] intensRaw = (int[]) raw[1];
-			int[] scan = (int[]) raw[2];
-			
-			double[] mz = calibrator.get().tofToMz(tofRaw, realT1);
-	
+			int[] tofRaw=(int[])raw[0];
+			int[] intensRaw=(int[])raw[1];
+			int[] scan=(int[])raw[2];
+
+			double[] mz=calibrator.get().tofToMz(tofRaw, realT1);
+
 			float[] intensityArrayFloat=new float[intensRaw.length];
 			for (int i=0; i<intensRaw.length; i++) {
 				intensityArrayFloat[i]=(float)intensRaw[i];
 			}
-		
+
 			return new Triplet<double[], float[], int[]>(mz, intensityArrayFloat, scan);
 		} catch (TdfFormatException tdf) {
 			return null;
 		}
 	}
-	
+
 	/**
 	 * useful for converting precursor m/zs stored in the TDF into their corrected m/zs
+	 * 
 	 * @param uncorrectedMz
 	 * @param realT1
 	 * @return
@@ -111,7 +112,7 @@ public final class TimsReader implements AutoCloseable {
 		double[] r=calibrator.get().uncorrectedMzToMz(a, realT1);
 		return r[0];
 	}
-	
+
 	/**
 	 * useful for converting precursor m/zs stored in the TDF into their corrected m/zs, assuming the global T1
 	 * (necessary for keeping values consistent across time, e.g., precursor isolation windows).
@@ -127,7 +128,7 @@ public final class TimsReader implements AutoCloseable {
 		double[] r=mzCalibrator.uncorrectedMzToMz(a, mzCalibrator.getGlobalT1());
 		return r[0];
 	}
-	
+
 	/**
 	 * useful for converting real m/zs (calculated from peptides) into what the instrument would have measured, assuming
 	 * the global T1 (necessary for keeping values consistent across time, e.g., precursor isolation windows).
@@ -142,10 +143,10 @@ public final class TimsReader implements AutoCloseable {
 		MzCalibrator mzCalibrator=calibrator.get();
 		int[] tofIndexes=mzCalibrator.mzToTof(a, mzCalibrator.getGlobalT1());
 		double[] r=mzCalibrator.getLinear().tofToMz(tofIndexes, mzCalibrator.getGlobalT1());
-		
+
 		return r[0];
 	}
-	
+
 	@Override
 	public void close() {
 		TimsNative.closeDataset(datasetHandle);

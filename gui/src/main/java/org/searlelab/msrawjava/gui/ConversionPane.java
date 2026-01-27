@@ -335,6 +335,7 @@ public class ConversionPane extends JPanel {
 				public void mousePressed(java.awt.event.MouseEvent e) {
 					dragging.set(true);
 				}
+
 				@Override
 				public void mouseReleased(java.awt.event.MouseEvent e) {
 					dragging.set(false);
@@ -628,16 +629,11 @@ public class ConversionPane extends JPanel {
 		public void run() {
 			try {
 				boolean ok;
-				ConversionParameters params=ConversionParameters.builder()
-						.outType(outType)
-						.outputDirPath(outputDir)
-						.demultiplex(demultiplex)
+				ConversionParameters params=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(demultiplex)
 						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
-						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity())
-						.minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity())
-						.build();
-				if (source==Source.THERMO) {					
-					ThermoRawFile rawFile=new ThermoRawFile();		
+						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity()).build();
+				if (source==Source.THERMO) {
+					ThermoRawFile rawFile=new ThermoRawFile();
 					rawFile.openFile(input);
 					if (demultiplex) {
 						ok=RawFileConverters.writeDemux(pool, rawFile, outputDir, params, this);

@@ -106,6 +106,7 @@ public final class MenuManager {
 				String name=f.getName().toLowerCase();
 				return name.endsWith(".raw")||name.endsWith(".dia")||name.endsWith(".d");
 			}
+
 			@Override
 			public String getDescription() {
 				return "Raw files (*.raw, *.d, *.dia)";

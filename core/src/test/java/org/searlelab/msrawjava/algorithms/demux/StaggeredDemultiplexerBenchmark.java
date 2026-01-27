@@ -65,16 +65,14 @@ class StaggeredDemultiplexerBenchmark {
 			DemuxCycle cycleP1=cycles.get(i+1);
 			DemuxCycle cycleP2=cycles.get(i+2);
 
-			ArrayList<FragmentScan> javaResult=demux.demultiplex(
-					cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra,
-					cycleP1.spectra, cycleP2.spectra, scanNumber);
+			ArrayList<FragmentScan> javaResult=demux.demultiplex(cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra, cycleP1.spectra, cycleP2.spectra,
+					scanNumber);
 			scanNumber+=javaResult.size();
 			totalOutputs+=javaResult.size();
 		}
 		long elapsed=System.nanoTime()-start;
 
-		System.out.printf("Demux benchmark: %d cycles, %d outputs, %.3f s%n",
-				(endIndex-startIndex), totalOutputs, elapsed/1e9);
+		System.out.printf("Demux benchmark: %d cycles, %d outputs, %.3f s%n", (endIndex-startIndex), totalOutputs, elapsed/1e9);
 
 		file.close();
 	}
@@ -104,8 +102,7 @@ class StaggeredDemultiplexerBenchmark {
 				for (int i=startIdx; i<endIdx; i++) {
 					cycleSpectra.add(allSpectra.get(i));
 				}
-				cycleSpectra.sort(Comparator.comparingDouble(s ->
-						(s.getIsolationWindowLower()+s.getIsolationWindowUpper())/2.0));
+				cycleSpectra.sort(Comparator.comparingDouble(s -> (s.getIsolationWindowLower()+s.getIsolationWindowUpper())/2.0));
 				float startRT=cycleSpectra.get(0).getScanStartTime();
 				cycles.add(new DemuxCycle(cycleSpectra, startRT));
 			}

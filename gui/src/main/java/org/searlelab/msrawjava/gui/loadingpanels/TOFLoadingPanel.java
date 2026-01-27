@@ -206,56 +206,56 @@ public class TOFLoadingPanel extends LoadingPanel {
 		}
 
 		private void recomputeGeometry() {
-		    w = getWidth();
-		    h = getHeight();
-		    pad = Math.max(8, Math.min(w, h) / 22);
+			w=getWidth();
+			h=getHeight();
+			pad=Math.max(8, Math.min(w, h)/22);
 
-		    // ---- Make the V much narrower (≈5x) around the center ----
-		    double cxMid = w * 0.25;
-		    double topY  = pad * 3.0;
-		    double apexY = h - pad * 2.0;
+			// ---- Make the V much narrower (≈5x) around the center ----
+			double cxMid=w*0.25;
+			double topY=pad*3.0;
+			double apexY=h-pad*2.0;
 
-		    double halfSpanFull = cxMid - pad * 2.0;     // original half-span to edges
-		    double halfSpanNarrow = Math.max(40.0, halfSpanFull / 5.0); // ~5x narrower, but never too tiny
+			double halfSpanFull=cxMid-pad*2.0; // original half-span to edges
+			double halfSpanNarrow=Math.max(40.0, halfSpanFull/5.0); // ~5x narrower, but never too tiny
 
-		    // Source (left/top), Reflectron (bottom middle), Detector (right/top) — now tightly spaced in X
-		    src  = new Point2D.Double(cxMid - halfSpanNarrow, topY);
-		    refl = new Point2D.Double(cxMid, apexY);
-		    det  = new Point2D.Double(cxMid + halfSpanNarrow, topY);
+			// Source (left/top), Reflectron (bottom middle), Detector (right/top) — now tightly spaced in X
+			src=new Point2D.Double(cxMid-halfSpanNarrow, topY);
+			refl=new Point2D.Double(cxMid, apexY);
+			det=new Point2D.Double(cxMid+halfSpanNarrow, topY);
 
-		    // Path lengths
-		    L1 = src.distance(refl);
-		    L2 = refl.distance(det);
-		    Ltot = L1 + L2;
+			// Path lengths
+			L1=src.distance(refl);
+			L2=refl.distance(det);
+			Ltot=L1+L2;
 
-		    // Lightest ion (m/z=1) arrival target; narrower path shortens Ltot, so re-fit base speed
-		    double targetLightTime = 0.15;               // keep your chosen feel
-		    baseSpeed = Ltot / targetLightTime;
+			// Lightest ion (m/z=1) arrival target; narrower path shortens Ltot, so re-fit base speed
+			double targetLightTime=0.15; // keep your chosen feel
+			baseSpeed=Ltot/targetLightTime;
 
-		    // Ensure heaviest ion arrives before next push (+ small margin)
-		    double tHeavy = Ltot / velocityFor(MZ_MAX);
-		    pushPeriod = Math.max(1.2, tHeavy + 0.25);
+			// Ensure heaviest ion arrives before next push (+ small margin)
+			double tHeavy=Ltot/velocityFor(MZ_MAX);
+			pushPeriod=Math.max(1.2, tHeavy+0.25);
 
-		    // Recompute ion kinematics & bins
-		    if (ions.isEmpty()) makeInitialIons();
-		    for (Ion ion : ions) {
-		        ion.v = velocityFor(ion.mz);
-		        ion.detTime = Ltot / ion.v;
-		        ion.bin = massToBin(ion.mz);
-		    }
+			// Recompute ion kinematics & bins
+			if (ions.isEmpty()) makeInitialIons();
+			for (Ion ion : ions) {
+				ion.v=velocityFor(ion.mz);
+				ion.detTime=Ltot/ion.v;
+				ion.bin=massToBin(ion.mz);
+			}
 
-		    // ---- Give more room to the spectrum on the right ----
-		    int boxW = Math.max(160, (int) (w * 0.38));      // a bit wider than before
-		    int boxH = Math.max(80, (int) (h * 0.34));
-		    int boxX = w - boxW - 2 * pad;
-		    int boxY = h - boxH - 3 * pad;
-		    specBox = new Rectangle(boxX, boxY, boxW, boxH);
+			// ---- Give more room to the spectrum on the right ----
+			int boxW=Math.max(160, (int)(w*0.38)); // a bit wider than before
+			int boxH=Math.max(80, (int)(h*0.34));
+			int boxX=w-boxW-2*pad;
+			int boxY=h-boxH-3*pad;
+			specBox=new Rectangle(boxX, boxY, boxW, boxH);
 
-		    // Wire from detector to spectrum
-		    wireDet = new Line2D.Double(det.x, det.y, boxX, boxY + boxH / 2.0);
+			// Wire from detector to spectrum
+			wireDet=new Line2D.Double(det.x, det.y, boxX, boxY+boxH/2.0);
 
-		    // First-time seed
-		    if (shots == 0) resetForNewPush();
+			// First-time seed
+			if (shots==0) resetForNewPush();
 		}
 
 		// v ~ base / sqrt(m/z)
@@ -371,7 +371,7 @@ public class TOFLoadingPanel extends LoadingPanel {
 				double t=i/6.0;
 				double x1=refl.x-20;
 				double y1=refl.y+t*40;
-				
+
 				Shape plate=new RoundRectangle2D.Double(x1, y1, plateLen, plateThk, 6, 6);
 
 				g2.setColor(new Color(200, 205, 212));
@@ -577,7 +577,8 @@ public class TOFLoadingPanel extends LoadingPanel {
 			Color color; // by mass
 			double s=0; // path position (0..Ltot)
 			double v=0; // speed (px/s)
-			@SuppressWarnings("unused") double detTime=0; // expected arrival as reference 
+			@SuppressWarnings("unused")
+			double detTime=0; // expected arrival as reference 
 			boolean detected=false;
 			int bin=0; // spectrum bin
 

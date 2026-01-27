@@ -67,34 +67,16 @@ public final class StructureChartBuilder {
 			everyOther=!everyOther;
 			Color color=everyOther?BASE_COLOR:ALT_COLOR;
 
-			traces.add(new XYTrace(
-					new double[] {range.getStart(), range.getStop()},
-					new double[] {rt0, rt0},
-					GraphType.squaredline,
-					range.toString(),
-					color,
-					5.0f
-			));
+			traces.add(new XYTrace(new double[] {range.getStart(), range.getStop()}, new double[] {rt0, rt0}, GraphType.squaredline, range.toString(), color,
+					5.0f));
 			if (rts.size()>1) {
 				float rt1=rts.get(1);
 				firstScan=Math.min(firstScan, rt1);
 				lastScan=Math.max(lastScan, rt1);
-				traces.add(new XYTrace(
-						new double[] {range.getStart(), range.getStop()},
-						new double[] {rt1, rt1},
-						GraphType.squaredline,
-						range.toString(),
-						color,
-						5.0f
-				));
-				traces.add(new XYTrace(
-						new double[] {range.getStop(), range.getStop()},
-						new double[] {rt0, rt1},
-						GraphType.dashedline,
-						range.toString(),
-						Color.gray,
-						1.0f
-				));
+				traces.add(new XYTrace(new double[] {range.getStart(), range.getStop()}, new double[] {rt1, rt1}, GraphType.squaredline, range.toString(),
+						color, 5.0f));
+				traces.add(new XYTrace(new double[] {range.getStop(), range.getStop()}, new double[] {rt0, rt1}, GraphType.dashedline, range.toString(),
+						Color.gray, 1.0f));
 			}
 		}
 
@@ -109,14 +91,8 @@ public final class StructureChartBuilder {
 				ArrayList<Float> rts=entry.getValue();
 				for (float rt : rts) {
 					if (rt>=minRt&&rt<=maxRt) {
-						traces.add(new XYTrace(
-								new double[] {range.getStart(), range.getStop()},
-								new double[] {rt, rt},
-								GraphType.squaredline,
-								range.toString(),
-								Color.LIGHT_GRAY,
-								5.0f
-						));
+						traces.add(new XYTrace(new double[] {range.getStart(), range.getStop()}, new double[] {rt, rt}, GraphType.squaredline, range.toString(),
+								Color.LIGHT_GRAY, 5.0f));
 					}
 				}
 			}

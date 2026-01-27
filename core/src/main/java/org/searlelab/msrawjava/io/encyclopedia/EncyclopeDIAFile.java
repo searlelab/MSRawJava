@@ -77,13 +77,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	public EncyclopeDIAFile() throws IOException {
 	}
-	
+
 	@Override
 	public String getFileExtension() {
 		return EncyclopeDIAFile.DIA_EXTENSION;
 	}
 
-	@Override public void setRanges(HashMap<Range, WindowData> ranges) {
+	@Override
+	public void setRanges(HashMap<Range, WindowData> ranges) {
 		this.ranges.clear();
 		this.ranges.putAll(ranges);
 	}
@@ -177,22 +178,22 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		}
 		createNewTables();
 	}
-	
+
 	@Override
 	public void openFile(File userFile) throws IOException, SQLException {
 		tempFile=File.createTempFile("encyclopedia_", DIA_EXTENSION);
 		Files.copy(userFile.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 		tempFile.deleteOnExit();
-		
+
 		getMetadata();
 		loadRanges();
 		loadFractionNames();
 	}
-	
+
 	public void loadRanges() throws IOException, SQLException {
 
 		ranges.clear();
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			Statement s=c.createStatement();
 			try {
@@ -207,9 +208,10 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					if (rs.wasNull()) ionMobilityStart=null;
 					Float ionMobilityStop=rs.getFloat(6);
 					if (rs.wasNull()) ionMobilityStop=null;
-					
-					Optional<Range> range=(ionMobilityStart==null||ionMobilityStop==null)?Optional.empty():Optional.of(new Range(ionMobilityStart, ionMobilityStop));
-					
+
+					Optional<Range> range=(ionMobilityStart==null||ionMobilityStop==null)?Optional.empty()
+							:Optional.of(new Range(ionMobilityStart, ionMobilityStop));
+
 					ranges.put(new Range(start, stop), new WindowData(dutyCycle, numWindows, range));
 				}
 			} finally {
@@ -222,7 +224,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	public void loadFractionNames() throws IOException, SQLException {
 		fractionNames.clear();
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			Statement s=c.createStatement();
 			try {
@@ -231,7 +233,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				while (rs.next()) {
 					int fraction=rs.getInt(1);
 					String name=rs.getString(2);
-					
+
 					fractionNames.put(fraction, name);
 				}
 			} finally {
@@ -241,7 +243,6 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 			c.close();
 		}
 	}
-	
 
 	@Override
 	public Map<Range, WindowData> getRanges() {
@@ -250,12 +251,13 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public ArrayList<PrecursorScan> getPrecursors(float minRT, float maxRT) throws IOException, SQLException, DataFormatException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC, fraction, isolationWindowLower, isolationWindowUpper from precursor "
-						+"where ScanStartTime between "+minRT+" and "+maxRT);
+				ResultSet rs=s.executeQuery(
+						"select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC, fraction, isolationWindowLower, isolationWindowUpper from precursor "
+								+"where ScanStartTime between "+minRT+" and "+maxRT);
 
 				ArrayList<PrecursorScan> precursors=new ArrayList<PrecursorScan>();
 				while (rs.next()) {
@@ -279,7 +281,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					double isolationWindowLower=rs.getDouble(13);
 					double isolationWindowUpper=rs.getDouble(14);
 
-					precursors.add(new PrecursorScan(spectrumName, spectrumIndex, scanStartTime, fraction, isolationWindowLower, isolationWindowUpper, ionInjectionTime, massArray, intensityArray, ionMobilityArray));
+					precursors.add(new PrecursorScan(spectrumName, spectrumIndex, scanStartTime, fraction, isolationWindowLower, isolationWindowUpper,
+							ionInjectionTime, massArray, intensityArray, ionMobilityArray));
 				}
 
 				return precursors;
@@ -293,12 +296,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery("select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, IonInjectionTime, Fraction from spectra "
-						+"where IsolationWindowLower <= "+targetMz+" and IsolationWindowUpper >= "+targetMz+" and ScanStartTime between "+minRT+" and "+maxRT+" order by ScanStartTime asc");
+				ResultSet rs=s.executeQuery(
+						"select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, IonInjectionTime, Fraction from spectra "
+								+"where IsolationWindowLower <= "+targetMz+" and IsolationWindowUpper >= "+targetMz+" and ScanStartTime between "+minRT+" and "
+								+maxRT+" order by ScanStartTime asc");
 
 				final Vector<FragmentScan> stripes=new Vector<FragmentScan>();
 
@@ -336,8 +341,9 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 						@Override
 						public void run() {
 							try {
-								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper, precursorCharge, massEncodedLength, massBytes,
-										intensityEncodedLength, intensityBytes, ionMobilityEncodedLength, ionMobilityBytes));
+								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, ionInjectionTime,
+										isolationWindowLower, isolationWindowUpper, precursorCharge, massEncodedLength, massBytes, intensityEncodedLength,
+										intensityBytes, ionMobilityEncodedLength, ionMobilityBytes));
 							} catch (DataFormatException dfe) {
 								throw new RuntimeException(dfe);
 							} catch (IOException ioe) {
@@ -355,7 +361,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				} finally {
 					executor.shutdownNow();
 				}
-				
+
 				ArrayList<FragmentScan> arrayList=new ArrayList<FragmentScan>(stripes);
 				Collections.sort(arrayList);
 				return arrayList;
@@ -366,11 +372,11 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 			c.close();
 		}
 	}
-	
 
-
-	private FragmentScan getStripe(boolean sqrt, String spectrumName, String precursorName, int spectrumIndex, Float scanStartTime, int fraction, Float ionInjectionTime, double isolationWindowLower,
-			double isolationWindowUpper, int precursorCharge, int massEncodedLength, byte[] massBytes, int intensityEncodedLength, byte[] intensityBytes, Integer nullableIonMobilityEncodedLength, byte[] ionMobilityArrayBytes) throws IOException, DataFormatException {
+	private FragmentScan getStripe(boolean sqrt, String spectrumName, String precursorName, int spectrumIndex, Float scanStartTime, int fraction,
+			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, int precursorCharge, int massEncodedLength, byte[] massBytes,
+			int intensityEncodedLength, byte[] intensityBytes, Integer nullableIonMobilityEncodedLength, byte[] ionMobilityArrayBytes)
+			throws IOException, DataFormatException {
 		double[] massArray=ByteConverter.toDoubleArray(CompressionUtils.decompress(massBytes, massEncodedLength));
 		float[] intensityArray=ByteConverter.toFloatArray(CompressionUtils.decompress(intensityBytes, intensityEncodedLength));
 		if (sqrt) {
@@ -382,22 +388,27 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		if (nullableIonMobilityEncodedLength!=null&&nullableIonMobilityEncodedLength>0) {
 			ionMobilityArray=ByteConverter.toFloatArray(CompressionUtils.decompress(ionMobilityArrayBytes, nullableIonMobilityEncodedLength));
 		}
-		return new FragmentScan(spectrumName, precursorName, spectrumIndex, (isolationWindowUpper+isolationWindowLower)/2.0, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper, massArray, intensityArray, ionMobilityArray, (byte)precursorCharge, 0.0, MatrixMath.max(massArray));
+		return new FragmentScan(spectrumName, precursorName, spectrumIndex, (isolationWindowUpper+isolationWindowLower)/2.0, scanStartTime, fraction,
+				ionInjectionTime, isolationWindowLower, isolationWindowUpper, massArray, intensityArray, ionMobilityArray, (byte)precursorCharge, 0.0,
+				MatrixMath.max(massArray));
 	}
 
 	@Override
 	public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
-		Connection c = getConnection();
+		Connection c=getConnection();
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery("select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, IonInjectionTime, Fraction from spectra "
-						+"where  IsolationWindowLower <= "+targetMzRange.getStop()+" and IsolationWindowUpper >= "+targetMzRange.getStart()+" and ScanStartTime between "+minRT+" and "+maxRT+" order by ScanStartTime asc");
+				ResultSet rs=s.executeQuery(
+						"select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, IonInjectionTime, Fraction from spectra "
+								+"where  IsolationWindowLower <= "+targetMzRange.getStop()+" and IsolationWindowUpper >= "+targetMzRange.getStart()
+								+" and ScanStartTime between "+minRT+" and "+maxRT+" order by ScanStartTime asc");
 
 				final Vector<FragmentScan> stripes=new Vector<FragmentScan>();
 
 				int cores=Runtime.getRuntime().availableProcessors();
-				ThreadFactory threadFactory=new ThreadFactoryBuilder().setNameFormat("STRIPE_"+targetMzRange.getStart()+"_"+targetMzRange.getStop()+"-%d").setDaemon(true).build();
+				ThreadFactory threadFactory=new ThreadFactoryBuilder().setNameFormat("STRIPE_"+targetMzRange.getStart()+"_"+targetMzRange.getStop()+"-%d")
+						.setDaemon(true).build();
 				LinkedBlockingQueue<Runnable> workQueue=new LinkedBlockingQueue<Runnable>();
 				ExecutorService executor=new ThreadPoolExecutor(cores, cores, Long.MAX_VALUE, TimeUnit.NANOSECONDS, workQueue, threadFactory);
 
@@ -426,13 +437,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					}
 					final Float ionInjectionTime=nullableIonInjectionTime;
 					final int fraction=rs.getInt(15);
-					
+
 					executor.submit(new Runnable() {
 						@Override
 						public void run() {
 							try {
-								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper, precursorCharge, massEncodedLength, massBytes,
-										intensityEncodedLength, intensityBytes, ionMobilityEncodedLength, ionMobilityBytes));
+								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, ionInjectionTime,
+										isolationWindowLower, isolationWindowUpper, precursorCharge, massEncodedLength, massBytes, intensityEncodedLength,
+										intensityBytes, ionMobilityEncodedLength, ionMobilityBytes));
 							} catch (DataFormatException dfe) {
 								throw new RuntimeException(dfe);
 							} catch (IOException ioe) {
@@ -473,7 +485,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		String value=getMetadata().get(GRADIENT_LENGTH_ATTRIBUTE);
 		if (value==null) {
 			float rt=0.0f;
-			Connection c = getConnection();
+			Connection c=getConnection();
 			try {
 				Statement s=c.createStatement();
 				try {
@@ -542,11 +554,12 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		}
 	}
 
-	@Override public void saveAsFile(File saveFile) throws IOException, SQLException {
+	@Override
+	public void saveAsFile(File saveFile) throws IOException, SQLException {
 		HashMap<String, String> map=new HashMap<String, String>();
 		map.put(FILENAME_ATTRIBUTE, saveFile.getName()==null?UNKNOWN_VALUE:saveFile.getName());
 		addMetadata(map);
-		
+
 		writeRanges();
 		writeFractionNames();
 		createIndices();
@@ -564,7 +577,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		addMetadata(map);
 	}
 
-	@Override public void setFileName(String sourceName, String fileLocation) throws IOException, SQLException {
+	@Override
+	public void setFileName(String sourceName, String fileLocation) throws IOException, SQLException {
 		HashMap<String, String> map=new HashMap<String, String>();
 		map.put(SOURCENAME_ATTRIBUTE, sourceName==null?UNKNOWN_VALUE:sourceName);
 		map.put(FILELOCATION_ATTRIBUTE, fileLocation==null?UNKNOWN_VALUE:fileLocation);
@@ -600,7 +614,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		}
 	}
 
-	@Override public void addMetadata(Map<String, String> data) throws IOException, SQLException {
+	@Override
+	public void addMetadata(Map<String, String> data) throws IOException, SQLException {
 		Connection c=getConnection();
 		try {
 			PreparedStatement prep=c.prepareStatement("insert or replace into metadata (Key, Value) VALUES (?,?)");
@@ -620,8 +635,9 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 			c.close();
 		}
 	}
-	
-	@Override public void addSpectra(ArrayList<PrecursorScan> precursors, ArrayList<FragmentScan> stripes) throws Exception {
+
+	@Override
+	public void addSpectra(ArrayList<PrecursorScan> precursors, ArrayList<FragmentScan> stripes) throws Exception {
 		addPrecursor(precursors);
 		addStripe(stripes);
 	}
@@ -639,13 +655,13 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					prep.setString(1, precursor.getSpectrumName());
 					prep.setInt(2, precursor.getSpectrumIndex());
 					prep.setFloat(3, precursor.getScanStartTime());
-					
+
 					if (precursor.getIonInjectionTime()!=null) {
 						prep.setFloat(4, precursor.getIonInjectionTime());
 					} else {
 						prep.setNull(4, Types.FLOAT);
 					}
-					
+
 					byte[] massByteArray=ByteConverter.toByteArray(precursor.getMassArray());
 					prep.setInt(5, massByteArray.length);
 					prep.setBytes(6, CompressionUtils.compress(massByteArray));
@@ -714,7 +730,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 			} else {
 				prep.setNull(index++, Types.FLOAT);
 			}
-			
+
 			prep.setDouble(index++, stripe.getIsolationWindowLower());
 			prep.setDouble(index++, (stripe.getIsolationWindowLower()+stripe.getIsolationWindowUpper())/2.0);
 			prep.setDouble(index++, stripe.getIsolationWindowUpper());
@@ -729,7 +745,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				prep.setNull(index++, Types.INTEGER);
 				prep.setNull(index++, Types.BLOB);
 			} else {
-				byte[] ionMobilityByteArray = ByteConverter.toByteArray(stripe.getIonMobilityArray().get());
+				byte[] ionMobilityByteArray=ByteConverter.toByteArray(stripe.getIonMobilityArray().get());
 				prep.setInt(index++, ionMobilityByteArray.length);
 				prep.setBytes(index++, CompressionUtils.compress(ionMobilityByteArray));
 			}
@@ -806,8 +822,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				rs.close();
 
 				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper, "
-						+"IsolationWindowCenter, PrecursorCharge, ScanWindowLower, ScanWindowUpper from spectra "
-						+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
+						+"IsolationWindowCenter, PrecursorCharge, ScanWindowLower, ScanWindowUpper from spectra "+"where ScanStartTime>="+minRT
+						+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
 				while (rs.next()) {
 					String name=rs.getString(1);
 					int index=rs.getInt(2);
@@ -853,9 +869,10 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		return scans.isEmpty()?null:scans.get(0);
 	}
 
-	@Override public void close() {
+	@Override
+	public void close() {
 		if (userFile==null) {
-			if(tempFile.exists()&&!tempFile.delete()) {
+			if (tempFile.exists()&&!tempFile.delete()) {
 				Logger.errorLine("Error deleting temp DIA file!");
 			}
 		}

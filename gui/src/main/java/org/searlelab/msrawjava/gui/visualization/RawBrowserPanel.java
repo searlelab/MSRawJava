@@ -42,7 +42,6 @@ import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.PeakWithIMS;
 import org.searlelab.msrawjava.model.ScanSummary;
 
-
 public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final long serialVersionUID=1L;
 
@@ -114,10 +113,12 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			public void insertUpdate(DocumentEvent e) {
 				updateFilter();
 			}
+
 			@Override
 			public void removeUpdate(DocumentEvent e) {
 				updateFilter();
 			}
+
 			@Override
 			public void changedUpdate(DocumentEvent e) {
 				updateFilter();
@@ -190,6 +191,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			protected RawBrowserData doInBackground() throws Exception {
 				return buildData();
 			}
+
 			@Override
 			protected void done() {
 				try {
@@ -285,6 +287,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 				AcquiredSpectrum display=peakPickSpectrumIfIMS(merged);
 				return new SelectionResult(spectra, display, minRT, maxRT);
 			}
+
 			@Override
 			protected void done() {
 				if (token!=selectionToken) return;
@@ -327,15 +330,19 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		}
 
 		XYTrace intensityHistogram=HistogramUtils.histogramFromLog10(displaySpectrum.getIntensityArray(), "Log10 Fragment Intensity Distribution");
-		ExtendedChartPanel spectrumHistogram=BasicChartGenerator.getChart("Log10 Intensity", "Count (N="+displaySpectrum.getIntensityArray().length+")", false, intensityHistogram);
+		ExtendedChartPanel spectrumHistogram=BasicChartGenerator.getChart("Log10 Intensity", "Count (N="+displaySpectrum.getIntensityArray().length+")", false,
+				intensityHistogram);
 		spectrumSplit.setRightComponent(spectrumHistogram);
 
 		ArrayList<XYTraceInterface> markers=new ArrayList<>();
 		if (result.minRT==result.maxRT) {
-			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker", java.awt.Color.black, 2.0f));
+			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker", java.awt.Color.black,
+					2.0f));
 		} else {
-			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-min", java.awt.Color.black, 2.0f));
-			markers.add(new XYTrace(new double[] {result.maxRT, result.maxRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-max", java.awt.Color.black, 2.0f));
+			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-min",
+					java.awt.Color.black, 2.0f));
+			markers.add(new XYTrace(new double[] {result.maxRT, result.maxRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-max",
+					java.awt.Color.black, 2.0f));
 		}
 		rawSplit.setTopComponent(buildTicChart(markers.toArray(new XYTraceInterface[0])));
 
@@ -390,6 +397,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 				public void mousePressed(java.awt.event.MouseEvent e) {
 					dragging.set(true);
 				}
+
 				@Override
 				public void mouseReleased(java.awt.event.MouseEvent e) {
 					dragging.set(false);
@@ -442,18 +450,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			imsOut[i]=p.ims;
 		}
 
-		return new org.searlelab.msrawjava.model.PrecursorScan(
-				spectrum.getSpectrumName(),
-				spectrum.getSpectrumIndex(),
-				spectrum.getScanStartTime(),
-				spectrum.getFraction(),
-				spectrum.getIsolationWindowLower(),
-				spectrum.getIsolationWindowUpper(),
-				spectrum.getIonInjectionTime(),
-				mzOut,
-				intensityOut,
-				imsOut
-		);
+		return new org.searlelab.msrawjava.model.PrecursorScan(spectrum.getSpectrumName(), spectrum.getSpectrumIndex(), spectrum.getScanStartTime(),
+				spectrum.getFraction(), spectrum.getIsolationWindowLower(), spectrum.getIsolationWindowUpper(), spectrum.getIonInjectionTime(), mzOut,
+				intensityOut, imsOut);
 	}
 
 	@Override

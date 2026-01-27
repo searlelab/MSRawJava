@@ -49,7 +49,6 @@ class StreamCopyTest {
 		String actual=Files.readString(dst, StandardCharsets.UTF_8);
 
 		assertEquals(expected, actual, "All occurrences (including split across buffer) must be replaced");
-		
 
 		StreamCopy.streamReplace(src, dst, "THIS IS NOT A SEQUENCE OF CHARACTERS IN THIS RANDOM FILE", replacement);
 
@@ -57,7 +56,6 @@ class StreamCopyTest {
 		actual=Files.readString(dst, StandardCharsets.UTF_8);
 
 		assertEquals(input, actual, "There shouldn't be any replacement");
-		
 
 		StreamCopy.streamReplace(src, dst, "", replacement);
 

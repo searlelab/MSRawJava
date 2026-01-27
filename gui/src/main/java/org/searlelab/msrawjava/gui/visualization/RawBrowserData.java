@@ -22,11 +22,9 @@ public class RawBrowserData {
 	private final Map<Comparable<?>, TFloatArrayList> iitByRt;
 	private final float maxTic;
 
-	public RawBrowserData(List<ScanSummary> scans, XYTrace chromatogram, XYTrace basepeakTrace,
-			XYTrace precursorIntensityHistogram, XYTrace fragmentIntensityHistogram,
-			ExtendedChartPanel structureChart, ExtendedChartPanel globalChart,
-			Map<Comparable<?>, TFloatArrayList> iitByRange, Map<Comparable<?>, TFloatArrayList> iitByRt,
-			float maxTic) {
+	public RawBrowserData(List<ScanSummary> scans, XYTrace chromatogram, XYTrace basepeakTrace, XYTrace precursorIntensityHistogram,
+			XYTrace fragmentIntensityHistogram, ExtendedChartPanel structureChart, ExtendedChartPanel globalChart,
+			Map<Comparable<?>, TFloatArrayList> iitByRange, Map<Comparable<?>, TFloatArrayList> iitByRt, float maxTic) {
 		this.scans=(scans==null)?new ArrayList<>():new ArrayList<>(scans);
 		this.chromatogram=chromatogram;
 		this.basepeakTrace=basepeakTrace;

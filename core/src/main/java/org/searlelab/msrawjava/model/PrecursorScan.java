@@ -6,7 +6,7 @@ import java.util.Optional;
 
 /**
  * PrecursorScan models an MS1 (precursor) spectrum in the unified data model, carrying calibrated m/z and intensity
- * arrays plus relevant scan metadata such as retention-time context and identifiers. 
+ * arrays plus relevant scan metadata such as retention-time context and identifiers.
  */
 public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpectrum> {
 
@@ -46,8 +46,8 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 			newIntensityArray[i]=peak.intensity;
 			newIonMobilityArray[i]=peak.ims;
 		}
-		return new PrecursorScan(spectrumName, newSpectrumIndex, scanStartTime, fraction, scanWindowLower, scanWindowUpper, ionInjectionTime,
-				newMassArray, newIntensityArray, newIonMobilityArray);
+		return new PrecursorScan(spectrumName, newSpectrumIndex, scanStartTime, fraction, scanWindowLower, scanWindowUpper, ionInjectionTime, newMassArray,
+				newIntensityArray, newIonMobilityArray);
 	}
 
 	public ArrayList<PeakWithIMS> getPeaks(float minimumIntensity) {
@@ -59,7 +59,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 		}
 		return peaks;
 	}
-	
+
 	@Override
 	public int compareTo(AcquiredSpectrum o) {
 		if (o==null) return 1;
@@ -72,7 +72,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 		c=Double.compare(scanWindowUpper, o.getIsolationWindowUpper());
 		return 0;
 	}
-	
+
 	@Override
 	public double getPrecursorMZ() {
 		return -1.0;
@@ -107,11 +107,12 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 	public double getIsolationWindowUpper() {
 		return scanWindowUpper;
 	}
-	
+
 	@Override
 	public double getScanWindowLower() {
 		return scanWindowLower;
 	}
+
 	public double getScanWindowUpper() {
 		return scanWindowUpper;
 	}
@@ -144,7 +145,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 		}
 		return tic;
 	}
-	
+
 	public PeakInterface getBasePeak() {
 		float maxIntensity=0.0f;
 		double maxMz=0.0;

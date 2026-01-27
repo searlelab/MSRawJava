@@ -1,8 +1,7 @@
 package org.searlelab.msrawjava.algorithms;
 
-
 public class MatrixMath {
-	
+
 	public static float max(float[] v) {
 		float max=-Float.MAX_VALUE;
 		for (int i=0; i<v.length; i++) {
@@ -12,7 +11,7 @@ public class MatrixMath {
 		}
 		return max;
 	}
-	
+
 	public static float min(float[] v) {
 		float min=Float.MAX_VALUE;
 		for (int i=0; i<v.length; i++) {
@@ -22,7 +21,7 @@ public class MatrixMath {
 		}
 		return min;
 	}
-	
+
 	public static double max(double[] v) {
 		double max=-Double.MAX_VALUE;
 		for (int i=0; i<v.length; i++) {
@@ -32,7 +31,7 @@ public class MatrixMath {
 		}
 		return max;
 	}
-	
+
 	public static double min(double[] v) {
 		double min=Double.MAX_VALUE;
 		for (int i=0; i<v.length; i++) {
@@ -62,6 +61,7 @@ public class MatrixMath {
 		}
 		System.out.println("]");
 	}
+
 	public static void print(double[] m) {
 		System.out.print("[");
 		for (int i=0; i<m.length; i++) {
@@ -76,19 +76,19 @@ public class MatrixMath {
 		for (int i=0; i<mean.length; i++) {
 			mean[i]=mean(MatrixMath.getColumn(matrix, i));
 		}
-		
+
 		double[][] normalized=MatrixMath.subtract(matrix, mean);
 		double[][] transpose=MatrixMath.transpose(normalized);
-		
+
 		int n=normalized.length;
 		return MatrixMath.divide(MatrixMath.multiply(transpose, normalized), n);
 	}
-	
+
 	public static double mean(double[] v) {
 		double sum=sum(v);
 		return sum/v.length;
 	}
-	
+
 	public static float mean(float[] v) {
 		float sum=sum(v);
 		return sum/v.length;
@@ -141,7 +141,7 @@ public class MatrixMath {
 		}
 		return r;
 	}
-	
+
 	public static double[] toDoubleArray(float[] a) {
 		double[] f=new double[a.length];
 		for (int i=0; i<f.length; i++) {
@@ -149,7 +149,7 @@ public class MatrixMath {
 		}
 		return f;
 	}
-	
+
 	public static float[] toFloatArray(double[] a) {
 		float[] f=new float[a.length];
 		for (int i=0; i<f.length; i++) {
@@ -176,6 +176,7 @@ public class MatrixMath {
 
 	/**
 	 * from http://www.sanfoundry.com/java-program-find-inverse-matrix/
+	 * 
 	 * @param a
 	 * @return
 	 */
@@ -276,6 +277,7 @@ public class MatrixMath {
 	public static double[][] divide(double[][] m, double v) {
 		return multiply(m, 1.0/v);
 	}
+
 	public static double[][] multiply(double[][] m, double v) {
 		double[][] n=new double[m.length][];
 		for (int i=0; i<m.length; i++) {
@@ -286,7 +288,7 @@ public class MatrixMath {
 		}
 		return n;
 	}
-	
+
 	public static double[] multiply(double[][] m, double[] array) {
 		double[] n=new double[m.length];
 		for (int i=0; i<m.length; i++) {
@@ -296,7 +298,7 @@ public class MatrixMath {
 		}
 		return n;
 	}
-	
+
 	public static double multiply(double[] a, double[] b) {
 		double d=0.0;
 		for (int i=0; i<a.length; i++) {
@@ -304,7 +306,7 @@ public class MatrixMath {
 		}
 		return d;
 	}
-	
+
 	public static double[][] subtract(double[][] m, double[][] q) {
 		double[][] n=new double[m.length][];
 		for (int i=0; i<m.length; i++) {
@@ -315,7 +317,7 @@ public class MatrixMath {
 		}
 		return n;
 	}
-	
+
 	public static double[][] subtract(double[][] m, double[] array) {
 		double[][] n=new double[m.length][];
 		for (int i=0; i<m.length; i++) {
@@ -326,7 +328,7 @@ public class MatrixMath {
 		}
 		return n;
 	}
-	
+
 	public static double[] subtract(double[] a, double[] b) {
 		double[] r=new double[a.length];
 		for (int i=0; i<r.length; i++) {
@@ -334,7 +336,7 @@ public class MatrixMath {
 		}
 		return r;
 	}
-	
+
 	public static double[] add(double[] a, double[] b) {
 		double[] r=new double[a.length];
 		for (int i=0; i<r.length; i++) {
@@ -342,7 +344,7 @@ public class MatrixMath {
 		}
 		return r;
 	}
-	
+
 	public static double getRange(double[] array) {
 		double min=Double.MAX_VALUE;
 		double max=-Double.MAX_VALUE;
@@ -360,6 +362,7 @@ public class MatrixMath {
 		}
 		return v;
 	}
+
 	public static double[][] transpose(double[][] m) {
 		double[][] n=new double[m[0].length][];
 		for (int i=0; i<n.length; i++) {

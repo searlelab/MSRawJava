@@ -66,8 +66,8 @@ public class Main {
 
 					Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 					Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
-										
-					ThermoRawFile rawFile=new ThermoRawFile();		
+
+					ThermoRawFile rawFile=new ThermoRawFile();
 					rawFile.openFile(path);
 
 					indicator=createIndicator(params);
@@ -95,7 +95,7 @@ public class Main {
 
 				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
-				
+
 				if (params.isDemultiplex()) {
 					Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files. Processing without demultiplexing.");
 				}
@@ -186,26 +186,13 @@ public class Main {
 		}
 
 		ConversionParameters toParameters() {
-			DemuxConfig demuxConfig=DemuxConfig.builder()
-					.k(demuxK)
+			DemuxConfig demuxConfig=DemuxConfig.builder().k(demuxK)
 					.interpolationMethod(demuxInterpolation==DemuxInterpolation.cubic?InterpolationMethod.CUBIC_HERMITE:InterpolationMethod.LOG_QUADRATIC)
-					.includeEdgeSubWindows(!demuxExcludeEdges)
-					.build();
+					.includeEdgeSubWindows(!demuxExcludeEdges).build();
 
-			return ConversionParameters.builder()
-					.fileList(paths)
-					.outType(format.toOutputType())
-					.outputDirPath(outputDirPath)
-					.logFilePath(logFilePath)
-					.minimumMS1Intensity(minimumMS1Intensity)
-					.minimumMS2Intensity(minimumMS2Intensity)
-					.demultiplex(demultiplex)
-					.demuxTolerance(new PPMMassTolerance(demuxPpm))
-					.demuxConfig(demuxConfig)
-					.batch(batch)
-					.silent(silent)
-					.noAnsi(noAnsi)
-					.build();
+			return ConversionParameters.builder().fileList(paths).outType(format.toOutputType()).outputDirPath(outputDirPath).logFilePath(logFilePath)
+					.minimumMS1Intensity(minimumMS1Intensity).minimumMS2Intensity(minimumMS2Intensity).demultiplex(demultiplex)
+					.demuxTolerance(new PPMMassTolerance(demuxPpm)).demuxConfig(demuxConfig).batch(batch).silent(silent).noAnsi(noAnsi).build();
 		}
 
 		private void configureLogging(ConversionParameters params) throws Exception {
@@ -230,9 +217,7 @@ public class Main {
 	}
 
 	public enum OutputFormat {
-		dia,
-		mgf,
-		mzml;
+		dia, mgf, mzml;
 
 		public OutputType toOutputType() {
 			switch (this) {
@@ -249,8 +234,7 @@ public class Main {
 	}
 
 	public enum DemuxInterpolation {
-		cubic,
-		logquadratic
+		cubic, logquadratic
 	}
 
 	public static class VersionProvider implements CommandLine.IVersionProvider {

@@ -137,8 +137,8 @@ public class RawFileConverters {
 		}
 	}
 
-	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionParameters params, ProgressIndicator progress)
-			throws Exception {
+	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionParameters params,
+			ProgressIndicator progress) throws Exception {
 		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 
 		ExecutorService writer=null;

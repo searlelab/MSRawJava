@@ -23,33 +23,29 @@ class StaggeredDemultiplexerTest {
 	public void smokeTest(@TempDir Path outDir) throws Exception {
 		// VATVSLPR (29.9 min apex)
 		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
-		
+
 		long time=System.currentTimeMillis();
 		//outDir=Paths.get("/Users/searle.brian/Documents/temp/demux/");
 
 		EncyclopeDIAFile rawFile=new EncyclopeDIAFile();
 		rawFile.openFile(Paths.get("src/test/resources/rawdata/HeLa_16mzst_29to31min.dia").toFile());
-		ConversionParameters params=ConversionParameters.builder()
-				.outType(OutputType.mgf)
-				.demultiplex(true)
-				.demuxTolerance(new PPMMassTolerance(10.0))
-				.build();
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.mgf).demultiplex(true).demuxTolerance(new PPMMassTolerance(10.0)).build();
 		RawFileConverters.writeDemux(threads, rawFile, outDir, params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false));
 
 		threads.close();
 		System.out.println(System.currentTimeMillis()-time);
 	}
-	
+
 	@Test
 	void testSubRanges() throws Exception {
 		ArrayList<Range> ranges=getTestRanges();
-		
+
 		double rangeSum=0.0;
 		for (Range range : ranges) {
 			rangeSum+=range.getRange();
 		}
 		double rangeAverage=rangeSum/ranges.size();
-		
+
 		ArrayList<RangeCounter> counters=StaggeredDemultiplexer.getSubRanges(ranges);
 
 		double counterSum=0.0;
@@ -60,7 +56,7 @@ class StaggeredDemultiplexerTest {
 		assertTrue(ranges.size()<counters.size());
 		assertEquals(76, ranges.size());
 		assertEquals(77, counters.size());
-		
+
 		assertEquals(16.0, rangeAverage, 0.01);
 		assertEquals(8.0, counterAverage, 0.01);
 		assertEquals(2.0, rangeAverage/counterAverage, 0.01);
@@ -146,5 +142,5 @@ class StaggeredDemultiplexerTest {
 		ranges.add(new Range(984.7011, 1000.7011));
 		return ranges;
 	}
-	
+
 }

@@ -38,7 +38,7 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 /**
  * ThermoRawFile is a thin, blocking gRPC client over the local Thermo server that normalizes RAW access into the
  * project’s common model. It manages a channel and session, opens a RAW path, retrieves run metadata and summary (TIC,
- * gradient length), enumerates DIA window definitions as {@link java.util.Map}&lt;Range,WindowData&gt;, and streams 
+ * gradient length), enumerates DIA window definitions as {@link java.util.Map}&lt;Range,WindowData&gt;, and streams
  * MS1/MS2 content as PrecursorScan and FragmentScan objects.
  */
 public final class ThermoRawFile implements StripeFileInterface, Closeable {
@@ -136,26 +136,26 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		}
 		return out;
 	}
-	
+
 	@Override
 	public Pair<float[], float[]> getTICTrace() throws IOException, SQLException {
 		TicRequest req=TicRequest.newBuilder().setSessionId(sessionId).setRtMin(0).setRtMax(Float.MAX_VALUE).build();
-		TicReply ticData = stub.getMs1Tic(req);
-		List<Double> rtSec = ticData.getRtSecondsList();
-		List<Double> tic  = ticData.getTicList();
+		TicReply ticData=stub.getMs1Tic(req);
+		List<Double> rtSec=ticData.getRtSecondsList();
+		List<Double> tic=ticData.getTicList();
 
 		double[] rtSecDoubleArray=rtSec.stream().mapToDouble(d -> d).toArray();
 		double[] ticDoubleArray=tic.stream().mapToDouble(d -> d).toArray();
 
-		float[] rtSecFloatArray = new float[rtSecDoubleArray.length];
-        for (int i = 0; i < rtSecDoubleArray.length; i++) {
-        	rtSecFloatArray[i] = (float) rtSecDoubleArray[i];
-        }
-		float[] ticFloatArray = new float[ticDoubleArray.length];
-        for (int i = 0; i < ticDoubleArray.length; i++) {
-        	ticFloatArray[i] = (float) ticDoubleArray[i];
-        }
-        return new Pair<float[], float[]>(rtSecFloatArray, ticFloatArray);
+		float[] rtSecFloatArray=new float[rtSecDoubleArray.length];
+		for (int i=0; i<rtSecDoubleArray.length; i++) {
+			rtSecFloatArray[i]=(float)rtSecDoubleArray[i];
+		}
+		float[] ticFloatArray=new float[ticDoubleArray.length];
+		for (int i=0; i<ticDoubleArray.length; i++) {
+			ticFloatArray[i]=(float)ticDoubleArray[i];
+		}
+		return new Pair<float[], float[]>(rtSecFloatArray, ticFloatArray);
 	}
 
 	@Override
@@ -172,7 +172,7 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 			for (int i=0; i<intensity.length; i++) {
 				intensity[i]=s.getIntensity(i);
 			}
-			
+
 			out.add(new PrecursorScan(s.getSpectrumName(), s.getScanNumber(), (float)s.getRtSeconds(), 0, s.getIsoLower(), s.getIsoUpper(),
 					(float)s.getIonInjectionTimeS(), mz, intensity, null));
 		}
@@ -197,8 +197,9 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 				intensity[i]=sqrt?(float)Math.sqrt(Math.max(0f, v)):v;
 			}
 			double precursorMz=(s.getIsoLower()+s.getIsoUpper())/2.0; // FIXME // works most of the time but not always if there were an offset
-			out.add(new FragmentScan(s.getSpectrumName(), s.getPrecursorName(), s.getScanNumber(), precursorMz, (float)s.getRtSeconds(), 0, (float)s.getIonInjectionTimeS(),
-					s.getIsoLower(), s.getIsoUpper(), mz, intensity, null, (byte)s.getCharge(), s.getScanWindowLower(), s.getScanWindowUpper()));
+			out.add(new FragmentScan(s.getSpectrumName(), s.getPrecursorName(), s.getScanNumber(), precursorMz, (float)s.getRtSeconds(), 0,
+					(float)s.getIonInjectionTimeS(), s.getIsoLower(), s.getIsoUpper(), mz, intensity, null, (byte)s.getCharge(), s.getScanWindowLower(),
+					s.getScanWindowUpper()));
 		}
 		out.sort(Comparator.comparingDouble(FragmentScan::getScanStartTime));
 		return out;
@@ -217,20 +218,9 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		ArrayList<ScanSummary> out=new ArrayList<>(reply.getSummariesCount());
 		for (SpectrumSummary s : reply.getSummariesList()) {
 			boolean precursor=s.getMsLevel()==1;
-			out.add(new ScanSummary(
-					s.getSpectrumName(),
-					s.getScanNumber(),
-					(float)s.getRtSeconds(),
-					0,
-					precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0,
-					precursor,
-					(float)s.getIonInjectionTimeS(),
-					s.getIsoLower(),
-					s.getIsoUpper(),
-					s.getScanWindowLower(),
-					s.getScanWindowUpper(),
-					(byte)s.getCharge()
-			));
+			out.add(new ScanSummary(s.getSpectrumName(), s.getScanNumber(), (float)s.getRtSeconds(), 0, precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0,
+					precursor, (float)s.getIonInjectionTimeS(), s.getIsoLower(), s.getIsoUpper(), s.getScanWindowLower(), s.getScanWindowUpper(),
+					(byte)s.getCharge()));
 		}
 		out.sort(Comparator.comparingDouble(ScanSummary::getScanStartTime));
 		return out;

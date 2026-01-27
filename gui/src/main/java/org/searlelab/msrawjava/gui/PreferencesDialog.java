@@ -197,7 +197,7 @@ public class PreferencesDialog extends JDialog {
 		lookAndFeelBox.addItem(new LookAndFeelOption(LookAndFeelManager.LAF_SYSTEM, systemLabel));
 
 		String current=GUIPreferences.getLookAndFeelId(LookAndFeelManager.LAF_FLAT_LIGHT);
-		for (int i=0;i<lookAndFeelBox.getItemCount();i++) {
+		for (int i=0; i<lookAndFeelBox.getItemCount(); i++) {
 			LookAndFeelOption option=lookAndFeelBox.getItemAt(i);
 			if (option.id.equals(current)) {
 				lookAndFeelBox.setSelectedIndex(i);

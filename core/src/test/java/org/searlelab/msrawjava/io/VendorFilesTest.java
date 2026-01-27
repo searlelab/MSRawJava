@@ -18,7 +18,7 @@ class VendorFilesTest {
 
 	@BeforeEach
 	void setUp() {
-		vendorFiles = new VendorFiles();
+		vendorFiles=new VendorFiles();
 	}
 
 	@Test
@@ -31,7 +31,7 @@ class VendorFilesTest {
 
 	@Test
 	void addRawSinglePath() {
-		Path rawFile = Paths.get("/data/sample.raw");
+		Path rawFile=Paths.get("/data/sample.raw");
 		vendorFiles.addRaw(rawFile);
 
 		assertEquals(1, vendorFiles.getThermoFiles().size());
@@ -41,7 +41,7 @@ class VendorFilesTest {
 
 	@Test
 	void addDSinglePath() {
-		Path dDir = Paths.get("/data/sample.d");
+		Path dDir=Paths.get("/data/sample.d");
 		vendorFiles.addD(dDir);
 
 		assertEquals(1, vendorFiles.getBrukerDirs().size());
@@ -68,7 +68,7 @@ class VendorFilesTest {
 
 	@Test
 	void addRawArrayList() {
-		ArrayList<Path> rawFiles = new ArrayList<>();
+		ArrayList<Path> rawFiles=new ArrayList<>();
 		rawFiles.add(Paths.get("/data/sample1.raw"));
 		rawFiles.add(Paths.get("/data/sample2.raw"));
 
@@ -79,7 +79,7 @@ class VendorFilesTest {
 
 	@Test
 	void addDArrayList() {
-		ArrayList<Path> dDirs = new ArrayList<>();
+		ArrayList<Path> dDirs=new ArrayList<>();
 		dDirs.add(Paths.get("/data/sample1.d"));
 		dDirs.add(Paths.get("/data/sample2.d"));
 		dDirs.add(Paths.get("/data/sample3.d"));
@@ -91,11 +91,11 @@ class VendorFilesTest {
 
 	@Test
 	void addBothTypesAtOnce() {
-		ArrayList<Path> rawFiles = new ArrayList<>();
+		ArrayList<Path> rawFiles=new ArrayList<>();
 		rawFiles.add(Paths.get("/data/sample1.raw"));
 		rawFiles.add(Paths.get("/data/sample2.raw"));
 
-		ArrayList<Path> dDirs = new ArrayList<>();
+		ArrayList<Path> dDirs=new ArrayList<>();
 		dDirs.add(Paths.get("/data/sample1.d"));
 
 		vendorFiles.add(rawFiles, dDirs);
@@ -111,12 +111,12 @@ class VendorFilesTest {
 		vendorFiles.addD(Paths.get("/data/batch1/sample1.d"));
 
 		// Second batch
-		ArrayList<Path> moreRaw = new ArrayList<>();
+		ArrayList<Path> moreRaw=new ArrayList<>();
 		moreRaw.add(Paths.get("/data/batch2/sample2.raw"));
 		moreRaw.add(Paths.get("/data/batch2/sample3.raw"));
 		vendorFiles.addRaw(moreRaw);
 
-		ArrayList<Path> moreD = new ArrayList<>();
+		ArrayList<Path> moreD=new ArrayList<>();
 		moreD.add(Paths.get("/data/batch2/sample2.d"));
 		vendorFiles.addD(moreD);
 
@@ -127,8 +127,8 @@ class VendorFilesTest {
 	@Test
 	void gettersReturnSameListInstance() {
 		// Verify that getters return the actual internal list (not a copy)
-		ArrayList<Path> thermoList = vendorFiles.getThermoFiles();
-		ArrayList<Path> brukerList = vendorFiles.getBrukerDirs();
+		ArrayList<Path> thermoList=vendorFiles.getThermoFiles();
+		ArrayList<Path> brukerList=vendorFiles.getBrukerDirs();
 
 		vendorFiles.addRaw(Paths.get("/data/test.raw"));
 		vendorFiles.addD(Paths.get("/data/test.d"));
@@ -161,15 +161,15 @@ class VendorFilesTest {
 
 	@Test
 	void pathsPreserveOrder() {
-		Path first = Paths.get("/data/1.raw");
-		Path second = Paths.get("/data/2.raw");
-		Path third = Paths.get("/data/3.raw");
+		Path first=Paths.get("/data/1.raw");
+		Path second=Paths.get("/data/2.raw");
+		Path third=Paths.get("/data/3.raw");
 
 		vendorFiles.addRaw(first);
 		vendorFiles.addRaw(second);
 		vendorFiles.addRaw(third);
 
-		ArrayList<Path> files = vendorFiles.getThermoFiles();
+		ArrayList<Path> files=vendorFiles.getThermoFiles();
 		assertEquals(first, files.get(0));
 		assertEquals(second, files.get(1));
 		assertEquals(third, files.get(2));
@@ -182,15 +182,15 @@ class VendorFilesTest {
 		vendorFiles.addD(Paths.get("/single/a.d"));
 
 		// Batch add raw
-		ArrayList<Path> batchRaw = new ArrayList<>();
+		ArrayList<Path> batchRaw=new ArrayList<>();
 		batchRaw.add(Paths.get("/batch/b.raw"));
 		batchRaw.add(Paths.get("/batch/c.raw"));
 		vendorFiles.addRaw(batchRaw);
 
 		// Combined add
-		ArrayList<Path> moreRaw = new ArrayList<>();
+		ArrayList<Path> moreRaw=new ArrayList<>();
 		moreRaw.add(Paths.get("/combined/d.raw"));
-		ArrayList<Path> moreD = new ArrayList<>();
+		ArrayList<Path> moreD=new ArrayList<>();
 		moreD.add(Paths.get("/combined/b.d"));
 		moreD.add(Paths.get("/combined/c.d"));
 		vendorFiles.add(moreRaw, moreD);
@@ -201,7 +201,7 @@ class VendorFilesTest {
 
 	@Test
 	void duplicatePathsAllowed() {
-		Path duplicate = Paths.get("/data/sample.raw");
+		Path duplicate=Paths.get("/data/sample.raw");
 		vendorFiles.addRaw(duplicate);
 		vendorFiles.addRaw(duplicate);
 

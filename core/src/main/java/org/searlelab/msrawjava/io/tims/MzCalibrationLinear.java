@@ -71,7 +71,7 @@ public final class MzCalibrationLinear implements MzCalibrator {
 	public double getGlobalT1() {
 		return params.T1;
 	}
-	
+
 	@Override
 	public MzCalibrationLinear getLinear() {
 		return this;

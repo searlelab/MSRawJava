@@ -44,7 +44,7 @@ class ThermoServerPoolTest {
 
 	@Test
 	void portIfReadyReturnsEmptyInitially() {
-		OptionalInt port = ThermoServerPool.portIfReady();
+		OptionalInt port=ThermoServerPool.portIfReady();
 		assertFalse(port.isPresent());
 	}
 
@@ -80,7 +80,7 @@ class ThermoServerPoolTest {
 	@Test
 	void portIfReadyIsEmptyAfterShutdown() {
 		ThermoServerPool.shutdown();
-		OptionalInt port = ThermoServerPool.portIfReady();
+		OptionalInt port=ThermoServerPool.portIfReady();
 		assertFalse(port.isPresent());
 	}
 

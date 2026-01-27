@@ -25,7 +25,7 @@ class MassToleranceTest {
 		private final double absoluteTolerance;
 
 		TestMassTolerance(double absoluteTolerance) {
-			this.absoluteTolerance = absoluteTolerance;
+			this.absoluteTolerance=absoluteTolerance;
 		}
 
 		@Override
@@ -36,7 +36,7 @@ class MassToleranceTest {
 
 	@BeforeEach
 	void setUp() {
-		tolerance = new TestMassTolerance(0.5); // 0.5 Da tolerance
+		tolerance=new TestMassTolerance(0.5); // 0.5 Da tolerance
 	}
 
 	// compareTo tests
@@ -74,217 +74,203 @@ class MassToleranceTest {
 	// getIndices with double[] tests
 	@Test
 	void getIndicesDoubleArrayFindsExactMatch() {
-		double[] peaks = {100.0, 200.0, 300.0, 400.0, 500.0};
-		int[] indices = tolerance.getIndices(peaks, 200.0);
-		assertArrayEquals(new int[]{1}, indices);
+		double[] peaks= {100.0, 200.0, 300.0, 400.0, 500.0};
+		int[] indices=tolerance.getIndices(peaks, 200.0);
+		assertArrayEquals(new int[] {1}, indices);
 	}
 
 	@Test
 	void getIndicesDoubleArrayFindsMatchesWithinTolerance() {
-		double[] peaks = {100.0, 200.0, 200.3, 200.4, 300.0};
-		int[] indices = tolerance.getIndices(peaks, 200.2);
+		double[] peaks= {100.0, 200.0, 200.3, 200.4, 300.0};
+		int[] indices=tolerance.getIndices(peaks, 200.2);
 		// Should find indices 1, 2, 3 (all within 0.5 of 200.2)
 		Arrays.sort(indices);
-		assertArrayEquals(new int[]{1, 2, 3}, indices);
+		assertArrayEquals(new int[] {1, 2, 3}, indices);
 	}
 
 	@Test
 	void getIndicesDoubleArrayReturnsEmptyWhenNoMatch() {
-		double[] peaks = {100.0, 200.0, 300.0};
-		int[] indices = tolerance.getIndices(peaks, 250.0);
+		double[] peaks= {100.0, 200.0, 300.0};
+		int[] indices=tolerance.getIndices(peaks, 250.0);
 		assertEquals(0, indices.length);
 	}
 
 	@Test
 	void getIndicesDoubleArrayHandlesEmptyArray() {
-		double[] peaks = {};
-		int[] indices = tolerance.getIndices(peaks, 100.0);
+		double[] peaks= {};
+		int[] indices=tolerance.getIndices(peaks, 100.0);
 		assertEquals(0, indices.length);
 	}
 
 	@Test
 	void getIndicesDoubleArrayHandlesTargetBelowAllPeaks() {
-		double[] peaks = {100.0, 200.0, 300.0};
-		int[] indices = tolerance.getIndices(peaks, 50.0);
+		double[] peaks= {100.0, 200.0, 300.0};
+		int[] indices=tolerance.getIndices(peaks, 50.0);
 		assertEquals(0, indices.length);
 	}
 
 	@Test
 	void getIndicesDoubleArrayHandlesTargetAboveAllPeaks() {
-		double[] peaks = {100.0, 200.0, 300.0};
-		int[] indices = tolerance.getIndices(peaks, 350.0);
+		double[] peaks= {100.0, 200.0, 300.0};
+		int[] indices=tolerance.getIndices(peaks, 350.0);
 		assertEquals(0, indices.length);
 	}
 
 	@Test
 	void getIndicesDoubleArrayFindsMatchAtArrayStart() {
-		double[] peaks = {100.0, 200.0, 300.0};
-		int[] indices = tolerance.getIndices(peaks, 100.0);
-		assertArrayEquals(new int[]{0}, indices);
+		double[] peaks= {100.0, 200.0, 300.0};
+		int[] indices=tolerance.getIndices(peaks, 100.0);
+		assertArrayEquals(new int[] {0}, indices);
 	}
 
 	@Test
 	void getIndicesDoubleArrayFindsMatchAtArrayEnd() {
-		double[] peaks = {100.0, 200.0, 300.0};
-		int[] indices = tolerance.getIndices(peaks, 300.0);
-		assertArrayEquals(new int[]{2}, indices);
+		double[] peaks= {100.0, 200.0, 300.0};
+		int[] indices=tolerance.getIndices(peaks, 300.0);
+		assertArrayEquals(new int[] {2}, indices);
 	}
 
 	// getIndices with TDoubleArrayList tests
 	@Test
 	void getIndicesTDoubleArrayListFindsExactMatch() {
-		TDoubleArrayList peaks = new TDoubleArrayList(new double[]{100.0, 200.0, 300.0, 400.0, 500.0});
-		int[] indices = tolerance.getIndices(peaks, 200.0);
-		assertArrayEquals(new int[]{1}, indices);
+		TDoubleArrayList peaks=new TDoubleArrayList(new double[] {100.0, 200.0, 300.0, 400.0, 500.0});
+		int[] indices=tolerance.getIndices(peaks, 200.0);
+		assertArrayEquals(new int[] {1}, indices);
 	}
 
 	@Test
 	void getIndicesTDoubleArrayListFindsMatchesWithinTolerance() {
-		TDoubleArrayList peaks = new TDoubleArrayList(new double[]{100.0, 200.0, 200.3, 200.4, 300.0});
-		int[] indices = tolerance.getIndices(peaks, 200.2);
+		TDoubleArrayList peaks=new TDoubleArrayList(new double[] {100.0, 200.0, 200.3, 200.4, 300.0});
+		int[] indices=tolerance.getIndices(peaks, 200.2);
 		Arrays.sort(indices);
-		assertArrayEquals(new int[]{1, 2, 3}, indices);
+		assertArrayEquals(new int[] {1, 2, 3}, indices);
 	}
 
 	@Test
 	void getIndicesTDoubleArrayListReturnsEmptyWhenNoMatch() {
-		TDoubleArrayList peaks = new TDoubleArrayList(new double[]{100.0, 200.0, 300.0});
-		int[] indices = tolerance.getIndices(peaks, 250.0);
+		TDoubleArrayList peaks=new TDoubleArrayList(new double[] {100.0, 200.0, 300.0});
+		int[] indices=tolerance.getIndices(peaks, 250.0);
 		assertEquals(0, indices.length);
 	}
 
 	@Test
 	void getIndicesTDoubleArrayListHandlesEmptyList() {
-		TDoubleArrayList peaks = new TDoubleArrayList();
-		int[] indices = tolerance.getIndices(peaks, 100.0);
+		TDoubleArrayList peaks=new TDoubleArrayList();
+		int[] indices=tolerance.getIndices(peaks, 100.0);
 		assertEquals(0, indices.length);
 	}
 
 	// getIndices with PeakInterface[] tests
 	@Test
 	void getIndicesPeakArrayFindsExactMatch() {
-		PeakInterface[] peaks = {
-			new Peak(100.0, 1.0f),
-			new Peak(200.0, 2.0f),
-			new Peak(300.0, 3.0f)
-		};
-		PeakInterface target = new Peak(200.0, 0.0f);
-		int[] indices = tolerance.getIndices(peaks, target);
-		assertArrayEquals(new int[]{1}, indices);
+		PeakInterface[] peaks= {new Peak(100.0, 1.0f), new Peak(200.0, 2.0f), new Peak(300.0, 3.0f)};
+		PeakInterface target=new Peak(200.0, 0.0f);
+		int[] indices=tolerance.getIndices(peaks, target);
+		assertArrayEquals(new int[] {1}, indices);
 	}
 
 	@Test
 	void getIndicesPeakArrayFindsMatchesWithinTolerance() {
-		PeakInterface[] peaks = {
-			new Peak(100.0, 1.0f),
-			new Peak(200.0, 2.0f),
-			new Peak(200.3, 2.5f),
-			new Peak(200.4, 2.7f),
-			new Peak(300.0, 3.0f)
-		};
-		PeakInterface target = new Peak(200.2, 0.0f);
-		int[] indices = tolerance.getIndices(peaks, target);
+		PeakInterface[] peaks= {new Peak(100.0, 1.0f), new Peak(200.0, 2.0f), new Peak(200.3, 2.5f), new Peak(200.4, 2.7f), new Peak(300.0, 3.0f)};
+		PeakInterface target=new Peak(200.2, 0.0f);
+		int[] indices=tolerance.getIndices(peaks, target);
 		Arrays.sort(indices);
-		assertArrayEquals(new int[]{1, 2, 3}, indices);
+		assertArrayEquals(new int[] {1, 2, 3}, indices);
 	}
 
 	@Test
 	void getIndicesPeakArrayReturnsEmptyWhenNoMatch() {
-		PeakInterface[] peaks = {
-			new Peak(100.0, 1.0f),
-			new Peak(200.0, 2.0f),
-			new Peak(300.0, 3.0f)
-		};
-		PeakInterface target = new Peak(250.0, 0.0f);
-		int[] indices = tolerance.getIndices(peaks, target);
+		PeakInterface[] peaks= {new Peak(100.0, 1.0f), new Peak(200.0, 2.0f), new Peak(300.0, 3.0f)};
+		PeakInterface target=new Peak(250.0, 0.0f);
+		int[] indices=tolerance.getIndices(peaks, target);
 		assertEquals(0, indices.length);
 	}
 
 	@Test
 	void getIndicesPeakArrayHandlesEmptyArray() {
-		PeakInterface[] peaks = {};
-		PeakInterface target = new Peak(100.0, 0.0f);
-		int[] indices = tolerance.getIndices(peaks, target);
+		PeakInterface[] peaks= {};
+		PeakInterface target=new Peak(100.0, 0.0f);
+		int[] indices=tolerance.getIndices(peaks, target);
 		assertEquals(0, indices.length);
 	}
 
 	// getIndices with List<PeakInterface> tests
 	@Test
 	void getIndicesPeakListFindsExactMatch() {
-		List<PeakInterface> peaks = new ArrayList<>();
+		List<PeakInterface> peaks=new ArrayList<>();
 		peaks.add(new Peak(100.0, 1.0f));
 		peaks.add(new Peak(200.0, 2.0f));
 		peaks.add(new Peak(300.0, 3.0f));
-		PeakInterface target = new Peak(200.0, 0.0f);
-		int[] indices = tolerance.getIndices(peaks, target);
-		assertArrayEquals(new int[]{1}, indices);
+		PeakInterface target=new Peak(200.0, 0.0f);
+		int[] indices=tolerance.getIndices(peaks, target);
+		assertArrayEquals(new int[] {1}, indices);
 	}
 
 	@Test
 	void getIndicesPeakListFindsMatchesWithinTolerance() {
-		List<PeakInterface> peaks = new ArrayList<>();
+		List<PeakInterface> peaks=new ArrayList<>();
 		peaks.add(new Peak(100.0, 1.0f));
 		peaks.add(new Peak(200.0, 2.0f));
 		peaks.add(new Peak(200.3, 2.5f));
 		peaks.add(new Peak(200.4, 2.7f));
 		peaks.add(new Peak(300.0, 3.0f));
-		PeakInterface target = new Peak(200.2, 0.0f);
-		int[] indices = tolerance.getIndices(peaks, target);
+		PeakInterface target=new Peak(200.2, 0.0f);
+		int[] indices=tolerance.getIndices(peaks, target);
 		Arrays.sort(indices);
-		assertArrayEquals(new int[]{1, 2, 3}, indices);
+		assertArrayEquals(new int[] {1, 2, 3}, indices);
 	}
 
 	@Test
 	void getIndicesPeakListReturnsEmptyWhenNoMatch() {
-		List<PeakInterface> peaks = new ArrayList<>();
+		List<PeakInterface> peaks=new ArrayList<>();
 		peaks.add(new Peak(100.0, 1.0f));
 		peaks.add(new Peak(200.0, 2.0f));
 		peaks.add(new Peak(300.0, 3.0f));
-		PeakInterface target = new Peak(250.0, 0.0f);
-		int[] indices = tolerance.getIndices(peaks, target);
+		PeakInterface target=new Peak(250.0, 0.0f);
+		int[] indices=tolerance.getIndices(peaks, target);
 		assertEquals(0, indices.length);
 	}
 
 	@Test
 	void getIndicesPeakListHandlesEmptyList() {
-		List<PeakInterface> peaks = new ArrayList<>();
-		PeakInterface target = new Peak(100.0, 0.0f);
-		int[] indices = tolerance.getIndices(peaks, target);
+		List<PeakInterface> peaks=new ArrayList<>();
+		PeakInterface target=new Peak(100.0, 0.0f);
+		int[] indices=tolerance.getIndices(peaks, target);
 		assertEquals(0, indices.length);
 	}
 
 	// Tests with different tolerance values
 	@Test
 	void tightToleranceFindsFewerMatches() {
-		TestMassTolerance tightTolerance = new TestMassTolerance(0.1);
-		double[] peaks = {100.0, 200.0, 200.05, 200.15, 300.0};
-		int[] indices = tightTolerance.getIndices(peaks, 200.0);
+		TestMassTolerance tightTolerance=new TestMassTolerance(0.1);
+		double[] peaks= {100.0, 200.0, 200.05, 200.15, 300.0};
+		int[] indices=tightTolerance.getIndices(peaks, 200.0);
 		Arrays.sort(indices);
 		// Should only find 200.0 and 200.05 (within 0.1 of 200.0)
-		assertArrayEquals(new int[]{1, 2}, indices);
+		assertArrayEquals(new int[] {1, 2}, indices);
 	}
 
 	@Test
 	void wideToleranceFindsMoreMatches() {
-		TestMassTolerance wideTolerance = new TestMassTolerance(2.0);
-		double[] peaks = {100.0, 200.0, 201.0, 202.0, 300.0};
-		int[] indices = wideTolerance.getIndices(peaks, 200.5);
+		TestMassTolerance wideTolerance=new TestMassTolerance(2.0);
+		double[] peaks= {100.0, 200.0, 201.0, 202.0, 300.0};
+		int[] indices=wideTolerance.getIndices(peaks, 200.5);
 		Arrays.sort(indices);
 		// Should find 200.0, 201.0, 202.0 (all within 2.0 of 200.5)
-		assertArrayEquals(new int[]{1, 2, 3}, indices);
+		assertArrayEquals(new int[] {1, 2, 3}, indices);
 	}
 
 	@Test
 	void zeroToleranceRequiresExactMatch() {
-		TestMassTolerance zeroTolerance = new TestMassTolerance(0.0);
-		double[] peaks = {100.0, 200.0, 200.001, 300.0};
+		TestMassTolerance zeroTolerance=new TestMassTolerance(0.0);
+		double[] peaks= {100.0, 200.0, 200.001, 300.0};
 
 		// Exact match should be found
-		int[] exactIndices = zeroTolerance.getIndices(peaks, 200.0);
-		assertArrayEquals(new int[]{1}, exactIndices);
+		int[] exactIndices=zeroTolerance.getIndices(peaks, 200.0);
+		assertArrayEquals(new int[] {1}, exactIndices);
 
 		// Near miss should not be found
-		int[] nearMissIndices = zeroTolerance.getIndices(peaks, 200.0005);
+		int[] nearMissIndices=zeroTolerance.getIndices(peaks, 200.0005);
 		assertEquals(0, nearMissIndices.length);
 	}
 }

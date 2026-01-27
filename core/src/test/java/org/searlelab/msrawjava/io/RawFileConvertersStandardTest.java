@@ -40,9 +40,7 @@ class RawFileConvertersStandardTest {
 		raw.setMetadata(Map.of("filename", "sample.raw", "filelocation", "/tmp/sample.raw"));
 		raw.setScans(singleMs1(), singleMs2());
 
-		ConversionParameters params=ConversionParameters.builder()
-				.outType(OutputType.mgf)
-				.build();
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.mgf).build();
 
 		CapturingProgress progress=new CapturingProgress();
 		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
@@ -73,9 +71,7 @@ class RawFileConvertersStandardTest {
 		raw.setMetadata(Collections.emptyMap());
 		raw.setScans(singleMs1(), singleMs2());
 
-		ConversionParameters params=ConversionParameters.builder()
-				.outType(OutputType.mgf)
-				.build();
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.mgf).build();
 
 		CapturingProgress progress=new CapturingProgress();
 		progress.cancel();
@@ -101,8 +97,7 @@ class RawFileConvertersStandardTest {
 
 	private static ArrayList<FragmentScan> singleMs2() {
 		ArrayList<FragmentScan> ms2s=new ArrayList<>();
-		ms2s.add(new FragmentScan("ms2", "prec", 2, 450.0, 0.7f, 0, null, 449.5, 450.5, new double[] {450.1}, new float[] {5.0f}, null,
-				(byte)2, 0.0, 2000.0));
+		ms2s.add(new FragmentScan("ms2", "prec", 2, 450.0, 0.7f, 0, null, 449.5, 450.5, new double[] {450.1}, new float[] {5.0f}, null, (byte)2, 0.0, 2000.0));
 		return ms2s;
 	}
 
@@ -206,13 +201,13 @@ class RawFileConvertersStandardTest {
 			ArrayList<ScanSummary> out=new ArrayList<>();
 			for (PrecursorScan ms1 : ms1s) {
 				out.add(new ScanSummary(ms1.getSpectrumName(), ms1.getSpectrumIndex(), ms1.getScanStartTime(), ms1.getFraction(), -1.0, true,
-						ms1.getIonInjectionTime(), ms1.getIsolationWindowLower(), ms1.getIsolationWindowUpper(), ms1.getScanWindowLower(), ms1.getScanWindowUpper(),
-						(byte)0));
+						ms1.getIonInjectionTime(), ms1.getIsolationWindowLower(), ms1.getIsolationWindowUpper(), ms1.getScanWindowLower(),
+						ms1.getScanWindowUpper(), (byte)0));
 			}
 			for (FragmentScan ms2 : ms2s) {
 				out.add(new ScanSummary(ms2.getSpectrumName(), ms2.getSpectrumIndex(), ms2.getScanStartTime(), ms2.getFraction(), ms2.getPrecursorMZ(), false,
-						ms2.getIonInjectionTime(), ms2.getIsolationWindowLower(), ms2.getIsolationWindowUpper(), ms2.getScanWindowLower(), ms2.getScanWindowUpper(),
-						ms2.getCharge()));
+						ms2.getIonInjectionTime(), ms2.getIsolationWindowLower(), ms2.getIsolationWindowUpper(), ms2.getScanWindowLower(),
+						ms2.getScanWindowUpper(), ms2.getCharge()));
 			}
 			return out;
 		}

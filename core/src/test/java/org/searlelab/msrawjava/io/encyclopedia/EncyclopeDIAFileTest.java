@@ -92,7 +92,6 @@ class EncyclopeDIAFileTest {
 			// Sanity check a spectra row has isolation window and spectrum index
 			assertTrue(count(c, "select count(*) from spectra where SpectrumIndex=2")==1);
 		}
-		
 
 		dia=new EncyclopeDIAFile();
 		dia.openFile();
@@ -123,43 +122,35 @@ class EncyclopeDIAFileTest {
 	 */
 	private File createTestDiaFile() throws Exception {
 		// Create precursor scans with different RTs and TIC values
-		ArrayList<PrecursorScan> precursors = new ArrayList<>();
-		precursors.add(ms1("ms1-1", 1, 1.0f, 100.0, 1500.0,
-			new double[]{100.0, 200.0, 300.0}, new float[]{10.0f, 20.0f, 30.0f}, null));
-		precursors.add(ms1("ms1-2", 3, 2.5f, 100.0, 1500.0,
-			new double[]{150.0, 250.0, 350.0}, new float[]{15.0f, 25.0f, 35.0f}, null));
-		precursors.add(ms1("ms1-3", 5, 5.0f, 100.0, 1500.0,
-			new double[]{120.0, 220.0, 320.0}, new float[]{12.0f, 22.0f, 32.0f}, null));
+		ArrayList<PrecursorScan> precursors=new ArrayList<>();
+		precursors.add(ms1("ms1-1", 1, 1.0f, 100.0, 1500.0, new double[] {100.0, 200.0, 300.0}, new float[] {10.0f, 20.0f, 30.0f}, null));
+		precursors.add(ms1("ms1-2", 3, 2.5f, 100.0, 1500.0, new double[] {150.0, 250.0, 350.0}, new float[] {15.0f, 25.0f, 35.0f}, null));
+		precursors.add(ms1("ms1-3", 5, 5.0f, 100.0, 1500.0, new double[] {120.0, 220.0, 320.0}, new float[] {12.0f, 22.0f, 32.0f}, null));
 
 		// Create fragment scans with different isolation windows and RTs
-		ArrayList<FragmentScan> fragments = new ArrayList<>();
+		ArrayList<FragmentScan> fragments=new ArrayList<>();
 		// Window 400-500, RT=1.5
-		fragments.add(ms2("ms2-1", 2, 1.5f, 400.0, 500.0, (byte)2,
-			new double[]{450.0, 460.0}, new float[]{100.0f, 144.0f}, null));
+		fragments.add(ms2("ms2-1", 2, 1.5f, 400.0, 500.0, (byte)2, new double[] {450.0, 460.0}, new float[] {100.0f, 144.0f}, null));
 		// Window 400-500, RT=3.0
-		fragments.add(ms2("ms2-2", 4, 3.0f, 400.0, 500.0, (byte)2,
-			new double[]{455.0, 465.0}, new float[]{225.0f, 256.0f}, null));
+		fragments.add(ms2("ms2-2", 4, 3.0f, 400.0, 500.0, (byte)2, new double[] {455.0, 465.0}, new float[] {225.0f, 256.0f}, null));
 		// Window 600-700, RT=2.0
-		fragments.add(ms2("ms2-3", 6, 2.0f, 600.0, 700.0, (byte)3,
-			new double[]{650.0, 660.0}, new float[]{81.0f, 121.0f}, null));
+		fragments.add(ms2("ms2-3", 6, 2.0f, 600.0, 700.0, (byte)3, new double[] {650.0, 660.0}, new float[] {81.0f, 121.0f}, null));
 		// Window 600-700, RT=4.5
-		fragments.add(ms2("ms2-4", 7, 4.5f, 600.0, 700.0, (byte)3,
-			new double[]{655.0, 665.0}, new float[]{169.0f, 196.0f}, null));
+		fragments.add(ms2("ms2-4", 7, 4.5f, 600.0, 700.0, (byte)3, new double[] {655.0, 665.0}, new float[] {169.0f, 196.0f}, null));
 		// Window 400-500, RT=6.0 (outside typical RT range for some tests)
-		fragments.add(ms2("ms2-5", 8, 6.0f, 400.0, 500.0, (byte)2,
-			new double[]{452.0, 462.0}, new float[]{64.0f, 100.0f}, null));
+		fragments.add(ms2("ms2-5", 8, 6.0f, 400.0, 500.0, (byte)2, new double[] {452.0, 462.0}, new float[] {64.0f, 100.0f}, null));
 
-		HashMap<Range, WindowData> ranges = new HashMap<>();
+		HashMap<Range, WindowData> ranges=new HashMap<>();
 		ranges.put(new Range(400.0f, 500.0f), new WindowData(0.5f, 3));
 		ranges.put(new Range(600.0f, 700.0f), new WindowData(0.5f, 2));
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile();
 		dia.setFileName("test_run", "/data/test");
 		dia.setRanges(ranges);
 		dia.addSpectra(precursors, fragments);
 
-		Path out = tmp.resolve("test_reads.dia");
+		Path out=tmp.resolve("test_reads.dia");
 		dia.saveAsFile(out.toFile());
 		dia.close();
 
@@ -168,13 +159,13 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withTargetMz_returnsMatchingSpectra() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
 		// Query for targetMz=450.0 (should match window 400-500)
-		ArrayList<FragmentScan> stripes = dia.getStripes(450.0, 0.0f, 10.0f, false);
+		ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 0.0f, 10.0f, false);
 
 		assertNotNull(stripes);
 		assertEquals(3, stripes.size(), "Should find 3 spectra in window 400-500");
@@ -195,13 +186,13 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withTargetMz_filtersRTRange() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
 		// Query with RT filter: minRT=1.0, maxRT=4.0
-		ArrayList<FragmentScan> stripes = dia.getStripes(450.0, 1.0f, 4.0f, false);
+		ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 1.0f, 4.0f, false);
 
 		assertNotNull(stripes);
 		assertEquals(2, stripes.size(), "Should find 2 spectra in RT range 1.0-4.0");
@@ -215,20 +206,20 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withTargetMz_appliesSqrtTransform() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
 		// Query without sqrt
-		ArrayList<FragmentScan> stripesNoSqrt = dia.getStripes(450.0, 1.0f, 2.0f, false);
+		ArrayList<FragmentScan> stripesNoSqrt=dia.getStripes(450.0, 1.0f, 2.0f, false);
 		assertEquals(1, stripesNoSqrt.size());
-		FragmentScan noSqrt = stripesNoSqrt.get(0);
+		FragmentScan noSqrt=stripesNoSqrt.get(0);
 
 		// Query with sqrt
-		ArrayList<FragmentScan> stripesSqrt = dia.getStripes(450.0, 1.0f, 2.0f, true);
+		ArrayList<FragmentScan> stripesSqrt=dia.getStripes(450.0, 1.0f, 2.0f, true);
 		assertEquals(1, stripesSqrt.size());
-		FragmentScan withSqrt = stripesSqrt.get(0);
+		FragmentScan withSqrt=stripesSqrt.get(0);
 
 		// Original intensities: 100.0f, 144.0f
 		// Expected after sqrt: 10.0f, 12.0f
@@ -244,13 +235,13 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withTargetMz_returnsEmptyForNoMatch() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
 		// Query for targetMz that doesn't match any window
-		ArrayList<FragmentScan> stripes = dia.getStripes(800.0, 0.0f, 10.0f, false);
+		ArrayList<FragmentScan> stripes=dia.getStripes(800.0, 0.0f, 10.0f, false);
 
 		assertNotNull(stripes);
 		assertTrue(stripes.isEmpty(), "Should find no spectra for targetMz=800");
@@ -260,14 +251,14 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withRange_returnsMatchingSpectra() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
 		// Query for range that overlaps window 600-700
-		Range targetRange = new Range(620.0f, 680.0f);
-		ArrayList<FragmentScan> stripes = dia.getStripes(targetRange, 0.0f, 10.0f, false);
+		Range targetRange=new Range(620.0f, 680.0f);
+		ArrayList<FragmentScan> stripes=dia.getStripes(targetRange, 0.0f, 10.0f, false);
 
 		assertNotNull(stripes);
 		assertEquals(2, stripes.size(), "Should find 2 spectra in window 600-700");
@@ -283,14 +274,14 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withRange_overlapMultipleWindows() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
 		// Query for range that overlaps both windows (400-500 and 600-700)
-		Range targetRange = new Range(450.0f, 650.0f);
-		ArrayList<FragmentScan> stripes = dia.getStripes(targetRange, 0.0f, 10.0f, false);
+		Range targetRange=new Range(450.0f, 650.0f);
+		ArrayList<FragmentScan> stripes=dia.getStripes(targetRange, 0.0f, 10.0f, false);
 
 		assertNotNull(stripes);
 		assertEquals(5, stripes.size(), "Should find all 5 spectra across both windows");
@@ -300,14 +291,14 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withRange_filtersRTRange() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
 		// Query with RT filter
-		Range targetRange = new Range(450.0f, 650.0f);
-		ArrayList<FragmentScan> stripes = dia.getStripes(targetRange, 1.5f, 3.5f, false);
+		Range targetRange=new Range(450.0f, 650.0f);
+		ArrayList<FragmentScan> stripes=dia.getStripes(targetRange, 1.5f, 3.5f, false);
 
 		assertNotNull(stripes);
 		// Should find: RT=1.5 (window 400-500), RT=2.0 (window 600-700), RT=3.0 (window 400-500)
@@ -323,17 +314,17 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withRange_appliesSqrtTransform() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
-		Range targetRange = new Range(600.0f, 700.0f);
+		Range targetRange=new Range(600.0f, 700.0f);
 
 		// Query with sqrt
-		ArrayList<FragmentScan> stripes = dia.getStripes(targetRange, 1.5f, 2.5f, true);
+		ArrayList<FragmentScan> stripes=dia.getStripes(targetRange, 1.5f, 2.5f, true);
 		assertEquals(1, stripes.size());
-		FragmentScan scan = stripes.get(0);
+		FragmentScan scan=stripes.get(0);
 
 		// Original intensities: 81.0f, 121.0f
 		// Expected after sqrt: 9.0f, 11.0f
@@ -345,14 +336,14 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getStripes_withRange_returnsEmptyForNoMatch() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
 		// Query for range that doesn't overlap any window
-		Range targetRange = new Range(800.0f, 900.0f);
-		ArrayList<FragmentScan> stripes = dia.getStripes(targetRange, 0.0f, 10.0f, false);
+		Range targetRange=new Range(800.0f, 900.0f);
+		ArrayList<FragmentScan> stripes=dia.getStripes(targetRange, 0.0f, 10.0f, false);
 
 		assertNotNull(stripes);
 		assertTrue(stripes.isEmpty(), "Should find no spectra for non-overlapping range");
@@ -362,19 +353,19 @@ class EncyclopeDIAFileTest {
 
 	@Test
 	void getTICTrace_returnsCorrectArrays() throws Exception {
-		File diaFile = createTestDiaFile();
+		File diaFile=createTestDiaFile();
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(diaFile);
 
-		Pair<float[], float[]> trace = dia.getTICTrace();
+		Pair<float[], float[]> trace=dia.getTICTrace();
 
 		assertNotNull(trace);
 		assertNotNull(trace.getX(), "RT array should not be null");
 		assertNotNull(trace.getY(), "TIC array should not be null");
 
-		float[] rts = trace.getX();
-		float[] tics = trace.getY();
+		float[] rts=trace.getX();
+		float[] tics=trace.getY();
 
 		assertEquals(3, rts.length, "Should have 3 precursor scans");
 		assertEquals(3, tics.length, "Should have 3 TIC values");
@@ -385,9 +376,9 @@ class EncyclopeDIAFileTest {
 		assertEquals(5.0f, rts[2], 0.01f);
 
 		// Verify TIC values are present (should be sum of intensities from each precursor)
-		assertTrue(tics[0] > 0, "TIC should be positive");
-		assertTrue(tics[1] > 0, "TIC should be positive");
-		assertTrue(tics[2] > 0, "TIC should be positive");
+		assertTrue(tics[0]>0, "TIC should be positive");
+		assertTrue(tics[1]>0, "TIC should be positive");
+		assertTrue(tics[2]>0, "TIC should be positive");
 
 		dia.close();
 	}
@@ -395,29 +386,28 @@ class EncyclopeDIAFileTest {
 	@Test
 	void getTICTrace_withEmptyPrecursors_returnsEmptyArrays() throws Exception {
 		// Create DIA file with only fragments, no precursors
-		ArrayList<PrecursorScan> precursors = new ArrayList<>();
-		ArrayList<FragmentScan> fragments = new ArrayList<>();
-		fragments.add(ms2("ms2-1", 1, 1.0f, 400.0, 500.0, (byte)2,
-			new double[]{450.0}, new float[]{100.0f}, null));
+		ArrayList<PrecursorScan> precursors=new ArrayList<>();
+		ArrayList<FragmentScan> fragments=new ArrayList<>();
+		fragments.add(ms2("ms2-1", 1, 1.0f, 400.0, 500.0, (byte)2, new double[] {450.0}, new float[] {100.0f}, null));
 
-		HashMap<Range, WindowData> ranges = new HashMap<>();
+		HashMap<Range, WindowData> ranges=new HashMap<>();
 		ranges.put(new Range(400.0f, 500.0f), new WindowData(0.5f, 1));
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile();
 		dia.setFileName("empty_precursors", "/data/test");
 		dia.setRanges(ranges);
 		dia.addSpectra(precursors, fragments);
 
-		Path out = tmp.resolve("empty_precursors.dia");
+		Path out=tmp.resolve("empty_precursors.dia");
 		dia.saveAsFile(out.toFile());
 		dia.close();
 
 		// Now read it back
-		dia = new EncyclopeDIAFile();
+		dia=new EncyclopeDIAFile();
 		dia.openFile(out.toFile());
 
-		Pair<float[], float[]> trace = dia.getTICTrace();
+		Pair<float[], float[]> trace=dia.getTICTrace();
 
 		assertNotNull(trace);
 		assertEquals(0, trace.getX().length, "RT array should be empty");
@@ -429,36 +419,35 @@ class EncyclopeDIAFileTest {
 	@Test
 	void getStripes_preservesMassAndIonMobility() throws Exception {
 		// Create fragment with specific mass values and ion mobility
-		ArrayList<PrecursorScan> precursors = new ArrayList<>();
-		precursors.add(ms1("ms1-1", 1, 1.0f, 100.0, 1500.0,
-			new double[]{100.0}, new float[]{10.0f}, null));
+		ArrayList<PrecursorScan> precursors=new ArrayList<>();
+		precursors.add(ms1("ms1-1", 1, 1.0f, 100.0, 1500.0, new double[] {100.0}, new float[] {10.0f}, null));
 
-		ArrayList<FragmentScan> fragments = new ArrayList<>();
-		double[] masses = new double[]{400.123, 450.456, 500.789};
-		float[] intensities = new float[]{100.0f, 200.0f, 300.0f};
-		float[] ims = new float[]{0.5f, 0.6f, 0.7f};
+		ArrayList<FragmentScan> fragments=new ArrayList<>();
+		double[] masses=new double[] {400.123, 450.456, 500.789};
+		float[] intensities=new float[] {100.0f, 200.0f, 300.0f};
+		float[] ims=new float[] {0.5f, 0.6f, 0.7f};
 		fragments.add(ms2("ms2-1", 2, 1.5f, 400.0, 500.0, (byte)2, masses, intensities, ims));
 
-		HashMap<Range, WindowData> ranges = new HashMap<>();
+		HashMap<Range, WindowData> ranges=new HashMap<>();
 		ranges.put(new Range(400.0f, 500.0f), new WindowData(0.5f, 1));
 
-		EncyclopeDIAFile dia = new EncyclopeDIAFile();
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile();
 		dia.setRanges(ranges);
 		dia.addSpectra(precursors, fragments);
 
-		Path out = tmp.resolve("mass_ims_test.dia");
+		Path out=tmp.resolve("mass_ims_test.dia");
 		dia.saveAsFile(out.toFile());
 		dia.close();
 
 		// Read it back
-		dia = new EncyclopeDIAFile();
+		dia=new EncyclopeDIAFile();
 		dia.openFile(out.toFile());
 
-		ArrayList<FragmentScan> stripes = dia.getStripes(450.0, 0.0f, 10.0f, false);
+		ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 0.0f, 10.0f, false);
 		assertEquals(1, stripes.size());
 
-		FragmentScan scan = stripes.get(0);
+		FragmentScan scan=stripes.get(0);
 
 		// Verify mass array is preserved
 		assertEquals(3, scan.getMassArray().length);
@@ -473,7 +462,7 @@ class EncyclopeDIAFileTest {
 
 		// Verify ion mobility
 		assertTrue(scan.getIonMobilityArray().isPresent());
-		float[] readIms = scan.getIonMobilityArray().get();
+		float[] readIms=scan.getIonMobilityArray().get();
 		assertEquals(0.5f, readIms[0], 0.01f);
 		assertEquals(0.6f, readIms[1], 0.01f);
 		assertEquals(0.7f, readIms[2], 0.01f);

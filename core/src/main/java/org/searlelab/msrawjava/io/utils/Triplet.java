@@ -6,11 +6,11 @@ public class Triplet<X, Y, Z> {
 	public final Z z;
 
 	public Triplet(X x, Y y, Z z) {
-		this.x = x;
-		this.y = y;
-		this.z = z;
+		this.x=x;
+		this.y=y;
+		this.z=z;
 	}
-	
+
 	@Override
 	public String toString() {
 		return x+", "+y+" and "+z;

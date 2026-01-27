@@ -7,7 +7,7 @@ public class ConsoleStatus {
 	private static final String COLOR_WHITE=ESC+"37m";
 	private static final String COLOR_RED=ESC+"91m";
 	//private static final char[] SPINNER=new char[] {'|', '/', '-', '\\'};
-    private static final char[] SPINNER=new char[] {'▉', '▊', '▋', '▌', '▍', '▎', '▏', '▎', '▍', '▌', '▋', '▊', '▉'};
+	private static final char[] SPINNER=new char[] {'▉', '▊', '▋', '▌', '▍', '▎', '▏', '▎', '▍', '▌', '▋', '▊', '▉'};
 
 	private static final int BAR_WIDTH=60;
 	private static final String BAR_PREFIX=String.format("%3d%% [%s] ", 100, " ".repeat(BAR_WIDTH));

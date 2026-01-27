@@ -19,12 +19,12 @@ public enum OutputType {
 				EncyclopeDIAFile dia=new EncyclopeDIAFile();
 				dia.openFile();
 				return dia;
-				
+
 			case mgf:
 				MGFOutputFile mgf=new MGFOutputFile();
 				mgf.openFile();
 				return mgf;
-				
+
 			case mzML:
 				MZMLOutputFile mzml=new MZMLOutputFile();
 				mzml.openFile();
@@ -34,7 +34,7 @@ public enum OutputType {
 				throw new UnexpectedException("Unknown file type "+this);
 		}
 	}
-	
+
 	public Path getOutputFilePath(Path outputDirPath, String filename) {
 		switch (this) {
 			case EncyclopeDIA:

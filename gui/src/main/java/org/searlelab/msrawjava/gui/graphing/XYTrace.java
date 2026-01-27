@@ -22,58 +22,58 @@ public class XYTrace implements XYTraceInterface, Comparable<XYTraceInterface> {
 	private final GraphType type;
 	private final Optional<Color> color;
 	private final Optional<Float> thickness;
-	
+
 	public XYTrace(AcquiredSpectrum spectrum) {
 		color=Optional.empty();
 		thickness=Optional.empty();
 		this.type=GraphType.spectrum;
 		this.points=new ArrayList<XYPoint>();
 		this.name=spectrum.getSpectrumName();
-		
+
 		double[] mzs=spectrum.getMassArray();
 		float[] intensities=spectrum.getIntensityArray();
-		
+
 		for (int i=0; i<intensities.length; i++) {
 			points.add(new XYPoint(mzs[i], intensities[i]));
 		}
-		
+
 		Collections.sort(points);
 	}
-	
+
 	public XYTrace(double[] x, double[] y, GraphType type, String name, Optional<Color> color, Optional<Float> thickness) {
 		this(x, y, type, name, color.orElse(null), thickness.orElse(null));
 	}
-	
+
 	public XYTrace(double[] x, double[] y, GraphType type, String name, Color color, Float thickness) {
 		this.color=Optional.ofNullable(color);
 		this.thickness=Optional.ofNullable(thickness);
 		this.type=type;
 		this.points=new ArrayList<XYPoint>();
 		this.name=name;
-		
+
 		assert (x.length==y.length);
 		for (int i=0; i<x.length; i++) {
 			points.add(new XYPoint(x[i], y[i]));
 		}
 		Collections.sort(points);
 	}
-	
+
 	public XYTrace(double[] x, double[] y, GraphType type, String name) {
 		this(x, y, type, name, Optional.ofNullable((Color)null), Optional.ofNullable((Float)null));
 	}
-	
+
 	public XYTrace(float[] x, float[] y, GraphType type, String name) {
 		this(MatrixMath.toDoubleArray(x), MatrixMath.toDoubleArray(y), type, name, Optional.ofNullable((Color)null), Optional.ofNullable((Float)null));
 	}
-	
+
 	public XYTrace(double[] x, float[] y, GraphType type, String name) {
 		this(x, MatrixMath.toDoubleArray(y), type, name, Optional.ofNullable((Color)null), Optional.ofNullable((Float)null));
 	}
-	
+
 	public XYTrace(float[] x, float[] y, GraphType type, String name, Color color, Float thickness) {
 		this(MatrixMath.toDoubleArray(x), MatrixMath.toDoubleArray(y), type, name, color, thickness);
 	}
-	
+
 	public XYTrace(TDoubleDoubleHashMap map, GraphType type, String name, Color color, Float thickness) {
 		this.color=Optional.ofNullable(color);
 		this.thickness=Optional.ofNullable(thickness);
@@ -89,22 +89,22 @@ public class XYTrace implements XYTraceInterface, Comparable<XYTraceInterface> {
 		});
 		Collections.sort(points);
 	}
-	
+
 	@Override
 	public Optional<Color> getColor() {
 		return color;
 	}
-	
+
 	@Override
 	public Optional<Float> getThickness() {
 		return thickness;
 	}
-	
+
 	@Override
 	public String getName() {
 		return name;
 	}
-	
+
 	@Override
 	public GraphType getType() {
 		return type;
@@ -114,11 +114,11 @@ public class XYTrace implements XYTraceInterface, Comparable<XYTraceInterface> {
 	public Pair<double[], double[]> toArrays() {
 		return toArrays(points);
 	}
-	
+
 	public int size() {
 		return points.size();
 	}
-	
+
 	public String toString() {
 		Pair<double[], double[]> pair=toArrays(points);
 		StringBuilder sb=new StringBuilder("// "+getName()+"\n");
@@ -150,20 +150,20 @@ public class XYTrace implements XYTraceInterface, Comparable<XYTraceInterface> {
 	}
 
 	public static ArrayList<XYPoint> toPoints(double[] xs, double[] ys) {
-		assert(xs.length==ys.length);
-		
+		assert (xs.length==ys.length);
+
 		ArrayList<XYPoint> points=new ArrayList<XYPoint>();
-		for (int i = 0; i < ys.length; i++) {
+		for (int i=0; i<ys.length; i++) {
 			points.add(new XYPoint(xs[i], ys[i]));
 		}
 		return points;
 	}
 
 	public static ArrayList<XYPoint> toPoints(float[] xs, float[] ys) {
-		assert(xs.length==ys.length);
-		
+		assert (xs.length==ys.length);
+
 		ArrayList<XYPoint> points=new ArrayList<XYPoint>();
-		for (int i = 0; i < ys.length; i++) {
+		for (int i=0; i<ys.length; i++) {
 			points.add(new XYPoint(xs[i], ys[i]));
 		}
 		return points;
@@ -198,7 +198,7 @@ public class XYTrace implements XYTraceInterface, Comparable<XYTraceInterface> {
 			this.x=x;
 			this.y=y;
 		}
-		
+
 		@Override
 		public String toString() {
 			return x+","+y;
@@ -224,29 +224,29 @@ public class XYTrace implements XYTraceInterface, Comparable<XYTraceInterface> {
 			if (y<o.getY()) return -1;
 			return 0;
 		}
-		
+
 		@Override
 		public int hashCode() {
 			return Double.hashCode(x)+Double.hashCode(y);
 		}
-		
+
 		@Override
 		public boolean equals(Object obj) {
 			return compareTo((XYPoint)obj)==0;
 		}
 	}
-	
+
 	public int compareTo(XYTraceInterface o) {
 		if (o==null) return 1;
 		return name.compareTo(o.getName());
 	}
-	
+
 	public double getMaxY() {
-		XYPoint maxXYInRange = getMaxXYInRange(new Range(-Double.MAX_VALUE, Double.MAX_VALUE));
+		XYPoint maxXYInRange=getMaxXYInRange(new Range(-Double.MAX_VALUE, Double.MAX_VALUE));
 		if (maxXYInRange==null) return 0.0;
 		return maxXYInRange.y;
 	}
-	
+
 	public XYPoint getMaxXYInRange(Range xrange) {
 		XYPoint max=null;
 		for (XYPoint xy : points) {
@@ -258,7 +258,7 @@ public class XYTrace implements XYTraceInterface, Comparable<XYTraceInterface> {
 		}
 		return max;
 	}
-	
+
 	public static double getMaxY(XYTraceInterface[] traces) {
 		double max=-Double.MAX_VALUE;
 		for (XYTraceInterface xyTrace : traces) {

@@ -6,7 +6,6 @@ package org.searlelab.msrawjava.model;
 public class Peak implements PeakInterface {
 	private final double mz;
 	private final float intensity;
-	
 
 	public Peak(double mz, float intensity) {
 		super();
@@ -47,5 +46,5 @@ public class Peak implements PeakInterface {
 		c=Double.compare(getIntensity(), o.getIntensity());
 		return c;
 	}
-	
+
 }

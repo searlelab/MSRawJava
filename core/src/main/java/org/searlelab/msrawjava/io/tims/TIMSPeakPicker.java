@@ -20,6 +20,7 @@ import gnu.trove.list.array.TDoubleArrayList;
 public class TIMSPeakPicker {
 	/**
 	 * all peaks need to be "on", this will toggle some "off"
+	 * 
 	 * @param mzSortedPeaks
 	 * @param minimumIntensity
 	 * @return
@@ -55,7 +56,7 @@ public class TIMSPeakPicker {
 				}
 				Collections.sort(imsSortedSlice, imsComparator);
 				finalPeaks.add(imsSortedSlice);
-				
+
 				for (PeakInterface peak : imsSortedSlice) {
 					peak.turnOff();
 				}
@@ -64,13 +65,13 @@ public class TIMSPeakPicker {
 		return finalPeaks;
 	}
 
-
 	public static final MassTolerance tolerance=new TIMSMassTolerance();
 	public static final float IM_TOL_PCT=3.0f;
 	public static final int MAX_PEAKS=10000;
 
 	/**
 	 * all peaks need to be "on", this will toggle some "off"
+	 * 
 	 * @param mzSortedPeaks
 	 * @return
 	 */
@@ -122,9 +123,9 @@ public class TIMSPeakPicker {
 					imsPeaks.add(p);
 				}
 			}
-			
+
 			if (numIncludable==0) continue;
-			
+
 			double ensembleMz=QuickMedian.median(mzList.toArray());
 
 			float ensembleIMS=imApex;

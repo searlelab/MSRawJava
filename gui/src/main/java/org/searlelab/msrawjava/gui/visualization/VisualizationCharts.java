@@ -31,13 +31,13 @@ import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
 import gnu.trove.list.array.TFloatArrayList;
 
 public final class VisualizationCharts {
-	private static final int MAX_CATEGORIES = 200;
-	private static final int MAX_VALUES_PER_CATEGORY = 500;
+	private static final int MAX_CATEGORIES=200;
+	private static final int MAX_VALUES_PER_CATEGORY=500;
+
 	private VisualizationCharts() {
 	}
 
-	public static ExtendedChartPanel getBoxplotChart(String title, String xAxisLabel, String yAxisLabel,
-			Map<Comparable<?>, TFloatArrayList> map) {
+	public static ExtendedChartPanel getBoxplotChart(String title, String xAxisLabel, String yAxisLabel, Map<Comparable<?>, TFloatArrayList> map) {
 		if (map==null||map.isEmpty()) {
 			DefaultCategoryDataset empty=new DefaultCategoryDataset();
 			return createEmptyCategoryChart(title, xAxisLabel, yAxisLabel, empty);
@@ -163,8 +163,8 @@ public final class VisualizationCharts {
 		return panel;
 	}
 
-	public static ExtendedChartPanel getShapeChart(String title, String xAxisLabel, String yAxisLabel,
-			List<XYShapeAnnotation> shapes, List<Point2D> points, boolean requireIncludesZero) {
+	public static ExtendedChartPanel getShapeChart(String title, String xAxisLabel, String yAxisLabel, List<XYShapeAnnotation> shapes, List<Point2D> points,
+			boolean requireIncludesZero) {
 		XYSeriesCollection dataset=new XYSeriesCollection();
 		XYSeries series=new XYSeries("Shapes");
 		if (points!=null) {
@@ -176,9 +176,9 @@ public final class VisualizationCharts {
 
 		XYLineAndShapeRenderer renderer=new XYLineAndShapeRenderer();
 		renderer.setDefaultLinesVisible(false);
-		renderer.setDefaultPaint(new Color(0,0,0,0));
+		renderer.setDefaultPaint(new Color(0, 0, 0, 0));
 		renderer.setAutoPopulateSeriesShape(false);
-		renderer.setSeriesShape(0, new Ellipse2D.Double(0,0,0,0));
+		renderer.setSeriesShape(0, new Ellipse2D.Double(0, 0, 0, 0));
 		renderer.setDefaultShapesVisible(true);
 		if (shapes!=null) {
 			for (XYShapeAnnotation shape : shapes) {

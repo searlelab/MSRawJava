@@ -89,8 +89,8 @@ class MZMLOutputFileTest {
 		ms1s.add(new PrecursorScan("ms1-1", 1, 1.0f, 0, 100.0, 1000.0, 0.25f, new double[] {100.0}, new float[] {10.0f}, null));
 
 		ArrayList<FragmentScan> ms2s=new ArrayList<>();
-		ms2s.add(new FragmentScan("ms2-2", "prec", 2, 500.0, 2.0f, 0, 0.5f, 499.9, 500.1, new double[] {150.0}, new float[] {5.0f}, null,
-				(byte)2, 0.0, 3000.0));
+		ms2s.add(
+				new FragmentScan("ms2-2", "prec", 2, 500.0, 2.0f, 0, 0.5f, 499.9, 500.1, new double[] {150.0}, new float[] {5.0f}, null, (byte)2, 0.0, 3000.0));
 
 		writer.addSpectra(ms1s, ms2s);
 

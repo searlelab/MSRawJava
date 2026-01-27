@@ -25,7 +25,7 @@ public class DirectoryTreeModel extends DefaultTreeModel {
 		virtualRoot.setUserObject("My Computer");
 
 		File[] roots=getRoots(fsv);
-		
+
 		this.unixFlattenRoot=roots!=null&&roots.length==1&&File.separator.equals(roots[0].getAbsolutePath());
 
 		if (unixFlattenRoot) {
@@ -53,12 +53,12 @@ public class DirectoryTreeModel extends DefaultTreeModel {
 	public static File[] getRoots(FileSystemView fsv) {
 		File[] roots=File.listRoots();
 		ArrayList<File> rootList=new ArrayList<File>(Arrays.asList(roots));
-		File desktop = fsv.getHomeDirectory();
+		File desktop=fsv.getHomeDirectory();
 		if (desktop!=null) rootList.add(desktop);
-		
-		File docs = fsv.getDefaultDirectory();
+
+		File docs=fsv.getDefaultDirectory();
 		if (docs!=null&&!docs.equals(desktop)) rootList.add(docs);
-		
+
 		return rootList.toArray(new File[0]);
 	}
 

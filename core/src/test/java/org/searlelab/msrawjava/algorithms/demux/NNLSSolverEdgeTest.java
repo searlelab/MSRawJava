@@ -33,6 +33,6 @@ class NNLSSolverEdgeTest {
 		DMatrixRMaj X=solver.solveMultiple(A, B);
 		assertEquals(2, X.numRows);
 		assertEquals(0, X.numCols);
-		assertTrue(X.data.length == 0 || X.getNumElements() == 0);
+		assertTrue(X.data.length==0||X.getNumElements()==0);
 	}
 }

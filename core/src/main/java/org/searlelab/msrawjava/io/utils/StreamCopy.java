@@ -11,7 +11,7 @@ import java.nio.file.StandardOpenOption;
 
 /**
  * StreamCopy provides bounded-memory file streaming utilities, including fast byte/character copy and targeted text
- * replacement while streaming. 
+ * replacement while streaming.
  */
 public class StreamCopy {
 	public static final int BUFFER_SIZE=65536;

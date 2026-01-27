@@ -33,20 +33,21 @@ public class AcquiredSpectrumWrapper implements XYTraceInterface {
 	public GraphType getType() {
 		return GraphType.spectrum;
 	}
+
 	@Override
 	public Pair<double[], double[]> toArrays() {
 		return new Pair<double[], double[]>(spectrum.getMassArray(), MatrixMath.toDoubleArray(spectrum.getIntensityArray()));
 	}
-	
+
 	@Override
 	public int size() {
 		return spectrum.getMassArray().length;
 	}
-	
+
 	public AcquiredSpectrum getSpectrum() {
 		return spectrum;
 	}
-	
+
 	@Override
 	public double getMaxY() {
 		return MatrixMath.max(spectrum.getIntensityArray());

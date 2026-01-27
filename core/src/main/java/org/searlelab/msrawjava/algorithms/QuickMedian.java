@@ -122,7 +122,7 @@ public class QuickMedian {
 		a[index1]=a[index2];
 		a[index2]=tmp;
 	}
-	
+
 	public static double median(double[] data) {
 		return select(data, 0.5f);
 	}

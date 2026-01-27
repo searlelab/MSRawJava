@@ -92,14 +92,14 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		}
 
 		// Replace placeholder with spectrumList count
-	    StreamCopy.streamReplace(tempPath, userFile.toPath(), SPECTRUM_LIST_COUNT_PLACEHOLDER, Long.toString(spectrumCount));
+		StreamCopy.streamReplace(tempPath, userFile.toPath(), SPECTRUM_LIST_COUNT_PLACEHOLDER, Long.toString(spectrumCount));
 	}
 
 	@Override
 	public void addSpectra(ArrayList<PrecursorScan> precursors, ArrayList<FragmentScan> stripes) throws Exception {
 		if (!headerWritten) writeMZMLHeader();
 		if (!spectrumListOpen) openSpectrumList();
-		
+
 		ArrayList<AcquiredSpectrum> spectra=new ArrayList<AcquiredSpectrum>();
 		spectra.addAll(precursors);
 		spectra.addAll(stripes);
@@ -188,7 +188,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 				sha1=computeSHA1Safe(sourcePath);
 			}
 		}
-		
+
 		if (sha1==null) sha1="0000000000000000000000000000000000000000"; // worst case placeholder
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000569\" name=\"SHA-1\" value=\""+sha1+"\"/>\n");
 
@@ -319,25 +319,24 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000579\" name=\"MS1 spectrum\" value=\"\"/>\n");
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000127\" name=\"centroid spectrum\" value=\"\"/>\n");
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000130\" name=\"positive scan\" value=\"\"/>\n");
-		
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000505\" name=\"base peak intensity\" value=\""
-				+fmtIntens(scan.getBasePeak().getIntensity())+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""
-				+fmtIntens(scan.getTIC())+"\"/>\n");
+
+		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000505\" name=\"base peak intensity\" value=\""+fmtIntens(scan.getBasePeak().getIntensity())
+				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""+fmtIntens(scan.getTIC())+"\"/>\n");
 
 		writeIonMobilityLimitsUserParams(scan.getIonMobilityArray());
 
 		out.write("        <scanList count=\"1\">\n");
 		out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000795\" name=\"no combination\" value=\"\"/>\n");
 		out.write("          <scan instrumentConfigurationRef=\"IC1\">\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""
-				+fmtTimeInSec(scan.getScanStartTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
+		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""+fmtTimeInSec(scan.getScanStartTime())
+				+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
 		if (scan.getIonInjectionTime()!=null) {
 			double iitMs=scan.getIonInjectionTime()*1000.0;
-			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""
-					+fmtTimeInMs(iitMs)+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""+fmtTimeInMs(iitMs)
+					+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
 		}
-		
+
 		writeScanWindow(scan.getScanWindowLower(), scan.getScanWindowUpper());
 		out.write("          </scan>\n");
 		out.write("        </scanList>\n");
@@ -355,25 +354,24 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000127\" name=\"centroid spectrum\" value=\"\"/>\n");
 		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000130\" name=\"positive scan\" value=\"\"/>\n");
 
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000505\" name=\"base peak intensity\" value=\""
-				+fmtIntens(scan.getBasePeak().getIntensity())+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""
-				+fmtIntens(scan.getTIC())+"\"/>\n");
-		
+		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000505\" name=\"base peak intensity\" value=\""+fmtIntens(scan.getBasePeak().getIntensity())
+				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""+fmtIntens(scan.getTIC())+"\"/>\n");
+
 		writeIonMobilityLimitsUserParams(scan.getIonMobilityArray());
 
 		out.write("        <scanList count=\"1\">\n");
 		out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000795\" name=\"no combination\" value=\"\"/>\n");
 		out.write("          <scan instrumentConfigurationRef=\"IC1\">\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""
-				+fmtTimeInSec(scan.getScanStartTime())+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
+		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""+fmtTimeInSec(scan.getScanStartTime())
+				+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
 
 		if (scan.getIonInjectionTime()!=null) {
 			double iitMs=scan.getIonInjectionTime()*1000.0;
-			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""
-					+fmtTimeInMs(iitMs)+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""+fmtTimeInMs(iitMs)
+					+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
 		}
-		
+
 		writeScanWindow(scan.getScanWindowLower(), scan.getScanWindowUpper());
 		out.write("          </scan>\n");
 		out.write("        </scanList>\n");
@@ -391,8 +389,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000829\" name=\"isolation window upper offset\" value=\""+fmtMz(isolationOffset)
 				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000040\" unitName=\"m/z\"/>\n");
 		out.write("              </isolationWindow>\n");
-		
-		
+
 		out.write("            <selectedIonList count=\"1\">\n");
 		out.write("              <selectedIon>\n");
 		out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000744\" name=\"selected ion m/z\" value=\""+fmtMz(scan.getPrecursorMZ())
@@ -485,7 +482,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 	private static String fmtTimeInSec(double v) {
 		return String.format("%.3f", v);
 	}
-	
+
 	private static String fmtTimeInMs(double v) {
 		return String.format("%.3f", v);
 	}

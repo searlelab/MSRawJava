@@ -147,6 +147,7 @@ public class RawFileBrowser extends JFrame {
 			public void componentResized(ComponentEvent e) {
 				GUIPreferences.setRawFileBrowserWindowSize(getSize());
 			}
+
 			@Override
 			public void componentMoved(ComponentEvent e) {
 				GUIPreferences.setRawFileBrowserWindowLocation(getLocation());
@@ -293,6 +294,7 @@ public class RawFileBrowser extends JFrame {
 				public void mousePressed(java.awt.event.MouseEvent e) {
 					dragging.set(true);
 				}
+
 				@Override
 				public void mouseReleased(java.awt.event.MouseEvent e) {
 					dragging.set(false);

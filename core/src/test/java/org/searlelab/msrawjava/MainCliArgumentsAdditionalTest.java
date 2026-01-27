@@ -20,9 +20,8 @@ class MainCliArgumentsAdditionalTest {
 	@Test
 	void parsesDemuxFlagsAndLoggingOptions() throws Exception {
 		CommandLine cmd=new CommandLine(new Main.CliArguments());
-		cmd.parseArgs("--demux", "--demux-k", "9", "--demux-interp", "logquadratic", "--demux-exclude-edges",
-				"--demux-ppm", "12.5", "--batch", "--silent", "--no-ansi", "--log-file", "run.log",
-				"--min-ms1", "7.5", "--min-ms2", "2.5", "input.raw");
+		cmd.parseArgs("--demux", "--demux-k", "9", "--demux-interp", "logquadratic", "--demux-exclude-edges", "--demux-ppm", "12.5", "--batch", "--silent",
+				"--no-ansi", "--log-file", "run.log", "--min-ms1", "7.5", "--min-ms2", "2.5", "input.raw");
 		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
 		ConversionParameters params=args.toParameters();
 

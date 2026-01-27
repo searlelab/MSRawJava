@@ -24,8 +24,7 @@ class ResourceTreeExtractorErrorTest {
 
 	@Test
 	void missingResourceThrowsFileNotFound() {
-		assertThrows(FileNotFoundException.class,
-			() -> ResourceTreeExtractor.extractDirectory(getClass(), "/does-not-exist", tmp));
+		assertThrows(FileNotFoundException.class, () -> ResourceTreeExtractor.extractDirectory(getClass(), "/does-not-exist", tmp));
 	}
 
 	@Test

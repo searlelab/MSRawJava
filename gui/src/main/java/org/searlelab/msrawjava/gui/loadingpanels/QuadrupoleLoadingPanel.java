@@ -34,7 +34,7 @@ import javax.swing.WindowConstants;
 /** Quadrupole mass filter loader: wide, short analyzer; very wide passband; 10 peptide-like ions (m/z 400–1000). */
 public class QuadrupoleLoadingPanel extends LoadingPanel {
 	private static final long serialVersionUID=1L;
-	
+
 	private final JLabel label=new JLabel("Acquiring…", SwingConstants.CENTER);
 
 	private final QuadCanvas canvas=new QuadCanvas();
@@ -96,7 +96,7 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 		private static final double WINDOW_WIDTH=50.0;
 		private static final double WINDOW_STEP=50.0;
 		private static final double WINDOW_MIN=500.0;
-		private static final double WINDOW_MAX=1300.0; 
+		private static final double WINDOW_MAX=1300.0;
 
 		private final int windowCount=(int)Math.floor((WINDOW_MAX-WINDOW_MIN-WINDOW_WIDTH)/WINDOW_STEP)+1;
 
@@ -229,7 +229,7 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 			int bx=w-bw-pad;
 			int by=(h-bh)/2;
 			bandBox=new Rectangle(bx, by, bw, bh);
-			
+
 			// Reset all ions
 			for (Ion ion : ions) {
 				resetIon(ion);
@@ -365,52 +365,55 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 		// ---------------- Band-pass (400–1000 m/z, current scale) ----------------
 
 		private void computeBandpass() {
-		    centerMz = WINDOW_MIN + WINDOW_WIDTH / 2.0 + windowIndex * WINDOW_STEP;
+			centerMz=WINDOW_MIN+WINDOW_WIDTH/2.0+windowIndex*WINDOW_STEP;
 
-		    // 1) center the window at centerMz
-		    tuneUvRatioForCenter(centerMz);
-		    // 2) make the width ~ 50 m/z
-		    tuneUvRatioForWidth(centerMz);
+			// 1) center the window at centerMz
+			tuneUvRatioForCenter(centerMz);
+			// 2) make the width ~ 50 m/z
+			tuneUvRatioForWidth(centerMz);
 
-		    for (int i = 0; i < BINS; i++) {
-		        double f = i / (double) (BINS - 1);
-		        double mz = MZ_MIN + f * (MZ_MAX - MZ_MIN);
-		        pass[i] = simulatePassScore(mz); // 0..1 fraction
-		    }
+			for (int i=0; i<BINS; i++) {
+				double f=i/(double)(BINS-1);
+				double mz=MZ_MIN+f*(MZ_MAX-MZ_MIN);
+				pass[i]=simulatePassScore(mz); // 0..1 fraction
+			}
 		}
 
 		// --- Center tuning: pick uvRatio that maximizes pass at the current center mass ---
 		private void tuneUvRatioForCenter(double mCenter) {
-		    double bestR = uvRatio, best = -1;
-		    // small bracket around the current ratio (fast & robust)
-		    for (double r = Math.max(0.5, uvRatio - 0.3); r <= Math.min(1.6, uvRatio + 0.3); r += 0.02) {
-		        uvRatio = r;
-		        double s = simulatePassScore(mCenter);
-		        if (s > best) { best = s; bestR = r; }
-		    }
-		    uvRatio = bestR;
+			double bestR=uvRatio, best=-1;
+			// small bracket around the current ratio (fast & robust)
+			for (double r=Math.max(0.5, uvRatio-0.3); r<=Math.min(1.6, uvRatio+0.3); r+=0.02) {
+				uvRatio=r;
+				double s=simulatePassScore(mCenter);
+				if (s>best) {
+					best=s;
+					bestR=r;
+				}
+			}
+			uvRatio=bestR;
 		}
 
 		// --- Width tuning: adjust uvRatio so the two edges are ~0.5 each ---
 		private void tuneUvRatioForWidth(double mCenter) {
-		    final double half = WINDOW_WIDTH / 2.0;
-		    final double lo = mCenter - half, hi = mCenter + half;
+			final double half=WINDOW_WIDTH/2.0;
+			final double lo=mCenter-half, hi=mCenter+half;
 
-		    double r = uvRatio;
-		    for (int it = 0; it < 8; it++) {
-		        uvRatio = r;
-		        double pL = simulatePassScore(lo);
-		        double pH = simulatePassScore(hi);
+			double r=uvRatio;
+			for (int it=0; it<8; it++) {
+				uvRatio=r;
+				double pL=simulatePassScore(lo);
+				double pH=simulatePassScore(hi);
 
-		        // both > 0.5 ⇒ window too wide ⇒ increase slope (narrow)
-		        if (pL > 0.5 && pH > 0.5) r *= 1.05;
-		        // both < 0.5 ⇒ window too narrow ⇒ decrease slope (widen)
-		        else if (pL < 0.5 && pH < 0.5) r *= 0.95;
-		        else break; // one side in/one out ⇒ width about right
+				// both > 0.5 ⇒ window too wide ⇒ increase slope (narrow)
+				if (pL>0.5&&pH>0.5) r*=1.05;
+				// both < 0.5 ⇒ window too narrow ⇒ decrease slope (widen)
+				else if (pL<0.5&&pH<0.5) r*=0.95;
+				else break; // one side in/one out ⇒ width about right
 
-		        r = Math.max(0.5, Math.min(1.6, r));
-		    }
-		    uvRatio = r;
+				r=Math.max(0.5, Math.min(1.6, r));
+			}
+			uvRatio=r;
 		}
 
 		private boolean simulatePassWithIC(double mz, double x0, double y0, double t0) {

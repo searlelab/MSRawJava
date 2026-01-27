@@ -4,9 +4,7 @@ public class LoggingProgressIndicator implements ProgressIndicator {
 	private static final long HEARTBEAT_MS=100L;
 
 	public enum Mode {
-		DEFAULT,
-		BATCH,
-		SILENT
+		DEFAULT, BATCH, SILENT
 	}
 
 	volatile private float totalProgress=0.0f;
@@ -26,8 +24,8 @@ public class LoggingProgressIndicator implements ProgressIndicator {
 
 	public LoggingProgressIndicator(Mode mode) {
 		this(mode, true);
-	 }
-	
+	}
+
 	public LoggingProgressIndicator(Mode mode, boolean useAnsi) {
 		this.mode=mode;
 		this.useAnsi=useAnsi;
@@ -51,7 +49,7 @@ public class LoggingProgressIndicator implements ProgressIndicator {
 			done=true;
 		}
 	}
-	
+
 	@Override
 	public void update(String message) {
 		if (message!=null) {
@@ -59,17 +57,17 @@ public class LoggingProgressIndicator implements ProgressIndicator {
 		}
 		render();
 	}
-	
+
 	@Override
 	public float getTotalProgress() {
 		return totalProgress;
 	}
-	
+
 	@Override
 	public boolean isCanceled() {
 		return canceled;
 	}
-	
+
 	public void setCanceled(boolean canceled) {
 		this.canceled=canceled;
 	}

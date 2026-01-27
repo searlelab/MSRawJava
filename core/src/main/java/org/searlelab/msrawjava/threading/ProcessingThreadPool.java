@@ -13,8 +13,8 @@ public class ProcessingThreadPool implements AutoCloseable {
 	private final ThreadPoolExecutor computePool;
 
 	public ProcessingThreadPool(int threads, int queueCapacity) {
-		this.computePool=new ThreadPoolExecutor(threads, threads, 365L, TimeUnit.DAYS,
-				new ArrayBlockingQueue<>(queueCapacity), namedFactory("msrawjava-worker"), new BlockOnRejectPolicy());
+		this.computePool=new ThreadPoolExecutor(threads, threads, 365L, TimeUnit.DAYS, new ArrayBlockingQueue<>(queueCapacity),
+				namedFactory("msrawjava-worker"), new BlockOnRejectPolicy());
 		this.computePool.prestartAllCoreThreads();
 	}
 

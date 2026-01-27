@@ -10,7 +10,7 @@ import java.util.Comparator;
 public class PeakInTime implements PeakInterface {
 	public static final PeakIntensityComparator INTENSITY_COMPARATOR=new PeakIntensityComparator();
 	public static final PeakRTComparator RT_COMPARATOR=new PeakRTComparator();
-	
+
 	public final double mz;
 	public final float intensity;
 	public final float rtInSec;
@@ -46,11 +46,12 @@ public class PeakInTime implements PeakInterface {
 	public double getMz() {
 		return mz;
 	}
-	
+
 	@Override
 	public float getIntensity() {
 		return intensity;
 	}
+
 	public float getRtInSec() {
 		return rtInSec;
 	}

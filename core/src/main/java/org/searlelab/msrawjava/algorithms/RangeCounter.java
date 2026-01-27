@@ -16,7 +16,7 @@ final public class RangeCounter {
 		acquiredRanges=new ArrayList<Range>();
 		acquiredIndicies=new TIntArrayList();
 	}
-	
+
 	public void addRange(Range acquired, int index) {
 		acquiredRanges.add(acquired);
 		acquiredIndicies.add(index);

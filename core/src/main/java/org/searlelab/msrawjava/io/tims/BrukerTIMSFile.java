@@ -50,10 +50,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	private volatile boolean open=false;
 	private int ms1Key=0;
 	private int ms2Key=-1; // unknown
-	
+
 	private float OneOverK0AcqRangeLower=0;
 	private float OneOverK0AcqRangeUpper=0;
-
 
 	public BrukerTIMSFile() {
 	}
@@ -113,7 +112,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		boolean isOtofControl=true;
 		boolean failedGettingCalibrationParams=params.isEmpty();
 		if (!failedGettingCalibrationParams) {
-			try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"DigitizerNumSamples\""); ResultSet rs=ps.executeQuery()) {
+			try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"DigitizerNumSamples\"");
+					ResultSet rs=ps.executeQuery()) {
 				rs.next();
 				digitizerNumSamples=rs.getInt(1);
 			} catch (Exception e) {
@@ -141,7 +141,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		}
 
 		if (!failedGettingCalibrationParams) {
-			try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"AcquisitionSoftware\""); ResultSet rs=ps.executeQuery()) {
+			try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"AcquisitionSoftware\"");
+					ResultSet rs=ps.executeQuery()) {
 				rs.next();
 				isOtofControl="Bruker otofControl".equalsIgnoreCase(rs.getString(1));
 			} catch (Exception e) {
@@ -149,7 +150,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				failedGettingCalibrationParams=true;
 			}
 		}
-		
+
 		Optional<MzCalibrator> calibrator;
 		if (failedGettingCalibrationParams) {
 			calibrator=Optional.empty();
@@ -161,11 +162,12 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			//calibrator=Optional.of(new MzCalibrationWithEvenPowers(digitizerNumSamples, mzAcqRangeLower, mzAcqRangeUpper, params.get()));
 			calibrator=Optional.of(new MzCalibrationPoly(digitizerNumSamples, mzAcqRangeLower, mzAcqRangeUpper, params.get()));
 		}
-		
+
 		this.reader=TimsReader.open(dPath, calibrator);
 
 		Map<Integer, Integer> hist=new LinkedHashMap<>();
-		try (PreparedStatement ps=conn.prepareStatement("SELECT MsMsType, COUNT(*) FROM Frames GROUP BY MsMsType ORDER BY MsMsType"); ResultSet rs=ps.executeQuery()) {
+		try (PreparedStatement ps=conn.prepareStatement("SELECT MsMsType, COUNT(*) FROM Frames GROUP BY MsMsType ORDER BY MsMsType");
+				ResultSet rs=ps.executeQuery()) {
 			while (rs.next())
 				hist.put(rs.getInt(1), rs.getInt(2));
 		}
@@ -196,20 +198,21 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		if (expectedMS2==0) System.err.println("No MS2s found!");
 		ms1Key=expectedMS1Key;
 		ms2Key=expectedMS2Key;
-		
 
-		try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeLower\""); ResultSet rs=ps.executeQuery()) {
+		try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeLower\"");
+				ResultSet rs=ps.executeQuery()) {
 			rs.next();
 			OneOverK0AcqRangeLower=rs.getFloat(1);
 		}
-		
-		try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeUpper\""); ResultSet rs=ps.executeQuery()) {
+
+		try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeUpper\"");
+				ResultSet rs=ps.executeQuery()) {
 			rs.next();
 			OneOverK0AcqRangeUpper=rs.getFloat(1);
 		}
-		
+
 	}
-	
+
 	public Optional<MzCalibrationParams> readCalibrationParams() {
 
 		try {
@@ -219,7 +222,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				try (PreparedStatement ps=conn.prepareStatement(sql)) {
 					try (ResultSet rs=ps.executeQuery()) {
 						if (!rs.next()) throw new SQLException("MzCalibration table is empty");
-			
+
 						// Required fields
 						double tbNs=rs.getDouble(1);
 						double delayNs=rs.getDouble(2);
@@ -227,14 +230,14 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						double T2=rs.getDouble(4);
 						double dC1=rs.getDouble(5);
 						double dC2=rs.getDouble(6);
-			
+
 						// Nullable C0..C4 → default to 0.0 if null
 						double C0=getNullableDouble(rs, 7, 0.0);
 						double C1=getNullableDouble(rs, 8, 0.0);
 						double C2=getNullableDouble(rs, 9, 0.0);
 						double C3=getNullableDouble(rs, 10, 0.0);
 						double C4=getNullableDouble(rs, 11, 0.0);
-			
+
 						return Optional.of(new MzCalibrationParams(tbNs, delayNs, T1, T2, dC1, dC2, C0, C1, C2, C3, C4));
 					}
 				}
@@ -252,12 +255,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				return Collections.emptyMap();
 			}
 			// Gather all windows with their frame times
-			String sql="SELECT F.Id AS FrameId, F.Time AS RT, W.IsolationMz, W.IsolationWidth, W.ScanNumBegin, W.ScanNumEnd "
-					+"FROM Frames F "
-					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
-					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
-					+"WHERE F.MsMsType = "+ms2Key+" "
-					+"ORDER BY W.IsolationMz ASC, F.Time ASC";
+			String sql="SELECT F.Id AS FrameId, F.Time AS RT, W.IsolationMz, W.IsolationWidth, W.ScanNumBegin, W.ScanNumEnd "+"FROM Frames F "
+					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "+"WHERE F.MsMsType = "+ms2Key
+					+" "+"ORDER BY W.IsolationMz ASC, F.Time ASC";
 
 			Map<Range, List<Double>> rtByRange=new LinkedHashMap<>();
 			Map<Range, int[]> scanRangeByRange=new HashMap<>();
@@ -266,7 +266,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				while (rs.next()) {
 					double isoMz=rs.getDouble("IsolationMz");
 					double realCenter=isoMz;//reader.calibrateMz(isoMz); // do we trust the precursor m/z?
-					
+
 					double width=rs.getDouble("IsolationWidth");
 					int sLo=rs.getInt("ScanNumBegin");
 					int sHi=rs.getInt("ScanNumEnd");
@@ -306,12 +306,13 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			throw new RuntimeException(e);
 		}
 	}
-	
+
 	/** for testing */
 	double[] getPrecursorMzs() {
 		try {
 			if (!tableExists("Precursors")) return new double[0];
-			try (PreparedStatement ps=conn.prepareStatement("SELECT MonoisotopicMz FROM Precursors WHERE MonoisotopicMz IS NOT NULL"); ResultSet rs=ps.executeQuery()) {
+			try (PreparedStatement ps=conn.prepareStatement("SELECT MonoisotopicMz FROM Precursors WHERE MonoisotopicMz IS NOT NULL");
+					ResultSet rs=ps.executeQuery()) {
 				TDoubleArrayList precursors=new TDoubleArrayList();
 				while (rs.next()) {
 					double monoMz=rs.getDouble(1);
@@ -341,7 +342,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			return 0f;
 		}
 	}
-	
+
 	@Override
 	public Pair<float[], float[]> getTICTrace() throws IOException, SQLException {
 		ensureOpen();
@@ -413,7 +414,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			}
 		}
 	}
-	
+
 	private LinkedHashMap<String, String> metadata=null;
 
 	/**
@@ -429,8 +430,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		out.put("file.name", originalFileName);
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(Time), MAX(Time), SUM(CASE WHEN MsMsType=0 THEN 1 ELSE 0 END), "
-				+"SUM(CASE WHEN MsMsType=8 THEN 1 ELSE 0 END), SUM(CASE WHEN MsMsType=9 THEN 1 ELSE 0 END) " 
-				+"FROM Frames")) {
+				+"SUM(CASE WHEN MsMsType=8 THEN 1 ELSE 0 END), SUM(CASE WHEN MsMsType=9 THEN 1 ELSE 0 END) "+"FROM Frames")) {
 			try (ResultSet rs=ps.executeQuery()) {
 				if (rs.next()) {
 					out.put("frames.total", Integer.toString(rs.getInt(1)));
@@ -461,8 +461,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		}
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT AVG(CASE WHEN MsMsType=0 THEN AccumulationTime END), "
-				+"AVG(CASE WHEN MsMsType=8 THEN AccumulationTime END), AVG(CASE WHEN MsMsType=9 THEN AccumulationTime END) "
-				+"FROM Frames")) {
+				+"AVG(CASE WHEN MsMsType=8 THEN AccumulationTime END), AVG(CASE WHEN MsMsType=9 THEN AccumulationTime END) "+"FROM Frames")) {
 			try (ResultSet rs=ps.executeQuery()) {
 				if (rs.next()) {
 					out.put("accTime.avg.ms1.s", Double.toString(1000.0*rs.getDouble(1)));
@@ -502,8 +501,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 		if (tableExists("PasefFrameMsMsInfo")) {
 			try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(IsolationMz - 0.5*IsolationWidth), "
-					+"MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "
-					+"FROM PasefFrameMsMsInfo"); ResultSet rs=ps.executeQuery()) {
+					+"MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "+"FROM PasefFrameMsMsInfo"); ResultSet rs=ps.executeQuery()) {
 				if (rs.next()) {
 					out.put("dda.targets.count", Integer.toString(rs.getInt(1)));
 					out.put("dda.mz.min", Double.toString(rs.getDouble(2)));
@@ -534,10 +532,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		return out;
 	}
 
-    private static double getNullableDouble(ResultSet rs, int col, double def) throws SQLException {
-        double v = rs.getDouble(col);
-        return rs.wasNull() ? def : v;
-    }
+	private static double getNullableDouble(ResultSet rs, int col, double def) throws SQLException {
+		double v=rs.getDouble(col);
+		return rs.wasNull()?def:v;
+	}
 
 	/** Read MS1 precursor scans within an RT window. */
 	@Override
@@ -561,7 +559,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			ps.setDouble(2, rtStart);
 			ps.setDouble(3, rtEnd);
 			try (ResultSet rs=ps.executeQuery()) {
-				
+
 				final ArrayList<PrecursorScan> out=new ArrayList<>();
 				while (rs.next()) {
 					int frameId=rs.getInt(1);
@@ -569,7 +567,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					float injTime=accumulationTimeSeconds(rs.getFloat(3));
 					double t1=rs.getDouble(4);
 					int numScans=rs.getInt(5);
-					
+
 					Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(frameId-1, 0, 99999, t1); // ms1 reads all scans
 
 					final String name=Integer.toString(frameId);
@@ -592,9 +590,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	@Override
 	public ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
 		ensureOpen();
-		
+
 		//targetMz=reader.uncalibrateMz(targetMz); // do we trust the precursor m/zs?
-		
+
 		Map<String, String> meta=getMetadata();
 		double scanWindowLower;
 		double scanWindowUpper;
@@ -605,14 +603,12 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			scanWindowLower=0.0;
 			scanWindowUpper=2000.0;
 		}
-		
+
 		if (ms2Key==9) {
 			// DIA: select the single window per frame that contains targetMz
 
 			final String sql="SELECT F.Id, W.WindowGroup, F.Time,  W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd, F.t1, F.NumScans "
-					+"FROM Frames F "
-					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
-					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
+					+"FROM Frames F "+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
 					+"WHERE F.MsMsType = "+ms2Key+" AND F.Time BETWEEN ? AND ? "
 					+"AND (? BETWEEN (W.IsolationMz - 0.5*W.IsolationWidth) AND (W.IsolationMz + 0.5*W.IsolationWidth)) "
 					+"ORDER BY F.Time ASC, W.IsolationMz ASC";
@@ -653,14 +649,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		} else if (ms2Key==8) {
 			// DDA: select frames whose isolation contains targetMz, pick closest per frame, include charge and parent
 			String sql="SELECT I.frame, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
-					+ "COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor, F.t1, F.NumScans, COALESCE(P.MonoisotopicMz, P.largestPeakMz) AS targetMz "
-					+ "FROM PasefFrameMsMsInfo I, Frames F,  Precursors P "
-					+ "WHERE I.frame = F.Id "
-					+ "AND I.Precursor = P.Id "
-					+ "AND F.MsMsType = 8 "
-					+ "AND F.Time BETWEEN ? AND ? "
-					+"AND ? BETWEEN I.IsolationMz-I.IsolationWidth/2 AND I.IsolationMz+I.IsolationWidth/2 "
-					+ "ORDER BY F.Time ASC, I.IsolationMz ASC";
+					+"COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor, F.t1, F.NumScans, COALESCE(P.MonoisotopicMz, P.largestPeakMz) AS targetMz "
+					+"FROM PasefFrameMsMsInfo I, Frames F,  Precursors P "+"WHERE I.frame = F.Id "+"AND I.Precursor = P.Id "+"AND F.MsMsType = 8 "
+					+"AND F.Time BETWEEN ? AND ? "+"AND ? BETWEEN I.IsolationMz-I.IsolationWidth/2 AND I.IsolationMz+I.IsolationWidth/2 "
+					+"ORDER BY F.Time ASC, I.IsolationMz ASC";
 
 			final ArrayList<FragmentScan> out=new ArrayList<>();
 
@@ -668,7 +660,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				ps.setDouble(1, minRT);
 				ps.setDouble(2, maxRT);
 				ps.setDouble(3, targetMz);
-				
+
 				try (ResultSet rs=ps.executeQuery()) {
 					while (rs.next()) {
 						int frameId=rs.getInt(1);
@@ -714,11 +706,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 									precursorTargetMz, // precursor
 									rt, // scanStartTime
 									0, // fraction
-									accumulationTimeSeconds(acc),
-									isoLo, isoHi, // isolation window bounds
+									accumulationTimeSeconds(acc), isoLo, isoHi, // isolation window bounds
 									triplet.x, intens, ims, charge, // precursor charge
-									scanWindowLower, scanWindowUpper
-							));
+									scanWindowLower, scanWindowUpper));
 						} catch (Exception ex) {
 							// propagate after closing iterator
 							throw new RuntimeException("Unexpected error in Rust", ex);
@@ -743,7 +733,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		private final int frameId, scanMax;
 		private final double rt, acc, t1;
 		ArrayList<Win> wins=new ArrayList<>();
-		
+
 		public Meta(int frameId, double rt, double acc, double t1, int scanMax) {
 			super();
 			this.frameId=frameId;
@@ -758,12 +748,12 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	@Override
 	public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, final boolean sqrt) throws IOException, SQLException {
 		ensureOpen();
-		
+
 		// do we trust the precursor m/zs?
 		//double start=targetMzRange.getStart()<=0.0f?0.0f:reader.uncalibrateMz(targetMzRange.getStart());
 		//double stop=targetMzRange.getStop()>=Float.MAX_VALUE?Float.MAX_VALUE:reader.uncalibrateMz(targetMzRange.getStop());
 		//targetMzRange=new Range(start, stop);
-		
+
 		Map<String, String> meta=getMetadata();
 		double scanWindowLower;
 		double scanWindowUpper;
@@ -774,7 +764,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			scanWindowLower=0.0;
 			scanWindowUpper=2000.0;
 		}
-		
+
 		final double rangeLo=targetMzRange.getStart();
 		final double rangeHi=targetMzRange.getStop();
 
@@ -782,9 +772,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			// DIA: gather all windows overlapping the target range per frame
 
 			final String sql="SELECT F.Id, W.WindowGroup, F.Time, W.IsolationMz, W.IsolationWidth, F.AccumulationTime, W.ScanNumBegin, W.ScanNumEnd, F.t1, F.NumScans "
-					+"FROM Frames F "
-					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
-					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
+					+"FROM Frames F "+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
 					+"WHERE F.MsMsType = "+ms2Key+" AND F.Time BETWEEN ? AND ? "+"AND ( W.IsolationMz <= ? AND W.IsolationMz >= ? ) "
 					+"ORDER BY F.Time ASC, W.IsolationMz ASC";
 
@@ -825,14 +813,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		} else if (ms2Key==8) {
 			// DDA: pick targets whose isolation window overlaps the target range.
 			String sql="SELECT I.frame, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
-					+ "COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor, F.t1, F.NumScans, COALESCE(P.MonoisotopicMz, P.largestPeakMz) AS targetMz "
-					+ "FROM PasefFrameMsMsInfo I, Frames F,  Precursors P "
-					+ "WHERE I.frame = F.Id "
-					+ "AND I.Precursor = P.Id "
-					+ "AND F.MsMsType = 8 "
-					+ "AND F.Time BETWEEN ? AND ? "
-					+ "AND COALESCE(P.MonoisotopicMz, P.largestPeakMz) BETWEEN ? AND ? "
-					+ "ORDER BY F.Time ASC, I.IsolationMz ASC";
+					+"COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor, F.t1, F.NumScans, COALESCE(P.MonoisotopicMz, P.largestPeakMz) AS targetMz "
+					+"FROM PasefFrameMsMsInfo I, Frames F,  Precursors P "+"WHERE I.frame = F.Id "+"AND I.Precursor = P.Id "+"AND F.MsMsType = 8 "
+					+"AND F.Time BETWEEN ? AND ? "+"AND COALESCE(P.MonoisotopicMz, P.largestPeakMz) BETWEEN ? AND ? "+"ORDER BY F.Time ASC, I.IsolationMz ASC";
 
 			final ArrayList<FragmentScan> out=new ArrayList<>();
 
@@ -841,7 +824,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				ps.setDouble(2, maxRT);
 				ps.setDouble(3, targetMzRange.getStart());
 				ps.setDouble(4, targetMzRange.getStop());
-				
+
 				try (ResultSet rs=ps.executeQuery()) {
 					while (rs.next()) {
 						int frameId=rs.getInt(1);
@@ -857,7 +840,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						float t1=(float)rs.getDouble(11);
 						int numScans=rs.getInt(12);
 						double precursorTargetMz=rs.getDouble(13);
-						
+
 						//isoMz=reader.calibrateMz(isoMz, t1); // do we trust the precursor mz?
 
 						double isoLo=isoMz-0.5*isoW;
@@ -866,7 +849,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						try {
 							Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(frameId-1, scanLo, scanHi, t1);
 							if (triplet==null||triplet.x.length==0) continue;
-							
+
 							// Optionally sqrt intensities
 							float[] intens=triplet.y;
 							if (sqrt) {
@@ -881,7 +864,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 							}
 
 							final String name="frame="+Integer.toString(frameId)+" start="+scanLo+" stop="+scanHi;
-							
+
 							out.add(new FragmentScan(name, // spectrumName
 									parent, // precursorName from Precursors.Parent
 									precursorID, // spectrumIndex
@@ -891,8 +874,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 									1000f*acc, // IonInjectionTime (sec) = 1000 * AccumulationTime
 									isoLo, isoHi, // isolation window bounds
 									triplet.x, intens, ims, charge, // precursor charge
-									scanWindowLower, scanWindowUpper
-							));
+									scanWindowLower, scanWindowUpper));
 						} catch (Exception ex) {
 							// propagate after closing iterator
 							throw new RuntimeException("Unexpected error in Rust", ex);
@@ -933,19 +915,16 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					int frameId=rs.getInt(1);
 					float rt=rs.getFloat(2);
 					float injTime=accumulationTimeSeconds(rs.getFloat(3));
-					out.add(new ScanSummary(Integer.toString(frameId), frameId, rt, 0, -1.0, true,
-							injTime, scanWindowLower, scanWindowUpper, scanWindowLower, scanWindowUpper, (byte)0));
+					out.add(new ScanSummary(Integer.toString(frameId), frameId, rt, 0, -1.0, true, injTime, scanWindowLower, scanWindowUpper, scanWindowLower,
+							scanWindowUpper, (byte)0));
 				}
 			}
 		}
 
 		if (tableExists("DiaFrameMsMsWindows")&&tableExists("DiaFrameMsMsInfo")) {
-			String ms2Sql="SELECT F.Id, F.Time, F.AccumulationTime, W.IsolationMz, W.IsolationWidth "
-					+"FROM Frames F "
-					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
-					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
-					+"WHERE F.MsMsType = ? AND F.Time BETWEEN ? AND ? "
-					+"ORDER BY F.Time ASC, W.IsolationMz ASC";
+			String ms2Sql="SELECT F.Id, F.Time, F.AccumulationTime, W.IsolationMz, W.IsolationWidth "+"FROM Frames F "
+					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
+					+"WHERE F.MsMsType = ? AND F.Time BETWEEN ? AND ? "+"ORDER BY F.Time ASC, W.IsolationMz ASC";
 			try (PreparedStatement ps=conn.prepareStatement(ms2Sql)) {
 				ps.setInt(1, ms2Key);
 				ps.setDouble(2, rtStart);
@@ -959,8 +938,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						double width=rs.getDouble(5);
 						double lo=center-0.5*width;
 						double hi=center+0.5*width;
-						out.add(new ScanSummary(Integer.toString(frameId), frameId, rt, 0, center, false,
-								injTime, lo, hi, scanWindowLower, scanWindowUpper, (byte)0));
+						out.add(new ScanSummary(Integer.toString(frameId), frameId, rt, 0, center, false, injTime, lo, hi, scanWindowLower, scanWindowUpper,
+								(byte)0));
 					}
 				}
 			}
@@ -989,7 +968,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		}
 		return scans.isEmpty()?null:scans.get(0);
 	}
-	
+
 	private float getIMSFromScanNumber(int scanNumber, int scanMax) {
 		if (OneOverK0AcqRangeUpper-OneOverK0AcqRangeLower>0) {
 			return OneOverK0AcqRangeUpper+(OneOverK0AcqRangeLower-OneOverK0AcqRangeUpper)*((scanNumber-1.0f)/scanMax);
@@ -1008,9 +987,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		for (Meta m : metas) {
 			for (Win w : m.wins) {
 				// intersect m/z based on the window’s center/width and the user’s target range
-				
+
 				double realCenter=w.center;// reader.calibrateMz(w.center); // do we trust the precursor m/z?
-				
+
 				double isoL=realCenter-0.5*w.width;
 				double isoH=realCenter+0.5*w.width;
 
@@ -1023,7 +1002,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 					final int n=triplet.x==null?0:triplet.x.length;
 					if (n==0) {
-						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), isoL, isoH, new double[0], new float[0], new float[0], (byte)0, scanWindowLower, scanWindowUpper));
+						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), isoL, isoH, new double[0],
+								new float[0], new float[0], (byte)0, scanWindowLower, scanWindowUpper));
 					} else {
 						// Optionally sqrt intensities
 						float[] intens=triplet.y;
@@ -1038,7 +1018,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 							ims[i]=getIMSFromScanNumber(triplet.z[i], m.scanMax);
 						}
 
-						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), isoL, isoH, triplet.x, intens, ims, (byte)0, scanWindowLower, scanWindowUpper));
+						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), isoL, isoH, triplet.x, intens,
+								ims, (byte)0, scanWindowLower, scanWindowUpper));
 					}
 				} catch (Exception ex) {
 					// propagate after closing iterator
@@ -1052,6 +1033,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 	/**
 	 * for testing only!
+	 * 
 	 * @return
 	 */
 	public TimsReader getReader() {

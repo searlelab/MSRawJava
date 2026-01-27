@@ -23,8 +23,8 @@ class ProcessingThreadPoolTest {
 
 	@Test
 	void constructorCreatesPoolWithSpecifiedThreads() throws InterruptedException {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(2, 10)) {
-			ExecutorService executor = pool.computePool();
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(2, 10)) {
+			ExecutorService executor=pool.computePool();
 			assertNotNull(executor);
 			assertFalse(executor.isShutdown());
 		}
@@ -32,15 +32,15 @@ class ProcessingThreadPoolTest {
 
 	@Test
 	void computePoolReturnsNonNullExecutor() throws InterruptedException {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(2, 10)) {
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(2, 10)) {
 			assertNotNull(pool.computePool());
 		}
 	}
 
 	@Test
 	void closeShutdownsPool() throws InterruptedException {
-		ProcessingThreadPool pool = new ProcessingThreadPool(2, 10);
-		ExecutorService executor = pool.computePool();
+		ProcessingThreadPool pool=new ProcessingThreadPool(2, 10);
+		ExecutorService executor=pool.computePool();
 		assertFalse(executor.isShutdown());
 
 		pool.close();
@@ -48,11 +48,10 @@ class ProcessingThreadPoolTest {
 		assertTrue(executor.isShutdown());
 	}
 
-	@Test
-	@Timeout(5)
+	@Test @Timeout(5)
 	void closeWaitsForTasksToComplete() throws InterruptedException {
-		ProcessingThreadPool pool = new ProcessingThreadPool(2, 10);
-		AtomicInteger completed = new AtomicInteger(0);
+		ProcessingThreadPool pool=new ProcessingThreadPool(2, 10);
+		AtomicInteger completed=new AtomicInteger(0);
 
 		// Submit a task that takes a bit of time
 		pool.computePool().submit(() -> {
@@ -71,7 +70,7 @@ class ProcessingThreadPoolTest {
 
 	@Test
 	void createDefaultCreatesWorkingPool() throws InterruptedException {
-		try (ProcessingThreadPool pool = ProcessingThreadPool.createDefault()) {
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createDefault()) {
 			assertNotNull(pool);
 			assertNotNull(pool.computePool());
 			assertFalse(pool.computePool().isShutdown());
@@ -80,15 +79,15 @@ class ProcessingThreadPoolTest {
 
 	@Test
 	void createDefaultUsesAvailableProcessors() throws InterruptedException {
-		int cores = Runtime.getRuntime().availableProcessors();
-		int expectedThreads = Math.max(1, cores - 1);
+		int cores=Runtime.getRuntime().availableProcessors();
+		int expectedThreads=Math.max(1, cores-1);
 
-		try (ProcessingThreadPool pool = ProcessingThreadPool.createDefault()) {
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createDefault()) {
 			// Submit tasks to verify thread count
-			CountDownLatch latch = new CountDownLatch(expectedThreads);
-			CountDownLatch startLatch = new CountDownLatch(1);
+			CountDownLatch latch=new CountDownLatch(expectedThreads);
+			CountDownLatch startLatch=new CountDownLatch(1);
 
-			for (int i = 0; i < expectedThreads; i++) {
+			for (int i=0; i<expectedThreads; i++) {
 				pool.computePool().submit(() -> {
 					try {
 						startLatch.await();
@@ -104,15 +103,14 @@ class ProcessingThreadPoolTest {
 		}
 	}
 
-	@Test
-	@Timeout(5)
+	@Test @Timeout(5)
 	void tasksExecuteCorrectly() throws Exception {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(2, 10)) {
-			AtomicInteger counter = new AtomicInteger(0);
-			int taskCount = 5;
-			CountDownLatch latch = new CountDownLatch(taskCount);
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(2, 10)) {
+			AtomicInteger counter=new AtomicInteger(0);
+			int taskCount=5;
+			CountDownLatch latch=new CountDownLatch(taskCount);
 
-			for (int i = 0; i < taskCount; i++) {
+			for (int i=0; i<taskCount; i++) {
 				pool.computePool().submit(() -> {
 					counter.incrementAndGet();
 					latch.countDown();
@@ -124,19 +122,18 @@ class ProcessingThreadPoolTest {
 		}
 	}
 
-	@Test
-	@Timeout(5)
+	@Test @Timeout(5)
 	void tasksExecuteInParallel() throws Exception {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(4, 10)) {
-			AtomicInteger maxConcurrent = new AtomicInteger(0);
-			AtomicInteger currentConcurrent = new AtomicInteger(0);
-			int taskCount = 4;
-			CountDownLatch allStarted = new CountDownLatch(taskCount);
-			CountDownLatch canFinish = new CountDownLatch(1);
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(4, 10)) {
+			AtomicInteger maxConcurrent=new AtomicInteger(0);
+			AtomicInteger currentConcurrent=new AtomicInteger(0);
+			int taskCount=4;
+			CountDownLatch allStarted=new CountDownLatch(taskCount);
+			CountDownLatch canFinish=new CountDownLatch(1);
 
-			for (int i = 0; i < taskCount; i++) {
+			for (int i=0; i<taskCount; i++) {
 				pool.computePool().submit(() -> {
-					int current = currentConcurrent.incrementAndGet();
+					int current=currentConcurrent.incrementAndGet();
 					maxConcurrent.updateAndGet(max -> Math.max(max, current));
 					allStarted.countDown();
 					try {
@@ -152,15 +149,15 @@ class ProcessingThreadPoolTest {
 			canFinish.countDown();
 
 			// Should have had multiple tasks running concurrently
-			assertTrue(maxConcurrent.get() > 1, "Expected concurrent execution, got max " + maxConcurrent.get());
+			assertTrue(maxConcurrent.get()>1, "Expected concurrent execution, got max "+maxConcurrent.get());
 		}
 	}
 
 	@Test
 	void threadsAreDaemon() throws InterruptedException {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(2, 10)) {
-			CountDownLatch latch = new CountDownLatch(1);
-			List<Boolean> daemonFlags = Collections.synchronizedList(new ArrayList<>());
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(2, 10)) {
+			CountDownLatch latch=new CountDownLatch(1);
+			List<Boolean> daemonFlags=Collections.synchronizedList(new ArrayList<>());
 
 			pool.computePool().submit(() -> {
 				daemonFlags.add(Thread.currentThread().isDaemon());
@@ -174,9 +171,9 @@ class ProcessingThreadPoolTest {
 
 	@Test
 	void threadsHaveCorrectNamePrefix() throws InterruptedException {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(2, 10)) {
-			CountDownLatch latch = new CountDownLatch(1);
-			List<String> threadNames = Collections.synchronizedList(new ArrayList<>());
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(2, 10)) {
+			CountDownLatch latch=new CountDownLatch(1);
+			List<String> threadNames=Collections.synchronizedList(new ArrayList<>());
 
 			pool.computePool().submit(() -> {
 				threadNames.add(Thread.currentThread().getName());
@@ -184,19 +181,17 @@ class ProcessingThreadPoolTest {
 			});
 
 			assertTrue(latch.await(5, TimeUnit.SECONDS));
-			assertTrue(threadNames.get(0).startsWith("msrawjava-worker-"),
-				"Thread name should start with 'msrawjava-worker-', got: " + threadNames.get(0));
+			assertTrue(threadNames.get(0).startsWith("msrawjava-worker-"), "Thread name should start with 'msrawjava-worker-', got: "+threadNames.get(0));
 		}
 	}
 
-	@Test
-	@Timeout(10)
+	@Test @Timeout(10)
 	void blockOnRejectPolicyBlocksWhenQueueFull() throws Exception {
 		// Create a pool with 1 thread and queue capacity of 1
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(1, 1)) {
-			CountDownLatch firstTaskStarted = new CountDownLatch(1);
-			CountDownLatch canFinish = new CountDownLatch(1);
-			AtomicInteger submittedCount = new AtomicInteger(0);
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(1, 1)) {
+			CountDownLatch firstTaskStarted=new CountDownLatch(1);
+			CountDownLatch canFinish=new CountDownLatch(1);
+			AtomicInteger submittedCount=new AtomicInteger(0);
 
 			// First task: blocks the thread
 			pool.computePool().submit(() -> {
@@ -216,7 +211,7 @@ class ProcessingThreadPoolTest {
 
 			// Third task should block (queue is full, thread is busy)
 			// Run in separate thread to verify blocking
-			Thread submitter = new Thread(() -> {
+			Thread submitter=new Thread(() -> {
 				pool.computePool().submit(() -> submittedCount.incrementAndGet());
 			});
 			submitter.start();
@@ -236,34 +231,33 @@ class ProcessingThreadPoolTest {
 
 	@Test
 	void rejectsPolicyThrowsWhenShutdown() throws InterruptedException {
-		ProcessingThreadPool pool = new ProcessingThreadPool(1, 1);
+		ProcessingThreadPool pool=new ProcessingThreadPool(1, 1);
 		pool.close();
 
 		assertThrows(RejectedExecutionException.class, () -> {
-			pool.computePool().submit(() -> {});
+			pool.computePool().submit(() -> {
+			});
 		});
 	}
 
-	@Test
-	@Timeout(5)
+	@Test @Timeout(5)
 	void futuresReturnCorrectResults() throws Exception {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(2, 10)) {
-			Future<Integer> future1 = pool.computePool().submit(() -> 42);
-			Future<Integer> future2 = pool.computePool().submit(() -> 100);
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(2, 10)) {
+			Future<Integer> future1=pool.computePool().submit(() -> 42);
+			Future<Integer> future2=pool.computePool().submit(() -> 100);
 
 			assertEquals(42, future1.get(5, TimeUnit.SECONDS));
 			assertEquals(100, future2.get(5, TimeUnit.SECONDS));
 		}
 	}
 
-	@Test
-	@Timeout(5)
+	@Test @Timeout(5)
 	void handlesExceptionsInTasks() throws Exception {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(2, 10)) {
-			CountDownLatch normalTaskCompleted = new CountDownLatch(1);
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(2, 10)) {
+			CountDownLatch normalTaskCompleted=new CountDownLatch(1);
 
 			// Submit a task that throws
-			Future<?> failingFuture = pool.computePool().submit(() -> {
+			Future<?> failingFuture=pool.computePool().submit(() -> {
 				throw new RuntimeException("Test exception");
 			});
 
@@ -282,11 +276,11 @@ class ProcessingThreadPoolTest {
 
 	@Test
 	void singleThreadPoolWorks() throws Exception {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(1, 5)) {
-			AtomicInteger counter = new AtomicInteger(0);
-			CountDownLatch latch = new CountDownLatch(3);
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(1, 5)) {
+			AtomicInteger counter=new AtomicInteger(0);
+			CountDownLatch latch=new CountDownLatch(3);
 
-			for (int i = 0; i < 3; i++) {
+			for (int i=0; i<3; i++) {
 				pool.computePool().submit(() -> {
 					counter.incrementAndGet();
 					latch.countDown();
@@ -300,12 +294,12 @@ class ProcessingThreadPoolTest {
 
 	@Test
 	void manyThreadsPoolWorks() throws Exception {
-		try (ProcessingThreadPool pool = new ProcessingThreadPool(8, 20)) {
-			AtomicInteger counter = new AtomicInteger(0);
-			int taskCount = 50;
-			CountDownLatch latch = new CountDownLatch(taskCount);
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(8, 20)) {
+			AtomicInteger counter=new AtomicInteger(0);
+			int taskCount=50;
+			CountDownLatch latch=new CountDownLatch(taskCount);
 
-			for (int i = 0; i < taskCount; i++) {
+			for (int i=0; i<taskCount; i++) {
 				pool.computePool().submit(() -> {
 					counter.incrementAndGet();
 					latch.countDown();

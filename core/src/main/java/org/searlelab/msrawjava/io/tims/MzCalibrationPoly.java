@@ -3,7 +3,7 @@ package org.searlelab.msrawjava.io.tims;
 /**
  * MzCalibrationPoly represents the polynomial (and related coefficients) used by the timsTOF path to evaluate
  * calibrated m/z from raw indices/TOF. It provides an immutable, serializable form of the calibration function so
- * readers and native components can perform conversions consistently. 
+ * readers and native components can perform conversions consistently.
  */
 public final class MzCalibrationPoly implements MzCalibrator {
 
@@ -28,8 +28,8 @@ public final class MzCalibrationPoly implements MzCalibrator {
 	 * E=(m/2)*v^2=(m/2)*L^2/(t-t0)^2, kinetic energy equation where the time of flight Δt=t-t0 over a distance L
 	 * m=2*E*(t-t0)^2/L^2, solve for m
 	 * t=t0+L*sqrt(m/2*E), solve for t
-	 * E=Eu+E0=Eu+(m/2)*v0^2, E (total energy) is the sum of Eu (energy caused by electric acceleration) 
-	 *                        and E0 (initial energy). Here, v0 is the average initial velocity
+	 * E=Eu+E0=Eu+(m/2)*v0^2, E (total energy) is the sum of Eu (energy caused by electric acceleration)
+	 * and E0 (initial energy). Here, v0 is the average initial velocity
 	 * t=c0*sqrt(m)^0+c1*sqrt(m)^1+c3*sqrt(m)^3, Taylor-series-like approximation
 	 * m=k2*(t-t0)^2+k4*(t-t0)^4, invert the approximation
 	 * 
@@ -72,7 +72,7 @@ public final class MzCalibrationPoly implements MzCalibrator {
 		// ppm-corrected coefficients
 		final double cf1=1.0+params.dC1*(params.T1-realT1)/1.0e6;
 		final double c1corr=params.C1*cf1;
-		
+
 		// should be params.T2-realT2, but we don't have that here. As a result, let's assume that the temperature differential is the same
 		final double cf2=1.0+params.dC2*(params.T1-realT1)/1.0e6;
 		final double c2corr=params.C2*cf2;

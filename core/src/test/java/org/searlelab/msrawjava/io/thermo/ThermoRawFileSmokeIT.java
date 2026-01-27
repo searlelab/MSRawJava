@@ -56,13 +56,11 @@ public class ThermoRawFileSmokeIT {
 
 	void writeRawSmokeMZML(Path raw, Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
-		
-		ThermoRawFile rawFile=new ThermoRawFile();		
+
+		ThermoRawFile rawFile=new ThermoRawFile();
 		rawFile.openFile(raw);
 		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
-		ConversionParameters params=ConversionParameters.builder()
-				.outType(OutputType.mzML)
-				.build();
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.mzML).build();
 		RawFileConverters.writeStandard(threads, rawFile, outDir, params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false));
 		Path mzml=firstWithExt(outDir, ".mzml");
 		assertNotNull(mzml, "Output .mzML should exist");
@@ -89,9 +87,7 @@ public class ThermoRawFileSmokeIT {
 	void writeRawSmokeMGF(Path raw, Path outDir) throws Exception {
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture .raw not present: "+raw);
 		ProcessingThreadPool threads=ProcessingThreadPool.createDefault();
-		ConversionParameters params=ConversionParameters.builder()
-				.outType(OutputType.mgf)
-				.build();
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.mgf).build();
 		RawFileConverters.writeThermo(threads, raw, outDir, params, new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false));
 		Path mgf=firstWithExt(outDir, ".mgf");
 		assertNotNull(mgf, "Output .mgf should exist");
@@ -126,7 +122,7 @@ public class ThermoRawFileSmokeIT {
 			assertTrue(f.getGradientLength()>0.0f);
 			assertTrue(f.getRanges().size()>0);
 			assertTrue(f.getMetadata().size()>0);
-			
+
 			assertTrue(MatrixMath.sum(f.getTICTrace().y)>0);
 			assertTrue(f.getTIC()>0);
 

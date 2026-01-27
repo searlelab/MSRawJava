@@ -13,7 +13,7 @@ class VersionTest {
 	void parsesBasicAndSnapshot_andToStringReflects() {
 		Version v123=new Version("1.2.3");
 		assertEquals("1.2.3", v123.toString());
-		
+
 		v123=new Version("v1.2.3");
 		assertEquals("v1.2.3", v123.toString());
 

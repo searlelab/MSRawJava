@@ -27,8 +27,8 @@ public class ConversionParameters {
 	private final boolean silent;
 	private final boolean noAnsi;
 
-	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity,
-			float minimumMS2Intensity, boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi) {
+	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity, float minimumMS2Intensity,
+			boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi) {
 		this.fileList=new ArrayList<>(fileList==null?Collections.emptyList():fileList);
 		this.outType=outType;
 		this.outputDirPath=outputDirPath;
@@ -94,8 +94,8 @@ public class ConversionParameters {
 	@Override
 	public String toString() {
 		return "ConversionParameters[outType="+outType+", outputDirPath="+outputDirPath+", minMS1="+minimumMS1Intensity+", minMS2="+minimumMS2Intensity
-				+", demux="+demultiplex+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig+", logFilePath="+logFilePath+", batch="+batch+", silent="+silent
-				+", noAnsi="+noAnsi+"]";
+				+", demux="+demultiplex+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig+", logFilePath="+logFilePath+", batch="+batch
+				+", silent="+silent+", noAnsi="+noAnsi+"]";
 	}
 
 	public static Builder builder() {
@@ -182,8 +182,8 @@ public class ConversionParameters {
 		}
 
 		public ConversionParameters build() {
-			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance, demuxConfig,
-					logFilePath, batch, silent, noAnsi);
+			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance,
+					demuxConfig, logFilePath, batch, silent, noAnsi);
 		}
 	}
 }

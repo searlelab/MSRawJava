@@ -17,8 +17,8 @@ import gnu.trove.list.array.TFloatArrayList;
  * FIXME: precursor scans seem like a potential problem here, since this class merges spectra of all types
  */
 public final class RawSpectrumMergeUtils {
-	private static final int BINNED_MERGE_THRESHOLD = 50;
-	private static final double DEFAULT_BIN_WIDTH = 0.1;
+	private static final int BINNED_MERGE_THRESHOLD=50;
+	private static final double DEFAULT_BIN_WIDTH=0.1;
 
 	private RawSpectrumMergeUtils() {
 	}
@@ -99,7 +99,8 @@ public final class RawSpectrumMergeUtils {
 		}
 
 		float[] imsArray=anyIMS?imsOut.toArray():null;
-		return new PrecursorScan("Combined", 0, minRT, minFraction, isolationWindowLower, isolationWindowUpper, totalIIT, masses.toArray(), intensities.toArray(), imsArray);
+		return new PrecursorScan("Combined", 0, minRT, minFraction, isolationWindowLower, isolationWindowUpper, totalIIT, masses.toArray(),
+				intensities.toArray(), imsArray);
 	}
 
 	public static AcquiredSpectrum accurateMergeSpectra(List<? extends AcquiredSpectrum> spectra, MassTolerance tolerance) {
@@ -155,7 +156,8 @@ public final class RawSpectrumMergeUtils {
 		if (isolationWindowUpper<0) isolationWindowUpper=Double.MAX_VALUE;
 
 		float[] imsArray=anyIMS?ims.toArray():null;
-		return new PrecursorScan("Combined", 0, averageRT, minFraction, isolationWindowLower, isolationWindowUpper, totalIIT, masses.toArray(), intensities.toArray(), imsArray);
+		return new PrecursorScan("Combined", 0, averageRT, minFraction, isolationWindowLower, isolationWindowUpper, totalIIT, masses.toArray(),
+				intensities.toArray(), imsArray);
 	}
 
 	private static int getIndex(TDoubleArrayList peaks, double target, MassTolerance tolerance) {

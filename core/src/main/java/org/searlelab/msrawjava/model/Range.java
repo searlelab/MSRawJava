@@ -5,7 +5,7 @@ import java.util.Comparator;
 
 /**
  * Range represents a interval with explicit lower and upper bounds, used throughout the model to express m/z windows,
- * retention-time slices, or other bounded domains. 
+ * retention-time slices, or other bounded domains.
  */
 // @Immutable
 public class Range implements Comparable<Range> {
@@ -62,15 +62,15 @@ public class Range implements Comparable<Range> {
 	@Override
 	public int hashCode() {
 		// round is close enough for this work, theoretically it's possible for 1.4999999999999!=1.500000000000, but this is safer than truncate since int to float conversions are common
-		return Math.round(start)+16807*Math.round(stop); 
+		return Math.round(start)+16807*Math.round(stop);
 	}
 
 	@Override
 	public boolean equals(Object obj) {
 		if (!(obj instanceof Range)) return false;
 		Range r=(Range)obj;
-		if (Math.abs(start - r.start)>1e-3f) return false;
-		if (Math.abs(stop - r.stop)>1e-3f) return false;
+		if (Math.abs(start-r.start)>1e-3f) return false;
+		if (Math.abs(stop-r.stop)>1e-3f) return false;
 		return true;
 	}
 

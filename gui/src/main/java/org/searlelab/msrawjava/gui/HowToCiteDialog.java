@@ -39,18 +39,15 @@ public final class HowToCiteDialog {
 
 		String message="<html><center><p style=\"font-size:12px; font-family: Helvetica, sans-serif\">"
 				+"MSRawJava is a Searle Lab (searlelab.org) project at the Mayo Clinic "
-				+"(https://www.mayoclinic.org) in the Department of Quantitative Health Sciences."
-				+"</p></center></html>";
+				+"(https://www.mayoclinic.org) in the Department of Quantitative Health Sciences."+"</p></center></html>";
 
 		JEditorPane about=new JEditorPane("text/html", message);
 		about.setEditable(false);
 		about.setBackground(Color.WHITE);
 		content.add(about, BorderLayout.CENTER);
 
-		String citeHtml="<html><p style=\"font-size:10px; font-family: Helvetica, sans-serif\">"
-				+"Please cite the MSRawJava code repository:<br/>"
-				+"<a href=\"https://github.com/searlelab/MSRawJava\">https://github.com/searlelab/MSRawJava</a>"
-				+"</p></html>";
+		String citeHtml="<html><p style=\"font-size:10px; font-family: Helvetica, sans-serif\">"+"Please cite the MSRawJava code repository:<br/>"
+				+"<a href=\"https://github.com/searlelab/MSRawJava\">https://github.com/searlelab/MSRawJava</a>"+"</p></html>";
 
 		JEditorPane cite=new JEditorPane("text/html", citeHtml);
 		cite.setEditable(false);
@@ -90,8 +87,7 @@ public final class HowToCiteDialog {
 		JPanel main=new JPanel(new BorderLayout());
 		main.add(content, BorderLayout.CENTER);
 		main.add(buttons, BorderLayout.SOUTH);
-		main.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10),
-				BorderFactory.createTitledBorder("MSRawJava")));
+		main.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10), BorderFactory.createTitledBorder("MSRawJava")));
 		main.setBackground(Color.WHITE);
 
 		dialog.getContentPane().add(main, BorderLayout.CENTER);

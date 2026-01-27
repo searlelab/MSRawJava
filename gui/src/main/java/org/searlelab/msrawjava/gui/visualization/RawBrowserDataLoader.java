@@ -68,8 +68,7 @@ public final class RawBrowserDataLoader {
 			}
 			float rtMin=summary.getScanStartTime()/60f;
 			if (rtMin>minRT&&rtMin<maxRT) {
-				Comparable<?> rangeKey=summary.getIsolationWindowLower()==summary.getIsolationWindowUpper()
-						?summary.getIsolationWindowLower()
+				Comparable<?> rangeKey=summary.getIsolationWindowLower()==summary.getIsolationWindowUpper()?summary.getIsolationWindowLower()
 						:new org.searlelab.msrawjava.model.Range((float)summary.getIsolationWindowLower(), (float)summary.getIsolationWindowUpper());
 				TFloatArrayList list=iitByRange.get(rangeKey);
 				if (list==null) {
@@ -93,8 +92,8 @@ public final class RawBrowserDataLoader {
 		XYTrace precursorIntensityHistogram=new XYTrace(new double[0], new double[0], GraphType.area, "Log10 Precursor Intensity Distribution");
 		XYTrace fragmentIntensityHistogram=new XYTrace(new double[0], new double[0], GraphType.area, "Log10 Fragment Intensity Distribution");
 
-		return new RawBrowserData(scans, chromatogramTrace, basepeakTrace, precursorIntensityHistogram, fragmentIntensityHistogram,
-				structure, global, iitByRange, iitByRt, maxTicLocal);
+		return new RawBrowserData(scans, chromatogramTrace, basepeakTrace, precursorIntensityHistogram, fragmentIntensityHistogram, structure, global,
+				iitByRange, iitByRt, maxTicLocal);
 	}
 
 	// no helper needed

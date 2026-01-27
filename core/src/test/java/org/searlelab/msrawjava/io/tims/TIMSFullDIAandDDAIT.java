@@ -26,7 +26,7 @@ public class TIMSFullDIAandDDAIT {
 	void endToEndDIATest() throws Exception {
 
 		Path dataDir=Path.of("src", "test", "resources", "rawdata", "230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
-		
+
 		Path tdfPath=dataDir.resolve("analysis.tdf");
 
 		assertTrue(Files.isDirectory(dataDir), "Test data directory missing: "+dataDir.toAbsolutePath());
@@ -155,6 +155,7 @@ public class TIMSFullDIAandDDAIT {
 			assertArraysAligned(s.getMassArray(), s.getIonMobilityArray().get(), inten);
 		}
 	}
+
 	private static void sanityCheckPrecursorScansDDA(List<PrecursorScan> scans) {
 		for (AcquiredSpectrum s : scans) {
 			assertNotNull(s.getSpectrumName());

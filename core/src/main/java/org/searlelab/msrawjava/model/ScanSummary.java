@@ -18,8 +18,8 @@ public final class ScanSummary {
 	private final double scanWindowUpper;
 	private final byte charge;
 
-	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double precursorMz, boolean precursor,
-			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double scanWindowLower, double scanWindowUpper, byte charge) {
+	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double precursorMz, boolean precursor, Float ionInjectionTime,
+			double isolationWindowLower, double isolationWindowUpper, double scanWindowLower, double scanWindowUpper, byte charge) {
 		this.spectrumName=spectrumName;
 		this.spectrumIndex=spectrumIndex;
 		this.scanStartTime=scanStartTime;

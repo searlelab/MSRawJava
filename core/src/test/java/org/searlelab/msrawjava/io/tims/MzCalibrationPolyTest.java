@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 
 class MzCalibrationPolyTest {
 
-
 	private static MzCalibrationParams params() {
 		// Choose stable, positive coefficients for predictable behavior
 		double tbNs=0.2; // ns per sample
@@ -89,7 +88,7 @@ class MzCalibrationPolyTest {
 		assertNotNull(mz);
 		assertEquals(0, mz.length);
 	}
-	
+
 	// Pick a realistic window and digitizer size for the test
 	private static final int DIGITIZER_NUM_SAMPLES=397888;
 	private static final double MZ_LOWER=100.0;

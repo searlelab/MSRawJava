@@ -48,134 +48,146 @@ public class FileDetailsDialog {
 	}
 
 	public static void showFileDetailsDialog(Frame frame, File f) {
-	    // Use a non-owned dialog so it doesn't stay above the main window on macOS.
-	    final JDialog dlg = new JDialog((Frame)null, f.getName(), false); // non-modal
-	    dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-	    if (frame instanceof RawFileBrowser) {
-	    	MenuManager.install(dlg, (RawFileBrowser)frame);
-	    }
-	    dlg.setSize(GUIPreferences.getRawBrowserWindowSize());
-	    java.awt.Point location=GUIPreferences.getRawBrowserWindowLocation();
-	    if (GUIPreferences.isVerboseGuiLogging()) {
-	    	org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (saved): "+location);
-	    }
-	    java.awt.Point clamped=GUIPreferences.clampToScreens(location, dlg.getSize());
-	    if (GUIPreferences.isVerboseGuiLogging()) {
-	    	org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (clamped): "+clamped);
-	    }
-	    if (clamped!=null) {
-	    	dlg.setLocation(clamped);
-	    } else {
-	    	dlg.setLocationRelativeTo(frame);
-	    }
-	    new BackgroundKeyboardListener().addKeyAndContainerListenerRecursively(dlg);
+		// Use a non-owned dialog so it doesn't stay above the main window on macOS.
+		final JDialog dlg=new JDialog((Frame)null, f.getName(), false); // non-modal
+		dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+		if (frame instanceof RawFileBrowser) {
+			MenuManager.install(dlg, (RawFileBrowser)frame);
+		}
+		dlg.setSize(GUIPreferences.getRawBrowserWindowSize());
+		java.awt.Point location=GUIPreferences.getRawBrowserWindowLocation();
+		if (GUIPreferences.isVerboseGuiLogging()) {
+			org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (saved): "+location);
+		}
+		java.awt.Point clamped=GUIPreferences.clampToScreens(location, dlg.getSize());
+		if (GUIPreferences.isVerboseGuiLogging()) {
+			org.searlelab.msrawjava.logging.Logger.logLine("RawBrowser dialog location (clamped): "+clamped);
+		}
+		if (clamped!=null) {
+			dlg.setLocation(clamped);
+		} else {
+			dlg.setLocationRelativeTo(frame);
+		}
+		new BackgroundKeyboardListener().addKeyAndContainerListenerRecursively(dlg);
 
-	    final LoadingPanel[] loadingPanels = new LoadingPanel[]{
-	            new FTICRLoadingPanel("Reading " + f.getName()),
-	            new TOFLoadingPanel("Reading " + f.getName()),
-	            new QuadrupoleLoadingPanel("Reading " + f.getName())
-	    };
-	    final LoadingPanel loading = loadingPanels[(int) (Math.random() * loadingPanels.length)];
+		final LoadingPanel[] loadingPanels=new LoadingPanel[] {new FTICRLoadingPanel("Reading "+f.getName()), new TOFLoadingPanel("Reading "+f.getName()),
+				new QuadrupoleLoadingPanel("Reading "+f.getName())};
+		final LoadingPanel loading=loadingPanels[(int)(Math.random()*loadingPanels.length)];
 
-	    Dimension loadingSize=new Dimension(900, 350);
-	    loading.setPreferredSize(loadingSize);
-	    loading.setMaximumSize(loadingSize);
-	    java.awt.Container loadingWrapper=new javax.swing.JPanel(new GridBagLayout());
-	    GridBagConstraints gbc=new GridBagConstraints();
-	    gbc.gridx=0;
-	    gbc.gridy=0;
-	    gbc.anchor=GridBagConstraints.CENTER;
-	    loadingWrapper.add(loading, gbc);
-	    dlg.setContentPane(loadingWrapper);
-	    dlg.setVisible(true);
+		Dimension loadingSize=new Dimension(900, 350);
+		loading.setPreferredSize(loadingSize);
+		loading.setMaximumSize(loadingSize);
+		java.awt.Container loadingWrapper=new javax.swing.JPanel(new GridBagLayout());
+		GridBagConstraints gbc=new GridBagConstraints();
+		gbc.gridx=0;
+		gbc.gridy=0;
+		gbc.anchor=GridBagConstraints.CENTER;
+		loadingWrapper.add(loading, gbc);
+		dlg.setContentPane(loadingWrapper);
+		dlg.setVisible(true);
 
-	    final RawBrowserPanel[] panelRef=new RawBrowserPanel[1];
-	    SwingWorker<StripeResult, String> worker = new SwingWorker<>() {
-	        @Override
-	        protected StripeResult doInBackground() throws Exception {
-	        	StripeFileInterface stripe=null;
-	        	try {
-		            if (VendorFileFinder.isDotDFile(f.toPath())) {
-		                BrukerTIMSFile raw = new BrukerTIMSFile();
-		                raw.openFile(f.toPath());
-		                stripe=raw;
-		                RawBrowserData data=RawBrowserDataLoader.build(raw);
-		                return StripeResult.success(raw, data);
-		            } else if (VendorFileFinder.isThermoFile(f.toPath())) {
-		                ThermoRawFile raw = new ThermoRawFile();
-		                raw.openFile(f.toPath());
-		                stripe=raw;
-		                RawBrowserData data=RawBrowserDataLoader.build(raw);
-		                return StripeResult.success(raw, data);
-		            } else if (f.getName().toLowerCase().endsWith(".dia")) {
-		            	EncyclopeDIAFile dia=new EncyclopeDIAFile();
-		            	dia.openFile(f);
-		            	stripe=dia;
-		            	RawBrowserData data=RawBrowserDataLoader.build(dia);
-		            	return StripeResult.success(dia, data);
-		            } else {
-		                return StripeResult.error("Unsupported file");
-		            }
-	        	} catch (Exception e) {
-	        		if (stripe!=null) {
-	        			try { stripe.close(); } catch (Throwable ignore) {}
-	        		}
-	        		throw e;
-	        	}
-	        }
+		final RawBrowserPanel[] panelRef=new RawBrowserPanel[1];
+		SwingWorker<StripeResult, String> worker=new SwingWorker<>() {
+			@Override
+			protected StripeResult doInBackground() throws Exception {
+				StripeFileInterface stripe=null;
+				try {
+					if (VendorFileFinder.isDotDFile(f.toPath())) {
+						BrukerTIMSFile raw=new BrukerTIMSFile();
+						raw.openFile(f.toPath());
+						stripe=raw;
+						RawBrowserData data=RawBrowserDataLoader.build(raw);
+						return StripeResult.success(raw, data);
+					} else if (VendorFileFinder.isThermoFile(f.toPath())) {
+						ThermoRawFile raw=new ThermoRawFile();
+						raw.openFile(f.toPath());
+						stripe=raw;
+						RawBrowserData data=RawBrowserDataLoader.build(raw);
+						return StripeResult.success(raw, data);
+					} else if (f.getName().toLowerCase().endsWith(".dia")) {
+						EncyclopeDIAFile dia=new EncyclopeDIAFile();
+						dia.openFile(f);
+						stripe=dia;
+						RawBrowserData data=RawBrowserDataLoader.build(dia);
+						return StripeResult.success(dia, data);
+					} else {
+						return StripeResult.error("Unsupported file");
+					}
+				} catch (Exception e) {
+					if (stripe!=null) {
+						try {
+							stripe.close();
+						} catch (Throwable ignore) {
+						}
+					}
+					throw e;
+				}
+			}
 
-	        @Override
-	        protected void done() {
-	            loading.stop();
-	            try {
-	                if (isCancelled()) {
-	                	StripeResult cancelled=get();
-	                	if (cancelled!=null&&cancelled.stripe!=null) {
-	                		try { cancelled.stripe.close(); } catch (Throwable ignore) {}
-	                	}
-	                	dlg.dispose();
-	                	return;
-	                }
-	                StripeResult result=get();
-	                if (result==null||result.error!=null) {
-	                	dlg.setContentPane(new JLabel(result!=null?result.error:"Cannot parse file!"));
-	                } else {
-	                	RawBrowserPanel panel=new RawBrowserPanel(result.stripe, result.data);
-	                	panelRef[0]=panel;
-	                	dlg.setContentPane(panel);
-	                }
-	                dlg.revalidate();
-	                dlg.repaint();
-	            } catch (Exception ex) {
-	                dlg.setContentPane(new JLabel("Cannot parse file!"));
-	                dlg.revalidate();
-	                dlg.repaint();
-	            }
-	        }
-	    };
+			@Override
+			protected void done() {
+				loading.stop();
+				try {
+					if (isCancelled()) {
+						StripeResult cancelled=get();
+						if (cancelled!=null&&cancelled.stripe!=null) {
+							try {
+								cancelled.stripe.close();
+							} catch (Throwable ignore) {
+							}
+						}
+						dlg.dispose();
+						return;
+					}
+					StripeResult result=get();
+					if (result==null||result.error!=null) {
+						dlg.setContentPane(new JLabel(result!=null?result.error:"Cannot parse file!"));
+					} else {
+						RawBrowserPanel panel=new RawBrowserPanel(result.stripe, result.data);
+						panelRef[0]=panel;
+						dlg.setContentPane(panel);
+					}
+					dlg.revalidate();
+					dlg.repaint();
+				} catch (Exception ex) {
+					dlg.setContentPane(new JLabel("Cannot parse file!"));
+					dlg.revalidate();
+					dlg.repaint();
+				}
+			}
+		};
 
-	    // Cancel load if dialog closes
-	    dlg.addWindowListener(new java.awt.event.WindowAdapter() {
-	        @Override public void windowClosing(java.awt.event.WindowEvent e) { worker.cancel(true); }
-	        @Override public void windowClosed (java.awt.event.WindowEvent e) {
-	        	worker.cancel(true);
-	        	if (panelRef[0]!=null) {
-	        		try { panelRef[0].close(); } catch (Throwable ignore) {}
-	        	}
-	        }
-	    });
-	    dlg.addComponentListener(new ComponentAdapter() {
-	    	@Override
-	    	public void componentResized(ComponentEvent e) {
-	    		GUIPreferences.setRawBrowserWindowSize(dlg.getSize());
-	    	}
-	    	@Override
-	    	public void componentMoved(ComponentEvent e) {
-	    		GUIPreferences.setRawBrowserWindowLocation(dlg.getLocation());
-	    	}
+		// Cancel load if dialog closes
+		dlg.addWindowListener(new java.awt.event.WindowAdapter() {
+			@Override
+			public void windowClosing(java.awt.event.WindowEvent e) {
+				worker.cancel(true);
+			}
+
+			@Override
+			public void windowClosed(java.awt.event.WindowEvent e) {
+				worker.cancel(true);
+				if (panelRef[0]!=null) {
+					try {
+						panelRef[0].close();
+					} catch (Throwable ignore) {
+					}
+				}
+			}
+		});
+		dlg.addComponentListener(new ComponentAdapter() {
+			@Override
+			public void componentResized(ComponentEvent e) {
+				GUIPreferences.setRawBrowserWindowSize(dlg.getSize());
+			}
+
+			@Override
+			public void componentMoved(ComponentEvent e) {
+				GUIPreferences.setRawBrowserWindowLocation(dlg.getLocation());
+			}
 		});
 
-	    worker.execute();
+		worker.execute();
 	}
 
 }

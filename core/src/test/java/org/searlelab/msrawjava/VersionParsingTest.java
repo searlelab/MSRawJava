@@ -94,7 +94,7 @@ class VersionParsingTest {
 			Field recordersField=Logger.class.getDeclaredField("recorders");
 			recordersField.setAccessible(true);
 			@SuppressWarnings("unchecked")
-			List<LogRecorder> recorders=(List<LogRecorder>) recordersField.get(null);
+			List<LogRecorder> recorders=(List<LogRecorder>)recordersField.get(null);
 			recorders.clear();
 		} catch (ReflectiveOperationException e) {
 			throw new IllegalStateException("Failed to reset Logger recorders", e);

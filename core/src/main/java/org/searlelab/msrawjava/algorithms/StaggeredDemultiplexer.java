@@ -138,7 +138,7 @@ public class StaggeredDemultiplexer {
 			}
 		}
 
-		long totalStart=PROFILE ? System.nanoTime() : 0L;
+		long totalStart=PROFILE?System.nanoTime():0L;
 		long interpolateNanos=0L;
 		long nnlsNanos=0L;
 
@@ -160,8 +160,8 @@ public class StaggeredDemultiplexer {
 			}
 
 			double[] transitionArray=transitions.toArray();
-			WindowIntensityCache intensityCache=buildIntensityCache(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2,
-					activeSubWindows, windowBlocks, transitionArray);
+			WindowIntensityCache intensityCache=buildIntensityCache(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2, activeSubWindows, windowBlocks,
+					transitionArray);
 			int lastBlockSize=0;
 			double[] yValues=null;
 			DMatrixRMaj y=null;
@@ -187,7 +187,7 @@ public class StaggeredDemultiplexer {
 
 				for (int mzIdx=0; mzIdx<transitionArray.length; mzIdx++) {
 					double targetMz=transitionArray[mzIdx];
-					long interpolateStart=PROFILE ? System.nanoTime() : 0L;
+					long interpolateStart=PROFILE?System.nanoTime():0L;
 					boolean anyNonZero=false;
 					for (int row=0; row<blockSize; row++) {
 						int windowIdx=block.windowIndices[row];
@@ -208,7 +208,7 @@ public class StaggeredDemultiplexer {
 						y.set(i, 0, yValues[i]);
 					}
 
-					long nnlsStart=PROFILE ? System.nanoTime() : 0L;
+					long nnlsStart=PROFILE?System.nanoTime():0L;
 					DMatrixRMaj solution=nnlsSolver.solve(design, y);
 					if (PROFILE) {
 						nnlsNanos+=System.nanoTime()-nnlsStart;
@@ -231,8 +231,7 @@ public class StaggeredDemultiplexer {
 
 		if (PROFILE) {
 			long totalNanos=System.nanoTime()-totalStart;
-			System.out.printf("Demux timing: total=%.3f s, interpolate=%.3f s, nnls=%.3f s%n",
-					totalNanos/1e9, interpolateNanos/1e9, nnlsNanos/1e9);
+			System.out.printf("Demux timing: total=%.3f s, interpolate=%.3f s, nnls=%.3f s%n", totalNanos/1e9, interpolateNanos/1e9, nnlsNanos/1e9);
 		}
 
 		demuxResults.sort((a, b) -> {
@@ -451,9 +450,9 @@ public class StaggeredDemultiplexer {
 		return blocks;
 	}
 
-	private WindowIntensityCache buildIntensityCache(ArrayList<FragmentScan> cycleM2, ArrayList<FragmentScan> cycleM1,
-			ArrayList<FragmentScan> cycleCenter, ArrayList<FragmentScan> cycleP1, ArrayList<FragmentScan> cycleP2,
-			DemuxWindow[] coveredSubWindows, WindowBlock[] windowBlocks, double[] transitions) {
+	private WindowIntensityCache buildIntensityCache(ArrayList<FragmentScan> cycleM2, ArrayList<FragmentScan> cycleM1, ArrayList<FragmentScan> cycleCenter,
+			ArrayList<FragmentScan> cycleP1, ArrayList<FragmentScan> cycleP2, DemuxWindow[] coveredSubWindows, WindowBlock[] windowBlocks,
+			double[] transitions) {
 		WindowIntensityCache cache=new WindowIntensityCache();
 		for (DemuxWindow subWindow : coveredSubWindows) {
 			WindowBlock block=windowBlocks[subWindow.getIndex()];
@@ -464,8 +463,8 @@ public class StaggeredDemultiplexer {
 				if (cache.contains(windowIdx)) {
 					continue;
 				}
-				FragmentScan[] spectra=new FragmentScan[] {cycleM2.get(windowIdx), cycleM1.get(windowIdx), cycleCenter.get(windowIdx),
-						cycleP1.get(windowIdx), cycleP2.get(windowIdx)};
+				FragmentScan[] spectra=new FragmentScan[] {cycleM2.get(windowIdx), cycleM1.get(windowIdx), cycleCenter.get(windowIdx), cycleP1.get(windowIdx),
+						cycleP2.get(windowIdx)};
 				cache.put(windowIdx, buildIntensityBlock(spectra, transitions));
 			}
 		}
@@ -574,7 +573,7 @@ public class StaggeredDemultiplexer {
 			int key=order[i];
 			double keyTime=times[key];
 			int j=i-1;
-			while (j>=0 && times[order[j]]>keyTime) {
+			while (j>=0&&times[order[j]]>keyTime) {
 				order[j+1]=order[j];
 				j--;
 			}

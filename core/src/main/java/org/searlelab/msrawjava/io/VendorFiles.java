@@ -25,7 +25,7 @@ public class VendorFiles {
 	public void addD(Path p) {
 		dDirs.add(p);
 	}
-	
+
 	public void add(ArrayList<Path> rawFiles, ArrayList<Path> dDirs) {
 		addRaw(rawFiles);
 		addD(dDirs);

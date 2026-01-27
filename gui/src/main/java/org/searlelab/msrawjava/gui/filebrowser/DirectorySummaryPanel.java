@@ -599,8 +599,10 @@ public class DirectorySummaryPanel extends JPanel {
 		private static String getLoadingText() {
 			int dots=3+loadingPhase;
 			StringBuilder sb=new StringBuilder("<html>Reading File");
-			for (int i=0; i<dots; i++) sb.append('.');
-			for (int i=dots; i<5; i++) sb.append("&nbsp;");
+			for (int i=0; i<dots; i++)
+				sb.append('.');
+			for (int i=dots; i<5; i++)
+				sb.append("&nbsp;");
 			sb.append("</html>");
 			return sb.toString();
 		}

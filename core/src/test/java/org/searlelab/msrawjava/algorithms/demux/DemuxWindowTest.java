@@ -9,7 +9,7 @@ class DemuxWindowTest {
 
 	@Test
 	void testContainsAndOverlaps() {
-		DemuxWindow window = new DemuxWindow(400.0, 410.0, 0);
+		DemuxWindow window=new DemuxWindow(400.0, 410.0, 0);
 
 		assertTrue(window.contains(400.0));
 		assertTrue(window.contains(405.0));
@@ -24,7 +24,7 @@ class DemuxWindowTest {
 
 	@Test
 	void testContainedByWithTolerance() {
-		DemuxWindow window = new DemuxWindow(400.0, 410.0, 0);
+		DemuxWindow window=new DemuxWindow(400.0, 410.0, 0);
 
 		assertTrue(window.isContainedBy(400.05, 409.95));
 		assertTrue(window.isContainedBy(399.95, 410.05));
@@ -33,22 +33,22 @@ class DemuxWindowTest {
 
 	@Test
 	void testComparisonEqualityAndHash() {
-		DemuxWindow a = new DemuxWindow(400.0, 410.0, 0);
-		DemuxWindow b = new DemuxWindow(400.0, 410.0, 0);
-		DemuxWindow c = new DemuxWindow(400.0, 410.0, 1);
-		DemuxWindow d = new DemuxWindow(410.0, 420.0, 2);
+		DemuxWindow a=new DemuxWindow(400.0, 410.0, 0);
+		DemuxWindow b=new DemuxWindow(400.0, 410.0, 0);
+		DemuxWindow c=new DemuxWindow(400.0, 410.0, 1);
+		DemuxWindow d=new DemuxWindow(410.0, 420.0, 2);
 
 		assertEquals(a, b);
 		assertEquals(a.hashCode(), b.hashCode());
 		assertNotEquals(a, c);
-		assertTrue(a.compareTo(c) < 0);
-		assertTrue(a.compareTo(d) < 0);
+		assertTrue(a.compareTo(c)<0);
+		assertTrue(a.compareTo(d)<0);
 	}
 
 	@Test
 	void testToStringFormat() {
-		DemuxWindow window = new DemuxWindow(512.48, 520.48, 3);
-		String text = window.toString();
+		DemuxWindow window=new DemuxWindow(512.48, 520.48, 3);
+		String text=window.toString();
 		assertTrue(text.contains("DemuxWindow[3"));
 		assertTrue(text.contains("512.48"));
 		assertTrue(text.contains("520.48"));

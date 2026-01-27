@@ -135,36 +135,35 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 			return String.format(Locale.ROOT, "%.1f GB", gb);
 		}
 	}
-	
-	private static final class SciRenderer extends StripeTableCellRenderer {
-	    private static final long serialVersionUID = 1L;
 
-	    @Override
-	    public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
-	        super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
-	        setHorizontalAlignment(SwingConstants.RIGHT);
-	        if (value instanceof Float f) {
-	            // Start with Java's e-format, then trim + and leading zeros in exponent
-	            String s = String.format(Locale.ROOT, "%.1e", f);     // e.g., 1.0e+03
-	            s = s.replaceAll("e\\+?0*(\\d+)$", "e$1");            // 1.0e+03 -> 1.0e3, 1.0e03 -> 1.0e3
-	            s = s.replaceAll("e-0*(\\d+)$", "e-$1");              // 1.0e-03 -> 1.0e-3
-	            setText(s);
-	        } else {
-	            setText("");
-	        }
-	        return this;
-	    }
-	}
-	
-	private static final class RowNumberRenderer extends StripeTableCellRenderer {
-		private static final long serialVersionUID = 1L;
+	private static final class SciRenderer extends StripeTableCellRenderer {
+		private static final long serialVersionUID=1L;
 
 		@Override
-		public Component getTableCellRendererComponent(
-				JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
 			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
 			setHorizontalAlignment(SwingConstants.RIGHT);
-			setText(Integer.toString(row + 1)+" "); // view row -> 1..N
+			if (value instanceof Float f) {
+				// Start with Java's e-format, then trim + and leading zeros in exponent
+				String s=String.format(Locale.ROOT, "%.1e", f); // e.g., 1.0e+03
+				s=s.replaceAll("e\\+?0*(\\d+)$", "e$1"); // 1.0e+03 -> 1.0e3, 1.0e03 -> 1.0e3
+				s=s.replaceAll("e-0*(\\d+)$", "e-$1"); // 1.0e-03 -> 1.0e-3
+				setText(s);
+			} else {
+				setText("");
+			}
+			return this;
+		}
+	}
+
+	private static final class RowNumberRenderer extends StripeTableCellRenderer {
+		private static final long serialVersionUID=1L;
+
+		@Override
+		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
+			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
+			setHorizontalAlignment(SwingConstants.RIGHT);
+			setText(Integer.toString(row+1)+" "); // view row -> 1..N
 			return this;
 		}
 	}

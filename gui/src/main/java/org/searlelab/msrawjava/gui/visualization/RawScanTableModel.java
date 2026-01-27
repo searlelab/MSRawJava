@@ -41,11 +41,16 @@ public class RawScanTableModel extends AbstractTableModel {
 	@Override
 	public Class<?> getColumnClass(int columnIndex) {
 		switch (columnIndex) {
-			case 0: return Integer.class;
-			case 1: return String.class;
-			case 2: return Float.class;
-			case 3: return Double.class;
-			default: return Object.class;
+			case 0:
+				return Integer.class;
+			case 1:
+				return String.class;
+			case 2:
+				return Float.class;
+			case 3:
+				return Double.class;
+			default:
+				return Object.class;
 		}
 	}
 
@@ -53,11 +58,16 @@ public class RawScanTableModel extends AbstractTableModel {
 	public Object getValueAt(int rowIndex, int columnIndex) {
 		ScanSummary entry=getSelectedRow(rowIndex);
 		switch (columnIndex) {
-			case 0: return rowIndex+1;
-			case 1: return entry.getSpectrumName();
-			case 2: return entry.getScanStartTime()/60f;
-			case 3: return entry.getPrecursorMz();
-			default: return null;
+			case 0:
+				return rowIndex+1;
+			case 1:
+				return entry.getSpectrumName();
+			case 2:
+				return entry.getScanStartTime()/60f;
+			case 3:
+				return entry.getPrecursorMz();
+			default:
+				return null;
 		}
 	}
 }

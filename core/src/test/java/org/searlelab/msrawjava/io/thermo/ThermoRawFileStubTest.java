@@ -79,7 +79,7 @@ class ThermoRawFileStubTest {
 
 		List<PrecursorScan> precursors=rawFile.getPrecursors(0, 100);
 		assertEquals(2, precursors.size());
-		assertTrue(precursors.get(0).getScanStartTime() <= precursors.get(1).getScanStartTime());
+		assertTrue(precursors.get(0).getScanStartTime()<=precursors.get(1).getScanStartTime());
 
 		List<FragmentScan> stripes=rawFile.getStripes(new Range(400.0, 402.0), 0, 100, true);
 		assertEquals(2, stripes.size());
@@ -125,8 +125,8 @@ class ThermoRawFileStubTest {
 	}
 
 	private static ThermoRawServiceGrpc.ThermoRawServiceBlockingStub newBlockingStub(Channel channel) throws Exception {
-		Constructor<ThermoRawServiceGrpc.ThermoRawServiceBlockingStub> ctor=
-			ThermoRawServiceGrpc.ThermoRawServiceBlockingStub.class.getDeclaredConstructor(Channel.class, CallOptions.class);
+		Constructor<ThermoRawServiceGrpc.ThermoRawServiceBlockingStub> ctor=ThermoRawServiceGrpc.ThermoRawServiceBlockingStub.class
+				.getDeclaredConstructor(Channel.class, CallOptions.class);
 		ctor.setAccessible(true);
 		return ctor.newInstance(channel, CallOptions.DEFAULT);
 	}
@@ -254,9 +254,8 @@ class ThermoRawFileStubTest {
 			}
 			if (name.endsWith("/GetRanges")) {
 				RangesReply reply=RangesReply.newBuilder()
-					.addWindows(WindowRange.newBuilder().setLo(400.0).setHi(401.0).setAverageDutyCycleSeconds(0.1).setNumberOfMsms(2))
-					.addWindows(WindowRange.newBuilder().setLo(401.0).setHi(402.0).setAverageDutyCycleSeconds(0.2).setNumberOfMsms(3))
-					.build();
+						.addWindows(WindowRange.newBuilder().setLo(400.0).setHi(401.0).setAverageDutyCycleSeconds(0.1).setNumberOfMsms(2))
+						.addWindows(WindowRange.newBuilder().setLo(401.0).setHi(402.0).setAverageDutyCycleSeconds(0.2).setNumberOfMsms(3)).build();
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetMs1Tic")) {
@@ -264,19 +263,19 @@ class ThermoRawFileStubTest {
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetPrecursors")) {
-				Spectrum s1=Spectrum.newBuilder().addMz(100.0).addIntensity(10.0f).setScanNumber(2).setRtSeconds(30.0)
-					.setIsoLower(499.0).setIsoUpper(501.0).setIonInjectionTimeS(0.2).setSpectrumName("s2").build();
-				Spectrum s2=Spectrum.newBuilder().addMz(101.0).addIntensity(11.0f).setScanNumber(1).setRtSeconds(10.0)
-					.setIsoLower(499.0).setIsoUpper(501.0).setIonInjectionTimeS(0.1).setSpectrumName("s1").build();
+				Spectrum s1=Spectrum.newBuilder().addMz(100.0).addIntensity(10.0f).setScanNumber(2).setRtSeconds(30.0).setIsoLower(499.0).setIsoUpper(501.0)
+						.setIonInjectionTimeS(0.2).setSpectrumName("s2").build();
+				Spectrum s2=Spectrum.newBuilder().addMz(101.0).addIntensity(11.0f).setScanNumber(1).setRtSeconds(10.0).setIsoLower(499.0).setIsoUpper(501.0)
+						.setIonInjectionTimeS(0.1).setSpectrumName("s1").build();
 				return new FakeClientCall<>(List.of((RespT)s1, (RespT)s2));
 			}
 			if (name.endsWith("/GetStripes")) {
-				Spectrum s1=Spectrum.newBuilder().addMz(400.5).addIntensity(-4.0f).setScanNumber(3).setRtSeconds(20.0)
-					.setIsoLower(400.0).setIsoUpper(401.0).setCharge(2).setSpectrumName("f1").setPrecursorName("p1")
-					.setIonInjectionTimeS(0.3).setScanWindowLower(399.5).setScanWindowUpper(401.5).build();
-				Spectrum s2=Spectrum.newBuilder().addMz(401.5).addIntensity(9.0f).setScanNumber(4).setRtSeconds(25.0)
-					.setIsoLower(401.0).setIsoUpper(402.0).setCharge(2).setSpectrumName("f2").setPrecursorName("p2")
-					.setIonInjectionTimeS(0.4).setScanWindowLower(400.5).setScanWindowUpper(402.5).build();
+				Spectrum s1=Spectrum.newBuilder().addMz(400.5).addIntensity(-4.0f).setScanNumber(3).setRtSeconds(20.0).setIsoLower(400.0).setIsoUpper(401.0)
+						.setCharge(2).setSpectrumName("f1").setPrecursorName("p1").setIonInjectionTimeS(0.3).setScanWindowLower(399.5).setScanWindowUpper(401.5)
+						.build();
+				Spectrum s2=Spectrum.newBuilder().addMz(401.5).addIntensity(9.0f).setScanNumber(4).setRtSeconds(25.0).setIsoLower(401.0).setIsoUpper(402.0)
+						.setCharge(2).setSpectrumName("f2").setPrecursorName("p2").setIonInjectionTimeS(0.4).setScanWindowLower(400.5).setScanWindowUpper(402.5)
+						.build();
 				return new FakeClientCall<>(List.of((RespT)s1, (RespT)s2));
 			}
 			throw new IllegalArgumentException("Unhandled method: "+name);

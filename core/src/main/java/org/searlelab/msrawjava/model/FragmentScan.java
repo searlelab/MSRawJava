@@ -29,9 +29,9 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	private final float[] ionMobilityArray; // can be nullable
 	private final byte charge;
 
-	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, double precursorMz, float scanStartTime, int fraction, Float ionInjectionTime,
-			double isolationWindowLower, double isolationWindowUpper, double[] massArray, float[] intensityArray, float[] ionMobilityArray, byte charge, double 
-			scanWindowLower, double scanWindowUpper) {
+	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, double precursorMz, float scanStartTime, int fraction,
+			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double[] massArray, float[] intensityArray,
+			float[] ionMobilityArray, byte charge, double scanWindowLower, double scanWindowUpper) {
 		super();
 		this.spectrumName=spectrumName;
 		this.precursorName=precursorName;
@@ -49,7 +49,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 		this.scanWindowLower=scanWindowLower;
 		this.scanWindowUpper=scanWindowUpper;
 	}
-	
+
 	@Override
 	public String toString() {
 		StringBuilder sb=new StringBuilder(isolationWindowLower+" to "+isolationWindowUpper+" (z="+charge+")\n");
@@ -60,7 +60,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 				sb.append(massArray[i]+"\t"+intensityArray[i]+"\t"+ionMobilityArray[i]+"\n");
 			}
 		}
-		
+
 		return sb.toString();
 	}
 
@@ -76,8 +76,9 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	public FragmentScan rebuild(int newSpectrumIndex, float rtInsec, ArrayList<? extends PeakInterface> peaks) {
 		return rebuild(newSpectrumIndex, scanStartTime, peaks, isolationWindowLower, isolationWindowUpper);
 	}
-	
-	public FragmentScan rebuild(int newSpectrumIndex, float rtInsec, ArrayList<? extends PeakInterface> peaks, double isolationWindowLower, double isolationWindowUpper) {
+
+	public FragmentScan rebuild(int newSpectrumIndex, float rtInsec, ArrayList<? extends PeakInterface> peaks, double isolationWindowLower,
+			double isolationWindowUpper) {
 		Collections.sort(peaks);
 		double[] newMassArray=new double[peaks.size()];
 		float[] newIntensityArray=new float[peaks.size()];
@@ -95,11 +96,11 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 		if (!anyIMS) {
 			newIonMobilityArray=null;
 		}
-		
+
 		return new FragmentScan(spectrumName, precursorName, newSpectrumIndex, precursorMz, rtInsec, fraction, ionInjectionTime, isolationWindowLower,
 				isolationWindowUpper, newMassArray, newIntensityArray, newIonMobilityArray, charge, scanWindowLower, scanWindowUpper);
 	}
-	
+
 	public Range getPrecursorRange() {
 		return new Range(isolationWindowLower, isolationWindowUpper);
 	}
@@ -113,7 +114,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 		}
 		return peaks;
 	}
-	
+
 	@Override
 	public int compareTo(AcquiredSpectrum o) {
 		if (o==null) return 1;
@@ -186,11 +187,12 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	public Optional<float[]> getIonMobilityArray() {
 		return Optional.ofNullable(ionMobilityArray);
 	}
-	
+
 	@Override
 	public double getScanWindowLower() {
 		return scanWindowLower;
 	}
+
 	@Override
 	public double getScanWindowUpper() {
 		return scanWindowUpper;
@@ -203,7 +205,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	public String getPrecursorName() {
 		return precursorName;
 	}
-	
+
 	public Optional<Float> getMedianIonMobility() {
 		if (ionMobilityArray==null) {
 			return Optional.empty();
@@ -211,7 +213,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 			return Optional.of(QuickMedian.median(ionMobilityArray));
 		}
 	}
-	
+
 	public PeakInterface getBasePeak() {
 		float maxIntensity=0.0f;
 		double maxMz=0.0;

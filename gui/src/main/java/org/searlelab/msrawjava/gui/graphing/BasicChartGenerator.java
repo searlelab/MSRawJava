@@ -62,7 +62,7 @@ public class BasicChartGenerator {
 	public static final String BASE_FONT_NAME="Arial";
 
 	private static BasicStroke peakStroke=new BasicStroke(1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-	
+
 	public static ExtendedChartPanel getChart(String xAxis, String yAxis, boolean displayLegend, XYTraceInterface... traces) {
 		return getChart(xAxis, yAxis, displayLegend, 0.0, 14, traces);
 	}
@@ -100,7 +100,7 @@ public class BasicChartGenerator {
 		int count=0;
 		for (XYTraceInterface trace : traces) {
 			Triplet<AbstractXYItemRenderer, XYSeriesCollection, ArrayList<XYTextAnnotation>> traceData=getTraceData(trace, divider);
-			
+
 			plot.setDataset(count, traceData.y);
 			plot.setRenderer(count, traceData.x);
 			for (XYTextAnnotation annotation : traceData.z) {
@@ -139,7 +139,7 @@ public class BasicChartGenerator {
 			domainAxis.setAxisLinePaint(chartForeground);
 			domainAxis.setTickMarkPaint(chartForeground);
 		}
-		
+
 		String name;
 		if (traces.length>0) {
 			name=traces[0].getName();
@@ -176,8 +176,7 @@ public class BasicChartGenerator {
 		XYSeriesCollection dataset=new XYSeriesCollection();
 		ArrayList<XYTextAnnotation> annotations=new ArrayList<>();
 		Color chartForeground=getChartForeground();
-		
-		
+
 		switch (trace.getType()) {
 			case area:
 				renderer=new XYAreaRenderer();
@@ -485,7 +484,7 @@ public class BasicChartGenerator {
 				}
 			}
 		});
-		
+
 		JMenuItem saveSVG=new JMenuItem("Save as SVG");
 		chartPanel.getPopupMenu().add(saveSVG, 1);
 		saveSVG.addActionListener(new ActionListener() {
@@ -569,22 +568,22 @@ public class BasicChartGenerator {
 	public static void writeAsSVG(JComponent panel, File f, Dimension d) {
 		try {
 			SVGGraphics2D g2=new SVGGraphics2D(d.width, d.height);
-            Color bg = panel.getBackground() != null ? panel.getBackground() : Color.WHITE;
-            g2.setColor(bg);
-            g2.fillRect(0, 0, d.width, d.height);
+			Color bg=panel.getBackground()!=null?panel.getBackground():Color.WHITE;
+			g2.setColor(bg);
+			g2.fillRect(0, 0, d.width, d.height);
 
-            RepaintManager rm = RepaintManager.currentManager(panel);
-            boolean oldDB = rm.isDoubleBufferingEnabled();
-            Dimension oldSize = panel.getSize();
-            try {
-                rm.setDoubleBufferingEnabled(false);
-                panel.doLayout();
-                panel.printAll(g2); 
-            } finally {
-                panel.setSize(oldSize);
-                rm.setDoubleBufferingEnabled(oldDB);
-            }
-            
+			RepaintManager rm=RepaintManager.currentManager(panel);
+			boolean oldDB=rm.isDoubleBufferingEnabled();
+			Dimension oldSize=panel.getSize();
+			try {
+				rm.setDoubleBufferingEnabled(false);
+				panel.doLayout();
+				panel.printAll(g2);
+			} finally {
+				panel.setSize(oldSize);
+				rm.setDoubleBufferingEnabled(oldDB);
+			}
+
 			SVGUtils.writeToSVG(f, g2.getSVGElement());
 		} catch (Exception e) {
 			Logger.errorException(e);
@@ -592,56 +591,57 @@ public class BasicChartGenerator {
 	}
 
 	private static final double dpi=72.0;
+
 	public static void writeAsPDF(JComponent panel, File f, Dimension d) {
-	    try {
-	        // Optional: embed fonts if you use text
-	        FontFactory.defaultEmbedding = true;
+		try {
+			// Optional: embed fonts if you use text
+			FontFactory.defaultEmbedding=true;
 
-	        // PDF sizes are in points (1/72").
-	        int wPt = (int)Math.round(d.width * 72.0 / dpi);
-	        int hPt = (int)Math.round(d.height * 72.0 / dpi);
-	        
-	        Rectangle page = new Rectangle(wPt, hPt);
-	        Document document = new Document(page, 0, 0, 0, 0);
+			// PDF sizes are in points (1/72").
+			int wPt=(int)Math.round(d.width*72.0/dpi);
+			int hPt=(int)Math.round(d.height*72.0/dpi);
 
-	        try (FileOutputStream os = new FileOutputStream(f)) {
-	            PdfWriter writer =PdfWriter.getInstance(document, os);
-	            document.open();
+			Rectangle page=new Rectangle(wPt, hPt);
+			Document document=new Document(page, 0, 0, 0, 0);
 
-	            PdfContentByte cb = writer.getDirectContent();
-	            PdfTemplate tpl = cb.createTemplate(wPt, hPt);
+			try (FileOutputStream os=new FileOutputStream(f)) {
+				PdfWriter writer=PdfWriter.getInstance(document, os);
+				document.open();
 
-	            Graphics2D g2 = new PdfGraphics2D(tpl, wPt, hPt);
+				PdfContentByte cb=writer.getDirectContent();
+				PdfTemplate tpl=cb.createTemplate(wPt, hPt);
 
-	    		if (panel instanceof ExtendedChartPanel) {
-	    			((ExtendedChartPanel)panel).getChart().draw(g2, new Rectangle2D.Double(0,  0, wPt, hPt));
-	    		} else {
-		            Color bg = panel.getBackground() != null ? panel.getBackground() : Color.WHITE;
-		            g2.setColor(bg);
-		            g2.fillRect(0, 0, wPt, hPt);
-	
-		            // Snapshot the component at the desired size, without double buffering
-		            RepaintManager rm = RepaintManager.currentManager(panel);
-		            boolean oldDB = rm.isDoubleBufferingEnabled();
-		            Dimension oldSize = panel.getSize();
-		            try {
-		                rm.setDoubleBufferingEnabled(false);
-		                panel.setSize(new Dimension(wPt, hPt));
-		                panel.doLayout();
-		                panel.printAll(g2); 
-		            } finally {
-		                panel.setSize(oldSize);
-		                rm.setDoubleBufferingEnabled(oldDB);
-		            }
-	    		}
-	    		
-	            g2.dispose();
-	            cb.addTemplate(tpl, 0, 0);
-	            document.close();
-	        }
-	    } catch (Exception e) {
-	        Logger.errorException(e);
-	    }
+				Graphics2D g2=new PdfGraphics2D(tpl, wPt, hPt);
+
+				if (panel instanceof ExtendedChartPanel) {
+					((ExtendedChartPanel)panel).getChart().draw(g2, new Rectangle2D.Double(0, 0, wPt, hPt));
+				} else {
+					Color bg=panel.getBackground()!=null?panel.getBackground():Color.WHITE;
+					g2.setColor(bg);
+					g2.fillRect(0, 0, wPt, hPt);
+
+					// Snapshot the component at the desired size, without double buffering
+					RepaintManager rm=RepaintManager.currentManager(panel);
+					boolean oldDB=rm.isDoubleBufferingEnabled();
+					Dimension oldSize=panel.getSize();
+					try {
+						rm.setDoubleBufferingEnabled(false);
+						panel.setSize(new Dimension(wPt, hPt));
+						panel.doLayout();
+						panel.printAll(g2);
+					} finally {
+						panel.setSize(oldSize);
+						rm.setDoubleBufferingEnabled(oldDB);
+					}
+				}
+
+				g2.dispose();
+				cb.addTemplate(tpl, 0, 0);
+				document.close();
+			}
+		} catch (Exception e) {
+			Logger.errorException(e);
+		}
 	}
 
 	private static Pair<AttributedString, Double> getAxisScale(String yAxis, double maxY, int fontSize) {

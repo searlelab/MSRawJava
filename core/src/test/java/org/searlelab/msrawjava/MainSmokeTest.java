@@ -74,13 +74,7 @@ class MainSmokeTest {
 	private ConversionParameters params(Path start, OutputType out, Path outDir, float ms1, float ms2) {
 		ArrayList<java.io.File> files=new ArrayList<>();
 		files.add(start.toFile());
-		return ConversionParameters.builder()
-				.fileList(files)
-				.outType(out)
-				.outputDirPath(outDir)
-				.minimumMS1Intensity(ms1)
-				.minimumMS2Intensity(ms2)
-				.build();
+		return ConversionParameters.builder().fileList(files).outType(out).outputDirPath(outDir).minimumMS1Intensity(ms1).minimumMS2Intensity(ms2).build();
 	}
 
 	@Test
@@ -106,13 +100,12 @@ class MainSmokeTest {
 				})) {
 
 			pool.when(ThermoServerPool::port).thenReturn(12345); // harmless value
-			
+
 			// Static methods return boolean; stub them to succeed.
-			conv.when(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), any(Path.class), any(ConversionParameters.class),
-					any(ProgressIndicator.class)))
-					.thenReturn(true);
-			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(ConversionParameters.class), any(ProgressIndicator.class)))
-					.thenReturn(true);
+			conv.when(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), any(Path.class),
+					any(ConversionParameters.class), any(ProgressIndicator.class))).thenReturn(true);
+			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(ConversionParameters.class),
+					any(ProgressIndicator.class))).thenReturn(true);
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 
@@ -124,10 +117,10 @@ class MainSmokeTest {
 			conv.verify(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), eq(outDir),
 					argThat(paramsArg -> paramsArg.getOutType()==OutputType.mgf), any(ProgressIndicator.class)), times(1));
 
-			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(outDir),
-					argThat(paramsArg -> paramsArg.getOutType()==OutputType.mgf&&paramsArg.getMinimumMS1Intensity()==2.0f&&paramsArg.getMinimumMS2Intensity()==1.0f),
+			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(outDir), argThat(
+					paramsArg -> paramsArg.getOutType()==OutputType.mgf&&paramsArg.getMinimumMS1Intensity()==2.0f&&paramsArg.getMinimumMS2Intensity()==1.0f),
 					any(ProgressIndicator.class)), times(1));
-			
+
 		}
 	}
 
@@ -143,8 +136,8 @@ class MainSmokeTest {
 		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
 				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class)) {
 
-			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(ConversionParameters.class), any(ProgressIndicator.class)))
-					.thenReturn(true);
+			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(ConversionParameters.class),
+					any(ProgressIndicator.class))).thenReturn(true);
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 
@@ -154,9 +147,10 @@ class MainSmokeTest {
 
 			Path expectedOut=start; // parent of .d when outputDirPath == null
 			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(expectedOut),
-					argThat(paramsArg -> paramsArg.getOutType()==OutputType.EncyclopeDIA&&paramsArg.getMinimumMS1Intensity()==3.0f&&paramsArg.getMinimumMS2Intensity()==1.0f),
+					argThat(paramsArg -> paramsArg.getOutType()==OutputType.EncyclopeDIA&&paramsArg.getMinimumMS1Intensity()==3.0f
+							&&paramsArg.getMinimumMS2Intensity()==1.0f),
 					any(ProgressIndicator.class)), times(1));
-			
+
 		}
 	}
 }

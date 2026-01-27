@@ -4,8 +4,8 @@ import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 
 public class ExtendedChartPanel extends ChartPanel {
-	private static final long serialVersionUID = 1L;
-	
+	private static final long serialVersionUID=1L;
+
 	private final double divider;
 	private final String name;
 
@@ -20,7 +20,7 @@ public class ExtendedChartPanel extends ChartPanel {
 		this.name=name;
 		this.divider=divider;
 	}
-	
+
 	@Override
 	public String getName() {
 		return name;

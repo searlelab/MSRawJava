@@ -7,15 +7,16 @@ public interface MzCalibrator {
 
 	/**
 	 * Convert ToF integer indexes to m/z values
+	 * 
 	 * @param tof
 	 * @param realT1
 	 * @return
 	 */
 	double[] tofToMz(int[] tof, double realT1);
-	
 
 	/**
 	 * Convert m/z values to ToF integer indexes
+	 * 
 	 * @param mz
 	 * @param realT1
 	 * @return
@@ -24,6 +25,7 @@ public interface MzCalibrator {
 
 	/**
 	 * Undo linear correction and apply this correction
+	 * 
 	 * @param uncorrectedMz
 	 * @param realT1
 	 * @return
@@ -32,12 +34,14 @@ public interface MzCalibrator {
 
 	/**
 	 * get the average T1
+	 * 
 	 * @return
 	 */
 	double getGlobalT1();
-	
+
 	/**
 	 * Returns default linear calibrator
+	 * 
 	 * @return
 	 */
 	MzCalibrationLinear getLinear();

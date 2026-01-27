@@ -10,7 +10,7 @@ public final class LogQuadraticPeakIntensityInterpolator implements PeakInterfac
 	private final PeakInTime[] knots; // pre-sorted by RT
 	private final double mz;
 	private final float summedIntensity;
-    private final float averageXIncrement;
+	private final float averageXIncrement;
 	private volatile boolean toggle=true;
 
 	public LogQuadraticPeakIntensityInterpolator(PeakInTime[] sortedPeaks, double mz) {
@@ -49,7 +49,7 @@ public final class LogQuadraticPeakIntensityInterpolator implements PeakInterfac
 			}
 		}
 		int i=lo;
-		
+
 		float y0=i>0?knots[i-1].intensity:0.0f;
 		float y1=i>=0?knots[i].intensity:0.0f;
 		float y2=i<knots.length-1?knots[i+1].intensity:0.0f;
@@ -112,11 +112,10 @@ public final class LogQuadraticPeakIntensityInterpolator implements PeakInterfac
 		return c;
 	}
 
-	private static double quadraticFit(
-			double x0, double x1, double x2, double x3, // x values surrounding xi
+	private static double quadraticFit(double x0, double x1, double x2, double x3, // x values surrounding xi
 			double y0, double y1, double y2, double y3, // corresponding y values
 			double xi) {
-		
+
 		// If inner times coincide, fall back to their average
 		double epsilon=1e-6;
 		double deltaX12=x2-x1;
@@ -152,7 +151,7 @@ public final class LogQuadraticPeakIntensityInterpolator implements PeakInterfac
 
 		// Final curvature parameter chosen by the weighted fit
 		double k=(Math.abs(denominator)>epsilon)?(numerator/denominator):0.0;
-		
+
 		//System.out.println(xi+"\t"+k+"\t"+(slope-k*(x1+x2))+"\t"+(b+k*x1*x2));
 
 		// Quadratic value at rtInSec

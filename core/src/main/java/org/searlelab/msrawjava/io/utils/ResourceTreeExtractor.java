@@ -57,7 +57,7 @@ public final class ResourceTreeExtractor {
 			int bang=spec.indexOf("!/");
 			if (bang<0) throw new MalformedURLException("Invalid jar url: "+spec);
 			URI jarUri=URI.create(spec.substring(0, bang));
-			String entryPath=spec.substring(bang+1); 
+			String entryPath=spec.substring(bang+1);
 
 			// Open or reuse a FileSystem for the jar
 			try (FileSystem fs=newFileSystemIfNeeded(jarUri)) {

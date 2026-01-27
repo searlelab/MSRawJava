@@ -24,26 +24,31 @@ public class PeakWithIMS implements PeakInterface {
 		return "mz="+mz+",ims="+ims+",int="+intensity;
 	}
 
-	@Override public boolean isAvailable() {
+	@Override
+	public boolean isAvailable() {
 		return toggle;
 	}
 
-	@Override public void turnOff() {
+	@Override
+	public void turnOff() {
 		this.toggle=false;
 	}
 
-	@Override public void turnOn() {
+	@Override
+	public void turnOn() {
 		this.toggle=true;
 	}
-	
-	@Override public float getIntensity() {
+
+	@Override
+	public float getIntensity() {
 		return intensity;
 	}
-	
-	@Override public double getMz() {
+
+	@Override
+	public double getMz() {
 		return mz;
 	}
-	
+
 	public float getIMS() {
 		return ims;
 	}

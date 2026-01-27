@@ -87,9 +87,8 @@ class LoggerBehaviorTest {
 	void consoleStatusReceivesOutputWhenEnabled() {
 		ByteArrayOutputStream statusOutBytes=new ByteArrayOutputStream();
 		ByteArrayOutputStream statusErrBytes=new ByteArrayOutputStream();
-		ConsoleStatus status=new ConsoleStatus(true,
-			new PrintStream(statusOutBytes, true, StandardCharsets.UTF_8),
-			new PrintStream(statusErrBytes, true, StandardCharsets.UTF_8));
+		ConsoleStatus status=new ConsoleStatus(true, new PrintStream(statusOutBytes, true, StandardCharsets.UTF_8),
+				new PrintStream(statusErrBytes, true, StandardCharsets.UTF_8));
 		Logger.setConsoleStatus(status);
 
 		Logger.logLine("console");
