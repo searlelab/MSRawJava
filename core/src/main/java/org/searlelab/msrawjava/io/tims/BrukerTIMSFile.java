@@ -254,50 +254,47 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			if (!tableExists("DiaFrameMsMsWindows")||!tableExists("DiaFrameMsMsInfo")) {
 				return Collections.emptyMap();
 			}
-			// Gather all windows with their frame times
-			String sql="SELECT F.Id AS FrameId, F.Time AS RT, W.IsolationMz, W.IsolationWidth, W.ScanNumBegin, W.ScanNumEnd "+"FROM Frames F "
-					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "+"WHERE F.MsMsType = "+ms2Key
-					+" "+"ORDER BY W.IsolationMz ASC, F.Time ASC";
+			// Aggregate per window to get RT span and counts
+			String sql="SELECT W.IsolationMz, W.IsolationWidth, MIN(F.Time) AS RtStart, MAX(F.Time) AS RtStop, COUNT(*) AS NumFrames, "
+					+"MIN(W.ScanNumBegin) AS ScanNumBegin, MAX(W.ScanNumEnd) AS ScanNumEnd "
+					+"FROM Frames F JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
+					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
+					+"WHERE F.MsMsType = "+ms2Key+" GROUP BY W.IsolationMz, W.IsolationWidth ORDER BY W.IsolationMz ASC";
 
-			Map<Range, List<Double>> rtByRange=new LinkedHashMap<>();
-			Map<Range, int[]> scanRangeByRange=new HashMap<>();
-
+			Map<Range, WindowData> out=new LinkedHashMap<>();
 			try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
 				while (rs.next()) {
 					double isoMz=rs.getDouble("IsolationMz");
 					double realCenter=isoMz;//reader.calibrateMz(isoMz); // do we trust the precursor m/z?
 
 					double width=rs.getDouble("IsolationWidth");
+					double rtStart=rs.getDouble("RtStart");
+					double rtStop=rs.getDouble("RtStop");
+					int count=rs.getInt("NumFrames");
 					int sLo=rs.getInt("ScanNumBegin");
 					int sHi=rs.getInt("ScanNumEnd");
+
 					double lo=realCenter-0.5*width;
 					double hi=realCenter+0.5*width;
 					Range r=new Range((float)lo, (float)hi);
-					rtByRange.computeIfAbsent(r, k -> new ArrayList<>()).add(rs.getDouble("RT"));
-					scanRangeByRange.putIfAbsent(r, new int[] {sLo, sHi});
-				}
-			}
 
-			Map<Range, WindowData> out=new LinkedHashMap<>();
-			for (Map.Entry<Range, List<Double>> e : rtByRange.entrySet()) {
-				Range r=e.getKey();
-				List<Double> rts=e.getValue();
-				// average duty cycle: mean delta between consecutive RTs for this window
-				float avgCycle=0f;
-				if (rts.size()>=2) {
-					double sum=0.0;
-					for (int i=1; i<rts.size(); i++)
-						sum+=(rts.get(i)-rts.get(i-1));
-					avgCycle=(float)(sum/(rts.size()-1));
+					float avgCycle=0f;
+					if (count>=2) {
+						avgCycle=(float)((rtStop-rtStart)/(count-1));
+					}
+
+					Optional<Range> imRange=Optional.empty();
+					if (sLo>0||sHi>0) {
+						imRange=Optional.of(new Range((float)sLo, (float)sHi));
+					}
+
+					Optional<Range> rtRange=Optional.empty();
+					if (count>0) {
+						rtRange=Optional.of(new Range((float)rtStart, (float)rtStop));
+					}
+
+					out.put(r, new WindowData(avgCycle, count, imRange, rtRange));
 				}
-				int count=rts.size();
-				// Represent IM range as scan index range if present
-				Optional<Range> imRange=Optional.empty();
-				int[] scans=scanRangeByRange.get(e.getKey());
-				if (scans!=null) {
-					imRange=Optional.of(new Range((float)scans[0], (float)scans[1]));
-				}
-				out.put(r, new WindowData(avgCycle, count, imRange));
 			}
 			return out;
 		} catch (SQLException e) {

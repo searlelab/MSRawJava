@@ -71,6 +71,11 @@ class ThermoRawFileStubTest {
 
 		Map<Range, WindowData> ranges=rawFile.getRanges();
 		assertEquals(2, ranges.size());
+		WindowData firstWindow=ranges.get(new Range(400.0, 401.0));
+		assertNotNull(firstWindow);
+		assertTrue(firstWindow.getRtRange().isPresent());
+		assertEquals(10.0f, firstWindow.getRtRange().get().getStart(), 1e-6f);
+		assertEquals(20.0f, firstWindow.getRtRange().get().getStop(), 1e-6f);
 
 		float[] rt=rawFile.getTICTrace().getX();
 		float[] tic=rawFile.getTICTrace().getY();
@@ -254,8 +259,11 @@ class ThermoRawFileStubTest {
 			}
 			if (name.endsWith("/GetRanges")) {
 				RangesReply reply=RangesReply.newBuilder()
-						.addWindows(WindowRange.newBuilder().setLo(400.0).setHi(401.0).setAverageDutyCycleSeconds(0.1).setNumberOfMsms(2))
-						.addWindows(WindowRange.newBuilder().setLo(401.0).setHi(402.0).setAverageDutyCycleSeconds(0.2).setNumberOfMsms(3)).build();
+						.addWindows(WindowRange.newBuilder().setLo(400.0).setHi(401.0).setAverageDutyCycleSeconds(0.1).setNumberOfMsms(2).setRtStartSeconds(10.0)
+								.setRtEndSeconds(20.0))
+						.addWindows(WindowRange.newBuilder().setLo(401.0).setHi(402.0).setAverageDutyCycleSeconds(0.2).setNumberOfMsms(3).setRtStartSeconds(15.0)
+								.setRtEndSeconds(25.0))
+						.build();
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetMs1Tic")) {

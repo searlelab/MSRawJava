@@ -42,6 +42,8 @@ message WindowRange {
   double hi = 2;
   double average_duty_cycle_seconds = 3;
   int32  number_of_msms = 4;
+  double rt_start_seconds = 5;
+  double rt_end_seconds = 6;
 }
 
 message RangesReply {

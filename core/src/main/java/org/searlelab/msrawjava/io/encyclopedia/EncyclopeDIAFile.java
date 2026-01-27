@@ -98,7 +98,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		Connection c=getConnection();
 		try {
 			PreparedStatement prep=c
-					.prepareStatement("insert into ranges (Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop) VALUES (?,?,?,?,?,?)");
+					.prepareStatement("insert into ranges (Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop, RtStart, RtStop) VALUES (?,?,?,?,?,?,?,?)");
 			try {
 				int rangeCount=0;
 				for (Entry<Range, WindowData> entry : ranges.entrySet()) {
@@ -118,6 +118,13 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 						} else {
 							prep.setNull(5, Types.DOUBLE);
 							prep.setNull(6, Types.DOUBLE);
+						}
+						if (data.getRtRange().isPresent()) {
+							prep.setFloat(7, data.getRtRange().get().getStart());
+							prep.setFloat(8, data.getRtRange().get().getStop());
+						} else {
+							prep.setNull(7, Types.DOUBLE);
+							prep.setNull(8, Types.DOUBLE);
 						}
 
 						prep.addBatch();
@@ -197,7 +204,12 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery("select Start, Stop, DutyCycle, NumWindows, IonMobilityStart,IonMobilityStop from Ranges");
+				boolean hasRtStart=doesColumnExist(c, "ranges", "RtStart");
+				boolean hasRtStop=doesColumnExist(c, "ranges", "RtStop");
+				String sql=hasRtStart&&hasRtStop
+						?"select Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop, RtStart, RtStop from Ranges"
+						:"select Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop from Ranges";
+				ResultSet rs=s.executeQuery(sql);
 
 				while (rs.next()) {
 					float start=rs.getFloat(1);
@@ -212,7 +224,17 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					Optional<Range> range=(ionMobilityStart==null||ionMobilityStop==null)?Optional.empty()
 							:Optional.of(new Range(ionMobilityStart, ionMobilityStop));
 
-					ranges.put(new Range(start, stop), new WindowData(dutyCycle, numWindows, range));
+					Float rtStart=null;
+					Float rtStop=null;
+					if (hasRtStart&&hasRtStop) {
+						rtStart=rs.getFloat(7);
+						if (rs.wasNull()) rtStart=null;
+						rtStop=rs.getFloat(8);
+						if (rs.wasNull()) rtStop=null;
+					}
+					Optional<Range> rtRange=(rtStart==null||rtStop==null)?Optional.empty():Optional.of(new Range(rtStart, rtStop));
+
+					ranges.put(new Range(start, stop), new WindowData(dutyCycle, numWindows, range, rtRange));
 				}
 			} finally {
 				s.close();
@@ -761,7 +783,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 			try {
 				s.execute("create table if not exists metadata ( Key string not null, Value string not null, primary key (Key) )");
 				s.execute(
-						"create table if not exists ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int, IonMobilityStart float, IonMobilityStop float )");
+						"create table if not exists ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int, IonMobilityStart float, IonMobilityStop float, RtStart float, RtStop float )");
 				s.execute(
 						"create table if not exists spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
 				s.execute(

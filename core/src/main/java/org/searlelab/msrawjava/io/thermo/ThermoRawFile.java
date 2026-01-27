@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.searlelab.msrawjava.io.StripeFileInterface;
@@ -135,7 +136,11 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		LinkedHashMap<Range, WindowData> out=new LinkedHashMap<Range, WindowData>(resp.getWindowsCount());
 		for (WindowRange w : resp.getWindowsList()) {
 			Range key=new Range(w.getLo(), w.getHi());
-			WindowData val=new WindowData((float)w.getAverageDutyCycleSeconds(), w.getNumberOfMsms());
+			Optional<Range> rtRange=Optional.empty();
+			if (w.getRtEndSeconds()>0 || w.getRtStartSeconds()>0) {
+				rtRange=Optional.of(new Range(w.getRtStartSeconds(), w.getRtEndSeconds()));
+			}
+			WindowData val=new WindowData((float)w.getAverageDutyCycleSeconds(), w.getNumberOfMsms(), Optional.empty(), rtRange);
 			out.put(key, val);
 		}
 		return out;

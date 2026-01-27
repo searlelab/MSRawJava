@@ -17,6 +17,7 @@ class WindowDataTest {
 		assertEquals(0.5f, data.getAverageDutyCycle(), 1e-6);
 		assertEquals(100, data.getNumberOfMSMS());
 		assertFalse(data.getIonMobilityRange().isPresent());
+		assertFalse(data.getRtRange().isPresent());
 	}
 
 	@Test
@@ -29,6 +30,7 @@ class WindowDataTest {
 		assertTrue(data.getIonMobilityRange().isPresent());
 		assertEquals(0.6f, data.getIonMobilityRange().get().getStart(), 1e-6);
 		assertEquals(1.2f, data.getIonMobilityRange().get().getStop(), 1e-6);
+		assertFalse(data.getRtRange().isPresent());
 	}
 
 	@Test
@@ -38,6 +40,7 @@ class WindowDataTest {
 		assertEquals(0.25f, data.getAverageDutyCycle(), 1e-6);
 		assertEquals(50, data.getNumberOfMSMS());
 		assertFalse(data.getIonMobilityRange().isPresent());
+		assertFalse(data.getRtRange().isPresent());
 	}
 
 	@Test
@@ -65,5 +68,16 @@ class WindowDataTest {
 		Range retrieved=data.getIonMobilityRange().get();
 		assertEquals(imsRange.getStart(), retrieved.getStart(), 1e-6);
 		assertEquals(imsRange.getStop(), retrieved.getStop(), 1e-6);
+	}
+
+	@Test
+	void rtRangeConstructorSetsRtRange() {
+		Range imsRange=new Range(0.5f, 1.0f);
+		Range rtRange=new Range(10.0f, 20.0f);
+		WindowData data=new WindowData(0.5f, 100, Optional.of(imsRange), Optional.of(rtRange));
+
+		assertTrue(data.getRtRange().isPresent());
+		assertEquals(10.0f, data.getRtRange().get().getStart(), 1e-6);
+		assertEquals(20.0f, data.getRtRange().get().getStop(), 1e-6);
 	}
 }

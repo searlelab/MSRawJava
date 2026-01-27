@@ -303,6 +303,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        {
 	            var times = kv.Value;
 	            times.Sort();
+	            double rtStart = times.Count > 0 ? times[0] : 0.0;
+	            double rtEnd = times.Count > 0 ? times[times.Count - 1] : 0.0;
 	
 	            double avgDuty = 0.0;
 	            if (times.Count >= 2)
@@ -317,7 +319,9 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	                Lo = kv.Key.lo,
 	                Hi = kv.Key.hi,
 	                AverageDutyCycleSeconds = avgDuty,
-	                NumberOfMsms = times.Count
+	                NumberOfMsms = times.Count,
+	                RtStartSeconds = rtStart,
+	                RtEndSeconds = rtEnd
 	            });
 	        }
 	
