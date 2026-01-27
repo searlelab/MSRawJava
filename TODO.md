@@ -5,7 +5,6 @@
 - migrate todo into a real todo/changelog split to make it easier to track higher-level changes
 
 ## GUI
-- searchbar for files in the table
 - a way to bring up the loading panels for demos
 - bug where visualization only really works for DIA data and either doesn't see DDA data for Bruker or takes forever to build for Thermo. PRM data for Thermo has problems with the structure charts
 

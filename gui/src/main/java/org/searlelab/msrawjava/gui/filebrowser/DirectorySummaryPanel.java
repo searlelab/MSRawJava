@@ -25,15 +25,23 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.RowFilter;
 import javax.swing.RowSorter;
 import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.TableColumnModelEvent;
@@ -59,18 +67,21 @@ public class DirectorySummaryPanel extends JPanel {
 
 	private final JTable table;
 	private final DirSummaryModel model=new DirSummaryModel();
+	private final TableRowSorter<DirSummaryModel> sorter;
 	// A tiny pool so we don’t thrash the disk; adjust if you want more parallelism.
 	private final ExecutorService pool=Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()/2);
 	private final Timer loadingTimer;
 	private volatile boolean closed=false;
 	private boolean applyingSavedLayout=false;
 	private boolean pendingColumnSave=false;
+	private final JTextField searchField=new JTextField();
+	private final JButton clearButton=new JButton("Clear");
 
 	public DirectorySummaryPanel(VendorFiles files) {
 		super(new BorderLayout());
 
 		table=new JTable(model);
-		TableRowSorter<DirSummaryModel> sorter=new TableRowSorter<>(model);
+		sorter=new TableRowSorter<>(model);
 		sorter.setSortable(0, false); // "#" not sortable
 		sorter.setComparator(3, Comparator.nullsLast(Comparator.naturalOrder())); // date modified
 		sorter.setComparator(5, Comparator.nullsLast(Float::compareTo)); // gradient
@@ -117,6 +128,7 @@ public class DirectorySummaryPanel extends JPanel {
 		table.getColumnModel().getColumn(6).setCellRenderer(StripeTableCellRenderer.SCI_RENDERER);
 		table.getColumnModel().getColumn(7).setCellRenderer(new SparkRenderer());
 
+		add(buildSearchBar(), BorderLayout.NORTH);
 		JScrollPane sp=new JScrollPane(table);
 		add(sp, BorderLayout.CENTER);
 		loadingTimer=new Timer(500, e -> {
@@ -152,6 +164,58 @@ public class DirectorySummaryPanel extends JPanel {
 		for (DirRow row : thermoRows) {
 			pool.submit(() -> computeSlowBits(row));
 		}
+	}
+
+	private JPanel buildSearchBar() {
+		JPanel searchBar=new JPanel();
+		searchBar.setLayout(new BoxLayout(searchBar, BoxLayout.X_AXIS));
+		searchBar.add(Box.createHorizontalStrut(6));
+		searchBar.add(new JLabel("Search:"));
+		searchBar.add(Box.createHorizontalStrut(6));
+		searchBar.add(searchField);
+		searchBar.add(Box.createHorizontalStrut(6));
+		searchBar.add(clearButton);
+		searchBar.add(Box.createHorizontalStrut(6));
+		searchField.getDocument().addDocumentListener(new DocumentListener() {
+			@Override
+			public void insertUpdate(DocumentEvent e) {
+				onSearchTextChanged();
+			}
+
+			@Override
+			public void removeUpdate(DocumentEvent e) {
+				onSearchTextChanged();
+			}
+
+			@Override
+			public void changedUpdate(DocumentEvent e) {
+				onSearchTextChanged();
+			}
+		});
+		clearButton.addActionListener(e -> {
+			searchField.setText("");
+			searchField.requestFocusInWindow();
+		});
+		return searchBar;
+	}
+
+	private void onSearchTextChanged() {
+		String raw=searchField.getText();
+		String text=(raw==null)?"":raw.trim();
+		if (text.isEmpty()) {
+			sorter.setRowFilter(null);
+			return;
+		}
+		String needle=text.toLowerCase(Locale.ROOT);
+		sorter.setRowFilter(new RowFilter<DirSummaryModel, Integer>() {
+			@Override
+			public boolean include(Entry<? extends DirSummaryModel, ? extends Integer> entry) {
+				DirSummaryModel m=entry.getModel();
+				DirRow row=m.getAt(entry.getIdentifier());
+				if (row==null||row.fileNameLower==null) return false;
+				return row.fileNameLower.contains(needle);
+			}
+		});
 	}
 
 	public JTable getTable() {
@@ -466,6 +530,7 @@ public class DirectorySummaryPanel extends JPanel {
 
 		final Path path;
 		final String fileName;
+		final String fileNameLower;
 		final Vendor vendor;
 		final long sizeBytes;
 		final Date lastModified;
@@ -477,6 +542,7 @@ public class DirectorySummaryPanel extends JPanel {
 		private DirRow(Path p, Vendor v, long size, Date lastModified) {
 			this.path=p;
 			this.fileName=p.getFileName().toString();
+			this.fileNameLower=fileName.toLowerCase(Locale.ROOT);
 			this.vendor=v;
 			this.sizeBytes=Math.max(0L, size);
 			this.lastModified=lastModified;
