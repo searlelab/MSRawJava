@@ -10,6 +10,9 @@ import org.searlelab.msrawjava.model.ScanSummary;
 
 import gnu.trove.list.array.TFloatArrayList;
 
+/**
+ * Data container for raw browser views.
+ */
 public class RawBrowserData {
 	private final List<ScanSummary> scans;
 	private final XYTrace chromatogram;

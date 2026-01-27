@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
+import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
 import org.searlelab.msrawjava.gui.graphing.GraphType;
 import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.io.StripeFileInterface;
@@ -17,6 +18,9 @@ import org.searlelab.msrawjava.model.ScanSummary;
 
 import gnu.trove.list.array.TFloatArrayList;
 
+/**
+ * Builds RawBrowserData used by visualization panels.
+ */
 public final class RawBrowserDataLoader {
 	private RawBrowserDataLoader() {
 	}
@@ -27,8 +31,8 @@ public final class RawBrowserDataLoader {
 		scans.addAll(summaries);
 		Collections.sort(scans, new ScanSummaryComparator());
 
-		var structure=StructureChartBuilder.buildLocalStructureChart(stripe.getRanges(), summaries);
-		var global=StructureChartBuilder.buildGlobalStructureChart(stripe.getRanges());
+		ExtendedChartPanel structure=StructureChartBuilder.buildLocalStructureChart(stripe.getRanges(), summaries);
+		ExtendedChartPanel global=StructureChartBuilder.buildGlobalStructureChart(stripe.getRanges());
 
 		float maxTicLocal=0.0f;
 		TFloatArrayList ticX=new TFloatArrayList();

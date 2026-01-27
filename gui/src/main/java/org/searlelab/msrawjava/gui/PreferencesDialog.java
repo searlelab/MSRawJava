@@ -22,6 +22,9 @@ import javax.swing.JTextField;
 
 import org.searlelab.msrawjava.COREPreferences;
 
+/**
+ * Dialog for editing GUI preferences.
+ */
 public class PreferencesDialog extends JDialog {
 	private static final long serialVersionUID=1L;
 

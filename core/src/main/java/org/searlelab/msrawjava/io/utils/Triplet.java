@@ -1,5 +1,8 @@
 package org.searlelab.msrawjava.io.utils;
 
+/**
+ * Simple immutable triplet container.
+ */
 public class Triplet<X, Y, Z> {
 	public final X x;
 	public final Y y;

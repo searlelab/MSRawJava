@@ -1,5 +1,8 @@
 package org.searlelab.msrawjava.logging;
 
+/**
+ * Progress indicator that logs updates via Logger and optional ANSI output.
+ */
 public class LoggingProgressIndicator implements ProgressIndicator {
 	private static final long HEARTBEAT_MS=100L;
 
@@ -76,7 +79,7 @@ public class LoggingProgressIndicator implements ProgressIndicator {
 		done=true;
 		if (mode==Mode.DEFAULT&&useAnsi) {
 			render();
-			System.out.println();
+			Logger.timelessLogLine("");
 		}
 	}
 

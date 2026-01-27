@@ -7,6 +7,9 @@ import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 
+/**
+ * Wraps AcquiredSpectrum as an XYTraceInterface.
+ */
 public class AcquiredSpectrumWrapper implements XYTraceInterface {
 	private final AcquiredSpectrum spectrum;
 

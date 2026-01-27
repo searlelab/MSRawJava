@@ -127,6 +127,7 @@ public class Range implements Comparable<Range> {
 	/**
 	 * sorts on start location, then on stop location
 	 */
+	@Override
 	public int compareTo(Range o) {
 		if (o==null) return 1;
 		if (start>o.start) return 1;
@@ -139,7 +140,7 @@ public class Range implements Comparable<Range> {
 	/**
 	 * sorts on normal compareTo, but equals is inclusive of any range boundary intersection
 	 */
-	public static Comparator<Range> RANGE_CONTAINS_COMPARATOR=new Comparator<Range>() {
+	public static final Comparator<Range> RANGE_CONTAINS_COMPARATOR=new Comparator<Range>() {
 		@Override
 		public int compare(Range o1, Range o2) {
 			if (o1==null&&o2==null) return 0;

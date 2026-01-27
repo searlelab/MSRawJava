@@ -2,6 +2,7 @@ package org.searlelab.msrawjava.algorithms;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Locale;
 
 import org.ejml.data.DMatrixRMaj;
 import org.searlelab.msrawjava.algorithms.demux.CubicHermiteInterpolator;
@@ -12,6 +13,7 @@ import org.searlelab.msrawjava.algorithms.demux.DemuxWindow;
 import org.searlelab.msrawjava.algorithms.demux.LogQuadraticInterpolator;
 import org.searlelab.msrawjava.algorithms.demux.NNLSSolver;
 import org.searlelab.msrawjava.algorithms.demux.RetentionTimeInterpolator;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.Peak;
@@ -231,7 +233,8 @@ public class StaggeredDemultiplexer {
 
 		if (PROFILE) {
 			long totalNanos=System.nanoTime()-totalStart;
-			System.out.printf("Demux timing: total=%.3f s, interpolate=%.3f s, nnls=%.3f s%n", totalNanos/1e9, interpolateNanos/1e9, nnlsNanos/1e9);
+			Logger.logLine(String.format(Locale.ROOT, "Demux timing: total=%.3f s, interpolate=%.3f s, nnls=%.3f s",
+					totalNanos/1e9, interpolateNanos/1e9, nnlsNanos/1e9));
 		}
 
 		demuxResults.sort((a, b) -> {

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 import org.ejml.data.DMatrixRMaj;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.algorithms.RangeCounter;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.Range;
@@ -347,7 +348,7 @@ public class DemuxDesignMatrix {
 	 * Prints the design matrix for debugging.
 	 */
 	public void printMatrix() {
-		System.out.println("Design Matrix ("+numAcquiredPositions+" × "+numSubWindows+"):");
+		Logger.logLine("Design Matrix ("+numAcquiredPositions+" × "+numSubWindows+"):");
 		for (int i=0; i<numAcquiredPositions; i++) {
 			StringBuilder sb=new StringBuilder();
 			sb.append(String.format("Row %2d: [", i));
@@ -355,7 +356,7 @@ public class DemuxDesignMatrix {
 				sb.append(fullMatrix.get(i, j)>0?"1 ":"0 ");
 			}
 			sb.append("]");
-			System.out.println(sb);
+			Logger.logLine(sb.toString());
 		}
 	}
 }

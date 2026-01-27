@@ -4,6 +4,9 @@ import java.io.File;
 
 import javax.swing.tree.DefaultMutableTreeNode;
 
+/**
+ * Tree node representing a directory entry.
+ */
 public class DirectoryNode extends DefaultMutableTreeNode {
 	private static final long serialVersionUID=1L;
 	private boolean loaded=false;

@@ -17,6 +17,9 @@ import javax.swing.filechooser.FileFilter;
 
 import org.searlelab.msrawjava.io.VendorFileFinder;
 
+/**
+ * Builds and wires application menu actions.
+ */
 public final class MenuManager {
 	private MenuManager() {
 	}

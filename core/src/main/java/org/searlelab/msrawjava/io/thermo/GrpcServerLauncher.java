@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 import org.searlelab.msrawjava.io.utils.ResourceTreeExtractor;
 import org.searlelab.msrawjava.logging.Logger;
@@ -155,7 +156,7 @@ final class GrpcServerLauncher implements AutoCloseable {
 		}
 		// Clean up temp directory tree
 		if (workDir!=null) {
-			try (var walk=Files.walk(workDir)) {
+			try (Stream<Path> walk=Files.walk(workDir)) {
 				walk.sorted(Comparator.reverseOrder()).forEach(p -> {
 					try {
 						Files.deleteIfExists(p);

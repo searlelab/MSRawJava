@@ -12,6 +12,9 @@ import org.jfree.chart.ChartFactory;
 import org.jfree.chart.StandardChartTheme;
 import org.searlelab.msrawjava.logging.Logger;
 
+/**
+ * Configures Swing look-and-feel defaults for the application.
+ */
 public final class LookAndFeelManager {
 	public static final String LAF_FLAT_LIGHT="flat-light";
 	public static final String LAF_FLAT_DARK="flat-dark";

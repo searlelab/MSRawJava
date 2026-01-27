@@ -30,6 +30,14 @@ public class Logger {
 		return consoleStatus;
 	}
 
+	public static PrintStream getStdout() {
+		return System.out;
+	}
+
+	public static PrintStream getStderr() {
+		return System.err;
+	}
+
 	public static void log(String s) {
 		if (PRINT_TO_SCREEN&&PRINT_TO_STDOUT) {
 			if (consoleStatus!=null&&consoleStatus.isEnabled()) {

@@ -8,6 +8,9 @@ import javax.swing.UIManager;
 import javax.swing.filechooser.FileSystemView;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
+/**
+ * Renderer for file tree nodes.
+ */
 public class FileTreeCellRenderer extends DefaultTreeCellRenderer {
 	private static final long serialVersionUID=1L;
 	private final FileSystemView fsv;

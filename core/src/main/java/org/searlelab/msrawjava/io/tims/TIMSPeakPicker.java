@@ -29,12 +29,12 @@ public class TIMSPeakPicker {
 		MassTolerance tolerance=new TIMSMassTolerance();
 		PeakWithIMS.PeakIMSComparator imsComparator=new PeakWithIMS.PeakIMSComparator();
 
-		ArrayList<PeakWithIMS> intensitySortedPeaks=new ArrayList<PeakWithIMS>(mzSortedPeaks);
+		ArrayList<PeakWithIMS> intensitySortedPeaks=new ArrayList<>(mzSortedPeaks);
 
 		mzSortedPeaks.sort(null); // sorted on m/z
 		intensitySortedPeaks.sort(new PeakWithIMS.PeakIntensityComparator()); // sorted on intensity
 
-		ArrayList<ArrayList<PeakWithIMS>> finalPeaks=new ArrayList<ArrayList<PeakWithIMS>>();
+		ArrayList<ArrayList<PeakWithIMS>> finalPeaks=new ArrayList<>();
 		int lastPeakConsidered=intensitySortedPeaks.size();
 		EACHPEAK: while (true) {
 			PeakWithIMS targetPeak=null;
@@ -50,7 +50,7 @@ public class TIMSPeakPicker {
 				break EACHPEAK;
 			} else {
 				int[] indicies=tolerance.getIndices(mzSortedPeaks, targetPeak);
-				ArrayList<PeakWithIMS> imsSortedSlice=new ArrayList<PeakWithIMS>();
+				ArrayList<PeakWithIMS> imsSortedSlice=new ArrayList<>();
 				for (int i=0; i<indicies.length; i++) {
 					imsSortedSlice.add(mzSortedPeaks.get(indicies[i]));
 				}
@@ -112,7 +112,7 @@ public class TIMSPeakPicker {
 			int numIncludable=0;
 
 			TDoubleArrayList mzList=new TDoubleArrayList();
-			ArrayList<PeakWithIMS> imsPeaks=new ArrayList<PeakWithIMS>();
+			ArrayList<PeakWithIMS> imsPeaks=new ArrayList<>();
 			for (int i=start; i<end; i++) {
 				PeakWithIMS p=mzSortedPeaks.get(i);
 				if (p.isAvailable()&&p.intensity>0f&&p.ims>=leftIm&&p.ims<=rightIm) {

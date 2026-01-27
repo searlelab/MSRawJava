@@ -13,6 +13,9 @@ import org.searlelab.msrawjava.gui.GUIPreferences;
 import org.searlelab.msrawjava.gui.PreferencesDialog;
 import org.searlelab.msrawjava.logging.Logger;
 
+/**
+ * Global key listener that forwards events to a target container.
+ */
 public class BackgroundKeyboardListener implements KeyListener, ContainerListener {
 	private final TreeSet<EasterEgg> eggs=new TreeSet<>();
 

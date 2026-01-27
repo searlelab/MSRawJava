@@ -512,7 +512,7 @@ public class DirectorySummaryPanel extends JPanel {
 					try {
 						return Files.size(f);
 					} catch (IOException e) {
-						System.err.println("Error getting size of file "+f+": "+e.getMessage());
+						Logger.errorLine("Error getting size of file "+f+": "+e.getMessage());
 						return 0L;
 					}
 				}).sum();

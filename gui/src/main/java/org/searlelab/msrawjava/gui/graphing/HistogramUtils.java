@@ -1,5 +1,8 @@
 package org.searlelab.msrawjava.gui.graphing;
 
+/**
+ * Utility helpers for histogram generation.
+ */
 public final class HistogramUtils {
 	private HistogramUtils() {
 	}

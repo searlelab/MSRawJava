@@ -14,8 +14,11 @@ import java.util.concurrent.TimeUnit;
 
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.thermo.rpc.CloseRequest;
+import org.searlelab.msrawjava.io.thermo.rpc.MetadataReply;
 import org.searlelab.msrawjava.io.thermo.rpc.OpenRequest;
+import org.searlelab.msrawjava.io.thermo.rpc.OpenReply;
 import org.searlelab.msrawjava.io.thermo.rpc.PrecursorsRequest;
+import org.searlelab.msrawjava.io.thermo.rpc.RangesReply;
 import org.searlelab.msrawjava.io.thermo.rpc.Session;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.SpectrumSummary;
@@ -24,6 +27,7 @@ import org.searlelab.msrawjava.io.thermo.rpc.StripesRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
 import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.TicRequest;
+import org.searlelab.msrawjava.io.thermo.rpc.WindowRange;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -87,13 +91,13 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		this.channel=NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().maxInboundMessageSize(64*1024*1024).build();
 		this.stub=ThermoRawServiceGrpc.newBlockingStub(channel);
 
-		var rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
+		OpenReply rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
 		this.sessionId=rep.getSessionId();
 	}
 
 	public Map<String, String> getMetadata() throws IOException, SQLException {
-		var req=Session.newBuilder().setSessionId(sessionId).build();
-		var reply=stub.getMetadata(req);
+		Session req=Session.newBuilder().setSessionId(sessionId).build();
+		MetadataReply reply=stub.getMetadata(req);
 		return reply.getKvMap();
 	}
 
@@ -108,8 +112,8 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 	}
 
 	public RunSummary getRunSummary() {
-		var req=Session.newBuilder().setSessionId(sessionId).build();
-		var resp=stub.getRunSummary(req);
+		Session req=Session.newBuilder().setSessionId(sessionId).build();
+		org.searlelab.msrawjava.io.thermo.rpc.RunSummary resp=stub.getRunSummary(req);
 		return new RunSummary(resp.getGradientLengthSeconds(), resp.getTotalIonCurrent());
 	}
 
@@ -125,11 +129,11 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 
 	@Override
 	public Map<Range, WindowData> getRanges() {
-		var req=Session.newBuilder().setSessionId(sessionId).build();
-		var resp=stub.getRanges(req);
+		Session req=Session.newBuilder().setSessionId(sessionId).build();
+		RangesReply resp=stub.getRanges(req);
 
-		var out=new LinkedHashMap<Range, WindowData>(resp.getWindowsCount());
-		for (var w : resp.getWindowsList()) {
+		LinkedHashMap<Range, WindowData> out=new LinkedHashMap<Range, WindowData>(resp.getWindowsCount());
+		for (WindowRange w : resp.getWindowsList()) {
 			Range key=new Range(w.getLo(), w.getHi());
 			WindowData val=new WindowData((float)w.getAverageDutyCycleSeconds(), w.getNumberOfMsms());
 			out.put(key, val);
@@ -160,10 +164,10 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 
 	@Override
 	public ArrayList<PrecursorScan> getPrecursors(float rtStart, float rtEnd) throws IOException {
-		var req=PrecursorsRequest.newBuilder().setSessionId(sessionId).setRtMin(rtStart/60f).setRtMax(rtEnd/60f).setProfile(false).build();
+		PrecursorsRequest req=PrecursorsRequest.newBuilder().setSessionId(sessionId).setRtMin(rtStart/60f).setRtMax(rtEnd/60f).setProfile(false).build();
 
 		ArrayList<PrecursorScan> out=new ArrayList<>();
-		var it=stub.getPrecursors(req);
+		java.util.Iterator<Spectrum> it=stub.getPrecursors(req);
 
 		while (it.hasNext()) {
 			Spectrum s=it.next();
@@ -182,11 +186,11 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 
 	@Override
 	public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) throws IOException {
-		var req=StripesRequest.newBuilder().setSessionId(sessionId).setRtMin(minRT/60f).setRtMax(maxRT/60f).setMzLo(targetMzRange.getStart())
+		StripesRequest req=StripesRequest.newBuilder().setSessionId(sessionId).setRtMin(minRT/60f).setRtMax(maxRT/60f).setMzLo(targetMzRange.getStart())
 				.setMzHi(targetMzRange.getStop()).setProfile(false).build();
 
 		ArrayList<FragmentScan> out=new ArrayList<>();
-		var it=stub.getStripes(req);
+		java.util.Iterator<Spectrum> it=stub.getStripes(req);
 
 		while (it.hasNext()) {
 			Spectrum s=it.next();
@@ -213,7 +217,7 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 
 	@Override
 	public ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) throws IOException {
-		var req=Session.newBuilder().setSessionId(sessionId).build();
+		Session req=Session.newBuilder().setSessionId(sessionId).build();
 		SummariesReply reply=stub.getScanSummaries(req);
 		ArrayList<ScanSummary> out=new ArrayList<>(reply.getSummariesCount());
 		for (SpectrumSummary s : reply.getSummariesList()) {

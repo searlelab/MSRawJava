@@ -1,5 +1,8 @@
 package org.searlelab.msrawjava.io.utils;
 
+/**
+ * Simple immutable pair container.
+ */
 public class Pair<X, Y> {
 	public final X x;
 	public final Y y;

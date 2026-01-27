@@ -1,5 +1,8 @@
 package org.searlelab.msrawjava.algorithms;
 
+/**
+ * Utility for percentile-style selection and median estimation on float arrays.
+ */
 public class QuickMedian {
 	public static float median(float[] data) {
 		return select(data, 0.5f);

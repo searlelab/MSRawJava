@@ -6,6 +6,9 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
 
+/**
+ * FilenameFilter that matches a specific extension set.
+ */
 public class ExtensionFilenameFilter implements FilenameFilter {
 	private final Set<String> extensionSet;
 

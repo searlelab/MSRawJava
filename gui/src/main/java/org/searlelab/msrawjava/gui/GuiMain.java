@@ -3,8 +3,12 @@ package org.searlelab.msrawjava.gui;
 import javax.swing.SwingUtilities;
 
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
+/**
+ * GUI entry point for launching the application.
+ */
 public class GuiMain {
 
 	public static void main(String[] args) {
@@ -17,6 +21,7 @@ public class GuiMain {
 			try {
 				ThermoServerPool.shutdown();
 			} catch (Throwable ignore) {
+				Logger.errorException(ignore);
 			}
 		}, "ThermoServerPool-shutdown"));
 
@@ -30,6 +35,7 @@ public class GuiMain {
 						ThermoServerPool.shutdown();
 						pool.close();
 					} catch (Throwable ignore) {
+						Logger.errorException(ignore);
 					}
 				}
 			});

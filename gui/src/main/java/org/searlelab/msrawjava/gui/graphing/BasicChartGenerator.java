@@ -57,6 +57,9 @@ import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.logging.Logger;
 
+/**
+ * Helpers for constructing common chart panels.
+ */
 public class BasicChartGenerator {
 	private static final DecimalFormat MASS_FORMAT=new DecimalFormat(".#");
 	public static final String BASE_FONT_NAME="Arial";

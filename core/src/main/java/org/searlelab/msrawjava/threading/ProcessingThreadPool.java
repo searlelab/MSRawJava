@@ -9,6 +9,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Bounded worker pool with backpressure for CPU-intensive processing stages.
+ */
 public class ProcessingThreadPool implements AutoCloseable {
 	private final ThreadPoolExecutor computePool;
 

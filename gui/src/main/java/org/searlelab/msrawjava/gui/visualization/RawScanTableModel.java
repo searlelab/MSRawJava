@@ -7,6 +7,9 @@ import javax.swing.table.AbstractTableModel;
 
 import org.searlelab.msrawjava.model.ScanSummary;
 
+/**
+ * Table model for scan summary listings.
+ */
 public class RawScanTableModel extends AbstractTableModel {
 	private static final long serialVersionUID=1L;
 

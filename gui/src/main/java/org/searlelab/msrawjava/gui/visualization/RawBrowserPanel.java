@@ -14,6 +14,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.RowFilter;
+import javax.swing.SwingWorker;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -42,6 +43,9 @@ import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.PeakWithIMS;
 import org.searlelab.msrawjava.model.ScanSummary;
 
+/**
+ * Panel for inspecting raw scans, chromatograms, and spectra.
+ */
 public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final long serialVersionUID=1L;
 
@@ -186,7 +190,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private void startLoad() {
-		new javax.swing.SwingWorker<RawBrowserData, Void>() {
+		new SwingWorker<RawBrowserData, Void>() {
 			@Override
 			protected RawBrowserData doInBackground() throws Exception {
 				return buildData();
@@ -258,7 +262,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			summaries.add(entry);
 		}
 		long token=++selectionToken;
-		new javax.swing.SwingWorker<SelectionResult, Void>() {
+		new SwingWorker<SelectionResult, Void>() {
 			@Override
 			protected SelectionResult doInBackground() throws Exception {
 				ArrayList<AcquiredSpectrum> spectra=new ArrayList<>();

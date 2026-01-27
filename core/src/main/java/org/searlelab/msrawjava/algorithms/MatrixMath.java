@@ -1,5 +1,10 @@
 package org.searlelab.msrawjava.algorithms;
 
+import org.searlelab.msrawjava.logging.Logger;
+
+/**
+ * Utility math helpers for array statistics and simple matrix operations.
+ */
 public class MatrixMath {
 
 	public static float max(float[] v) {
@@ -44,31 +49,37 @@ public class MatrixMath {
 
 	public static void print(double[][] m) {
 		for (int i=0; i<m.length; i++) {
-			System.out.print("[");
+			StringBuilder line=new StringBuilder();
+			line.append("[");
 			for (int j=0; j<m[i].length; j++) {
-				if (j>0) System.out.print(", ");
-				System.out.print(m[i][j]);
+				if (j>0) line.append(", ");
+				line.append(m[i][j]);
 			}
-			System.out.println("]");
+			line.append("]");
+			Logger.logLine(line.toString());
 		}
 	}
 
 	public static void print(float[] m) {
-		System.out.print("[");
+		StringBuilder line=new StringBuilder();
+		line.append("[");
 		for (int i=0; i<m.length; i++) {
-			if (i>0) System.out.print(", ");
-			System.out.print(m[i]);
+			if (i>0) line.append(", ");
+			line.append(m[i]);
 		}
-		System.out.println("]");
+		line.append("]");
+		Logger.logLine(line.toString());
 	}
 
 	public static void print(double[] m) {
-		System.out.print("[");
+		StringBuilder line=new StringBuilder();
+		line.append("[");
 		for (int i=0; i<m.length; i++) {
-			if (i>0) System.out.print(", ");
-			System.out.print(m[i]);
+			if (i>0) line.append(", ");
+			line.append(m[i]);
 		}
-		System.out.println("]");
+		line.append("]");
+		Logger.logLine(line.toString());
 	}
 
 	public static double[][] calculateCovarianceMatrix(double[][] matrix) {

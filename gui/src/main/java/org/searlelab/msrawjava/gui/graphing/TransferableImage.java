@@ -6,6 +6,9 @@ import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.IOException;
 
+/**
+ * Transferable wrapper for images in clipboard operations.
+ */
 public class TransferableImage implements Transferable {
 
 	Image i;

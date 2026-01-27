@@ -1,5 +1,8 @@
 package org.searlelab.msrawjava.logging;
 
+/**
+ * Renders a console progress bar with optional ANSI color output.
+ */
 public class ConsoleStatus {
 	private static final String ESC="\u001b[";
 	private static final String COLOR_RESET=ESC+"0m";
@@ -175,7 +178,7 @@ public class ConsoleStatus {
 	}
 
 	public static void main(String[] args) throws Exception {
-		ConsoleStatus console=new ConsoleStatus(true, System.out, System.err);
+		ConsoleStatus console=new ConsoleStatus(true, Logger.getStdout(), Logger.getStderr());
 		Logger.setConsoleStatus(console);
 		LoggingProgressIndicator indicator=new LoggingProgressIndicator(LoggingProgressIndicator.Mode.DEFAULT, true);
 		for (int i=0; i<10; i++) {

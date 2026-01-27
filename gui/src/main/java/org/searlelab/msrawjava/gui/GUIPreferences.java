@@ -17,6 +17,9 @@ import javax.swing.SortOrder;
 
 import org.searlelab.msrawjava.logging.Logger;
 
+/**
+ * Stores and retrieves persistent GUI preference values.
+ */
 public final class GUIPreferences {
 	private static final Preferences PREFS=Preferences.userNodeForPackage(GUIPreferences.class);
 	private static final String PREF_VERBOSE_GUI_LOGGING="gui.verboseLogging";

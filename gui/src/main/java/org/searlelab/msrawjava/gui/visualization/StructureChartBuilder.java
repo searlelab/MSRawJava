@@ -21,6 +21,9 @@ import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
+/**
+ * Builds structure charts from scan summaries and windows.
+ */
 public final class StructureChartBuilder {
 	private static final Color BASE_COLOR=new Color(0, 0, 200);
 	private static final Color ALT_COLOR=new Color(100, 100, 255);

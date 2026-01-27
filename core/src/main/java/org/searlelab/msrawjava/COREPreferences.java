@@ -4,6 +4,9 @@ import java.util.prefs.Preferences;
 
 import org.searlelab.msrawjava.logging.Logger;
 
+/**
+ * Core preferences storage and logging helpers for configurable defaults.
+ */
 public final class COREPreferences {
 	private static final Preferences PREFS=Preferences.userNodeForPackage(COREPreferences.class);
 	private static final String PREF_VERBOSE_CORE_LOGGING="core.verboseLogging";

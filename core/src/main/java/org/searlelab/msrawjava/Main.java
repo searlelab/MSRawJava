@@ -202,8 +202,8 @@ public class Main {
 			}
 			boolean useAnsi=System.console()!=null&&!params.isNoAnsi()&&!params.isBatch()&&!params.isSilent();
 			if (useAnsi) {
-				PrintStream stdout=System.out;
-				PrintStream stderr=System.err;
+				PrintStream stdout=Logger.getStdout();
+				PrintStream stderr=Logger.getStderr();
 				Logger.setConsoleStatus(new ConsoleStatus(true, stdout, stderr));
 				System.setOut(new PrintStream(java.io.OutputStream.nullOutputStream()));
 				System.setErr(new PrintStream(java.io.OutputStream.nullOutputStream()));

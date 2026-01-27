@@ -3,6 +3,9 @@ package org.searlelab.msrawjava.gui.graphing;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 
+/**
+ * ChartPanel extension with GUI-specific conveniences.
+ */
 public class ExtendedChartPanel extends ChartPanel {
 	private static final long serialVersionUID=1L;
 

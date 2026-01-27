@@ -16,6 +16,9 @@ import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.map.hash.TDoubleDoubleHashMap;
 import gnu.trove.procedure.TDoubleDoubleProcedure;
 
+/**
+ * Describes a renderable XY trace for charts.
+ */
 public class XYTrace implements XYTraceInterface, Comparable<XYTraceInterface> {
 	private final String name;
 	private final ArrayList<XYPoint> points;

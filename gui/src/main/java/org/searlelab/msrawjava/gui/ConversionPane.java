@@ -58,6 +58,9 @@ import org.searlelab.msrawjava.threading.ProcessingThreadPool;
  * Exposes a "selected paths supplier" so the Queue button can grab whatever
  * the directory table currently has selected.
  */
+/**
+ * Owns conversion parameters, queueing, dispatch, and details output.
+ */
 public class ConversionPane extends JPanel {
 	private static final long serialVersionUID=1L;
 

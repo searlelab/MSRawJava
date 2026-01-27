@@ -20,6 +20,9 @@ import com.formdev.flatlaf.extras.FlatSVGIcon;
 
 import org.searlelab.msrawjava.logging.Logger;
 
+/**
+ * Dialog showing citation guidance for the project.
+ */
 public final class HowToCiteDialog {
 	private HowToCiteDialog() {
 	}

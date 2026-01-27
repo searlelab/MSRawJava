@@ -19,6 +19,9 @@ import javax.swing.Timer;
 
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 
+/**
+ * Panel showing reader status and progress updates.
+ */
 public class ReaderStatusPanel extends JPanel {
 	private static final long serialVersionUID=1L;
 

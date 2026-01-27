@@ -33,38 +33,6 @@
 ## Style shift report (CORE)
 
 ### Formatting
-- **(1) Mixed use of `var` vs explicit types**
-  - Severity: Low
-  - Location: `core/src/main/java/org/searlelab/msrawjava/io/thermo/ThermoRawFile.java` (ThermoRawFile#openFile/getMetadata/getRunSummary) and `core/src/main/java/org/searlelab/msrawjava/io/thermo/GrpcServerLauncher.java` (GrpcServerLauncher#close)
-  - Evidence:
-    ```java
-    var rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
-    var req=Session.newBuilder().setSessionId(sessionId).build();
-    ...
-    try (var walk=Files.walk(workDir)) {
-    ```
-  - Why it’s inconsistent/brittle: Elsewhere in CORE, explicit types are the norm; `var` appears only in Thermo classes, which makes the style feel uneven and can make debugging stack traces harder when types aren’t obvious.
-  - Recommendation: Either adopt `var` as a core-wide convention (document it) or replace these with explicit types in Thermo classes for consistency.
-  - Preferred pattern:
-    ```java
-    OpenReply rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
-    Session req=Session.newBuilder().setSessionId(sessionId).build();
-    try (java.util.stream.Stream<Path> walk=Files.walk(workDir)) {
-    ```
-
-- **(2) Diamond operator vs explicit generic constructors**
-  - Severity: Low
-  - Location: `core/src/main/java/org/searlelab/msrawjava/io/tims/TIMSPeakPicker.java` (explicit generics) vs `core/src/main/java/org/searlelab/msrawjava/algorithms/StaggeredDemultiplexer.java` (diamond)
-  - Evidence:
-    ```java
-    ArrayList<PeakWithIMS> intensitySortedPeaks=new ArrayList<PeakWithIMS>(mzSortedPeaks);
-    ArrayList<ArrayList<PeakWithIMS>> finalPeaks=new ArrayList<ArrayList<PeakWithIMS>>();
-    ```
-    ```java
-    ArrayList<FragmentScan> demuxResults=new ArrayList<>();
-    ```
-  - Why it’s inconsistent/brittle: The module otherwise uses a single style per class; mixing old and new generic syntax in adjacent core algorithms suggests uneven edits and complicates formatting expectations.
-  - Recommendation: Normalize to diamond where possible (Java 7+) or keep explicit generics consistently within the module.
 
 ### Naming
 - **(3) Mixed acronym casing for TIMS classes**
@@ -94,18 +62,6 @@
   - Recommendation: Standardize on one naming convention (prefer `Mz` if that’s dominant elsewhere, or `MZ` if aligning with file formats) and provide deprecated bridges if necessary.
 
 ### Structure
-- **(5) Missing `@Override` and mutable comparator constant**
-  - Severity: Low
-  - Location: `core/src/main/java/org/searlelab/msrawjava/model/Range.java` (Range#compareTo, RANGE_CONTAINS_COMPARATOR)
-  - Evidence:
-    ```java
-    public int compareTo(Range o) {
-    ...
-    public static Comparator<Range> RANGE_CONTAINS_COMPARATOR=new Comparator<Range>() {
-    ```
-  - Why it’s inconsistent/brittle: Most Comparable implementations in core use `@Override`, and static comparators are commonly declared `final`. Missing annotations and mutable static comparators make refactors less safe.
-  - Recommendation: Add `@Override` to `compareTo` and mark the comparator `public static final` for consistency.
-
 - **(6) Inconsistent encapsulation of peak value objects**
   - Severity: Medium
   - Location: `core/src/main/java/org/searlelab/msrawjava/model/Peak.java` vs `core/src/main/java/org/searlelab/msrawjava/model/PeakWithIMS.java` and `PeakInTime`
@@ -123,29 +79,7 @@
   - Recommendation: Pick one style for peak value objects (prefer private final + getters) and align the others. If direct field access is desired for performance, document that explicitly and use it consistently across peak types.
 
 ### Documentation
-- **(7) Class-level Javadoc is inconsistent across core utilities**
-  - Severity: Low
-  - Location: `core/src/main/java/org/searlelab/msrawjava/algorithms/MatrixMath.java`, `core/src/main/java/org/searlelab/msrawjava/threading/ProcessingThreadPool.java`, plus other utility/model classes without class Javadocs
-  - Evidence:
-    ```java
-    public class MatrixMath {
-    ```
-  - Why it’s inconsistent/brittle: The majority of core classes include a class-level Javadoc, but several utility classes do not. This creates a noticeable documentation “style shift” and makes public utilities feel less polished.
-  - Recommendation: Add brief class-level Javadocs to the remaining public core utilities, following the style used elsewhere.
-
 ### Error handling/logging
-- **(8) Direct `System.out`/`System.err` output in core logic**
-  - Severity: Medium
-  - Location: `core/src/main/java/org/searlelab/msrawjava/algorithms/MatrixMath.java` (MatrixMath#print), `core/src/main/java/org/searlelab/msrawjava/io/tims/BrukerTIMSFile.java` (BrukerTIMSFile#<init>), `core/src/main/java/org/searlelab/msrawjava/algorithms/StaggeredDemultiplexer.java` (profile timing)
-  - Evidence:
-    ```java
-    System.out.print("[");
-    System.err.println("No MS1s found!");
-    System.out.printf("Demux timing: ...");
-    ```
-  - Why it’s inconsistent/brittle: The module already centralizes output through `Logger`; direct stdout/stderr makes logging inconsistent and can bypass user-configured log routing.
-  - Recommendation: Route informational/error output through `Logger` (or gate debug prints behind a dedicated Logger flag). If `System.out` is intentional for debug, keep it isolated behind a single debug utility.
-
 ### API/design patterns
 - **(9) Optional ion mobility vs direct array indexing**
   - Severity: High
@@ -198,26 +132,6 @@
 ## Style shift report (GUI)
 
 ### Formatting
-- **(12) Local `var` usage is isolated to one file**
-  - Severity: Low
-  - Location: `gui/src/main/java/org/searlelab/msrawjava/gui/visualization/RawBrowserDataLoader.java` (RawBrowserDataLoader#build)
-  - Evidence:
-    ```java
-    var structure=StructureChartBuilder.buildLocalStructureChart(...);
-    var global=StructureChartBuilder.buildGlobalStructureChart(...);
-    ```
-  - Why it’s inconsistent/brittle: GUI code otherwise uses explicit types. Isolated `var` usage implies an inconsistent style and complicates readability for contributors who expect explicit types.
-  - Recommendation: Prefer explicit types in GUI, or adopt `var` consistently with a documented guideline.
-
-- **(13) Fully qualified `SwingWorker` usage in one class**
-  - Severity: Low
-  - Location: `gui/src/main/java/org/searlelab/msrawjava/gui/visualization/RawBrowserPanel.java` (RawBrowserPanel#startLoad/updateToSelected)
-  - Evidence:
-    ```java
-    new javax.swing.SwingWorker<RawBrowserData, Void>() {
-    ```
-  - Why it’s inconsistent/brittle: Other GUI classes import `SwingWorker` and use it unqualified. This single-file deviation is a style shift that complicates consistency.
-  - Recommendation: Import `SwingWorker` and use the unqualified type like the rest of the module.
 
 ### Naming
 - **(14) Mixed IMS acronym casing**
@@ -249,37 +163,7 @@
   - Recommendation: Pick a dominant GUI background pattern (e.g., `SwingWorker` for UI-bound tasks and `ProcessingThreadPool` for compute) and align the remaining cases, or centralize thread creation in a GUI-specific executor.
 
 ### Documentation
-- **(16) Isolated class-level Javadocs in an otherwise undocumented module**
-  - Severity: Low
-  - Location: `gui/src/main/java/org/searlelab/msrawjava/gui/ConversionPane.java`, `gui/src/main/java/org/searlelab/msrawjava/gui/filebrowser/DirectorySummaryPanel.java`, `gui/src/main/java/org/searlelab/msrawjava/gui/loadingpanels/*`
-  - Evidence:
-    ```java
-    /** Owns the conversion parameter bar, queue, dispatcher and details console. */
-    ```
-  - Why it’s inconsistent/brittle: GUI overall avoids class-level Javadocs, but a few classes have them, suggesting drift. This makes it unclear whether GUI classes are expected to be documented.
-  - Recommendation: Either add short Javadocs across GUI public classes or remove the few class-level Javadocs to match the prevailing GUI style.
-
 ### Error handling/logging
-- **(17) Direct `System.err` usage in GUI**
-  - Severity: Low
-  - Location: `gui/src/main/java/org/searlelab/msrawjava/gui/filebrowser/DirectorySummaryPanel.java` (DirRow#fromBruker)
-  - Evidence:
-    ```java
-    System.err.println("Error getting size of file "+f+": "+e.getMessage());
-    ```
-  - Why it’s inconsistent/brittle: GUI logging otherwise uses `Logger`. Direct stderr output bypasses log routing and verbosity controls.
-  - Recommendation: Replace with `Logger.errorLine` or `Logger.errorException` for consistent GUI logging.
-
-- **(18) Silent exception swallowing in lifecycle hooks**
-  - Severity: Medium
-  - Location: `gui/src/main/java/org/searlelab/msrawjava/gui/GuiMain.java` (shutdown hook and window closing)
-  - Evidence:
-    ```java
-    } catch (Throwable ignore) {
-    }
-    ```
-  - Why it’s inconsistent/brittle: Most GUI code logs exceptions; swallowing here makes shutdown failures invisible and is inconsistent with the rest of the module.
-  - Recommendation: Log at least a brief message or exception via `Logger` before suppressing, or narrow the catch to known exceptions.
 
 ### API/design patterns
 - **(19) Multiple optional-value strategies in GUI data flow**

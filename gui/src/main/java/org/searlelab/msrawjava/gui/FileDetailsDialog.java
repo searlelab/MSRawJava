@@ -26,6 +26,9 @@ import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 
+/**
+ * Dialog for inspecting file metadata and scan details.
+ */
 public class FileDetailsDialog {
 	private static final class StripeResult {
 		private final StripeFileInterface stripe;

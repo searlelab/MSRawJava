@@ -11,6 +11,9 @@ import javax.swing.SwingConstants;
 import javax.swing.UIManager;
 import javax.swing.table.DefaultTableCellRenderer;
 
+/**
+ * Renderer for stripe table cells.
+ */
 public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 	private static final long serialVersionUID=1L;
 

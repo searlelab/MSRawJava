@@ -30,6 +30,9 @@ import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
 
 import gnu.trove.list.array.TFloatArrayList;
 
+/**
+ * Factory helpers for visualization chart creation.
+ */
 public final class VisualizationCharts {
 	private static final int MAX_CATEGORIES=200;
 	private static final int MAX_VALUES_PER_CATEGORY=500;

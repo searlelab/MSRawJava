@@ -43,6 +43,9 @@ import com.formdev.flatlaf.FlatLightLaf;
  * - Stable ions appear every push; noise ions vary per push.
  * - Each push accumulates counts into the spectrum (scan averaging).
  */
+/**
+ * Loading panel for TOF data with progress feedback.
+ */
 public class TOFLoadingPanel extends LoadingPanel {
 	private static final long serialVersionUID=1L;
 

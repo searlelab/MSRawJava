@@ -194,8 +194,8 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				}
 			}
 		}
-		if (expectedMS1==0) System.err.println("No MS1s found!");
-		if (expectedMS2==0) System.err.println("No MS2s found!");
+		if (expectedMS1==0) Logger.errorLine("No MS1s found!");
+		if (expectedMS2==0) Logger.errorLine("No MS2s found!");
 		ms1Key=expectedMS1Key;
 		ms2Key=expectedMS2Key;
 

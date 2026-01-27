@@ -57,6 +57,9 @@ import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
+/**
+ * Main window for browsing raw files and spectra.
+ */
 public class RawFileBrowser extends JFrame {
 	private static final long serialVersionUID=1L;
 

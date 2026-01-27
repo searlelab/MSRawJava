@@ -13,6 +13,9 @@ import javax.swing.tree.DefaultTreeModel;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.gui.GUIPreferences;
 
+/**
+ * Tree model backing the directory browser.
+ */
 public class DirectoryTreeModel extends DefaultTreeModel {
 	private static final long serialVersionUID=1L;
 	private final DirectoryNode virtualRoot;
