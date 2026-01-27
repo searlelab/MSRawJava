@@ -8,6 +8,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
+import java.awt.Rectangle;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -166,6 +167,25 @@ public class DirectorySummaryPanel extends JPanel {
 			if (r!=null) out.add(r.path);
 		}
 		return out;
+	}
+
+	public boolean selectPath(Path target) {
+		if (target==null) return false;
+		int rows=model.getRowCount();
+		for (int mr=0; mr<rows; mr++) {
+			DirRow row=model.getAt(mr);
+			if (row==null||row.path==null) continue;
+			if (row.path.equals(target)) {
+				int vr=table.convertRowIndexToView(mr);
+				if (vr>=0) {
+					table.getSelectionModel().setSelectionInterval(vr, vr);
+					Rectangle rect=table.getCellRect(vr, 0, true);
+					table.scrollRectToVisible(rect);
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	public Path getFirstSelectedPath() {

@@ -47,7 +47,8 @@ import org.searlelab.msrawjava.gui.filebrowser.DirectoryNode;
 import org.searlelab.msrawjava.gui.filebrowser.DirectorySummaryPanel;
 import org.searlelab.msrawjava.gui.filebrowser.DirectoryTreeModel;
 import org.searlelab.msrawjava.gui.filebrowser.FileTreeCellRenderer;
-import org.searlelab.msrawjava.gui.graphing.BackgroundKeyboardListener;
+import org.searlelab.msrawjava.gui.utils.BackgroundKeyboardListener;
+import org.searlelab.msrawjava.gui.MenuManager;
 import org.searlelab.msrawjava.gui.loadingpanels.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
@@ -66,6 +67,8 @@ public class RawFileBrowser extends JFrame {
 	private final DirectoryTreeModel treeModel;
 
 	private final ConversionPane conversionPane;
+	private DirectorySummaryPanel currentSummaryPanel;
+	private Path pendingSelectionPath;
 
 	private final JSplitPane fileSplit;
 	private final JSplitPane leftAndCenter;
@@ -123,6 +126,7 @@ public class RawFileBrowser extends JFrame {
 		registerSplitPreference(leftAndCenter, GUIPreferences::setRawFileBrowserMainSplitRatio);
 
 		setContentPane(leftAndCenter);
+		MenuManager.install(this);
 
 		setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 		setSize(GUIPreferences.getRawFileBrowserWindowSize());
@@ -296,6 +300,33 @@ public class RawFileBrowser extends JFrame {
 		double r=dividerProportion(fileSplit);
 		fileSplit.setTopComponent(c);
 		fileSplit.setDividerLocation(r);
+		if (c instanceof DirectorySummaryPanel panel) {
+			currentSummaryPanel=panel;
+			applyPendingSelection(panel);
+		} else {
+			currentSummaryPanel=null;
+		}
+	}
+
+	private void applyPendingSelection(DirectorySummaryPanel panel) {
+		if (panel==null||pendingSelectionPath==null) return;
+		Path pending=pendingSelectionPath;
+		pendingSelectionPath=null;
+		SwingUtilities.invokeLater(() -> panel.selectPath(pending));
+	}
+
+	public void openAndSelectFile(File file, boolean visualize) {
+		if (file==null) return;
+		File parent=file.isDirectory()?file.getParentFile():file.getParentFile();
+		if (parent==null) return;
+		pendingSelectionPath=file.toPath();
+		selectDirectoryInTree(parent);
+		if (currentSummaryPanel!=null) {
+			currentSummaryPanel.selectPath(file.toPath());
+		}
+		if (visualize) {
+			FileDetailsDialog.showFileDetailsDialog(this, file);
+		}
 	}
 
 	private void installSummaryInteractions(DirectorySummaryPanel panel) {

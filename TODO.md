@@ -5,18 +5,19 @@
 - migrate todo into a real todo/changelog split to make it easier to track higher-level changes
 
 ## GUI
-- refactor charts to remove classes that are unused. refactor xytrace etc into utils, refactor histogram into utils
 - searchbar for files in the table
 - a way to bring up the loading panels for demos
 - build menu system
-  - open (changes to file/directory)
-  - visualize (opens to file and then opens visualizer)
-  - settings (for main app)
-    - reset GUI settings
-  - close (exit app gracefully)
-  - help
-  - website
-  - citation
+  - "File"
+    - "Open" should have the user select a raw file and change the jtree and table to that parent directory and file, respectively and select it in both views.
+    - "Preferences" launches the PreferencesDialog
+    - "Quit" should exit app gracefully
+  - "View"
+    - "Visualize Raw File" should have the user select a raw file, "Open" it as above, and then open visualizer RawBrowserPanel for that file
+  - "Help"
+    - "How to cite" based on edu.washington.gs.maccoss.encyclopedia.gui.general.AboutDialog, except that it uses gui/src/main/resources/icons/icon.svg for the icon and the code website for the citation (https://github.com/searlelab/MSRawJava). It should note that this is a Searle Lab (searlelab.org) project at the Mayo Clinic (https://www.mayoclinic.org) in the Department of Quantitative Health Sciences.
+
+Note: on the Mac, "About App" should route to the "How to cite" dialog.
 
 # Codebase Review Report
 

@@ -12,7 +12,7 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.SwingWorker;
 
-import org.searlelab.msrawjava.gui.graphing.BackgroundKeyboardListener;
+import org.searlelab.msrawjava.gui.utils.BackgroundKeyboardListener;
 import org.searlelab.msrawjava.gui.loadingpanels.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;

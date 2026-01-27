@@ -1,7 +1,8 @@
-package org.searlelab.msrawjava.gui.graphing;
+package org.searlelab.msrawjava.gui.utils;
 
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.KeyboardFocusManager;
 import java.awt.event.ContainerEvent;
 import java.awt.event.ContainerListener;
 import java.awt.event.KeyEvent;
@@ -86,7 +87,7 @@ public class BackgroundKeyboardListener implements KeyListener, ContainerListene
 			@Override
 			void run() {
 				Logger.logLine("Opening Preferences dialog.");
-				java.awt.Component focus=java.awt.KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+				Component focus=KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
 				java.awt.Frame frame=(focus instanceof java.awt.Frame)?(java.awt.Frame)focus:javax.swing.JOptionPane.getRootFrame();
 				javax.swing.SwingUtilities.invokeLater(() -> PreferencesDialog.showDialog(frame));
 			}
