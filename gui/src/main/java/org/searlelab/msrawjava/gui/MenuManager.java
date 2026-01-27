@@ -7,6 +7,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.io.File;
 
+import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
@@ -25,6 +26,17 @@ public final class MenuManager {
 			System.setProperty("apple.laf.useScreenMenuBar", "true");
 		}
 		browser.setJMenuBar(createMenuBar(browser));
+		installAboutHandler(browser);
+	}
+
+	public static void install(JDialog dialog, RawFileBrowser browser) {
+		if (dialog==null||browser==null) return;
+		if (isMac()) {
+			System.setProperty("apple.laf.useScreenMenuBar", "true");
+			installAboutHandler(browser);
+			return;
+		}
+		dialog.setJMenuBar(createMenuBar(browser));
 		installAboutHandler(browser);
 	}
 

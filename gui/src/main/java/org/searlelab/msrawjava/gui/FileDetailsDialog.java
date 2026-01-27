@@ -51,6 +51,9 @@ public class FileDetailsDialog {
 	    // Use a non-owned dialog so it doesn't stay above the main window on macOS.
 	    final JDialog dlg = new JDialog((Frame)null, f.getName(), false); // non-modal
 	    dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+	    if (frame instanceof RawFileBrowser) {
+	    	MenuManager.install(dlg, (RawFileBrowser)frame);
+	    }
 	    dlg.setSize(GUIPreferences.getRawBrowserWindowSize());
 	    java.awt.Point location=GUIPreferences.getRawBrowserWindowLocation();
 	    if (GUIPreferences.isVerboseGuiLogging()) {

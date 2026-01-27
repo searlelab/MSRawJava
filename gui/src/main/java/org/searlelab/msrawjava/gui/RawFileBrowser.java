@@ -388,7 +388,7 @@ public class RawFileBrowser extends JFrame {
 			}
 		});
 
-		JMenuItem selectAll=new JMenuItem("Select all");
+		JMenuItem selectAll=new JMenuItem("Select All");
 		selectAll.addActionListener(ae -> tbl.selectAll());
 
 		menu.add(visualize);
