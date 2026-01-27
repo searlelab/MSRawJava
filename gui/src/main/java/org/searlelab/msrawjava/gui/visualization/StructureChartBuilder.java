@@ -116,18 +116,33 @@ public final class StructureChartBuilder {
 		List<Point2D> bounds=new ArrayList<>();
 		double minMz=Double.MAX_VALUE;
 		double maxMz=-Double.MAX_VALUE;
+		double minRT=Double.MAX_VALUE;
 		double maxRT=0.0;
+		boolean anyRtRange=false;
 		boolean everyOther=false;
 
 		for (Map.Entry<Range, WindowData> entry : sorted.entrySet()) {
 			Range range=entry.getKey();
 			WindowData data=entry.getValue();
-			double durationSec=Math.max(0.0, data.getAverageDutyCycle()*data.getNumberOfMSMS());
-			double heightMin=durationSec/60.0;
-
 			double x=range.getStart();
-			double y=0.0;
 			double width=range.getStop()-range.getStart();
+			double y=0.0;
+			double heightMin=0.0;
+			if (data.getRtRange().isPresent()) {
+				Range rtRange=data.getRtRange().get();
+				double rtStartMin=Math.max(0.0, rtRange.getStart()/60.0);
+				double rtStopMin=Math.max(0.0, rtRange.getStop()/60.0);
+				y=Math.min(rtStartMin, rtStopMin);
+				heightMin=Math.max(0.0, Math.abs(rtStopMin-rtStartMin));
+				minRT=Math.min(minRT, y);
+				maxRT=Math.max(maxRT, y+heightMin);
+				anyRtRange=true;
+			} else {
+				double durationSec=Math.max(0.0, data.getAverageDutyCycle()*data.getNumberOfMSMS());
+				heightMin=durationSec/60.0;
+				maxRT=Math.max(maxRT, heightMin);
+				minRT=Math.min(minRT, 0.0);
+			}
 			Rectangle2D rect=new Rectangle2D.Double(x, y, width, heightMin);
 
 			everyOther=!everyOther;
@@ -138,18 +153,18 @@ public final class StructureChartBuilder {
 
 			minMz=Math.min(minMz, range.getStart());
 			maxMz=Math.max(maxMz, range.getStop());
-			maxRT=Math.max(maxRT, heightMin);
 		}
 
 		if (minMz==Double.MAX_VALUE) {
 			return VisualizationCharts.getShapeChart(null, "m/z", "Retention Time (min)", List.of(), List.of(), false);
 		}
 
-		bounds.add(new Point2D.Double(minMz, 0.0));
-		bounds.add(new Point2D.Double(maxMz, 0.0));
+		double floorRt=anyRtRange?minRT:0.0;
+		bounds.add(new Point2D.Double(minMz, floorRt));
+		bounds.add(new Point2D.Double(maxMz, floorRt));
 		bounds.add(new Point2D.Double(maxMz, maxRT));
 		bounds.add(new Point2D.Double(minMz, maxRT));
-		bounds.add(new Point2D.Double(minMz, 0.0));
+		bounds.add(new Point2D.Double(minMz, floorRt));
 
 		return VisualizationCharts.getShapeChart(null, "m/z", "Retention Time (min)", shapes, bounds, false);
 	}
