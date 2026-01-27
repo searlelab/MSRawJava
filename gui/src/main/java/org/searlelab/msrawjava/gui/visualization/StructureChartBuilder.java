@@ -7,6 +7,7 @@ import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -59,7 +60,10 @@ public final class StructureChartBuilder {
 		float firstScan=Float.MAX_VALUE;
 		float lastScan=0.0f;
 
+		int count=0;
 		for (Map.Entry<Range, ArrayList<Float>> entry : sortedStripes.entrySet()) {
+			count++;
+			if (count>50) break; // FIXME
 			Range range=entry.getKey();
 			ArrayList<Float> rts=entry.getValue();
 			if (rts.isEmpty()) continue;
@@ -90,6 +94,8 @@ public final class StructureChartBuilder {
 			float minRt=firstScan-rtRangeMargin;
 			float maxRt=lastScan+rtRangeMargin;
 			for (Map.Entry<Range, ArrayList<Float>> entry : sortedPrecursors.entrySet()) {
+				count++;
+				if (count>50) break; // FIXME
 				Range range=entry.getKey();
 				ArrayList<Float> rts=entry.getValue();
 				for (float rt : rts) {
@@ -100,8 +106,9 @@ public final class StructureChartBuilder {
 				}
 			}
 		}
+		System.out.println(traces.size());
 
-		return BasicChartGenerator.getChart("m/z", "Retention Time (secs)", false, traces.toArray(new XYTraceInterface[0]));
+		return BasicChartGenerator.getChart("m/z", "Retention Time (sec)", false, traces.toArray(new XYTraceInterface[0]));
 	}
 
 	public static ExtendedChartPanel buildGlobalStructureChart(Map<Range, WindowData> ranges) {
@@ -121,7 +128,10 @@ public final class StructureChartBuilder {
 		boolean anyRtRange=false;
 		boolean everyOther=false;
 
+		int count=0;
 		for (Map.Entry<Range, WindowData> entry : sorted.entrySet()) {
+			count++;
+			if (count>50) break; // FIXME
 			Range range=entry.getKey();
 			WindowData data=entry.getValue();
 			double x=range.getStart();

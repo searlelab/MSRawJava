@@ -941,6 +941,35 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				}
 			}
 		}
+		if (ms2Key==8&&tableExists("PasefFrameMsMsInfo")&&tableExists("Precursors")) {
+			String ms2Sql="SELECT I.frame, F.Time, F.AccumulationTime, I.IsolationMz, I.IsolationWidth, "
+					+"COALESCE(P.MonoisotopicMz, P.largestPeakMz, I.IsolationMz) AS targetMz, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor "
+					+"FROM PasefFrameMsMsInfo I, Frames F, Precursors P "
+					+"WHERE I.frame = F.Id AND I.Precursor = P.Id AND F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "
+					+"ORDER BY F.Time ASC, I.IsolationMz ASC";
+			try (PreparedStatement ps=conn.prepareStatement(ms2Sql)) {
+				ps.setDouble(1, rtStart);
+				ps.setDouble(2, rtEnd);
+				try (ResultSet rs=ps.executeQuery()) {
+					while (rs.next()) {
+						int frameId=rs.getInt(1);
+						float rt=rs.getFloat(2);
+						float injTime=accumulationTimeSeconds(rs.getFloat(3));
+						double center=rs.getDouble(4);
+						double width=rs.getDouble(5);
+						double targetMz=rs.getDouble(6);
+						byte charge=(byte)Math.max(0, rs.getInt(7));
+						int precursorId=rs.getInt(9);
+
+						double lo=center-0.5*width;
+						double hi=center+0.5*width;
+						String name=frameId+"_"+precursorId;
+						double summaryMz=targetMz>0.0?targetMz:(center>0.0?center:-1.0);
+						out.add(new ScanSummary(name, precursorId, rt, 0, summaryMz, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, charge));
+					}
+				}
+			}
+		}
 
 		out.sort((a, b) -> Float.compare(a.getScanStartTime(), b.getScanStartTime()));
 		return out;
