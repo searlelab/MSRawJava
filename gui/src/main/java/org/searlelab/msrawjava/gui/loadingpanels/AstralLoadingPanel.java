@@ -523,7 +523,8 @@ public class AstralLoadingPanel extends LoadingPanel {
 			double theta=2.0*Math.PI*OSCILLATIONS*p + theta0 + phi;
 
 			// y at full amplitude immediately (no easing-to-center)
-			double y=yc + amp*Math.sin(theta);
+			double bounceSign = (p <= 0.5) ? -1.0 : 1.0;
+			double y = yc + bounceSign * amp * Math.sin(theta);
 
 			// Clamp inside plates
 			double lo=yTop+AMP_MARGIN;
