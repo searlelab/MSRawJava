@@ -47,14 +47,11 @@ builder.WebHost.ConfigureKestrel(options =>
 Console.WriteLine($"Thermo server: Kestrel configured in {startupClock.Elapsed.TotalSeconds:F2} s");
 
 builder.Logging.ClearProviders(); // drop defaults
-builder.Logging.AddSimpleConsole(o => {
-    o.SingleLine = true;
-    o.TimestampFormat = "";   // no timestamps
-    o.IncludeScopes = false;
-});
 builder.Logging.SetMinimumLevel(LogLevel.Warning); // default: show warnings+only
 builder.Logging.AddFilter("Microsoft", LogLevel.Error);
 builder.Logging.AddFilter("Grpc", LogLevel.Error);
+builder.Logging.AddProvider(new GrpcCallHandlerLoggerProvider());
+builder.Logging.AddFilter("Grpc.AspNetCore.Server.ServerCallHandler", LogLevel.Information);
 builder.Services.Configure<ConsoleLifetimeOptions>(o => o.SuppressStatusMessages = true);
 
 builder.Services.AddGrpc();
@@ -69,6 +66,81 @@ foreach (var m in ThermoRawService.Descriptor.Methods) Console.WriteLine("  " + 
 Console.WriteLine($"LISTENING h2c on {ip}:{port}");
 Console.WriteLine($"Thermo server: ready to accept connections in {startupClock.Elapsed.TotalSeconds:F2} s");
 app.Run();
+
+internal sealed class GrpcCallHandlerLoggerProvider : ILoggerProvider
+{
+    public ILogger CreateLogger(string categoryName) => new GrpcCallHandlerLogger(categoryName);
+    public void Dispose() { }
+
+    private sealed class GrpcCallHandlerLogger : ILogger
+    {
+        private readonly string _categoryName;
+
+        public GrpcCallHandlerLogger(string categoryName)
+        {
+            _categoryName = categoryName;
+        }
+
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => NullScope.Instance;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            string message = formatter(state, exception);
+            if (_categoryName == "Grpc.AspNetCore.Server.ServerCallHandler")
+            {
+                if (IsClientReset(exception, message))
+                    return; // expected cancellation, suppress
+
+                if (IsThermoInstrumentIndexError(message))
+                {
+                    Console.WriteLine($"warn: {_categoryName}[{eventId.Id}] Open failed: instrument index not available for requested device.");
+                    return;
+                }
+            }
+
+            Console.WriteLine($"{FormatLevel(logLevel)}: {_categoryName}[{eventId.Id}] {message}{FormatException(exception)}");
+        }
+
+        private static string FormatLevel(LogLevel logLevel) => logLevel switch
+        {
+            LogLevel.Trace => "trce",
+            LogLevel.Debug => "dbug",
+            LogLevel.Information => "info",
+            LogLevel.Warning => "warn",
+            LogLevel.Error => "fail",
+            LogLevel.Critical => "crit",
+            _ => "info",
+        };
+
+        private static string FormatException(Exception? exception)
+        {
+            return exception == null ? string.Empty : " " + exception;
+        }
+
+        private static bool IsClientReset(Exception? exception, string message)
+        {
+            if (exception is IOException ioEx &&
+                ioEx.Message.Contains("client reset the request stream", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return message.Contains("Error reading message", StringComparison.Ordinal) &&
+                   message.Contains("client reset the request stream", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsThermoInstrumentIndexError(string message)
+        {
+            return message.Contains("Error status code 'Internal' with detail 'Open failed: System.ArgumentOutOfRangeException", StringComparison.Ordinal) &&
+                   message.Contains("Instrument index not available for requested device", StringComparison.Ordinal);
+        }
+
+        private sealed class NullScope : IDisposable
+        {
+            public static readonly NullScope Instance = new();
+            public void Dispose() { }
+        }
+    }
+}
 
 public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 {
