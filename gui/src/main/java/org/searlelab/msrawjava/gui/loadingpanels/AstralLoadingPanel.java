@@ -42,7 +42,7 @@ import com.formdev.flatlaf.FlatLightLaf;
 /**
  * Astral educational loading panel:
  * - Mimics the classic Astral / OET schematic: ions leave emitter (73) at left,
- *   travel rightward through asymmetric mirror region, then return left to a detector (74) below the emitter.
+ * travel rightward through asymmetric mirror region, then return left to a detector (74) below the emitter.
  * - One packet ("push") every PACKET_PERIOD_SEC seconds (tunable). Default set to 10 seconds as requested.
  * - Ions in each packet are random m/z in [400..1000], so you can watch how different ions in the packet separate.
  * - Packets are stand-alone: spectrum resets each push (not scan-averaged).
@@ -74,9 +74,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 		c.insets=new Insets(8, 8, 0, 8);
 		add(canvas, c);
 
-		String base=(text==null||text.isBlank())
-				?("Astral packet flight (period = "+AstralCanvas.PACKET_PERIOD_SEC+" s)")
-				:text;
+		String base=(text==null||text.isBlank())?("Astral packet flight (period = "+AstralCanvas.PACKET_PERIOD_SEC+" s)"):text;
 		label.setText(base+"...");
 		Dimension fixed=label.getPreferredSize();
 		label.setPreferredSize(fixed);
@@ -140,8 +138,8 @@ public class AstralLoadingPanel extends LoadingPanel {
 		private Point2D.Double detector74;
 
 		// Drift extents: ions go right to turn, then come back left
-		private double xLeft;   // near emitter
-		private double xRight;  // far turning region
+		private double xLeft; // near emitter
+		private double xRight; // far turning region
 		private double yCenter;
 
 		// Asymmetric "plates" (drawn as long slanted bands like the schematic)
@@ -188,7 +186,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 		public void addNotify() {
 			super.addNotify();
 			lastNanos=System.nanoTime();
-			if (anim!=null && !anim.isRunning()) anim.start();
+			if (anim!=null&&!anim.isRunning()) anim.start();
 		}
 
 		@Override
@@ -229,10 +227,10 @@ public class AstralLoadingPanel extends LoadingPanel {
 			double gapRight=analyzerBox.height*0.46;
 
 			double topL=yCenter-gapLeft/2.0;
-			double topR=yCenter-gapRight/2.0 - analyzerBox.height*0.05;
+			double topR=yCenter-gapRight/2.0-analyzerBox.height*0.05;
 
 			double botL=yCenter+gapLeft/2.0;
-			double botR=yCenter+gapRight/2.0 + analyzerBox.height*0.05;
+			double botR=yCenter+gapRight/2.0+analyzerBox.height*0.05;
 
 			double ctrlX=ax+analyzerBox.width*0.55;
 			double bulge=analyzerBox.height*0.04;
@@ -242,13 +240,9 @@ public class AstralLoadingPanel extends LoadingPanel {
 
 			// Inner curves to mimic the concave field region in the patent-like drawing
 			double innerBulge=analyzerBox.height*0.18;
-			innerTop=new QuadCurve2D.Double(xLeft+analyzerBox.width*0.08, yCenter-20,
-					ctrlX, yCenter-innerBulge,
-					xRight-analyzerBox.width*0.03, yCenter-40);
+			innerTop=new QuadCurve2D.Double(xLeft+analyzerBox.width*0.08, yCenter-20, ctrlX, yCenter-innerBulge, xRight-analyzerBox.width*0.03, yCenter-40);
 
-			innerBot=new QuadCurve2D.Double(xLeft+analyzerBox.width*0.08, yCenter+20,
-					ctrlX, yCenter+innerBulge,
-					xRight-analyzerBox.width*0.03, yCenter+40);
+			innerBot=new QuadCurve2D.Double(xLeft+analyzerBox.width*0.08, yCenter+20, ctrlX, yCenter+innerBulge, xRight-analyzerBox.width*0.03, yCenter+40);
 		}
 
 		private void startNewPacket() {
@@ -294,7 +288,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 			lastNanos=now;
 
 			packetElapsed+=dt;
-			if (flashEmit && packetElapsed>0.20) flashEmit=false;
+			if (flashEmit&&packetElapsed>0.20) flashEmit=false;
 
 			for (Ion ion : ions) {
 				if (ion.detected) continue;
@@ -378,21 +372,13 @@ public class AstralLoadingPanel extends LoadingPanel {
 			double detDeg=10.0;
 
 			// Base (unrotated) rectangles centered at emitter73 / detector74
-			RoundRectangle2D eBase=new RoundRectangle2D.Double(
-				emitter73.x-bw/2.0, emitter73.y-bh/2.0, bw, bh, 6, 6
-			);
-			RoundRectangle2D dBase=new RoundRectangle2D.Double(
-				detector74.x-bw/2.0, detector74.y-bh/2.0, bw, bh, 6, 6
-			);
+			RoundRectangle2D eBase=new RoundRectangle2D.Double(emitter73.x-bw/2.0, emitter73.y-bh/2.0, bw, bh, 6, 6);
+			RoundRectangle2D dBase=new RoundRectangle2D.Double(detector74.x-bw/2.0, detector74.y-bh/2.0, bw, bh, 6, 6);
 
 			// Rotate around each center
-			Shape e=java.awt.geom.AffineTransform
-				.getRotateInstance(Math.toRadians(emitDeg), emitter73.x, emitter73.y)
-				.createTransformedShape(eBase);
+			Shape e=java.awt.geom.AffineTransform.getRotateInstance(Math.toRadians(emitDeg), emitter73.x, emitter73.y).createTransformedShape(eBase);
 
-			Shape d=java.awt.geom.AffineTransform
-				.getRotateInstance(Math.toRadians(detDeg), detector74.x, detector74.y)
-				.createTransformedShape(dBase);
+			Shape d=java.awt.geom.AffineTransform.getRotateInstance(Math.toRadians(detDeg), detector74.x, detector74.y).createTransformedShape(dBase);
 
 			// Fill + stroke
 			g2.setColor(new Color(235, 238, 242));
@@ -442,8 +428,8 @@ public class AstralLoadingPanel extends LoadingPanel {
 			double x2=q.getX2(), y2=q.getY2();
 			double omt=1.0-t;
 
-			double x=omt*omt*x0 + 2.0*omt*t*x1 + t*t*x2;
-			double y=omt*omt*y0 + 2.0*omt*t*y1 + t*t*y2;
+			double x=omt*omt*x0+2.0*omt*t*x1+t*t*x2;
+			double y=omt*omt*y0+2.0*omt*t*y1+t*t*y2;
 			return new Point2D.Double(x, y);
 		}
 
@@ -520,11 +506,11 @@ public class AstralLoadingPanel extends LoadingPanel {
 			double k=Math.round(phiRaw/(2.0*Math.PI));
 			double phi=2.0*Math.PI*k;
 
-			double theta=2.0*Math.PI*OSCILLATIONS*p + theta0 + phi;
+			double theta=2.0*Math.PI*OSCILLATIONS*p+theta0+phi;
 
 			// y at full amplitude immediately (no easing-to-center)
-			double bounceSign = (p <= 0.5) ? -1.0 : 1.0;
-			double y = yc + bounceSign * amp * Math.sin(theta);
+			double bounceSign=(p<=0.5)?-1.0:1.0;
+			double y=yc+bounceSign*amp*Math.sin(theta);
 
 			// Clamp inside plates
 			double lo=yTop+AMP_MARGIN;
@@ -578,7 +564,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 			double y1=q.getCtrlY();
 			double y2=q.getY2();
 			double omt=1.0-t;
-			return omt*omt*y0 + 2.0*omt*t*y1 + t*t*y2;
+			return omt*omt*y0+2.0*omt*t*y1+t*t*y2;
 		}
 
 		private void drawSpectrum(Graphics2D g2) {
@@ -615,7 +601,8 @@ public class AstralLoadingPanel extends LoadingPanel {
 			Collections.sort(sorted, Comparator.comparingDouble(a -> a.mz));
 
 			double maxI=1.0;
-			for (Peak pk : sorted) if (pk.intensity>maxI) maxI=pk.intensity;
+			for (Peak pk : sorted)
+				if (pk.intensity>maxI) maxI=pk.intensity;
 
 			for (Peak pk : sorted) {
 				double frac=(pk.mz-MZ_MIN)/(MZ_MAX-MZ_MIN);
@@ -638,7 +625,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 			g2.setFont(g2.getFont().deriveFont(Math.max(9f, h*0.03f)));
 			g2.setColor(new Color(80, 80, 85));
 
-			int[] ticks={400, 550, 700, 850, 1000};
+			int[] ticks= {400, 550, 700, 850, 1000};
 			for (int mz : ticks) {
 				double frac=(mz-MZ_MIN)/(MZ_MAX-MZ_MIN);
 				int x=px+(int)Math.round(frac*pw);
@@ -681,7 +668,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 			final Color color;
 
 			double detTime=1.0;
-			double phase=0.0;   // 0..1 along the full out-and-back path to detector
+			double phase=0.0; // 0..1 along the full out-and-back path to detector
 			boolean detected=false;
 
 			Ion(double mz, double intensity, Color color) {
