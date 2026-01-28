@@ -152,9 +152,6 @@ public class AstralLoadingPanel extends LoadingPanel {
 		private QuadCurve2D innerTop;
 		private QuadCurve2D innerBot;
 
-		// Wire detector to spectrum
-		private Line2D wireDet;
-
 		private final Random rng=new Random(123);
 		private final List<Ion> ions=new ArrayList<>(IONS_PER_PACKET);
 		private final List<Peak> peaks=new ArrayList<>(IONS_PER_PACKET);
@@ -224,10 +221,8 @@ public class AstralLoadingPanel extends LoadingPanel {
 			yCenter=ay+analyzerBox.height*0.48;
 
 			// Emitter and detector on the left side, detector slightly lower
-			emitter73=new Point2D.Double(xLeft-18, yCenter);
-			detector74=new Point2D.Double(xLeft-18, yCenter+analyzerBox.height*DETECTOR_DY_FRAC);
-
-			wireDet=new Line2D.Double(detector74.x, detector74.y, spectrumBox.x, spectrumBox.y+spectrumBox.height/2.0);
+			emitter73=new Point2D.Double(xLeft-18, yCenter+0.5*analyzerBox.height*DETECTOR_DY_FRAC);
+			detector74=new Point2D.Double(xLeft-18, yCenter-0.5*analyzerBox.height*DETECTOR_DY_FRAC);
 
 			// Build plates: slanted like your schematic (top slopes downward to the right, bottom slopes upward)
 			double gapLeft=analyzerBox.height*0.70;
@@ -343,7 +338,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 		private void drawAnalyzer(Graphics2D g2) {
 			// Outer frame
 			Shape body=new RoundRectangle2D.Double(analyzerBox.x, analyzerBox.y, analyzerBox.width, analyzerBox.height, 18, 18);
-			g2.setColor(new Color(250, 251, 253));
+			g2.setColor(Color.white);
 			g2.fill(body);
 			g2.setColor(new Color(130, 130, 135));
 			g2.setStroke(new BasicStroke(1.1f));
@@ -352,19 +347,19 @@ public class AstralLoadingPanel extends LoadingPanel {
 			// Draw plates as thick bands (the "asymmetric plates")
 			Stroke plateStroke=new BasicStroke(9.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
 			g2.setStroke(plateStroke);
-			g2.setColor(new Color(40, 40, 45));
+			g2.setColor(Color.DARK_GRAY);
 			g2.draw(topPlate);
 			g2.draw(botPlate);
 
-			// Inner curves as thin lines to hint at potential surfaces
+			// Inner curves as thin lines
 			g2.setStroke(new BasicStroke(2.0f));
-			g2.setColor(new Color(60, 60, 65));
+			g2.setColor(Color.DARK_GRAY);
 			g2.draw(innerTop);
 			g2.draw(innerBot);
 
-			// Hatch-like shaded regions (very light) to mimic the patent drawing
+			// Hatch-like shaded regions (very light)
 			g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.10f));
-			g2.setColor(new Color(0, 0, 0));
+			g2.setColor(Color.DARK_GRAY);
 			Shape hatchedTop=makeHatchRegion(topPlate, innerTop, true);
 			Shape hatchedBot=makeHatchRegion(botPlate, innerBot, false);
 			if (hatchedTop!=null) g2.fill(hatchedTop);
@@ -373,47 +368,49 @@ public class AstralLoadingPanel extends LoadingPanel {
 
 			// Emitter (73) and detector (74) blocks on the left side
 			drawEmitterDetector(g2);
-
-			// Wire to spectrum
-			g2.setStroke(new BasicStroke(1.6f));
-			g2.setColor(new Color(90, 90, 95));
-			g2.draw(wireDet);
 		}
 
 		private void drawEmitterDetector(Graphics2D g2) {
 			double bw=36;
 			double bh=14;
 
-			// emitter (upper)
-			RoundRectangle2D e=new RoundRectangle2D.Double(emitter73.x-bw/2.0, emitter73.y-bh/2.0, bw, bh, 6, 6);
-			// detector (lower)
-			RoundRectangle2D d=new RoundRectangle2D.Double(detector74.x-bw/2.0, detector74.y-bh/2.0, bw, bh, 6, 6);
+			double emitDeg=-10.0;
+			double detDeg=10.0;
 
+			// Base (unrotated) rectangles centered at emitter73 / detector74
+			RoundRectangle2D eBase=new RoundRectangle2D.Double(
+				emitter73.x-bw/2.0, emitter73.y-bh/2.0, bw, bh, 6, 6
+			);
+			RoundRectangle2D dBase=new RoundRectangle2D.Double(
+				detector74.x-bw/2.0, detector74.y-bh/2.0, bw, bh, 6, 6
+			);
+
+			// Rotate around each center
+			Shape e=java.awt.geom.AffineTransform
+				.getRotateInstance(Math.toRadians(emitDeg), emitter73.x, emitter73.y)
+				.createTransformedShape(eBase);
+
+			Shape d=java.awt.geom.AffineTransform
+				.getRotateInstance(Math.toRadians(detDeg), detector74.x, detector74.y)
+				.createTransformedShape(dBase);
+
+			// Fill + stroke
 			g2.setColor(new Color(235, 238, 242));
 			g2.fill(e);
 			g2.fill(d);
+
 			g2.setColor(new Color(60, 60, 65));
 			g2.setStroke(new BasicStroke(1.2f));
 			g2.draw(e);
 			g2.draw(d);
 
-			// flash on emitter when packet starts
+			// Flash on emitter when packet starts (fill the rotated shape)
 			if (flashEmit) {
 				g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.55f));
 				g2.setColor(new Color(255, 110, 110));
 				g2.fill(e);
 				g2.setComposite(AlphaComposite.SrcOver);
 			}
-
-			// small guide line from emitter into analyzer
-			g2.setStroke(new BasicStroke(4.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-			g2.setColor(new Color(40, 40, 45));
-			g2.draw(new Line2D.Double(emitter73.x+bw/2.0, emitter73.y, xLeft, yCenter));
-
-			// tiny marker at detector (to clarify where ions end)
-			g2.setStroke(new BasicStroke(2.0f));
-			g2.setColor(new Color(40, 40, 45));
-			g2.draw(new Line2D.Double(detector74.x+bw/2.0, detector74.y, detector74.x+bw/2.0+10, detector74.y));
 		}
 
 		private static Shape makeHatchRegion(QuadCurve2D outer, QuadCurve2D inner, boolean top) {
@@ -471,32 +468,61 @@ public class AstralLoadingPanel extends LoadingPanel {
 
 		/**
 		 * Mimic the schematic:
-		 * - Starts at emitter73 (left, higher).
-		 * - Travels right while bouncing between plates.
+		 * - Starts at emitter73 (left).
+		 * - Travels right while bouncing between plates (max amplitude immediately).
 		 * - Turns and returns left.
-		 * - Ends at detector74 (left, lower).
+		 * - Ends at detector74 (left) and stops there (no overshoot).
+		 *
+		 * Requested tweaks:
+		 * 1) Emit aimed downward: force initial oscillation direction to be downward.
+		 * 2) Emit/detect at largest amplitude arc: start and end on a turning point (|sin| = 1), not near the center.
+		 * 3) Stop at detector: if phase would carry beyond detector, clamp to detector location.
 		 */
 		private Point2D.Double posOnSchematicTrack(Ion ion) {
-			double p=clamp01(ion.phase);
+			// If caller updated ion.phase such that it can exceed 1 due to dt, clamp.
+			double pRaw=ion.phase;
+			double p=clamp01(pRaw);
 
-			// Build a single "out-and-back" x(t):
-			// Use a cosine so velocity is zero at turn-around (p=0.5), and also zero at endpoints (nice visually).
-			// Drift: x = xLeft + (xRight-xLeft) * (1 - cos(2πp))/2
-			// This goes xLeft->xRight at p=0.5 then xLeft at p=1.0.
+			// Hard stop at detector once we reach/ exceed the end (even if tick math overshoots).
+			// This guarantees the drawn position does not go beyond the detector.
+			if (pRaw>=0.97) {
+				return new Point2D.Double(detector74.x, detector74.y);
+			}
+
+			// Out-and-back drift in x (xLeft -> xRight -> xLeft) with zero velocity at endpoints and turn.
 			double drift=(1.0-Math.cos(2.0*Math.PI*p))*0.5;
 			double x=xLeft+(xRight-xLeft)*drift;
 
-			// Mirror bounds at x, approximate by linear interpolation between endpoints of plate curves.
+			// Mirror bounds at x
 			double yTop=evalQuadY(topPlate, x);
 			double yBot=evalQuadY(botPlate, x);
 
 			double yc=(yTop+yBot)/2.0;
 			double amp=Math.max(6.0, (yBot-yTop)*0.48-AMP_MARGIN);
 
-			// Bounce sinusoidally with many oscillations.
-			// Add small mz-dependent phase offset to spread ions in a packet.
-			double phi=(ion.mz*0.0019)%(2.0*Math.PI);
-			double theta=2.0*Math.PI*OSCILLATIONS*p + phi;
+			// === Oscillation phase setup ===
+			// We want:
+			// - At p=0: largest amplitude and moving downward (so start near top turning point).
+			// - At p=1: largest amplitude again (end on a turning point).
+			//
+			// Use a constant phase offset so sin(theta) = +1 at p=0 (top turning point),
+			// and because OSCILLATIONS is an integer, it will also be +1 at p=1.
+			//
+			// Also keep a small mz-dependent offset so ions spread laterally in phase, but do NOT destroy
+			// "turning point at ends". We therefore quantize the mz offset to multiples of 2π so ends remain turning points.
+			// (Optional: if you prefer visible phase spread more than exact turning at ends, remove quantization.)
+
+			// Base phase to start at top turning point (sin = +1)
+			double theta0=Math.PI/2.0;
+
+			// mz-dependent offset that preserves sin(theta) at p=0 and p=1 (adds 2π*k only)
+			double phiRaw=(ion.mz*0.0019);
+			double k=Math.round(phiRaw/(2.0*Math.PI));
+			double phi=2.0*Math.PI*k;
+
+			double theta=2.0*Math.PI*OSCILLATIONS*p + theta0 + phi;
+
+			// y at full amplitude immediately (no easing-to-center)
 			double y=yc + amp*Math.sin(theta);
 
 			// Clamp inside plates
@@ -505,19 +531,37 @@ public class AstralLoadingPanel extends LoadingPanel {
 			if (y<lo) y=lo;
 			if (y>hi) y=hi;
 
-			// Smooth approach to start and end points:
-			// At p near 0: pull toward emitter, at p near 1: pull toward detector.
-			double easeEnd=0.10;
+			// === Start/end positioning without shrinking amplitude ===
+			// We want ions to be emitted into and detected from the large-arc region,
+			// so do NOT lerp y toward emitter/detector (that was causing small oscillations near ends).
+			//
+			// We only guide x toward the exact emitter/detector x,y positions, while keeping y on the oscillation.
+			// Additionally, we bias the very first point to originate at the emitter location, but immediately
+			// depart at full amplitude.
+
+			double easeEnd=0.08; // slightly shorter so "small oscillation zone" is minimized
 			if (p<easeEnd) {
 				double u=p/easeEnd;
 				u=clamp01(u);
+
+				// Keep y on the oscillation (large amplitude), but start at the emitter point at p=0.
+				// This creates an immediate "launch" from the emitter into the large-amplitude track.
 				x=lerp(emitter73.x, x, u);
 				y=lerp(emitter73.y, y, u);
 			} else if (p>1.0-easeEnd) {
 				double u=(p-(1.0-easeEnd))/easeEnd;
 				u=clamp01(u);
+
+				// Keep y on the oscillation until the very end, then land on the detector.
+				// This avoids a tiny centered oscillation right before detection.
 				x=lerp(x, detector74.x, u);
 				y=lerp(y, detector74.y, u);
+			}
+
+			// Ensure we never go "past" the detector if your geometry swap moved detector along xLeft side.
+			// If p is extremely close to 1, force exact detector coordinates.
+			if (p>0.9995) {
+				return new Point2D.Double(detector74.x, detector74.y);
 			}
 
 			return new Point2D.Double(x, y);
