@@ -47,6 +47,7 @@ import org.searlelab.msrawjava.gui.filebrowser.DirectoryNode;
 import org.searlelab.msrawjava.gui.filebrowser.DirectorySummaryPanel;
 import org.searlelab.msrawjava.gui.filebrowser.DirectoryTreeModel;
 import org.searlelab.msrawjava.gui.filebrowser.FileTreeCellRenderer;
+import org.searlelab.msrawjava.gui.loadingpanels.AstralLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
@@ -208,8 +209,9 @@ public class RawFileBrowser extends JFrame {
 		final long mySeq=loadSeq.incrementAndGet();
 
 		// Random loading panel (reuse your set)
-		final LoadingPanel[] loadingPanels=new LoadingPanel[] {new FTICRLoadingPanel("Scanning "+dir.getName()), new TOFLoadingPanel("Scanning "+dir.getName()),
-				new QuadrupoleLoadingPanel("Scanning "+dir.getName())};
+		String loadingText="Scanning "+dir.getName();
+		final LoadingPanel[] loadingPanels=new LoadingPanel[] {new FTICRLoadingPanel(loadingText), new TOFLoadingPanel(loadingText),
+				new QuadrupoleLoadingPanel(loadingText), new AstralLoadingPanel(loadingText)};
 		final LoadingPanel loading=loadingPanels[(int)(Math.random()*loadingPanels.length)];
 
 		// Show loader in the TOP half

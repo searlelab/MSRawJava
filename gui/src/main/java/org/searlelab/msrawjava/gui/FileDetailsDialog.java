@@ -13,6 +13,7 @@ import javax.swing.JLabel;
 import javax.swing.SwingWorker;
 
 import org.searlelab.msrawjava.gui.utils.BackgroundKeyboardListener;
+import org.searlelab.msrawjava.gui.loadingpanels.AstralLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.FTICRLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
@@ -73,8 +74,10 @@ public class FileDetailsDialog {
 		}
 		new BackgroundKeyboardListener().addKeyAndContainerListenerRecursively(dlg);
 
-		final LoadingPanel[] loadingPanels=new LoadingPanel[] {new FTICRLoadingPanel("Reading "+f.getName()), new TOFLoadingPanel("Reading "+f.getName()),
-				new QuadrupoleLoadingPanel("Reading "+f.getName())};
+		String loadingText="Scanning "+f.getName();
+		final LoadingPanel[] loadingPanels=new LoadingPanel[] {new FTICRLoadingPanel(loadingText), new TOFLoadingPanel(loadingText),
+				new QuadrupoleLoadingPanel(loadingText), new AstralLoadingPanel(loadingText)};
+		
 		final LoadingPanel loading=loadingPanels[(int)(Math.random()*loadingPanels.length)];
 
 		Dimension loadingSize=new Dimension(900, 350);
