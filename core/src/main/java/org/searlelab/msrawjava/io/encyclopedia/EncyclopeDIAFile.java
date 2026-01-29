@@ -650,7 +650,6 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	@Override
 	public void addMetadata(Map<String, String> data) throws IOException, SQLException {
 		if (readOnly) {
-			Logger.errorLine("Skipping metadata write in read-only mode.");
 			return;
 		}
 		Connection c=getConnection();
