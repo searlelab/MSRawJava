@@ -139,7 +139,8 @@ public class LoadingPanelShowcaseDialog extends JDialog {
 
 		notes.setEditable(false);
 		JScrollPane scroll=new JScrollPane(notes);
-		scroll.setBorder(BorderFactory.createTitledBorder("Teaching notes"));
+		int width=10;
+		scroll.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(width, width, width, width), BorderFactory.createTitledBorder("<html><b>Teaching notes")));
 		scroll.setPreferredSize(new Dimension(0, 180));
 
 		JPanel wrapper=new JPanel(new BorderLayout());
