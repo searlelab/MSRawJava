@@ -108,7 +108,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 
 		// ===== User-tunable timing =====
 		// One packet ("push") every N seconds. 
-		public static double PACKET_PERIOD_SEC=8.0;
+		public static double PACKET_PERIOD_SEC=16.0;
 
 		private static final int FPS_MS=40; // ~20 FPS
 
@@ -583,7 +583,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 
 			g2.setFont(g2.getFont().deriveFont(Math.max(9f, h*0.030f)));
 			g2.setColor(new Color(80, 80, 85));
-			String t="t = "+format1(packetElapsed)+" ms / "+format1(PACKET_PERIOD_SEC/2.0)+" ms";
+			String t="t = "+format1(packetElapsed/2.0)+" ms / "+format1(PACKET_PERIOD_SEC/4.0)+" ms";
 			g2.drawString(t, r.x+8, r.y+34);
 
 			int px=r.x+8, py=r.y+42;
