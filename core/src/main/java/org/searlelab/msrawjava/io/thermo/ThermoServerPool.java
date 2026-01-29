@@ -11,11 +11,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.searlelab.msrawjava.logging.Logger;
+
 /**
  * ThermoServerPool provides a synchronized way to access a single GrpcServerLauncher instance, lazily starting
  * the local Thermo server on first use and exposing its listening port to clients.
  */
 public final class ThermoServerPool {
+	private static final int MAX_START_ATTEMPTS=3;
+	private static final long RETRY_SLEEP_MS=250L;
 	// Single daemon thread so it won't keep the JVM alive
 	private static final ExecutorService EXEC=Executors.newSingleThreadExecutor(r -> {
 		Thread t=new Thread(r, "thermo-server-launcher");
@@ -33,10 +37,23 @@ public final class ThermoServerPool {
 	public static synchronized CompletableFuture<Integer> startAsync() {
 		if (launcherFuture==null||launcherFuture.isCompletedExceptionally()||launcherFuture.isCancelled()) {
 			launcherFuture=CompletableFuture.supplyAsync(() -> {
-				try {
-					return new GrpcServerLauncher(); // <- your slow constructor
-				} catch (Exception e) {
-					throw new CompletionException(e);
+				int attempt=0;
+				while (true) {
+					attempt++;
+					try {
+						return new GrpcServerLauncher(); // <- your slow constructor
+					} catch (Exception e) {
+						Logger.logLine("Thermo server: startup attempt "+attempt+" failed: "+e.getClass().getSimpleName()+" - "+e.getMessage());
+						if (attempt>=MAX_START_ATTEMPTS) {
+							throw new CompletionException(e);
+						}
+						try {
+							Thread.sleep(RETRY_SLEEP_MS);
+						} catch (InterruptedException ie) {
+							Thread.currentThread().interrupt();
+							throw new CompletionException(ie);
+						}
+					}
 				}
 			}, EXEC);
 		}
