@@ -49,7 +49,7 @@ public class LoadingPanelShowcaseDialog extends JDialog {
 			+ "For a given magnetic field <em>B</em>, the cyclotron angular frequency is very simple: &omega;<sub>c</sub> = <em>qB</em>/<em>m</em>, so ions with different <em>m</em>/<em>z</em> orbit at different rates, like runners on the same track with different lap speeds. "
 			+ "A short RF pulse “kicks” the ion packet so the orbits become larger and phase-coherent, which makes the ions act like a tiny rotating charge distribution. "
 			+ "As that rotating packet passes near detector plates, it induces a faint alternating image current, and the instrument records the combined time-domain signal from all ions at once. "
-			+ "A Fourier transform turns that signal into a set of frequencies, then the frequencies are mapped back to <em>m</em>/<em>z</em>.</p>");
+			+ "A Fourier transform turns that signal into a set of frequencies, then the frequencies are mapped back to <em>m</em>/<em>z</em>. What makes ICRs interesting is that ions are trapped in them perpetually, so multiple measurements (and even chemical reactions) can be made of the same group of ions.</p>");
 
 	public LoadingPanelShowcaseDialog(Frame parent) {
 		super((Frame)null, "Loading Panels", false);
