@@ -50,6 +50,23 @@ class SQLFileTest {
 		}
 	}
 
+	@Test
+	void tableAndColumnChecks_workOnFilePath() throws Exception {
+		TestSQL helper=new TestSQL();
+		Path db=tmp.resolve("tables.sqlite");
+		try (Connection c=helper.getConnection(db.toFile())) {
+			try (Statement s=c.createStatement()) {
+				s.execute("create table if not exists bar ( id integer primary key, colA text, colB int )");
+			}
+			c.commit();
+		}
+
+		assertTrue(helper.doesTableExist(db.toFile(), "bar"));
+		assertFalse(helper.doesTableExist(db.toFile(), "missing_table"));
+		assertTrue(helper.doesColumnExist(db.toFile(), "bar", "colA"));
+		assertFalse(helper.doesColumnExist(db.toFile(), "bar", "nope"));
+	}
+
 	private static Boolean invokeHasColumn(SQLFile helper, Connection c, String table, String column) {
 		for (Method m : SQLFile.class.getDeclaredMethods()) {
 			if (m.getReturnType()==boolean.class) {

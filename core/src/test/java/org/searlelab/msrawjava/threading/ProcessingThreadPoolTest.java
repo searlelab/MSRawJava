@@ -229,6 +229,44 @@ class ProcessingThreadPoolTest {
 		}
 	}
 
+	@Test @Timeout(10)
+	void blockOnRejectPolicyThrowsWhenInterrupted() throws Exception {
+		try (ProcessingThreadPool pool=new ProcessingThreadPool(1, 1)) {
+			CountDownLatch firstTaskStarted=new CountDownLatch(1);
+			CountDownLatch canFinish=new CountDownLatch(1);
+
+			pool.computePool().submit(() -> {
+				firstTaskStarted.countDown();
+				try {
+					canFinish.await();
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			});
+
+			assertTrue(firstTaskStarted.await(5, TimeUnit.SECONDS));
+			pool.computePool().submit(() -> {
+			}); // fills queue
+
+			AtomicInteger rejectCount=new AtomicInteger(0);
+			Thread submitter=new Thread(() -> {
+				try {
+					pool.computePool().submit(() -> {
+					});
+				} catch (RejectedExecutionException e) {
+					rejectCount.incrementAndGet();
+				}
+			});
+			submitter.start();
+			Thread.sleep(100);
+			submitter.interrupt();
+			submitter.join(5000);
+
+			canFinish.countDown();
+			assertEquals(1, rejectCount.get(), "Expected rejection on interrupt while enqueuing");
+		}
+	}
+
 	@Test
 	void rejectsPolicyThrowsWhenShutdown() throws InterruptedException {
 		ProcessingThreadPool pool=new ProcessingThreadPool(1, 1);
