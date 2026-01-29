@@ -60,6 +60,7 @@ import javax.swing.table.TableRowSorter;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.gui.GUIPreferences;
+import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
@@ -336,7 +337,7 @@ public class DirectorySummaryPanel extends JPanel {
 			safeRowUpdate(row);
 			return;
 		}
-		if (row.vendor==DirRow.Vendor.ENCYCLOPEDIA) {
+		if (row.vendor==VendorFile.ENCYCLOPEDIA) {
 			EncyclopeDIAFile dia=null;
 			try {
 				dia=new EncyclopeDIAFile();
@@ -358,7 +359,7 @@ public class DirectorySummaryPanel extends JPanel {
 				} catch (Throwable t) {
 				}
 			}
-		} else if (row.vendor==DirRow.Vendor.THERMO) {
+		} else if (row.vendor==VendorFile.THERMO) {
 			ThermoRawFile raw=new ThermoRawFile();
 			try {
 				raw.openFile(row.path);
@@ -599,7 +600,7 @@ public class DirectorySummaryPanel extends JPanel {
 			return switch (c) {
 				case 0 -> null;
 				case 1 -> row.fileName;
-				case 2 -> row.vendor.label;
+				case 2 -> row.vendor.getVendorName();
 				case 3 -> row.lastModified;
 				case 4 -> row.sizeBytes;
 				case 5 -> row.gradientMin; // may be null
@@ -612,20 +613,10 @@ public class DirectorySummaryPanel extends JPanel {
 
 	/** Row data for the directory summary. */
 	private static final class DirRow implements Comparable<DirRow> {
-		enum Vendor {
-			THERMO("Thermo"), BRUKER("Bruker"), ENCYCLOPEDIA("EncyclopeDIA");
-
-			final String label;
-
-			Vendor(String s) {
-				label=s;
-			}
-		}
-
 		final Path path;
 		final String fileName;
 		final String fileNameLower;
-		final Vendor vendor;
+		final VendorFile vendor;
 		final long sizeBytes;
 		final Date lastModified;
 
@@ -634,7 +625,7 @@ public class DirectorySummaryPanel extends JPanel {
 		volatile SparkData spark; // null until computed
 		private final AtomicBoolean slowBitsReady=new AtomicBoolean(false);
 
-		private DirRow(Path p, Vendor v, long size, Date lastModified) {
+		private DirRow(Path p, VendorFile v, long size, Date lastModified) {
 			this.path=p;
 			this.fileName=p.getFileName().toString();
 			this.fileNameLower=fileName.toLowerCase(Locale.ROOT);
@@ -661,7 +652,7 @@ public class DirectorySummaryPanel extends JPanel {
 			} catch (IOException e) {
 				Logger.errorException(e);
 			}
-			return new DirRow(p, Vendor.THERMO, size, modified);
+			return new DirRow(p, VendorFile.THERMO, size, modified);
 		}
 
 		SlowBits toSlowBits() {
@@ -691,7 +682,7 @@ public class DirectorySummaryPanel extends JPanel {
 			} catch (IOException e) {
 				Logger.errorException(e);
 			}
-			return new DirRow(p, Vendor.ENCYCLOPEDIA, size, modified);
+			return new DirRow(p, VendorFile.ENCYCLOPEDIA, size, modified);
 		}
 
 		static DirRow fromBruker(Path p) {
@@ -711,7 +702,7 @@ public class DirectorySummaryPanel extends JPanel {
 				Logger.errorException(e);
 				size=0;
 			}
-			return new DirRow(p, Vendor.BRUKER, size, modified);
+			return new DirRow(p, VendorFile.BRUKER, size, modified);
 		}
 	}
 

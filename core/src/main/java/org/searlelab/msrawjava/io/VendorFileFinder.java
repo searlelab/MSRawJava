@@ -10,7 +10,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -64,15 +63,15 @@ public final class VendorFileFinder {
 
 		// Handle single-file or single-dir cases quickly
 		if (Files.isRegularFile(root)) {
-			if (isThermoFile(root)) {
+			if (VendorFile.isThermoFile(root)) {
 				raw.add(root);
-			} else if (isDiaFile(root)) {
+			} else if (VendorFile.isDiaFile(root)) {
 				dias.add(root);
 			}
 			files.add(raw, ddirs, dias);
 			return;
 		}
-		if (isDotDFile(root)) {
+		if (VendorFile.isDotDFile(root)) {
 			ddirs.add(root);
 			files.add(raw, ddirs, dias);
 			return;
@@ -84,7 +83,7 @@ public final class VendorFileFinder {
 			@Override
 			public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
 				// If this directory itself is a .d bundle, collect and skip its subtree
-				if (isDotDFile(dir)) {
+				if (VendorFile.isDotDFile(dir)) {
 					ddirs.add(dir.toAbsolutePath().normalize());
 					return FileVisitResult.SKIP_SUBTREE;
 				}
@@ -93,9 +92,9 @@ public final class VendorFileFinder {
 
 			@Override
 			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
-				if (attrs.isRegularFile()&&isThermoFile(file)) {
+				if (attrs.isRegularFile()&&VendorFile.isThermoFile(file)) {
 					raw.add(file.toAbsolutePath().normalize());
-				} else if (includeDia&&attrs.isRegularFile()&&isDiaFile(file)) {
+				} else if (includeDia&&attrs.isRegularFile()&&VendorFile.isDiaFile(file)) {
 					dias.add(file.toAbsolutePath().normalize());
 				}
 				return FileVisitResult.CONTINUE;
@@ -110,24 +109,5 @@ public final class VendorFileFinder {
 
 		files.add(raw, ddirs, dias);
 		return;
-	}
-
-	public static boolean isThermoFile(Path root) {
-		return hasExt(root, ".raw");
-	}
-
-	public static boolean isDotDFile(Path root) {
-		return (Files.isDirectory(root)&&hasExt(root.getFileName(), ".d"));
-	}
-
-	public static boolean isDiaFile(Path root) {
-		return (Files.isRegularFile(root)&&hasExt(root, ".dia"));
-	}
-
-	private static boolean hasExt(Path p, String extLowerDot) {
-		if (p==null) return false;
-
-		String s=p.toString().toLowerCase(Locale.ROOT);
-		return s.endsWith(extLowerDot);
 	}
 }

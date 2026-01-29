@@ -14,6 +14,7 @@ import org.searlelab.msrawjava.io.MGFOutputFile;
 import org.searlelab.msrawjava.io.MZMLOutputFile;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
+import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -37,10 +38,6 @@ import picocli.CommandLine.Parameters;
  * orchestration, logging, and deterministic serialization for reproducible runs.
  */
 public class Main {
-	private enum Source {
-		THERMO, TIMS, ENCYCLOPEDIA
-	}
-
 	/** Main CLI entry point for raw file conversion. */
 	public static void main(String[] args) throws Exception {
 		CommandLine cmd=new CommandLine(new CliArguments());
@@ -62,18 +59,19 @@ public class Main {
 			}
 		}
 		if (files.getThermoFiles().isEmpty()&&files.getBrukerDirs().isEmpty()&&files.getDiaFiles().isEmpty()) {
-			Logger.errorLine("No vendor files found (Thermo .raw, Bruker .d, EncyclopeDIA .dia).");
+			String vendors=VendorFile.list().stream().map(VendorFile::getDisplayName).collect(java.util.stream.Collectors.joining(", "));
+			Logger.errorLine("No vendor files found ("+vendors+").");
 			return;
 		}
 
 		if (files.getThermoFiles().size()>0) {
-			Logger.logLine("Found "+files.getThermoFiles().size()+" total Thermo Raw files");
+			Logger.logLine("Found "+files.getThermoFiles().size()+" total "+VendorFile.THERMO.getDisplayName()+" files");
 			try {
-				Logger.logLine("Setting up Thermo .raw reader...");
+				Logger.logLine("Setting up "+VendorFile.THERMO.getDisplayName()+" reader...");
 				ThermoServerPool.port();
 
 				for (Path path : files.getThermoFiles()) {
-				Logger.logLine("Processing Thermo .raw "+path);
+				Logger.logLine("Processing "+VendorFile.THERMO.getDisplayName()+" "+path);
 
 				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
@@ -81,7 +79,7 @@ public class Main {
 				ThermoRawFile rawFile=new ThermoRawFile();
 				rawFile.openFile(path);
 
-				ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, Source.THERMO);
+				ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, VendorFile.THERMO);
 				indicator=createIndicator(fileParams);
 				try {
 					if (fileParams.isDemultiplex()) {
@@ -101,15 +99,15 @@ public class Main {
 		}
 
 		if (files.getBrukerDirs().size()>0) {
-			Logger.logLine("Found "+files.getBrukerDirs().size()+" total timsTOF files");
+			Logger.logLine("Found "+files.getBrukerDirs().size()+" total "+VendorFile.BRUKER.getDisplayName()+" files");
 			for (Path path : files.getBrukerDirs()) {
-				Logger.logLine("Processing Bruker .d "+path);
+				Logger.logLine("Processing "+VendorFile.BRUKER.getDisplayName()+" "+path);
 
 				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
 
 				if (params.isDemultiplex()) {
-					Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files. Processing without demultiplexing.");
+					Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()+" files. Processing without demultiplexing.");
 				}
 				indicator=createIndicator(params);
 				try {
@@ -122,9 +120,9 @@ public class Main {
 		}
 
 		if (files.getDiaFiles().size()>0) {
-			Logger.logLine("Found "+files.getDiaFiles().size()+" total EncyclopeDIA .dia files");
+			Logger.logLine("Found "+files.getDiaFiles().size()+" total "+VendorFile.ENCYCLOPEDIA.getDisplayName()+" files");
 			for (Path path : files.getDiaFiles()) {
-				Logger.logLine("Processing EncyclopeDIA .dia "+path);
+				Logger.logLine("Processing "+VendorFile.ENCYCLOPEDIA.getDisplayName()+" "+path);
 
 				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
@@ -132,7 +130,7 @@ public class Main {
 				EncyclopeDIAFile dia=new EncyclopeDIAFile();
 				dia.openFile(path.toFile());
 
-				ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, Source.ENCYCLOPEDIA);
+				ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, VendorFile.ENCYCLOPEDIA);
 				indicator=createIndicator(fileParams);
 				try {
 					if (fileParams.isDemultiplex()) {
@@ -160,13 +158,12 @@ public class Main {
 		return new LoggingProgressIndicator(LoggingProgressIndicator.Mode.DEFAULT, useAnsi);
 	}
 
-	private static ConversionParameters maybeOverrideOutput(ConversionParameters base, Path inputPath, Path outputDir, Source source) {
+	private static ConversionParameters maybeOverrideOutput(ConversionParameters base, Path inputPath, Path outputDir, VendorFile source) {
 		if (base.getOutputFilePathOverride()!=null) return base;
 		String name=inputPath.getFileName().toString();
-		String lower=name.toLowerCase(java.util.Locale.ROOT);
-		boolean isDiaInput=lower.endsWith(".dia");
+		boolean isDiaInput=VendorFile.ENCYCLOPEDIA.matchesName(name);
 
-		if (base.isDemultiplex()&&(source==Source.THERMO||source==Source.ENCYCLOPEDIA)) {
+		if (base.isDemultiplex()&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA)) {
 			String baseName=stripExtension(name);
 			String suffix=switch (base.getOutType()) {
 				case EncyclopeDIA -> ".demux"+EncyclopeDIAFile.DIA_EXTENSION;
@@ -179,7 +176,7 @@ public class Main {
 			}
 		}
 
-		if (source==Source.ENCYCLOPEDIA&&base.getOutType()==OutputType.EncyclopeDIA&&base.getOutputDirPath()==null&&isDiaInput) {
+		if (source==VendorFile.ENCYCLOPEDIA&&base.getOutType()==OutputType.EncyclopeDIA&&base.getOutputDirPath()==null&&isDiaInput) {
 			String baseName=name.substring(0, name.length()-4);
 			Path override=outputDir.resolve(baseName+".2"+EncyclopeDIAFile.DIA_EXTENSION);
 			return cloneWithOutputOverride(base, override);
@@ -201,7 +198,7 @@ public class Main {
 
 	@Command(name="msrawjava", mixinStandardHelpOptions=true, description="Convert vendor raw files into analysis-ready formats.", versionProvider=VersionProvider.class)
 	public static class CliArguments implements Callable<Integer> {
-		@Parameters(arity="1..*", paramLabel="PATHS", description="Input files or directories containing .raw or .d files (.dia when --discoverDIAFiles is set).")
+		@Parameters(arity="1..*", paramLabel="PATHS", description="Input files or directories containing Thermo .raw or Bruker .d files (EncyclopeDIA .dia when --discoverDIAFiles is set).")
 		private List<File> paths=new ArrayList<>();
 
 		@Option(names= {"-f", "--format"}, defaultValue="dia", description="Output format: ${COMPLETION-CANDIDATES}.")

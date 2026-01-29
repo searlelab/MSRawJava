@@ -22,7 +22,7 @@ import org.searlelab.msrawjava.gui.visualization.RawBrowserData;
 import org.searlelab.msrawjava.gui.visualization.RawBrowserDataLoader;
 import org.searlelab.msrawjava.gui.visualization.RawBrowserPanel;
 import org.searlelab.msrawjava.io.StripeFileInterface;
-import org.searlelab.msrawjava.io.VendorFileFinder;
+import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
@@ -98,19 +98,20 @@ public class FileDetailsDialog {
 			protected StripeResult doInBackground() throws Exception {
 				StripeFileInterface stripe=null;
 				try {
-					if (VendorFileFinder.isDotDFile(f.toPath())) {
+					VendorFile vendor=VendorFile.fromPath(f.toPath()).orElse(null);
+					if (vendor==VendorFile.BRUKER) {
 						BrukerTIMSFile raw=new BrukerTIMSFile();
 						raw.openFile(f.toPath());
 						stripe=raw;
 						RawBrowserData data=RawBrowserDataLoader.build(raw);
 						return StripeResult.success(raw, data);
-					} else if (VendorFileFinder.isThermoFile(f.toPath())) {
+					} else if (vendor==VendorFile.THERMO) {
 						ThermoRawFile raw=new ThermoRawFile();
 						raw.openFile(f.toPath());
 						stripe=raw;
 						RawBrowserData data=RawBrowserDataLoader.build(raw);
 						return StripeResult.success(raw, data);
-					} else if (f.getName().toLowerCase().endsWith(".dia")) {
+					} else if (vendor==VendorFile.ENCYCLOPEDIA) {
 						EncyclopeDIAFile dia=new EncyclopeDIAFile();
 						dia.openFile(f);
 						stripe=dia;

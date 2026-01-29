@@ -15,7 +15,8 @@ import javax.swing.JMenuItem;
 import javax.swing.KeyStroke;
 import javax.swing.filechooser.FileFilter;
 
-import org.searlelab.msrawjava.io.VendorFileFinder;
+import org.searlelab.msrawjava.io.VendorFile;
+import org.searlelab.msrawjava.io.VendorFiles;
 
 /**
  * Builds and wires application menu actions.
@@ -106,22 +107,26 @@ public final class MenuManager {
 			@Override
 			public boolean accept(File f) {
 				if (f.isDirectory()) return true;
-				String name=f.getName().toLowerCase();
-				return name.endsWith(".raw")||name.endsWith(".dia")||name.endsWith(".d");
+				String name=f.getName();
+				for (VendorFile vendor : VendorFile.list()) {
+					if (vendor.matchesName(name)) return true;
+				}
+				return false;
 			}
 
 			@Override
 			public String getDescription() {
-				return "Raw files (*.raw, *.d, *.dia)";
+				String extList=VendorFile.list().stream().map(v -> "*"+v.getExtension()).collect(java.util.stream.Collectors.joining(", "));
+				return "Raw files ("+extList+")";
 			}
 		});
 		int result=chooser.showOpenDialog(parent);
 		if (result!=JFileChooser.APPROVE_OPTION) return null;
 		File selected=chooser.getSelectedFile();
 		if (selected==null) return null;
-		if (selected.isDirectory()&&VendorFileFinder.isDotDFile(selected.toPath())) return selected;
-		if (VendorFileFinder.isThermoFile(selected.toPath())) return selected;
-		if (selected.getName().toLowerCase().endsWith(".dia")) return selected;
+		if (VendorFile.BRUKER.matchesPath(selected.toPath())) return selected;
+		if (VendorFile.THERMO.matchesPath(selected.toPath())) return selected;
+		if (VendorFile.ENCYCLOPEDIA.matchesPath(selected.toPath())) return selected;
 		return null;
 	}
 

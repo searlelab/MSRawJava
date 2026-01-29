@@ -46,7 +46,7 @@ import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
 import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
-import org.searlelab.msrawjava.io.VendorFileFinder;
+import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.logging.Logger;
@@ -161,7 +161,7 @@ public class ConversionPane extends JPanel {
 		if (paths!=null) {
 			for (Path path : paths) {
 				if (path==null) continue;
-				if (VendorFileFinder.isDotDFile(path)) {
+				if (VendorFile.BRUKER.matchesPath(path)) {
 					hasBruker=true;
 					break;
 				}
@@ -358,15 +358,12 @@ public class ConversionPane extends JPanel {
 
 		OutputType outType=(OutputType)outTypeBox.getSelectedItem();
 		for (Path p : paths) {
-			boolean thermo=VendorFileFinder.isThermoFile(p);
-			boolean bruker=VendorFileFinder.isDotDFile(p);
-			boolean dia=VendorFileFinder.isDiaFile(p);
-			if (!thermo&&!bruker&&!dia) continue;
+			VendorFile vendor=VendorFile.fromPath(p).orElse(null);
+			if (vendor==null) continue;
 
 			Path outDir=(p.getParent()!=null)?p.getParent():p;
 			boolean demux=demultiplexBox.isSelected();
-			Source source=thermo?Source.THERMO:(bruker?Source.TIMS:Source.ENCYCLOPEDIA);
-			ConversionJob job=new ConversionJob(p, outDir, outType, demux, source);
+			ConversionJob job=new ConversionJob(p, outDir, outType, demux, vendor);
 			queueModel.enqueue(job);
 		}
 		dispatcher.maybeStart();
@@ -381,12 +378,7 @@ public class ConversionPane extends JPanel {
 		}
 		ConversionJob j=queueModel.get(row);
 		StringBuilder sb=new StringBuilder();
-		String sourceLabel=switch (j.source) {
-			case THERMO -> "Thermo .raw";
-			case TIMS -> "Bruker .d";
-			case ENCYCLOPEDIA -> "EncyclopeDIA .dia";
-		};
-		sb.append("Source: ").append(sourceLabel).append('\n');
+		sb.append("Source: ").append(j.vendor.getDisplayName()).append('\n');
 		sb.append("Output: ").append(j.outType.name()).append('\n');
 		sb.append("Path:   ").append(j.input.toString()).append("\n\n");
 		sb.append(j.readLog());
@@ -546,10 +538,6 @@ public class ConversionPane extends JPanel {
 
 	// ---------- dispatcher & jobs ----------
 
-	private enum Source {
-		THERMO, TIMS, ENCYCLOPEDIA
-	}
-
 	private enum JobState {
 		QUEUED, RUNNING, DONE, FAILED, CANCELED
 	}
@@ -601,7 +589,7 @@ public class ConversionPane extends JPanel {
 		final Path outputDir;
 		final OutputType outType;
 		final boolean demultiplex;
-		final Source source;
+		final VendorFile vendor;
 
 		volatile JobState state=JobState.QUEUED;
 		final StringBuilder log=new StringBuilder();
@@ -611,12 +599,12 @@ public class ConversionPane extends JPanel {
 		volatile boolean cancelRequested=false;
 		volatile Future<?> future;
 
-		ConversionJob(Path input, Path outputDir, OutputType outType, boolean demultiplex, Source source) {
+		ConversionJob(Path input, Path outputDir, OutputType outType, boolean demultiplex, VendorFile vendor) {
 			this.input=input;
 			this.outputDir=outputDir;
 			this.outType=outType;
 			this.demultiplex=demultiplex;
-			this.source=source;
+			this.vendor=vendor;
 		}
 
 		String readLog() {
@@ -643,9 +631,9 @@ public class ConversionPane extends JPanel {
 				ConversionParameters.Builder builder=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(demultiplex)
 						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
 						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity());
-				builder.outputFilePathOverride(resolveOutputOverride(source, input, outputDir, outType, demultiplex));
+				builder.outputFilePathOverride(resolveOutputOverride(vendor, input, outputDir, outType, demultiplex));
 				ConversionParameters params=builder.build();
-				if (source==Source.THERMO) {
+				if (vendor==VendorFile.THERMO) {
 					ThermoRawFile rawFile=new ThermoRawFile();
 					rawFile.openFile(input);
 					if (demultiplex) {
@@ -653,7 +641,7 @@ public class ConversionPane extends JPanel {
 					} else {
 						ok=RawFileConverters.writeStandard(pool, rawFile, outputDir, params, this);
 					}
-				} else if (source==Source.ENCYCLOPEDIA) {
+				} else if (vendor==VendorFile.ENCYCLOPEDIA) {
 					EncyclopeDIAFile dia=new EncyclopeDIAFile();
 					dia.openFile(input.toFile());
 					if (demultiplex) {
@@ -663,7 +651,7 @@ public class ConversionPane extends JPanel {
 					}
 				} else {
 					if (demultiplex) {
-						Logger.errorLine("Sorry, staggered demultiplexing is not available for timsTOF files");
+						Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()+" files");
 					}
 					ok=RawFileConverters.writeTims(pool, input, outputDir, params, this);
 				}
@@ -689,11 +677,10 @@ public class ConversionPane extends JPanel {
 			}
 		}
 
-		private java.nio.file.Path resolveOutputOverride(Source source, Path input, Path outputDir, OutputType outType, boolean demultiplex) {
+		private java.nio.file.Path resolveOutputOverride(VendorFile source, Path input, Path outputDir, OutputType outType, boolean demultiplex) {
 			String name=input.getFileName().toString();
-			String lower=name.toLowerCase(java.util.Locale.ROOT);
-			boolean isDiaInput=lower.endsWith(".dia");
-			if (demultiplex&&(source==Source.THERMO||source==Source.ENCYCLOPEDIA)) {
+			boolean isDiaInput=VendorFile.ENCYCLOPEDIA.matchesName(name);
+			if (demultiplex&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA)) {
 				String base=stripExtension(name);
 				String suffix;
 				if (outType==OutputType.EncyclopeDIA) {
@@ -707,7 +694,7 @@ public class ConversionPane extends JPanel {
 				}
 				return (suffix==null)?null:outputDir.resolve(base+suffix);
 			}
-			if (source==Source.ENCYCLOPEDIA&&outType==OutputType.EncyclopeDIA&&isDiaInput) {
+			if (source==VendorFile.ENCYCLOPEDIA&&outType==OutputType.EncyclopeDIA&&isDiaInput) {
 				String base=name.substring(0, name.length()-4);
 				return outputDir.resolve(base+".2"+org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile.DIA_EXTENSION);
 			}
