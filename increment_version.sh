@@ -12,8 +12,10 @@ let "next=${year}+1";
 next=${baseversion}.${next}.0;
 
 echo "Updating ${program} $branch from [${current}] to [${next}]";
-echo `find core/src -name '*.java' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of Java Core code"
-echo `find gui/src -name '*.java' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of Java GUI code"
+echo `find core/src/main -name '*.java' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of Java Core production code"
+echo `find core/src/test -name '*.java' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of Java Core test code"
+echo `find gui/src/main -name '*.java' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of Java GUI production code"
+echo `find gui/src/test -name '*.java' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of Java GUI test code"
 echo `find rust-jni/src -name '*.rs' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of Rust code"
 echo `find thermo-raw-server/Program.cs -name '*.cs' -exec wc {} \; | awk '{sum=sum+$1} END {print sum}'` "total lines of C# code"
 
