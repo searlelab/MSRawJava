@@ -35,26 +35,38 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 		this.ionMobilityArray=ionMobilityArray;
 	}
 
-	public PrecursorScan rebuild(int newSpectrumIndex, ArrayList<PeakWithIMS> peaks) {
+	public PrecursorScan rebuild(int newSpectrumIndex, ArrayList<? extends PeakInterface> peaks) {
 		Collections.sort(peaks);
 		double[] newMassArray=new double[peaks.size()];
 		float[] newIntensityArray=new float[peaks.size()];
 		float[] newIonMobilityArray=new float[peaks.size()];
+		boolean anyIMS=false;
 		for (int i=0; i<peaks.size(); i++) {
-			PeakWithIMS peak=peaks.get(i);
-			newMassArray[i]=peak.mz;
-			newIntensityArray[i]=peak.intensity;
-			newIonMobilityArray[i]=peak.ims;
+			PeakInterface peak=peaks.get(i);
+			newMassArray[i]=peak.getMz();
+			newIntensityArray[i]=peak.getIntensity();
+			if (peak instanceof PeakWithIMS) {
+				newIonMobilityArray[i]=((PeakWithIMS)peak).getIMS();
+				anyIMS=true;
+			}
+		}
+		if (!anyIMS) {
+			newIonMobilityArray=null;
 		}
 		return new PrecursorScan(spectrumName, newSpectrumIndex, scanStartTime, fraction, scanWindowLower, scanWindowUpper, ionInjectionTime, newMassArray,
 				newIntensityArray, newIonMobilityArray);
 	}
 
-	public ArrayList<PeakWithIMS> getPeaks(float minimumIntensity) {
-		ArrayList<PeakWithIMS> peaks=new ArrayList<PeakWithIMS>();
+	public ArrayList<PeakInterface> getPeaks(float minimumIntensity) {
+		ArrayList<PeakInterface> peaks=new ArrayList<PeakInterface>();
+		boolean hasIMS=ionMobilityArray!=null;
 		for (int i=0; i<massArray.length; i++) {
 			if (intensityArray[i]>minimumIntensity) {
-				peaks.add(new PeakWithIMS(massArray[i], intensityArray[i], ionMobilityArray[i]));
+				if (hasIMS) {
+					peaks.add(new PeakWithIMS(massArray[i], intensityArray[i], ionMobilityArray[i]));
+				} else {
+					peaks.add(new PeakInTime(massArray[i], intensityArray[i], scanStartTime));
+				}
 			}
 		}
 		return peaks;

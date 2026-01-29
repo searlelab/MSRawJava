@@ -105,16 +105,24 @@ class FragmentScanTest {
 
 	@Test
 	void getPeaksFiltersAboveMinimumIntensity() {
-		ArrayList<PeakWithIMS> peaks=scanWithIms.getPeaks(1500.0f);
+		ArrayList<PeakInterface> peaks=scanWithIms.getPeaks(1500.0f);
 		assertEquals(1, peaks.size());
 		assertEquals(200.0, peaks.get(0).getMz(), 1e-9);
 		assertEquals(2000.0f, peaks.get(0).getIntensity(), 1e-6);
+		assertTrue(peaks.get(0) instanceof PeakWithIMS);
 	}
 
 	@Test
 	void getPeaksReturnsAllWhenMinimumIsZero() {
-		ArrayList<PeakWithIMS> peaks=scanWithIms.getPeaks(0.0f);
+		ArrayList<PeakInterface> peaks=scanWithIms.getPeaks(0.0f);
 		assertEquals(3, peaks.size());
+	}
+
+	@Test
+	void getPeaksUsesPeakInTimeWhenImsMissing() {
+		ArrayList<PeakInterface> peaks=scan.getPeaks(0.0f);
+		assertEquals(3, peaks.size());
+		assertTrue(peaks.get(0) instanceof PeakInTime);
 	}
 
 	@Test

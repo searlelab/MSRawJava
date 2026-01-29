@@ -105,11 +105,16 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 		return new Range(isolationWindowLower, isolationWindowUpper);
 	}
 
-	public ArrayList<PeakWithIMS> getPeaks(float minimumIntensity) {
-		ArrayList<PeakWithIMS> peaks=new ArrayList<PeakWithIMS>();
+	public ArrayList<PeakInterface> getPeaks(float minimumIntensity) {
+		ArrayList<PeakInterface> peaks=new ArrayList<PeakInterface>();
+		boolean hasIMS=ionMobilityArray!=null;
 		for (int i=0; i<massArray.length; i++) {
 			if (intensityArray[i]>minimumIntensity) {
-				peaks.add(new PeakWithIMS(massArray[i], intensityArray[i], ionMobilityArray[i]));
+				if (hasIMS) {
+					peaks.add(new PeakWithIMS(massArray[i], intensityArray[i], ionMobilityArray[i]));
+				} else {
+					peaks.add(new PeakInTime(massArray[i], intensityArray[i], scanStartTime));
+				}
 			}
 		}
 		return peaks;

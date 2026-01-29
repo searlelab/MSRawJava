@@ -28,6 +28,7 @@ import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
+import org.searlelab.msrawjava.model.PeakInterface;
 import org.searlelab.msrawjava.model.PeakWithIMS;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
@@ -377,11 +378,15 @@ public class RawFileConverters {
 					final int idx=j;
 					final int sn=baseMs1Scan+j;
 					ms1Futures.add(computePool.submit(() -> {
-						ArrayList<PeakWithIMS> peaks=ms1s.get(idx).getPeaks(minimumMS1Intensity);
+						ArrayList<PeakInterface> peaks=ms1s.get(idx).getPeaks(minimumMS1Intensity);
+						ArrayList<PeakWithIMS> imsPeaks=asImsPeaks(peaks);
+						if (imsPeaks!=null&&!imsPeaks.isEmpty()) {
+							Collections.sort(imsPeaks);
+							imsPeaks=TIMSPeakPicker.peakPickAcrossIMS(imsPeaks);
+							return ms1s.get(idx).rebuild(sn, imsPeaks); // never null for MS1
+						}
 						Collections.sort(peaks);
-						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks);
-
-						return ms1s.get(idx).rebuild(sn, peaks); // never null for MS1
+						return ms1s.get(idx).rebuild(sn, peaks);
 					}));
 				}
 
@@ -391,10 +396,15 @@ public class RawFileConverters {
 					final int idx=j;
 					final int sn=baseMs2Scan+j;
 					ms2Futures.add(computePool.submit(() -> {
-						ArrayList<PeakWithIMS> peaks=ms2s.get(idx).getPeaks(minimumMS2Intensity);
-						peaks=TIMSPeakPicker.peakPickAcrossIMS(peaks);
+						ArrayList<PeakInterface> peaks=ms2s.get(idx).getPeaks(minimumMS2Intensity);
+						ArrayList<PeakWithIMS> imsPeaks=asImsPeaks(peaks);
+						if (imsPeaks!=null&&!imsPeaks.isEmpty()) {
+							imsPeaks=TIMSPeakPicker.peakPickAcrossIMS(imsPeaks);
+							if (timsFile.isPASEFDDA()&&imsPeaks.isEmpty()) return null; // don't worry about scan gaps
+							return ms2s.get(idx).rebuild(sn, imsPeaks);
+						}
 
-						if (timsFile.isPASEFDDA()&&peaks.isEmpty()) return null; // don't worry about scan gaps
+						if (timsFile.isPASEFDDA()&&peaks.isEmpty()) return null;
 						return ms2s.get(idx).rebuild(sn, peaks);
 					}));
 				}
@@ -515,6 +525,20 @@ public class RawFileConverters {
 			Logger.errorException(e);
 			return new ArrayList<>();
 		}
+	}
+
+	private static ArrayList<PeakWithIMS> asImsPeaks(ArrayList<PeakInterface> peaks) {
+		if (peaks.isEmpty()) {
+			return new ArrayList<>();
+		}
+		ArrayList<PeakWithIMS> out=new ArrayList<>(peaks.size());
+		for (PeakInterface peak : peaks) {
+			if (!(peak instanceof PeakWithIMS)) {
+				return null;
+			}
+			out.add((PeakWithIMS)peak);
+		}
+		return out;
 	}
 
 	private static <T> T getOrNull(Future<T> f) {
