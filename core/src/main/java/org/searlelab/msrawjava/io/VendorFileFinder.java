@@ -21,7 +21,13 @@ import java.util.Objects;
 public final class VendorFileFinder {
 	public static VendorFiles findAndAddRawAndD(Path start) throws IOException {
 		VendorFiles files=new VendorFiles();
-		findAndAddRawAndD(start, files);
+		findAndAddRawAndD(start, files, false);
+		return files;
+	}
+
+	public static VendorFiles findAndAddRawAndD(Path start, boolean includeDia) throws IOException {
+		VendorFiles files=new VendorFiles();
+		findAndAddRawAndD(start, files, includeDia);
 		return files;
 	}
 
@@ -32,10 +38,22 @@ public final class VendorFileFinder {
 	 * - Otherwise, recursively walks and collects both.
 	 */
 	public static void findAndAddRawAndD(Path start, VendorFiles files) throws IOException {
+		findAndAddRawAndD(start, files, false);
+	}
+
+	/**
+	 * Collects vendor data roots under the given path.
+	 * - If the path is a .raw file, it's added to rawFiles.
+	 * - If the path is a .d directory, it's added to dDirs and not descended into.
+	 * - If includeDia is true and the path is a .dia file, it's added to diaFiles.
+	 * - Otherwise, recursively walks and collects both (and .dia when enabled).
+	 */
+	public static void findAndAddRawAndD(Path start, VendorFiles files, boolean includeDia) throws IOException {
 		Objects.requireNonNull(start, "start");
 
 		final ArrayList<Path> raw=new ArrayList<>();
 		final ArrayList<Path> ddirs=new ArrayList<>();
+		final ArrayList<Path> dias=new ArrayList<>();
 
 		if (!Files.exists(start)) {
 			throw new NoSuchFileException("Path does not exist: "+start);
@@ -46,13 +64,17 @@ public final class VendorFileFinder {
 
 		// Handle single-file or single-dir cases quickly
 		if (Files.isRegularFile(root)) {
-			if (isThermoFile(root)) raw.add(root);
-			files.add(raw, ddirs);
+			if (isThermoFile(root)) {
+				raw.add(root);
+			} else if (isDiaFile(root)) {
+				dias.add(root);
+			}
+			files.add(raw, ddirs, dias);
 			return;
 		}
 		if (isDotDFile(root)) {
 			ddirs.add(root);
-			files.add(raw, ddirs);
+			files.add(raw, ddirs, dias);
 			return;
 		}
 
@@ -73,6 +95,8 @@ public final class VendorFileFinder {
 			public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
 				if (attrs.isRegularFile()&&isThermoFile(file)) {
 					raw.add(file.toAbsolutePath().normalize());
+				} else if (includeDia&&attrs.isRegularFile()&&isDiaFile(file)) {
+					dias.add(file.toAbsolutePath().normalize());
 				}
 				return FileVisitResult.CONTINUE;
 			}
@@ -84,7 +108,7 @@ public final class VendorFileFinder {
 			}
 		});
 
-		files.add(raw, ddirs);
+		files.add(raw, ddirs, dias);
 		return;
 	}
 
@@ -94,6 +118,10 @@ public final class VendorFileFinder {
 
 	public static boolean isDotDFile(Path root) {
 		return (Files.isDirectory(root)&&hasExt(root.getFileName(), ".d"));
+	}
+
+	public static boolean isDiaFile(Path root) {
+		return (Files.isRegularFile(root)&&hasExt(root, ".dia"));
 	}
 
 	private static boolean hasExt(Path p, String extLowerDot) {

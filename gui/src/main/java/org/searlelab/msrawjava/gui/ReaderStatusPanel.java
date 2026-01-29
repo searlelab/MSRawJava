@@ -34,26 +34,31 @@ public class ReaderStatusPanel extends JPanel {
 
 	private final StatusLine thermoLine=new StatusLine("Thermo");
 	private final StatusLine brukerLine=new StatusLine("Bruker");
+	private final StatusLine encyclopediaLine=new StatusLine("EncyclopeDIA");
 	private final Timer blinkTimer;
 	private boolean blinkOn=true;
 
 	public ReaderStatusPanel() {
 		super(new BorderLayout());
 
-		JPanel rows=new JPanel(new GridLayout(2, 1, 0, 4));
+		JPanel rows=new JPanel(new GridLayout(3, 1, 0, 4));
 		rows.add(thermoLine);
 		rows.add(brukerLine);
+		rows.add(encyclopediaLine);
 
 		setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
 		add(rows, BorderLayout.CENTER);
-		setPreferredSize(new Dimension(260, 56));
-		setMinimumSize(new Dimension(200, 56));
+		setPreferredSize(new Dimension(260, 78));
+		setMinimumSize(new Dimension(200, 78));
 
 		thermoLine.setState(StatusState.WAITING);
 		thermoLine.setStatusText("Waiting for Thermo server...");
 
 		brukerLine.setState(StatusState.OK);
 		brukerLine.setStatusText("Available");
+
+		encyclopediaLine.setState(StatusState.OK);
+		encyclopediaLine.setStatusText("Available");
 
 		blinkTimer=new Timer(BLINK_MS, e -> refreshStatuses());
 		blinkTimer.setRepeats(true);

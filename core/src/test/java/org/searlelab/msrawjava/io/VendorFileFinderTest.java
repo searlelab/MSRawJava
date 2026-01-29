@@ -30,6 +30,7 @@ class VendorFileFinderTest {
 
 		assertEquals(4, files.getThermoFiles().size(), "Expected four .raw files");
 		assertEquals(2, files.getBrukerDirs().size(), "Expected two .d directories");
+		assertEquals(0, files.getDiaFiles().size(), "Expected no .dia files without discover flag");
 
 		Set<String> rawNames=files.getThermoFiles().stream().map(p -> p.getFileName().toString()).collect(Collectors.toCollection(TreeSet::new));
 		Set<String> dNames=files.getBrukerDirs().stream().map(p -> p.getFileName().toString()).collect(Collectors.toCollection(TreeSet::new));
@@ -47,6 +48,20 @@ class VendorFileFinderTest {
 	}
 
 	@Test
+	void findFromDirectory_withDiscoverDia_collectsDiaFiles() throws Exception {
+		Assumptions.assumeTrue(Files.isDirectory(RAWDATA), "Missing test fixture dir: "+RAWDATA);
+
+		VendorFiles files=new VendorFiles();
+		VendorFileFinder.findAndAddRawAndD(RAWDATA, files, true);
+
+		assertEquals(3, files.getDiaFiles().size(), "Expected three .dia files");
+		Set<String> diaNames=files.getDiaFiles().stream().map(p -> p.getFileName().toString()).collect(Collectors.toCollection(TreeSet::new));
+		assertTrue(diaNames.contains("HeLa_16mzst_29to31min.dia"));
+		assertTrue(diaNames.contains("HeLa_16mzst_demux.dia"));
+		assertTrue(diaNames.contains("HeLa_16mzst_orig.dia"));
+	}
+
+	@Test
 	void singleRawFile_shortCircuitsToRawOnly() throws Exception {
 		Path raw=RAWDATA.resolve("Stellar_DDA.raw");
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture missing: "+raw);
@@ -57,6 +72,7 @@ class VendorFileFinderTest {
 		assertEquals(1, files.getThermoFiles().size());
 		assertEquals(raw.toAbsolutePath().normalize(), files.getThermoFiles().get(0));
 		assertTrue(files.getBrukerDirs().isEmpty());
+		assertTrue(files.getDiaFiles().isEmpty());
 	}
 
 	@Test
@@ -70,6 +86,21 @@ class VendorFileFinderTest {
 		assertEquals(1, files.getBrukerDirs().size());
 		assertEquals(ddir.toAbsolutePath().normalize(), files.getBrukerDirs().get(0));
 		assertTrue(files.getThermoFiles().isEmpty());
+		assertTrue(files.getDiaFiles().isEmpty());
+	}
+
+	@Test
+	void singleDiaFile_shortCircuitsToDiaOnly() throws Exception {
+		Path dia=RAWDATA.resolve("HeLa_16mzst_29to31min.dia");
+		Assumptions.assumeTrue(Files.exists(dia), "Fixture missing: "+dia);
+
+		VendorFiles files=new VendorFiles();
+		VendorFileFinder.findAndAddRawAndD(dia, files);
+
+		assertEquals(1, files.getDiaFiles().size());
+		assertEquals(dia.toAbsolutePath().normalize(), files.getDiaFiles().get(0));
+		assertTrue(files.getThermoFiles().isEmpty());
+		assertTrue(files.getBrukerDirs().isEmpty());
 	}
 
 	@Test
@@ -96,6 +127,7 @@ class VendorFileFinderTest {
 		assertEquals(keep.toAbsolutePath().normalize(), files.getThermoFiles().get(0));
 		assertEquals(1, files.getBrukerDirs().size(), "The .d directory should be collected once");
 		assertEquals(dsub.toAbsolutePath().normalize(), files.getBrukerDirs().get(0));
+		assertTrue(files.getDiaFiles().isEmpty());
 	}
 
 	@Test
@@ -109,10 +141,12 @@ class VendorFileFinderTest {
 		VendorFileFinder.findAndAddRawAndD(fRAW, files1);
 		assertEquals(1, files1.getThermoFiles().size());
 		assertTrue(files1.getBrukerDirs().isEmpty());
+		assertTrue(files1.getDiaFiles().isEmpty());
 
 		VendorFiles files2=new VendorFiles();
 		VendorFileFinder.findAndAddRawAndD(dDIR, files2);
 		assertEquals(1, files2.getBrukerDirs().size());
 		assertTrue(files2.getThermoFiles().isEmpty());
+		assertTrue(files2.getDiaFiles().isEmpty());
 	}
 }

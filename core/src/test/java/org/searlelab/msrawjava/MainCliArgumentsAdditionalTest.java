@@ -50,4 +50,13 @@ class MainCliArgumentsAdditionalTest {
 		assertEquals(OutputType.mgf, Main.OutputFormat.mgf.toOutputType());
 		assertEquals(OutputType.mzML, Main.OutputFormat.mzml.toOutputType());
 	}
+
+	@Test
+	void discoverDiaFlag_isCaptured() throws Exception {
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.parseArgs("--discoverDIAFiles", "input.dia");
+		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
+		ConversionParameters params=args.toParameters();
+		assertTrue(params.isDiscoverDIAFiles());
+	}
 }

@@ -1,5 +1,5 @@
 # MSRawJava: Java-first readers for Bruker timsTOF and Thermo RAW
-MSRawJava is a Java-first toolkit for efficiently reading Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X. The code provides additional tooling for reading spectra and metadata into a standard object model, and producing analysis-ready outputs (`.mzML`, `.MGF`, EncyclopeDIA `.DIA`). The library exposes a uniform Java API and a compact CLI. Vendor specifics are isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo, so the public surface remains consistent across platforms.
+MSRawJava is a Java-first toolkit for efficiently reading Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X, with optional discovery of EncyclopeDIA `.dia` files. The code provides additional tooling for reading spectra and metadata into a standard object model, and producing analysis-ready outputs (`.mzML`, `.MGF`, EncyclopeDIA `.DIA`). The library exposes a uniform Java API and a compact CLI. Vendor specifics are isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo, so the public surface remains consistent across platforms.
 
 ## Architecture and code structure
 The library normalizes vendor streams into a compact, immutable model under `model`. `AcquiredSpectrum` defines the common surface for MS1 and MS2 and is implemented by `PrecursorScan` and `FragmentScan`. Both carry `spectrumName`, `spectrumIndex`, `scanStartTime`, `fraction`, isolation/scan window bounds, optional `ionInjectionTime`, and primitive `double[]` m/z with `float[]` intensity; timsTOF adds an optional `float[]` ion mobility vector where every peak gets an assigned ion mobility value. `Peak` is a lightweight value object (`mz`, `intensity`, `ims`) materialized on demand when point lists are needed, avoiding overhead during bulk transfer. Windowing is represented by `Range` (the m/z interval) and `WindowData` (average duty cycle, MS/MS counts, optional ion-mobility span). Readers construct a `Map<Range, WindowData>` of DIA stripes, stream MS1 as `PrecursorScan` and `FragmentScan` records sliced using retention time and m/z windows (for `FragmentScan`s). Arrays remain primitive to enable zero-copy JNI/gRPC exchange; conversion to `Peak` lists is threshold-aware and performed lazily only when necessary. The model’s immutability supports parallel read stages while writers serialize output for deterministic archives.
@@ -31,7 +31,7 @@ Bruker timsTOF-specific Rust binaries are embedded in the jar under `META-INF/li
 
 
 ## CLI usage
-The CLI in `Main.java` accepts files or directories and searches them for Bruker `.d` and Thermo `.raw` files. Command line options include:
+The CLI in `Main.java` accepts files or directories and searches them for Bruker `.d` and Thermo `.raw` files, with optional EncyclopeDIA `.dia` discovery when enabled. Command line options include:
 
 ```
   -f, --format [fmt]        Output format: dia|mgf|mzml (default dia)
@@ -44,6 +44,7 @@ The CLI in `Main.java` accepts files or directories and searches them for Bruker
   --demux-interp [method]   Interpolation: cubic|logquadratic (default cubic)
   --demux-exclude-edges     Exclude edge sub-windows from demux output
   --demux-ppm [#]           Mass tolerance in ppm for demux (default 10.0)
+  --discoverDIAFiles        Allow directory discovery of EncyclopeDIA .dia files
   --batch                   Disable status bar and progress updates
   --no-ansi                 Disable ANSI output, even on TTYs
   --silent                  Suppress all non-error output
@@ -57,4 +58,5 @@ java -jar MSRawJava -f mgf ../../path/to/raws/
 java -jar MSRawJava -f mzml /mnt/vol1/path/to/raws/ --min-ms1 10.0 --min-ms2 5.0
 java -jar MSRawJava -f dia --demux --demux-ppm 10.0 /mnt/vol1/path/to/raws/
 java -jar MSRawJava -f dia --log-file run.log /mnt/vol1/path/to/raws/
+java -jar MSRawJava --discoverDIAFiles -f dia --demux /mnt/vol1/path/to/dia/
 ```

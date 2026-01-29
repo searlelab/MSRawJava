@@ -26,9 +26,12 @@ public class ConversionParameters {
 	private final boolean batch;
 	private final boolean silent;
 	private final boolean noAnsi;
+	private final boolean discoverDIAFiles;
+	private final Path outputFilePathOverride;
 
 	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity, float minimumMS2Intensity,
-			boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi) {
+			boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi,
+			boolean discoverDIAFiles, Path outputFilePathOverride) {
 		this.fileList=new ArrayList<>(fileList==null?Collections.emptyList():fileList);
 		this.outType=outType;
 		this.outputDirPath=outputDirPath;
@@ -41,6 +44,8 @@ public class ConversionParameters {
 		this.batch=batch;
 		this.silent=silent;
 		this.noAnsi=noAnsi;
+		this.discoverDIAFiles=discoverDIAFiles;
+		this.outputFilePathOverride=outputFilePathOverride;
 	}
 
 	public ArrayList<File> getFileList() {
@@ -91,11 +96,19 @@ public class ConversionParameters {
 		return noAnsi;
 	}
 
+	public boolean isDiscoverDIAFiles() {
+		return discoverDIAFiles;
+	}
+
+	public Path getOutputFilePathOverride() {
+		return outputFilePathOverride;
+	}
+
 	@Override
 	public String toString() {
 		return "ConversionParameters[outType="+outType+", outputDirPath="+outputDirPath+", minMS1="+minimumMS1Intensity+", minMS2="+minimumMS2Intensity
 				+", demux="+demultiplex+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig+", logFilePath="+logFilePath+", batch="+batch
-				+", silent="+silent+", noAnsi="+noAnsi+"]";
+				+", silent="+silent+", noAnsi="+noAnsi+", discoverDIAFiles="+discoverDIAFiles+", outputFilePathOverride="+outputFilePathOverride+"]";
 	}
 
 	public static Builder builder() {
@@ -115,6 +128,8 @@ public class ConversionParameters {
 		private boolean batch=false;
 		private boolean silent=false;
 		private boolean noAnsi=false;
+		private boolean discoverDIAFiles=false;
+		private Path outputFilePathOverride=null;
 
 		public Builder fileList(List<File> files) {
 			this.fileList=new ArrayList<>(files);
@@ -181,9 +196,19 @@ public class ConversionParameters {
 			return this;
 		}
 
+		public Builder discoverDIAFiles(boolean discoverDIAFiles) {
+			this.discoverDIAFiles=discoverDIAFiles;
+			return this;
+		}
+
+		public Builder outputFilePathOverride(Path outputFilePathOverride) {
+			this.outputFilePathOverride=outputFilePathOverride;
+			return this;
+		}
+
 		public ConversionParameters build() {
 			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance,
-					demuxConfig, logFilePath, batch, silent, noAnsi);
+					demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, outputFilePathOverride);
 		}
 	}
 }

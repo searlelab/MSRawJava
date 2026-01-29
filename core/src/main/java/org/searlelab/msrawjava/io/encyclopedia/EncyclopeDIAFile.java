@@ -188,6 +188,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public void openFile(File userFile) throws IOException, SQLException {
+		this.userFile=userFile;
 		tempFile=File.createTempFile("encyclopedia_", DIA_EXTENSION);
 		Files.copy(userFile.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 		tempFile.deleteOnExit();
@@ -498,7 +499,9 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	@Override
 	public float getTIC() throws IOException, SQLException {
 		String value=getMetadata().get(TOTAL_PRECURSOR_TIC_ATTRIBUTE);
-		if (value==null) return 0.0f;
+		if (value==null) {
+			return MatrixMath.sum(getTICTrace().y);
+		}
 		return Float.parseFloat(value);
 	}
 
@@ -540,7 +543,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery("SELECT ScanStartTime, TIC FROM precursor");
+				ResultSet rs=s.executeQuery("SELECT ScanStartTime, TIC FROM precursor ORDER BY ScanStartTime");
 
 				while (rs.next()) {
 					rts.add(rs.getFloat(1));
@@ -843,8 +846,20 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				}
 				rs.close();
 
-				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper, "
-						+"IsolationWindowCenter, PrecursorCharge, ScanWindowLower, ScanWindowUpper from spectra "+"where ScanStartTime>="+minRT
+				boolean hasScanWindowLower=doesColumnExist(c, "spectra", "ScanWindowLower");
+				boolean hasScanWindowUpper=doesColumnExist(c, "spectra", "ScanWindowUpper");
+				boolean hasIsolationCenter=doesColumnExist(c, "spectra", "IsolationWindowCenter");
+
+				String scanWindowSelect;
+				if (hasScanWindowLower&&hasScanWindowUpper) {
+					scanWindowSelect=", ScanWindowLower, ScanWindowUpper";
+				} else {
+					scanWindowSelect=", IsolationWindowLower as ScanWindowLower, IsolationWindowUpper as ScanWindowUpper";
+				}
+				String isolationCenterSelect=hasIsolationCenter?", IsolationWindowCenter":", (IsolationWindowLower+IsolationWindowUpper)/2.0 as IsolationWindowCenter";
+
+				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper"
+						+isolationCenterSelect+", PrecursorCharge"+scanWindowSelect+" from spectra "+"where ScanStartTime>="+minRT
 						+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
 				while (rs.next()) {
 					String name=rs.getString(1);
@@ -893,10 +908,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public void close() {
-		if (userFile==null) {
-			if (tempFile.exists()&&!tempFile.delete()) {
-				Logger.errorLine("Error deleting temp DIA file!");
-			}
+		if (tempFile!=null&&tempFile.exists()&&!tempFile.delete()) {
+			Logger.errorLine("Error deleting temp DIA file!");
 		}
 	}
 }

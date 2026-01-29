@@ -156,6 +156,7 @@ public class FileDetailsDialog {
 					dlg.revalidate();
 					dlg.repaint();
 				} catch (Exception ex) {
+					org.searlelab.msrawjava.logging.Logger.logException(ex);
 					dlg.setContentPane(new JLabel("Cannot parse file!"));
 					dlg.revalidate();
 					dlg.repaint();

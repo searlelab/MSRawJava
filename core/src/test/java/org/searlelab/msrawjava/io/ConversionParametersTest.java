@@ -33,7 +33,8 @@ class ConversionParametersTest {
 		MassTolerance tol=new PPMMassTolerance(5.0);
 		DemuxConfig demux=new DemuxConfig();
 
-		ConversionParameters p=new ConversionParameters(files, type, out, ms1, ms2, true, tol, demux, tmp.resolve("log.txt"), true, false, true);
+		ConversionParameters p=new ConversionParameters(files, type, out, ms1, ms2, true, tol, demux, tmp.resolve("log.txt"), true, false, true, true,
+				tmp.resolve("override.mzML"));
 		assertEquals(files, p.getFileList());
 		assertEquals(type, p.getOutType());
 		assertEquals(out, p.getOutputDirPath());
@@ -47,7 +48,7 @@ class ConversionParametersTest {
 		assertFalse(p.isSilent());
 		assertTrue(p.isNoAnsi());
 
-		ConversionParameters p2=new ConversionParameters(files, type, null, ms1, ms2, false, tol, demux, null, false, true, false);
+		ConversionParameters p2=new ConversionParameters(files, type, null, ms1, ms2, false, tol, demux, null, false, true, false, false, null);
 		assertNull(p2.getOutputDirPath(), "null output directory should be allowed");
 		assertFalse(p2.isDemultiplex());
 		assertTrue(p2.isSilent());
@@ -63,10 +64,14 @@ class ConversionParametersTest {
 		assertFalse(params.isBatch());
 		assertFalse(params.isSilent());
 		assertFalse(params.isNoAnsi());
+		assertFalse(params.isDiscoverDIAFiles());
+		assertNull(params.getOutputFilePathOverride());
 
 		String text=params.toString();
 		assertTrue(text.contains("outType=EncyclopeDIA"));
 		assertTrue(text.contains("minMS1=3.0"));
 		assertTrue(text.contains("minMS2=1.0"));
+		assertTrue(text.contains("discoverDIAFiles=false"));
+		assertTrue(text.contains("outputFilePathOverride=null"));
 	}
 }

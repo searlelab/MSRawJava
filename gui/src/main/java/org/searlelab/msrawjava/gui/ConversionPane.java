@@ -47,6 +47,7 @@ import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.VendorFileFinder;
+import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
@@ -359,11 +360,13 @@ public class ConversionPane extends JPanel {
 		for (Path p : paths) {
 			boolean thermo=VendorFileFinder.isThermoFile(p);
 			boolean bruker=VendorFileFinder.isDotDFile(p);
-			if (!thermo&&!bruker) continue;
+			boolean dia=VendorFileFinder.isDiaFile(p);
+			if (!thermo&&!bruker&&!dia) continue;
 
 			Path outDir=(p.getParent()!=null)?p.getParent():p;
 			boolean demux=demultiplexBox.isSelected();
-			ConversionJob job=new ConversionJob(p, outDir, outType, demux, thermo?Source.THERMO:Source.TIMS);
+			Source source=thermo?Source.THERMO:(bruker?Source.TIMS:Source.ENCYCLOPEDIA);
+			ConversionJob job=new ConversionJob(p, outDir, outType, demux, source);
 			queueModel.enqueue(job);
 		}
 		dispatcher.maybeStart();
@@ -378,7 +381,12 @@ public class ConversionPane extends JPanel {
 		}
 		ConversionJob j=queueModel.get(row);
 		StringBuilder sb=new StringBuilder();
-		sb.append("Source: ").append(j.source==Source.THERMO?"Thermo .raw":"Bruker .d").append('\n');
+		String sourceLabel=switch (j.source) {
+			case THERMO -> "Thermo .raw";
+			case TIMS -> "Bruker .d";
+			case ENCYCLOPEDIA -> "EncyclopeDIA .dia";
+		};
+		sb.append("Source: ").append(sourceLabel).append('\n');
 		sb.append("Output: ").append(j.outType.name()).append('\n');
 		sb.append("Path:   ").append(j.input.toString()).append("\n\n");
 		sb.append(j.readLog());
@@ -539,7 +547,7 @@ public class ConversionPane extends JPanel {
 	// ---------- dispatcher & jobs ----------
 
 	private enum Source {
-		THERMO, TIMS
+		THERMO, TIMS, ENCYCLOPEDIA
 	}
 
 	private enum JobState {
@@ -632,9 +640,11 @@ public class ConversionPane extends JPanel {
 		public void run() {
 			try {
 				boolean ok;
-				ConversionParameters params=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(demultiplex)
+				ConversionParameters.Builder builder=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(demultiplex)
 						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
-						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity()).build();
+						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity());
+				builder.outputFilePathOverride(resolveOutputOverride(source, input, outputDir, outType, demultiplex));
+				ConversionParameters params=builder.build();
 				if (source==Source.THERMO) {
 					ThermoRawFile rawFile=new ThermoRawFile();
 					rawFile.openFile(input);
@@ -642,6 +652,14 @@ public class ConversionPane extends JPanel {
 						ok=RawFileConverters.writeDemux(pool, rawFile, outputDir, params, this);
 					} else {
 						ok=RawFileConverters.writeStandard(pool, rawFile, outputDir, params, this);
+					}
+				} else if (source==Source.ENCYCLOPEDIA) {
+					EncyclopeDIAFile dia=new EncyclopeDIAFile();
+					dia.openFile(input.toFile());
+					if (demultiplex) {
+						ok=RawFileConverters.writeDemux(pool, dia, outputDir, params, this);
+					} else {
+						ok=RawFileConverters.writeStandard(pool, dia, outputDir, params, this);
 					}
 				} else {
 					if (demultiplex) {
@@ -669,6 +687,36 @@ public class ConversionPane extends JPanel {
 			} finally {
 				queueModel.jobUpdated(this);
 			}
+		}
+
+		private java.nio.file.Path resolveOutputOverride(Source source, Path input, Path outputDir, OutputType outType, boolean demultiplex) {
+			String name=input.getFileName().toString();
+			String lower=name.toLowerCase(java.util.Locale.ROOT);
+			boolean isDiaInput=lower.endsWith(".dia");
+			if (demultiplex&&(source==Source.THERMO||source==Source.ENCYCLOPEDIA)) {
+				String base=stripExtension(name);
+				String suffix;
+				if (outType==OutputType.EncyclopeDIA) {
+					suffix=".demux"+org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile.DIA_EXTENSION;
+				} else if (outType==OutputType.mzML) {
+					suffix=".demux"+org.searlelab.msrawjava.io.MZMLOutputFile.MZML_EXTENSION;
+				} else if (outType==OutputType.mgf) {
+					suffix=".demux"+org.searlelab.msrawjava.io.MGFOutputFile.MGF_EXTENSION;
+				} else {
+					suffix=null;
+				}
+				return (suffix==null)?null:outputDir.resolve(base+suffix);
+			}
+			if (source==Source.ENCYCLOPEDIA&&outType==OutputType.EncyclopeDIA&&isDiaInput) {
+				String base=name.substring(0, name.length()-4);
+				return outputDir.resolve(base+".2"+org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile.DIA_EXTENSION);
+			}
+			return null;
+		}
+
+		private String stripExtension(String name) {
+			int idx=name.lastIndexOf('.');
+			return (idx>0)?name.substring(0, idx):name;
 		}
 
 		// ---- ProgressIndicator ----

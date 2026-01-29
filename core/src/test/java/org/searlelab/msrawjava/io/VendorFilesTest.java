@@ -25,8 +25,10 @@ class VendorFilesTest {
 	void constructorCreatesEmptyLists() {
 		assertNotNull(vendorFiles.getThermoFiles());
 		assertNotNull(vendorFiles.getBrukerDirs());
+		assertNotNull(vendorFiles.getDiaFiles());
 		assertTrue(vendorFiles.getThermoFiles().isEmpty());
 		assertTrue(vendorFiles.getBrukerDirs().isEmpty());
+		assertTrue(vendorFiles.getDiaFiles().isEmpty());
 	}
 
 	@Test
@@ -47,6 +49,18 @@ class VendorFilesTest {
 		assertEquals(1, vendorFiles.getBrukerDirs().size());
 		assertEquals(dDir, vendorFiles.getBrukerDirs().get(0));
 		assertTrue(vendorFiles.getThermoFiles().isEmpty());
+		assertTrue(vendorFiles.getDiaFiles().isEmpty());
+	}
+
+	@Test
+	void addDiaSinglePath() {
+		Path diaFile=Paths.get("/data/sample.dia");
+		vendorFiles.addDia(diaFile);
+
+		assertEquals(1, vendorFiles.getDiaFiles().size());
+		assertEquals(diaFile, vendorFiles.getDiaFiles().get(0));
+		assertTrue(vendorFiles.getThermoFiles().isEmpty());
+		assertTrue(vendorFiles.getBrukerDirs().isEmpty());
 	}
 
 	@Test
@@ -64,6 +78,14 @@ class VendorFilesTest {
 		vendorFiles.addD(Paths.get("/data/sample2.d"));
 
 		assertEquals(2, vendorFiles.getBrukerDirs().size());
+	}
+
+	@Test
+	void addDiaMultiplePaths() {
+		vendorFiles.addDia(Paths.get("/data/sample1.dia"));
+		vendorFiles.addDia(Paths.get("/data/sample2.dia"));
+
+		assertEquals(2, vendorFiles.getDiaFiles().size());
 	}
 
 	@Test
@@ -90,6 +112,18 @@ class VendorFilesTest {
 	}
 
 	@Test
+	void addDiaArrayList() {
+		ArrayList<Path> dias=new ArrayList<>();
+		dias.add(Paths.get("/data/sample1.dia"));
+		dias.add(Paths.get("/data/sample2.dia"));
+		dias.add(Paths.get("/data/sample3.dia"));
+
+		vendorFiles.addDia(dias);
+
+		assertEquals(3, vendorFiles.getDiaFiles().size());
+	}
+
+	@Test
 	void addBothTypesAtOnce() {
 		ArrayList<Path> rawFiles=new ArrayList<>();
 		rawFiles.add(Paths.get("/data/sample1.raw"));
@@ -102,6 +136,7 @@ class VendorFilesTest {
 
 		assertEquals(2, vendorFiles.getThermoFiles().size());
 		assertEquals(1, vendorFiles.getBrukerDirs().size());
+		assertTrue(vendorFiles.getDiaFiles().isEmpty());
 	}
 
 	@Test
@@ -122,6 +157,7 @@ class VendorFilesTest {
 
 		assertEquals(3, vendorFiles.getThermoFiles().size());
 		assertEquals(2, vendorFiles.getBrukerDirs().size());
+		assertTrue(vendorFiles.getDiaFiles().isEmpty());
 	}
 
 	@Test
@@ -129,26 +165,32 @@ class VendorFilesTest {
 		// Verify that getters return the actual internal list (not a copy)
 		ArrayList<Path> thermoList=vendorFiles.getThermoFiles();
 		ArrayList<Path> brukerList=vendorFiles.getBrukerDirs();
+		ArrayList<Path> diaList=vendorFiles.getDiaFiles();
 
 		vendorFiles.addRaw(Paths.get("/data/test.raw"));
 		vendorFiles.addD(Paths.get("/data/test.d"));
+		vendorFiles.addDia(Paths.get("/data/test.dia"));
 
 		// Changes should be visible through original references
 		assertEquals(1, thermoList.size());
 		assertEquals(1, brukerList.size());
+		assertEquals(1, diaList.size());
 
 		// Confirm same instance
 		assertSame(thermoList, vendorFiles.getThermoFiles());
 		assertSame(brukerList, vendorFiles.getBrukerDirs());
+		assertSame(diaList, vendorFiles.getDiaFiles());
 	}
 
 	@Test
 	void addEmptyArrayLists() {
 		vendorFiles.addRaw(new ArrayList<>());
 		vendorFiles.addD(new ArrayList<>());
+		vendorFiles.addDia(new ArrayList<>());
 
 		assertTrue(vendorFiles.getThermoFiles().isEmpty());
 		assertTrue(vendorFiles.getBrukerDirs().isEmpty());
+		assertTrue(vendorFiles.getDiaFiles().isEmpty());
 	}
 
 	@Test
@@ -157,6 +199,7 @@ class VendorFilesTest {
 
 		assertTrue(vendorFiles.getThermoFiles().isEmpty());
 		assertTrue(vendorFiles.getBrukerDirs().isEmpty());
+		assertTrue(vendorFiles.getDiaFiles().isEmpty());
 	}
 
 	@Test
@@ -197,6 +240,7 @@ class VendorFilesTest {
 
 		assertEquals(4, vendorFiles.getThermoFiles().size());
 		assertEquals(3, vendorFiles.getBrukerDirs().size());
+		assertTrue(vendorFiles.getDiaFiles().isEmpty());
 	}
 
 	@Test

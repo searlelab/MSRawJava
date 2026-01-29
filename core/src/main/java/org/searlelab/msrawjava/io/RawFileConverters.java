@@ -115,7 +115,11 @@ public class RawFileConverters {
 				}
 			}
 
-			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
+			Path outputPath=params.getOutputFilePathOverride();
+			if (outputPath==null) {
+				outputPath=params.getOutType().getOutputFilePath(outputDirPath, originalFileName);
+			}
+			outFile.saveAsFile(outputPath.toFile());
 			outFile.close();
 
 			String message="Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.";
@@ -292,7 +296,11 @@ public class RawFileConverters {
 			}
 
 			// Save & close
-			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
+			Path outputPath=params.getOutputFilePathOverride();
+			if (outputPath==null) {
+				outputPath=params.getOutType().getOutputFilePath(outputDirPath, originalFileName);
+			}
+			outFile.saveAsFile(outputPath.toFile());
 			outFile.close();
 
 			String message="Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.";

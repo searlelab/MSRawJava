@@ -12,10 +12,12 @@ import java.util.ArrayList;
 public class VendorFiles {
 	private final ArrayList<Path> rawFiles;
 	private final ArrayList<Path> dDirs;
+	private final ArrayList<Path> diaFiles;
 
 	public VendorFiles() {
 		this.rawFiles=new ArrayList<Path>();
 		this.dDirs=new ArrayList<Path>();
+		this.diaFiles=new ArrayList<Path>();
 	}
 
 	public void addRaw(Path p) {
@@ -26,9 +28,19 @@ public class VendorFiles {
 		dDirs.add(p);
 	}
 
+	public void addDia(Path p) {
+		diaFiles.add(p);
+	}
+
 	public void add(ArrayList<Path> rawFiles, ArrayList<Path> dDirs) {
 		addRaw(rawFiles);
 		addD(dDirs);
+	}
+
+	public void add(ArrayList<Path> rawFiles, ArrayList<Path> dDirs, ArrayList<Path> diaFiles) {
+		addRaw(rawFiles);
+		addD(dDirs);
+		addDia(diaFiles);
 	}
 
 	public void addRaw(ArrayList<Path> p) {
@@ -39,11 +51,19 @@ public class VendorFiles {
 		dDirs.addAll(p);
 	}
 
+	public void addDia(ArrayList<Path> p) {
+		diaFiles.addAll(p);
+	}
+
 	public ArrayList<Path> getBrukerDirs() {
 		return dDirs;
 	}
 
 	public ArrayList<Path> getThermoFiles() {
 		return rawFiles;
+	}
+
+	public ArrayList<Path> getDiaFiles() {
+		return diaFiles;
 	}
 }

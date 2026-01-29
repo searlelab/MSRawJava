@@ -53,6 +53,7 @@ import javax.swing.table.TableRowSorter;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.gui.GUIPreferences;
 import org.searlelab.msrawjava.io.VendorFiles;
+import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.utils.Pair;
@@ -149,16 +150,25 @@ public class DirectorySummaryPanel extends JPanel {
 			thermoRows.add(DirRow.fromThermo(p));
 		}
 		Collections.sort(thermoRows);
+		ArrayList<DirRow> diaRows=new ArrayList<DirRow>();
+		for (Path p : files.getDiaFiles()) {
+			diaRows.add(DirRow.fromDia(p));
+		}
+		Collections.sort(diaRows);
 
-		ArrayList<DirRow> allRows=new ArrayList<DirRow>(brukerRows.size()+thermoRows.size());
+		ArrayList<DirRow> allRows=new ArrayList<DirRow>(brukerRows.size()+thermoRows.size()+diaRows.size());
 		allRows.addAll(brukerRows);
 		allRows.addAll(thermoRows);
+		allRows.addAll(diaRows);
 		Collections.sort(allRows);
 
 		model.addRows(allRows);
 
 		// Stream slow info (gradient + TIC spark) in the background per row, do Bruker first because they are faster
 		for (DirRow row : brukerRows) {
+			pool.submit(() -> computeSlowBits(row));
+		}
+		for (DirRow row : diaRows) {
 			pool.submit(() -> computeSlowBits(row));
 		}
 		for (DirRow row : thermoRows) {
@@ -269,8 +279,28 @@ public class DirectorySummaryPanel extends JPanel {
 
 	private void computeSlowBits(DirRow row) {
 		if (closed) return;
+		Logger.logLine("Working on "+row.fileName);
 		// Per-file fault isolation: if anything fails, we just skip updating that row
-		if (row.vendor==DirRow.Vendor.THERMO) {
+		if (row.vendor==DirRow.Vendor.ENCYCLOPEDIA) {
+			EncyclopeDIAFile dia=null;
+			try {
+				dia=new EncyclopeDIAFile();
+				dia.openFile(row.path.toFile());
+				Pair<float[], float[]> tic=dia.getTICTrace();
+				row.totalTIC=dia.getTIC();
+				row.gradientMin=dia.getGradientLength()/60f;
+				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+				safeRowUpdate(row);
+			} catch (Throwable ignore) {
+				row.spark=FAILED;
+				safeRowUpdate(row);
+			} finally {
+				try {
+					if (dia!=null) dia.close();
+				} catch (Throwable t) {
+				}
+			}
+		} else if (row.vendor==DirRow.Vendor.THERMO) {
 			ThermoRawFile raw=new ThermoRawFile();
 			try {
 				raw.openFile(row.path);
@@ -519,7 +549,7 @@ public class DirectorySummaryPanel extends JPanel {
 	/** Row data for the directory summary. */
 	private static final class DirRow implements Comparable<DirRow> {
 		enum Vendor {
-			THERMO("Thermo"), BRUKER("Bruker");
+			THERMO("Thermo"), BRUKER("Bruker"), ENCYCLOPEDIA("EncyclopeDIA");
 
 			final String label;
 
@@ -567,6 +597,17 @@ public class DirectorySummaryPanel extends JPanel {
 				Logger.errorException(e);
 			}
 			return new DirRow(p, Vendor.THERMO, size, modified);
+		}
+
+		static DirRow fromDia(Path p) {
+			long size=(Files.isRegularFile(p)?p.toFile().length():0L);
+			Date modified=null;
+			try {
+				modified=new Date(Files.getLastModifiedTime(p).toMillis());
+			} catch (IOException e) {
+				Logger.errorException(e);
+			}
+			return new DirRow(p, Vendor.ENCYCLOPEDIA, size, modified);
 		}
 
 		static DirRow fromBruker(Path p) {

@@ -56,6 +56,7 @@ class MainTest {
 		assertTrue(out.contains("Usage:"), "Should print usage");
 		assertTrue(out.contains("--format"), "Should document format flag");
 		assertTrue(out.contains("--demux"), "Should document demux flag");
+		assertTrue(out.contains("--discoverDIAFiles"), "Should document discover DIA flag");
 	}
 
 	@Test
