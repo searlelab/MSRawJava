@@ -8,5 +8,4 @@
 - needs more testing with PASEF-off TIMS files
 
 ## GUI 
-- a way to bring up the loading panels for demos
 - bug where visualization only really works for DIA data and either doesn't see DDA data for Bruker or takes forever to build for Thermo. PRM data for Thermo has problems with the structure charts

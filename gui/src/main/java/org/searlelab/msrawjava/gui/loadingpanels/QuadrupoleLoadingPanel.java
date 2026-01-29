@@ -26,6 +26,7 @@ import java.util.Random;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -36,6 +37,7 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 	private static final long serialVersionUID=1L;
 
 	private final JLabel label=new JLabel("Acquiring…", SwingConstants.CENTER);
+	private final JProgressBar bar=new JProgressBar();
 
 	private final QuadCanvas canvas=new QuadCanvas();
 
@@ -63,6 +65,19 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 		c.fill=GridBagConstraints.HORIZONTAL;
 		c.insets=new Insets(6, 8, 2, 8);
 		add(label, c);
+
+		bar.setIndeterminate(true);
+		c=new GridBagConstraints();
+		c.gridx=0;
+		c.gridy=2;
+		c.weightx=1;
+		c.fill=GridBagConstraints.HORIZONTAL;
+		c.insets=new Insets(2, 32, 8, 32);
+		add(bar, c);
+	}
+
+	public void start() {
+		canvas.start();
 	}
 
 	public void stop() {
@@ -186,6 +201,11 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 			recomputeGeometry();
 			lastNanos=System.nanoTime();
 			if (!anim.isRunning()) anim.start();
+		}
+
+		void start() {
+			lastNanos=System.nanoTime();
+			if (anim!=null&&!anim.isRunning()) anim.start();
 		}
 
 		void stop() {

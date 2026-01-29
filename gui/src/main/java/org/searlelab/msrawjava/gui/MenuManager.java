@@ -15,6 +15,7 @@ import javax.swing.JMenuItem;
 import javax.swing.KeyStroke;
 import javax.swing.filechooser.FileFilter;
 
+import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanelShowcaseDialog;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFiles;
 
@@ -73,9 +74,13 @@ public final class MenuManager {
 		view.add(visualize);
 
 		JMenu help=new JMenu("Help");
-		JMenuItem cite=new JMenuItem("How to cite");
+		JMenuItem cite=new JMenuItem("How to Cite");
 		cite.addActionListener(e -> HowToCiteDialog.showDialog(browser));
+		JMenuItem demos=new JMenuItem("Educational Demos");
+		demos.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+		demos.addActionListener(e -> LoadingPanelShowcaseDialog.showDialog(browser));
 		help.add(cite);
+		help.add(demos);
 
 		bar.add(file);
 		bar.add(view);

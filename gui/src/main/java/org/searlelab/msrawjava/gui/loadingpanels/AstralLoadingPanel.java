@@ -97,6 +97,10 @@ public class AstralLoadingPanel extends LoadingPanel {
 		add(bar, c);
 	}
 
+	public void start() {
+		canvas.start();
+	}
+
 	public void stop() {
 		canvas.stop();
 	}
@@ -180,6 +184,11 @@ public class AstralLoadingPanel extends LoadingPanel {
 
 		void stop() {
 			if (anim!=null) anim.stop();
+		}
+
+		void start() {
+			lastNanos=System.nanoTime();
+			if (anim!=null&&!anim.isRunning()) anim.start();
 		}
 
 		@Override
