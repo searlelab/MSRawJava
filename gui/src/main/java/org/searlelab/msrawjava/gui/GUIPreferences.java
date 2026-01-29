@@ -58,6 +58,7 @@ public final class GUIPreferences {
 	private static final String PREF_DIR_TABLE_SORT_KEYS="rawFileBrowser.table.sortKeys";
 	private static final String PREF_DIR_TABLE_COLUMN_ORDER="rawFileBrowser.table.columnOrder";
 	private static final String PREF_DIR_TABLE_COLUMN_WIDTHS="rawFileBrowser.table.columnWidths";
+	private static final String PREF_DIR_TABLE_VENDOR_FILTER="rawFileBrowser.table.vendorFilter";
 	private static final String PREF_CONVERSION_PANE_SPLIT="conversionPane.split";
 
 	private GUIPreferences() {
@@ -230,6 +231,22 @@ public final class GUIPreferences {
 		}
 		PREFS.put(PREF_DIR_TABLE_COLUMN_WIDTHS, out.toString());
 		logWrite(PREF_DIR_TABLE_COLUMN_WIDTHS, out.toString());
+	}
+
+	public static String getDirectorySummaryVendorFilter() {
+		String value=PREFS.get(PREF_DIR_TABLE_VENDOR_FILTER, "");
+		logRead(PREF_DIR_TABLE_VENDOR_FILTER, value);
+		return value;
+	}
+
+	public static void setDirectorySummaryVendorFilter(String value) {
+		if (value==null||value.isBlank()) {
+			PREFS.remove(PREF_DIR_TABLE_VENDOR_FILTER);
+			logWrite(PREF_DIR_TABLE_VENDOR_FILTER, null);
+			return;
+		}
+		PREFS.put(PREF_DIR_TABLE_VENDOR_FILTER, value);
+		logWrite(PREF_DIR_TABLE_VENDOR_FILTER, value);
 	}
 
 	public static Dimension getRawBrowserWindowSize(int defaultWidth, int defaultHeight) {
@@ -451,6 +468,8 @@ public final class GUIPreferences {
 		logWrite(PREF_DIR_TABLE_COLUMN_ORDER, null);
 		PREFS.remove(PREF_DIR_TABLE_COLUMN_WIDTHS);
 		logWrite(PREF_DIR_TABLE_COLUMN_WIDTHS, null);
+		PREFS.remove(PREF_DIR_TABLE_VENDOR_FILTER);
+		logWrite(PREF_DIR_TABLE_VENDOR_FILTER, null);
 		PREFS.remove(PREF_RAW_BROWSER_WIDTH);
 		logWrite(PREF_RAW_BROWSER_WIDTH, null);
 		PREFS.remove(PREF_RAW_BROWSER_HEIGHT);
@@ -532,6 +551,8 @@ public final class GUIPreferences {
 		logWrite(PREF_DIR_TABLE_COLUMN_ORDER, null);
 		PREFS.remove(PREF_DIR_TABLE_COLUMN_WIDTHS);
 		logWrite(PREF_DIR_TABLE_COLUMN_WIDTHS, null);
+		PREFS.remove(PREF_DIR_TABLE_VENDOR_FILTER);
+		logWrite(PREF_DIR_TABLE_VENDOR_FILTER, null);
 	}
 
 	private static void logRead(String key, Object value) {

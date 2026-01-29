@@ -34,8 +34,12 @@ import javax.swing.AbstractAction;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.DefaultComboBoxModel;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -47,7 +51,9 @@ import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.JSeparator;
 import javax.swing.KeyStroke;
+import javax.swing.UIManager;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ChangeEvent;
@@ -77,6 +83,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final Color SPINNER_BG=new Color(0xE0E0E0);
 	private static final SparkData FAILED=new SparkData(new float[0]);
 	private static final ConcurrentHashMap<Path, SlowBits> SLOW_BITS_CACHE=new ConcurrentHashMap<>();
+	private static final String VENDOR_ALL="All";
 
 	private final JTable table;
 	private final DirSummaryModel model=new DirSummaryModel();
@@ -89,6 +96,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private boolean pendingColumnSave=false;
 	private final JTextField searchField=new JTextField();
 	private final JButton clearButton=new JButton("Clear");
+	private final JComboBox<Object> vendorFilter=new JComboBox<>();
 	private final ProgressSpinner spinner=new ProgressSpinner();
 	private final AtomicInteger slowBitsTotal=new AtomicInteger(0);
 	private final AtomicInteger slowBitsDone=new AtomicInteger(0);
@@ -197,27 +205,36 @@ public class DirectorySummaryPanel extends JPanel {
 		searchBar.setLayout(new BoxLayout(searchBar, BoxLayout.X_AXIS));
 		searchBar.add(Box.createHorizontalStrut(6));
 		searchBar.add(spinner);
-		searchBar.add(Box.createHorizontalStrut(6));
+		searchBar.add(Box.createHorizontalStrut(10));
+		searchBar.add(makeSeparator());
+		searchBar.add(Box.createHorizontalStrut(10));
 		searchBar.add(new JLabel("Search:"));
 		searchBar.add(Box.createHorizontalStrut(6));
 		searchBar.add(searchField);
 		searchBar.add(Box.createHorizontalStrut(6));
 		searchBar.add(clearButton);
+		searchBar.add(Box.createHorizontalStrut(10));
+		searchBar.add(makeSeparator());
+		searchBar.add(Box.createHorizontalStrut(10));
+		searchBar.add(new JLabel("Vendor:"));
+		searchBar.add(Box.createHorizontalStrut(6));
+		initializeVendorFilter();
+		searchBar.add(vendorFilter);
 		searchBar.add(Box.createHorizontalStrut(6));
 		searchField.getDocument().addDocumentListener(new DocumentListener() {
 			@Override
 			public void insertUpdate(DocumentEvent e) {
-				onSearchTextChanged();
+				updateFilters();
 			}
 
 			@Override
 			public void removeUpdate(DocumentEvent e) {
-				onSearchTextChanged();
+				updateFilters();
 			}
 
 			@Override
 			public void changedUpdate(DocumentEvent e) {
-				onSearchTextChanged();
+				updateFilters();
 			}
 		});
 		clearButton.addActionListener(e -> {
@@ -233,26 +250,97 @@ public class DirectorySummaryPanel extends JPanel {
 				clearButton.doClick();
 			}
 		});
+		vendorFilter.addActionListener(e -> {
+			persistVendorFilter();
+			updateFilters();
+		});
+		updateFilters();
 		return searchBar;
 	}
 
-	private void onSearchTextChanged() {
+	private void updateFilters() {
 		String raw=searchField.getText();
 		String text=(raw==null)?"":raw.trim();
-		if (text.isEmpty()) {
+		String needle=text.isEmpty()?null:text.toLowerCase(Locale.ROOT);
+		VendorFile vendorSelection=getSelectedVendor();
+		if (needle==null&&vendorSelection==null) {
 			sorter.setRowFilter(null);
 			return;
 		}
-		String needle=text.toLowerCase(Locale.ROOT);
 		sorter.setRowFilter(new RowFilter<DirSummaryModel, Integer>() {
 			@Override
 			public boolean include(Entry<? extends DirSummaryModel, ? extends Integer> entry) {
 				DirSummaryModel m=entry.getModel();
 				DirRow row=m.getAt(entry.getIdentifier());
-				if (row==null||row.fileNameLower==null) return false;
-				return row.fileNameLower.contains(needle);
+				if (row==null) return false;
+				if (vendorSelection!=null&&row.vendor!=vendorSelection) return false;
+				if (needle==null) return true;
+				return row.fileNameLower!=null&&row.fileNameLower.contains(needle);
 			}
 		});
+	}
+
+	private void initializeVendorFilter() {
+		DefaultComboBoxModel<Object> model=new DefaultComboBoxModel<>();
+		model.addElement(VENDOR_ALL);
+		for (VendorFile vendor : VendorFile.values()) {
+			model.addElement(vendor);
+		}
+		vendorFilter.setModel(model);
+		vendorFilter.setRenderer(new DefaultListCellRenderer() {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+				super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+				if (value instanceof VendorFile vendor) {
+					setText(vendor.getDisplayName());
+				}
+				return this;
+			}
+		});
+		String saved=GUIPreferences.getDirectorySummaryVendorFilter();
+		if (saved!=null&&!saved.isBlank()) {
+			if (VENDOR_ALL.equals(saved)) {
+				vendorFilter.setSelectedItem(VENDOR_ALL);
+			} else {
+				try {
+					VendorFile vendor=VendorFile.valueOf(saved);
+					vendorFilter.setSelectedItem(vendor);
+				} catch (IllegalArgumentException ignore) {
+					vendorFilter.setSelectedItem(VENDOR_ALL);
+				}
+			}
+		} else {
+			vendorFilter.setSelectedItem(VENDOR_ALL);
+		}
+	}
+
+	private VendorFile getSelectedVendor() {
+		Object selection=vendorFilter.getSelectedItem();
+		if (selection instanceof VendorFile vendor) return vendor;
+		return null;
+	}
+
+	private void persistVendorFilter() {
+		Object selection=vendorFilter.getSelectedItem();
+		if (selection instanceof VendorFile vendor) {
+			GUIPreferences.setDirectorySummaryVendorFilter(vendor.name());
+		} else {
+			GUIPreferences.setDirectorySummaryVendorFilter(VENDOR_ALL);
+		}
+	}
+
+	private static JSeparator makeSeparator() {
+		JSeparator sep=new JSeparator(SwingConstants.VERTICAL);
+		Color line=UIManager.getColor("MenuBar.separatorColor");
+		if (line==null) line=UIManager.getColor("Separator.foreground");
+		if (line==null) line=new Color(0xD0D0D0);
+		sep.setForeground(line);
+		sep.setBackground(line);
+		sep.setMaximumSize(new Dimension(2, 18));
+		sep.setPreferredSize(new Dimension(2, 18));
+		return sep;
 	}
 
 	private void initializeSlowBitsProgress(List<DirRow> rows) {

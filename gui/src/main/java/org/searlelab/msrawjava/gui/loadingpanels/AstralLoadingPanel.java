@@ -341,19 +341,19 @@ public class AstralLoadingPanel extends LoadingPanel {
 			// Draw plates as thick bands (the "asymmetric plates")
 			Stroke plateStroke=new BasicStroke(9.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
 			g2.setStroke(plateStroke);
-			g2.setColor(Color.DARK_GRAY);
+			g2.setColor(Color.GRAY);
 			g2.draw(topPlate);
 			g2.draw(botPlate);
 
 			// Inner curves as thin lines
 			g2.setStroke(new BasicStroke(2.0f));
-			g2.setColor(Color.DARK_GRAY);
+			g2.setColor(Color.GRAY);
 			g2.draw(innerTop);
 			g2.draw(innerBot);
 
 			// Hatch-like shaded regions (very light)
 			g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.10f));
-			g2.setColor(Color.DARK_GRAY);
+			g2.setColor(Color.GRAY);
 			Shape hatchedTop=makeHatchRegion(topPlate, innerTop, true);
 			Shape hatchedBot=makeHatchRegion(botPlate, innerBot, false);
 			if (hatchedTop!=null) g2.fill(hatchedTop);
