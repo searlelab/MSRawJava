@@ -9,6 +9,7 @@ import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.Rectangle;
+import java.awt.Dimension;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,13 +22,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -64,7 +69,10 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final long serialVersionUID=1L;
 
 	private static final int sparkResolution=128;
+	private static final Color COLOR_FILL=new Color(0x5555ED);
+	private static final Color SPINNER_BG=new Color(0xE0E0E0);
 	private static final SparkData FAILED=new SparkData(new float[0]);
+	private static final ConcurrentHashMap<Path, SlowBits> SLOW_BITS_CACHE=new ConcurrentHashMap<>();
 
 	private final JTable table;
 	private final DirSummaryModel model=new DirSummaryModel();
@@ -77,6 +85,9 @@ public class DirectorySummaryPanel extends JPanel {
 	private boolean pendingColumnSave=false;
 	private final JTextField searchField=new JTextField();
 	private final JButton clearButton=new JButton("Clear");
+	private final ProgressSpinner spinner=new ProgressSpinner();
+	private final AtomicInteger slowBitsTotal=new AtomicInteger(0);
+	private final AtomicInteger slowBitsDone=new AtomicInteger(0);
 
 	public DirectorySummaryPanel(VendorFiles files) {
 		super(new BorderLayout());
@@ -163,22 +174,25 @@ public class DirectorySummaryPanel extends JPanel {
 		Collections.sort(allRows);
 
 		model.addRows(allRows);
+		initializeSlowBitsProgress(allRows);
 
 		// Stream slow info (gradient + TIC spark) in the background per row, do Bruker first because they are faster
 		for (DirRow row : brukerRows) {
-			pool.submit(() -> computeSlowBits(row));
+			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
 		}
 		for (DirRow row : diaRows) {
-			pool.submit(() -> computeSlowBits(row));
+			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
 		}
 		for (DirRow row : thermoRows) {
-			pool.submit(() -> computeSlowBits(row));
+			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
 		}
 	}
 
 	private JPanel buildSearchBar() {
 		JPanel searchBar=new JPanel();
 		searchBar.setLayout(new BoxLayout(searchBar, BoxLayout.X_AXIS));
+		searchBar.add(Box.createHorizontalStrut(6));
+		searchBar.add(spinner);
 		searchBar.add(Box.createHorizontalStrut(6));
 		searchBar.add(new JLabel("Search:"));
 		searchBar.add(Box.createHorizontalStrut(6));
@@ -226,6 +240,29 @@ public class DirectorySummaryPanel extends JPanel {
 				return row.fileNameLower.contains(needle);
 			}
 		});
+	}
+
+	private void initializeSlowBitsProgress(List<DirRow> rows) {
+		int total=rows==null?0:rows.size();
+		slowBitsTotal.set(Math.max(0, total));
+		slowBitsDone.set(0);
+
+		if (rows!=null) {
+			for (DirRow row : rows) {
+				if (row==null||row.path==null) continue;
+				SlowBits cached=SLOW_BITS_CACHE.get(row.path);
+				if (cached!=null) {
+					row.applySlowBits(cached);
+					markSlowBitsDone(row);
+				}
+			}
+		}
+	}
+
+	private void markSlowBitsDone(DirRow row) {
+		if (row==null||!row.markSlowBitsReady()) return;
+		slowBitsDone.incrementAndGet();
+		SwingUtilities.invokeLater(spinner::repaint);
 	}
 
 	public JTable getTable() {
@@ -281,6 +318,13 @@ public class DirectorySummaryPanel extends JPanel {
 		if (closed) return;
 		Logger.logLine("Working on "+row.fileName);
 		// Per-file fault isolation: if anything fails, we just skip updating that row
+		SlowBits cached=SLOW_BITS_CACHE.get(row.path);
+		if (cached!=null) {
+			row.applySlowBits(cached);
+			markSlowBitsDone(row);
+			safeRowUpdate(row);
+			return;
+		}
 		if (row.vendor==DirRow.Vendor.ENCYCLOPEDIA) {
 			EncyclopeDIAFile dia=null;
 			try {
@@ -290,9 +334,12 @@ public class DirectorySummaryPanel extends JPanel {
 				row.totalTIC=dia.getTIC();
 				row.gradientMin=dia.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
+				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
 				row.spark=FAILED;
+				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} finally {
 				try {
@@ -308,9 +355,12 @@ public class DirectorySummaryPanel extends JPanel {
 				row.totalTIC=raw.getTIC();
 				row.gradientMin=raw.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
+				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
 				row.spark=FAILED;
+				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} finally {
 				try {
@@ -326,9 +376,12 @@ public class DirectorySummaryPanel extends JPanel {
 				row.totalTIC=raw.getTIC();
 				row.gradientMin=raw.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
+				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
 				row.spark=FAILED;
+				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} finally {
 				try {
@@ -568,6 +621,7 @@ public class DirectorySummaryPanel extends JPanel {
 		volatile Float gradientMin; // null until computed
 		volatile Float totalTIC; // null until computed
 		volatile SparkData spark; // null until computed
+		private final AtomicBoolean slowBitsReady=new AtomicBoolean(false);
 
 		private DirRow(Path p, Vendor v, long size, Date lastModified) {
 			this.path=p;
@@ -599,6 +653,25 @@ public class DirectorySummaryPanel extends JPanel {
 			return new DirRow(p, Vendor.THERMO, size, modified);
 		}
 
+		SlowBits toSlowBits() {
+			return new SlowBits(gradientMin, totalTIC, spark);
+		}
+
+		void applySlowBits(SlowBits bits) {
+			if (bits==null) return;
+			this.gradientMin=bits.gradientMin;
+			this.totalTIC=bits.totalTIC;
+			this.spark=bits.spark;
+		}
+
+		boolean markSlowBitsReady() {
+			return slowBitsReady.compareAndSet(false, true);
+		}
+
+		boolean isSlowBitsReady() {
+			return slowBitsReady.get();
+		}
+
 		static DirRow fromDia(Path p) {
 			long size=(Files.isRegularFile(p)?p.toFile().length():0L);
 			Date modified=null;
@@ -628,6 +701,59 @@ public class DirectorySummaryPanel extends JPanel {
 				size=0;
 			}
 			return new DirRow(p, Vendor.BRUKER, size, modified);
+		}
+	}
+
+	private static final class SlowBits {
+		private final Float gradientMin;
+		private final Float totalTIC;
+		private final SparkData spark;
+
+		private SlowBits(Float gradientMin, Float totalTIC, SparkData spark) {
+			this.gradientMin=gradientMin;
+			this.totalTIC=totalTIC;
+			this.spark=spark;
+		}
+	}
+
+	private final class ProgressSpinner extends JComponent {
+		private static final long serialVersionUID=1L;
+		private static final int SIZE=16;
+		private static final int STROKE=3;
+
+		private ProgressSpinner() {
+			setPreferredSize(new Dimension(SIZE, SIZE));
+			setMinimumSize(new Dimension(SIZE, SIZE));
+			setMaximumSize(new Dimension(SIZE, SIZE));
+			setOpaque(false);
+		}
+
+		@Override
+		protected void paintComponent(Graphics g) {
+			Graphics2D g2=(Graphics2D)g.create();
+			try {
+				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+				int w=getWidth();
+				int h=getHeight();
+				int d=Math.min(w, h)-2;
+				int x=(w-d)/2;
+				int y=(h-d)/2;
+
+				g2.setColor(SPINNER_BG);
+				g2.setStroke(new java.awt.BasicStroke(STROKE, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+				g2.drawOval(x, y, d, d);
+
+				float total=slowBitsTotal.get();
+				float done=slowBitsDone.get();
+				float pct=(total<=0f)?1f:Math.max(0f, Math.min(1f, done/total));
+				int arc=(int)Math.round(360.0*pct);
+				if (arc>0) {
+					g2.setColor(COLOR_FILL);
+					g2.drawArc(x, y, d, d, 90, -arc);
+				}
+			} finally {
+				g2.dispose();
+			}
 		}
 	}
 
@@ -699,7 +825,6 @@ public class DirectorySummaryPanel extends JPanel {
 	/** Sparkline renderer: red area under curve, no labels, striped background. */
 	private static final class SparkRenderer extends StripeTableCellRenderer {
 		private static final long serialVersionUID=1L;
-		private static final Color RED_FILL=new Color(0xC62828);
 		private static final int PAD=2;
 		private static int loadingPhase=0;
 
@@ -784,7 +909,7 @@ public class DirectorySummaryPanel extends JPanel {
 				ys[n+1]=oy+h;
 
 				g2.setComposite(AlphaComposite.SrcOver.derive(0.85f));
-				g2.setColor(RED_FILL);
+				g2.setColor(COLOR_FILL);
 				g2.fillPolygon(xs, ys, n+2);
 			} finally {
 				g2.dispose();
