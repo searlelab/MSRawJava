@@ -10,6 +10,7 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.Rectangle;
 import java.awt.Dimension;
+import java.awt.event.KeyEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.swing.AbstractAction;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -45,6 +47,7 @@ import javax.swing.SortOrder;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.KeyStroke;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ChangeEvent;
@@ -219,6 +222,15 @@ public class DirectorySummaryPanel extends JPanel {
 		clearButton.addActionListener(e -> {
 			searchField.setText("");
 			searchField.requestFocusInWindow();
+		});
+		searchField.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "clearSearch");
+		searchField.getActionMap().put("clearSearch", new AbstractAction() {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				clearButton.doClick();
+			}
 		});
 		return searchBar;
 	}

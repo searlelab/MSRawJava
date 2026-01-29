@@ -106,7 +106,6 @@ public final class StructureChartBuilder {
 				}
 			}
 		}
-		System.out.println(traces.size());
 
 		return BasicChartGenerator.getChart("m/z", "Retention Time (sec)", false, traces.toArray(new XYTraceInterface[0]));
 	}
