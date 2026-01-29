@@ -77,8 +77,8 @@ public class DirectorySummaryPanel extends JPanel {
 	private final JTable table;
 	private final DirSummaryModel model=new DirSummaryModel();
 	private final TableRowSorter<DirSummaryModel> sorter;
-	// A tiny pool so we don’t thrash the disk; adjust if you want more parallelism.
-	private final ExecutorService pool=Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors()/2);
+	// Use a wider pool to speed up slow-bit extraction on large directories.
+	private final ExecutorService pool=Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors()-2));
 	private final Timer loadingTimer;
 	private volatile boolean closed=false;
 	private boolean applyingSavedLayout=false;
@@ -316,7 +316,6 @@ public class DirectorySummaryPanel extends JPanel {
 
 	private void computeSlowBits(DirRow row) {
 		if (closed) return;
-		Logger.logLine("Working on "+row.fileName);
 		// Per-file fault isolation: if anything fails, we just skip updating that row
 		SlowBits cached=SLOW_BITS_CACHE.get(row.path);
 		if (cached!=null) {

@@ -70,6 +70,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	public static final String DIA_EXTENSION=".dia";
 	private File tempFile;
 	private File userFile;
+	private boolean readOnly=false;
 
 	private final HashMap<Range, WindowData> ranges=new HashMap<Range, WindowData>();
 
@@ -179,6 +180,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	}
 
 	public void openFile() throws IOException, SQLException {
+		userFile=null;
+		readOnly=false;
 		if (tempFile==null) {
 			tempFile=File.createTempFile("encyclopedia_", DIA_EXTENSION);
 			tempFile.deleteOnExit();
@@ -189,9 +192,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	@Override
 	public void openFile(File userFile) throws IOException, SQLException {
 		this.userFile=userFile;
-		tempFile=File.createTempFile("encyclopedia_", DIA_EXTENSION);
-		Files.copy(userFile.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-		tempFile.deleteOnExit();
+		this.tempFile=null;
+		this.readOnly=true;
 
 		getMetadata();
 		loadRanges();
@@ -561,7 +563,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public boolean isOpen() {
-		return tempFile.exists();
+		File f=(tempFile!=null)?tempFile:userFile;
+		return f!=null&&f.exists();
 	}
 
 	@Override
@@ -581,6 +584,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public void saveAsFile(File saveFile) throws IOException, SQLException {
+		ensureWritableTempFile();
 		HashMap<String, String> map=new HashMap<String, String>();
 		map.put(FILENAME_ATTRIBUTE, saveFile.getName()==null?UNKNOWN_VALUE:saveFile.getName());
 		addMetadata(map);
@@ -591,8 +595,12 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 		if (saveFile!=null) {
 			setFileVersion();
-
-			Files.copy(tempFile.toPath(), saveFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			File source=(tempFile!=null)?tempFile:userFile;
+			if (source!=null&&source.toPath().equals(saveFile.toPath())) {
+				Logger.errorLine("Refusing to overwrite source DIA file: "+saveFile.getAbsolutePath());
+				return;
+			}
+			Files.move(tempFile.toPath(), saveFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
 		}
 	}
 
@@ -641,6 +649,10 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public void addMetadata(Map<String, String> data) throws IOException, SQLException {
+		if (readOnly) {
+			Logger.errorLine("Skipping metadata write in read-only mode.");
+			return;
+		}
 		Connection c=getConnection();
 		try {
 			PreparedStatement prep=c.prepareStatement("insert or replace into metadata (Key, Value) VALUES (?,?)");
@@ -720,7 +732,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	}
 
 	public Connection getConnection() throws IOException, SQLException {
-		return getConnection(tempFile);
+		if (tempFile!=null) return getConnection(tempFile);
+		return getConnection(userFile, true);
 	}
 
 	/**
@@ -911,5 +924,16 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		if (tempFile!=null&&tempFile.exists()&&!tempFile.delete()) {
 			Logger.errorLine("Error deleting temp DIA file!");
 		}
+	}
+
+	private void ensureWritableTempFile() throws IOException, SQLException {
+		if (tempFile!=null) return;
+		if (userFile==null) {
+			throw new IOException("No source file available for save.");
+		}
+		tempFile=File.createTempFile("encyclopedia_", DIA_EXTENSION);
+		Files.copy(userFile.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+		tempFile.deleteOnExit();
+		readOnly=false;
 	}
 }

@@ -19,10 +19,16 @@ public abstract class SQLFile {
 	public static final String VERSION_STRING="version";
 
 	public Connection getConnection(File f) throws IOException {
+		return getConnection(f, false);
+	}
+
+	public Connection getConnection(File f, boolean readOnly) throws IOException {
 		Connection c=null;
 		try {
 			Class.forName("org.sqlite.JDBC");
-			c=DriverManager.getConnection("jdbc:sqlite:"+f.getAbsolutePath());
+			String path=f.getAbsolutePath();
+			String url=readOnly?("jdbc:sqlite:file:"+path+"?mode=ro"):"jdbc:sqlite:"+path;
+			c=DriverManager.getConnection(url);
 			c.setAutoCommit(false);
 			return c;
 		} catch (Exception e) {
