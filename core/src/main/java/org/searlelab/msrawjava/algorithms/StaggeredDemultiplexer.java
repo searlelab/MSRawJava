@@ -233,8 +233,8 @@ public class StaggeredDemultiplexer {
 
 		if (PROFILE) {
 			long totalNanos=System.nanoTime()-totalStart;
-			Logger.logLine(String.format(Locale.ROOT, "Demux timing: total=%.3f s, interpolate=%.3f s, nnls=%.3f s",
-					totalNanos/1e9, interpolateNanos/1e9, nnlsNanos/1e9));
+			Logger.logLine(String.format(Locale.ROOT, "Demux timing: total=%.3f s, interpolate=%.3f s, nnls=%.3f s", totalNanos/1e9, interpolateNanos/1e9,
+					nnlsNanos/1e9));
 		}
 
 		demuxResults.sort((a, b) -> {

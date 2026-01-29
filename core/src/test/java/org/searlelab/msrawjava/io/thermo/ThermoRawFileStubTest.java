@@ -259,10 +259,10 @@ class ThermoRawFileStubTest {
 			}
 			if (name.endsWith("/GetRanges")) {
 				RangesReply reply=RangesReply.newBuilder()
-						.addWindows(WindowRange.newBuilder().setLo(400.0).setHi(401.0).setAverageDutyCycleSeconds(0.1).setNumberOfMsms(2).setRtStartSeconds(10.0)
-								.setRtEndSeconds(20.0))
-						.addWindows(WindowRange.newBuilder().setLo(401.0).setHi(402.0).setAverageDutyCycleSeconds(0.2).setNumberOfMsms(3).setRtStartSeconds(15.0)
-								.setRtEndSeconds(25.0))
+						.addWindows(WindowRange.newBuilder().setLo(400.0).setHi(401.0).setAverageDutyCycleSeconds(0.1).setNumberOfMsms(2)
+								.setRtStartSeconds(10.0).setRtEndSeconds(20.0))
+						.addWindows(WindowRange.newBuilder().setLo(401.0).setHi(402.0).setAverageDutyCycleSeconds(0.2).setNumberOfMsms(3)
+								.setRtStartSeconds(15.0).setRtEndSeconds(25.0))
 						.build();
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}

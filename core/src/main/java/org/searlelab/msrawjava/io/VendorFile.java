@@ -11,9 +11,7 @@ import java.util.Optional;
  * and extension helpers across the core and GUI.
  */
 public enum VendorFile {
-	THERMO("Thermo", ".raw", false),
-	BRUKER("Bruker", ".d", true),
-	ENCYCLOPEDIA("EncyclopeDIA", ".dia", false);
+	THERMO("Thermo", ".raw", false), BRUKER("Bruker", ".d", true), ENCYCLOPEDIA("EncyclopeDIA", ".dia", false);
 
 	private final String vendorName;
 	private final String extension;

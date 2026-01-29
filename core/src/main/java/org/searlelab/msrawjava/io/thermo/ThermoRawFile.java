@@ -137,7 +137,7 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		for (WindowRange w : resp.getWindowsList()) {
 			Range key=new Range(w.getLo(), w.getHi());
 			Optional<Range> rtRange=Optional.empty();
-			if (w.getRtEndSeconds()>0 || w.getRtStartSeconds()>0) {
+			if (w.getRtEndSeconds()>0||w.getRtStartSeconds()>0) {
 				rtRange=Optional.of(new Range(w.getRtStartSeconds(), w.getRtEndSeconds()));
 			}
 			WindowData val=new WindowData((float)w.getAverageDutyCycleSeconds(), w.getNumberOfMsms(), Optional.empty(), rtRange);

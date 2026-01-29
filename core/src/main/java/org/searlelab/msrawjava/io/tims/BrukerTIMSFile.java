@@ -256,10 +256,9 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			}
 			// Aggregate per window to get RT span and counts
 			String sql="SELECT W.IsolationMz, W.IsolationWidth, MIN(F.Time) AS RtStart, MAX(F.Time) AS RtStop, COUNT(*) AS NumFrames, "
-					+"MIN(W.ScanNumBegin) AS ScanNumBegin, MAX(W.ScanNumEnd) AS ScanNumEnd "
-					+"FROM Frames F JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
-					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
-					+"WHERE F.MsMsType = "+ms2Key+" GROUP BY W.IsolationMz, W.IsolationWidth ORDER BY W.IsolationMz ASC";
+					+"MIN(W.ScanNumBegin) AS ScanNumBegin, MAX(W.ScanNumEnd) AS ScanNumEnd "+"FROM Frames F JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "
+					+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "+"WHERE F.MsMsType = "+ms2Key
+					+" GROUP BY W.IsolationMz, W.IsolationWidth ORDER BY W.IsolationMz ASC";
 
 			Map<Range, WindowData> out=new LinkedHashMap<>();
 			try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
@@ -945,8 +944,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			String ms2Sql="SELECT I.frame, F.Time, F.AccumulationTime, I.IsolationMz, I.IsolationWidth, "
 					+"COALESCE(P.MonoisotopicMz, P.largestPeakMz, I.IsolationMz) AS targetMz, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor "
 					+"FROM PasefFrameMsMsInfo I, Frames F, Precursors P "
-					+"WHERE I.frame = F.Id AND I.Precursor = P.Id AND F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "
-					+"ORDER BY F.Time ASC, I.IsolationMz ASC";
+					+"WHERE I.frame = F.Id AND I.Precursor = P.Id AND F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "+"ORDER BY F.Time ASC, I.IsolationMz ASC";
 			try (PreparedStatement ps=conn.prepareStatement(ms2Sql)) {
 				ps.setDouble(1, rtStart);
 				ps.setDouble(2, rtEnd);

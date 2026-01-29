@@ -77,7 +77,7 @@ public class FileDetailsDialog {
 		String loadingText="Scanning "+f.getName();
 		final LoadingPanel[] loadingPanels=new LoadingPanel[] {new FTICRLoadingPanel(loadingText), new TOFLoadingPanel(loadingText),
 				new QuadrupoleLoadingPanel(loadingText), new AstralLoadingPanel(loadingText)};
-		
+
 		final LoadingPanel loading=loadingPanels[(int)(Math.random()*loadingPanels.length)];
 
 		Dimension loadingSize=new Dimension(900, 350);

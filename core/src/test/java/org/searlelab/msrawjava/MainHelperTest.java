@@ -34,10 +34,7 @@ class MainHelperTest {
 		Method method=Main.class.getDeclaredMethod("maybeOverrideOutput", ConversionParameters.class, Path.class, Path.class, VendorFile.class);
 		method.setAccessible(true);
 
-		ConversionParameters base=ConversionParameters.builder()
-				.outType(OutputType.mzML)
-				.demultiplex(true)
-				.build();
+		ConversionParameters base=ConversionParameters.builder().outType(OutputType.mzML).demultiplex(true).build();
 
 		Path input=Path.of("/data/run.raw");
 		Path output=Path.of("/out");
@@ -60,11 +57,7 @@ class MainHelperTest {
 		method.setAccessible(true);
 
 		Path override=Path.of("/out/custom.mzML");
-		ConversionParameters base=ConversionParameters.builder()
-				.outType(OutputType.mzML)
-				.demultiplex(true)
-				.outputFilePathOverride(override)
-				.build();
+		ConversionParameters base=ConversionParameters.builder().outType(OutputType.mzML).demultiplex(true).outputFilePathOverride(override).build();
 
 		ConversionParameters updated=(ConversionParameters)method.invoke(null, base, Path.of("/data/run.raw"), Path.of("/out"), VendorFile.THERMO);
 		assertSame(base, updated);
@@ -76,11 +69,7 @@ class MainHelperTest {
 		Method method=Main.class.getDeclaredMethod("maybeOverrideOutput", ConversionParameters.class, Path.class, Path.class, VendorFile.class);
 		method.setAccessible(true);
 
-		ConversionParameters base=ConversionParameters.builder()
-				.outType(OutputType.EncyclopeDIA)
-				.demultiplex(false)
-				.outputDirPath(null)
-				.build();
+		ConversionParameters base=ConversionParameters.builder().outType(OutputType.EncyclopeDIA).demultiplex(false).outputDirPath(null).build();
 
 		Path input=Path.of("/data/sample.dia");
 		Path output=Path.of("/out");

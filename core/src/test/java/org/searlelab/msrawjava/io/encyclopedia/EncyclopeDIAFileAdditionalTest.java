@@ -49,8 +49,7 @@ class EncyclopeDIAFileAdditionalTest {
 		dia.addMetadata("Instrument", null);
 
 		ArrayList<PrecursorScan> ms1s=new ArrayList<>();
-		ms1s.add(new PrecursorScan("ms1", 1, 12.0f, 1, 100.0, 900.0, 5.0f, new double[] {100.0, 200.0}, new float[] {10.0f, 20.0f},
-				new float[] {1.1f, 1.2f}));
+		ms1s.add(new PrecursorScan("ms1", 1, 12.0f, 1, 100.0, 900.0, 5.0f, new double[] {100.0, 200.0}, new float[] {10.0f, 20.0f}, new float[] {1.1f, 1.2f}));
 
 		ArrayList<FragmentScan> ms2s=new ArrayList<>();
 		ms2s.add(new FragmentScan("ms2", "prec", 2, 450.0, 13.0f, 2, 4.0f, 400.0, 500.0, new double[] {150.0, 250.0}, new float[] {5.0f, 8.0f},
@@ -150,8 +149,7 @@ class EncyclopeDIAFileAdditionalTest {
 		ms1s.add(new PrecursorScan("ms1", 1, 5.0f, 0, 100.0, 900.0, null, new double[] {100.0}, new float[] {10.0f}, null));
 
 		ArrayList<FragmentScan> ms2s=new ArrayList<>();
-		ms2s.add(new FragmentScan("ms2", "prec", 2, 450.0, 6.0f, 0, null, 400.0, 500.0, new double[] {450.0}, new float[] {5.0f}, null,
-				(byte)2, 0.0, 2000.0));
+		ms2s.add(new FragmentScan("ms2", "prec", 2, 450.0, 6.0f, 0, null, 400.0, 500.0, new double[] {450.0}, new float[] {5.0f}, null, (byte)2, 0.0, 2000.0));
 
 		dia.addSpectra(ms1s, ms2s);
 

@@ -136,4 +136,55 @@ class MzCalibrationPolyTest {
 		}
 	}
 
+	@Test
+	void mzToTof_linearBranch_clampsAndHandlesNegatives() {
+		MzCalibrationParams p=new MzCalibrationParams(1.0, // timebaseNsPerSample
+				0.0, // delaySamples
+				25.0, // T1
+				27.0, // T2
+				0.0, // dC1
+				0.0, // dC2
+				0.0, // C0
+				1.0e12, // C1 -> b = 1
+				0.0, // C2 -> a = 0 (linear branch)
+				0.0, 0.0);
+		int digitizer=5;
+		MzCalibrationPoly cal=new MzCalibrationPoly(digitizer, 0.0, 0.0, p);
+
+		assertEquals(3, cal.mzToTof(new double[] {9.0}, p.T1)[0], "sqrt(9) should map to index 3");
+		assertEquals(0, cal.mzToTof(new double[] {-5.0}, p.T1)[0], "negative m/z should clamp to 0");
+		assertEquals(digitizer, cal.mzToTof(new double[] {100.0}, p.T1)[0], "large m/z should clamp to max index");
+	}
+
+	@Test
+	void mzToTof_quadraticBranch_usesQuarticMapping() {
+		MzCalibrationParams p=new MzCalibrationParams(1.0, // timebaseNsPerSample
+				0.0, // delaySamples
+				25.0, // T1
+				27.0, // T2
+				0.0, // dC1
+				0.0, // dC2
+				0.0, // C0
+				0.0, // C1 -> b = 0
+				1.0e24, // C2 -> a = 1
+				0.0, 0.0);
+		MzCalibrationPoly cal=new MzCalibrationPoly(100, 0.0, 0.0, p);
+
+		int idx=cal.mzToTof(new double[] {16.0}, p.T1)[0];
+		assertEquals(2, idx, "m=16 => inner=m^(1/4)=2 with quartic mapping");
+	}
+
+	@Test
+	void uncorrectedMzToMz_matchesLinearTofRoundTrip() {
+		MzCalibrationParams p=params();
+		MzCalibrationPoly cal=new MzCalibrationPoly(DIGITIZER_NUM_SAMPLES, MZ_LOWER, MZ_UPPER, p);
+		MzCalibrationLinear linear=cal.getLinear();
+
+		double[] mzs=new double[] {150.0, 500.5, 999.9};
+		int[] tof=linear.mzToTof(mzs, p.T1);
+		double[] expected=cal.tofToMz(tof, p.T1);
+		double[] actual=cal.uncorrectedMzToMz(mzs, p.T1);
+
+		assertArrayEquals(expected, actual, 1e-9);
+	}
 }

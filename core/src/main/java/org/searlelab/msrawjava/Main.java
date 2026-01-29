@@ -71,25 +71,25 @@ public class Main {
 				ThermoServerPool.port();
 
 				for (Path path : files.getThermoFiles()) {
-				Logger.logLine("Processing "+VendorFile.THERMO.getDisplayName()+" "+path);
+					Logger.logLine("Processing "+VendorFile.THERMO.getDisplayName()+" "+path);
 
-				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
-				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
+					Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
+					Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
 
-				ThermoRawFile rawFile=new ThermoRawFile();
-				rawFile.openFile(path);
+					ThermoRawFile rawFile=new ThermoRawFile();
+					rawFile.openFile(path);
 
-				ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, VendorFile.THERMO);
-				indicator=createIndicator(fileParams);
-				try {
-					if (fileParams.isDemultiplex()) {
-						RawFileConverters.writeDemux(pool, rawFile, outputPath, fileParams, indicator);
-					} else {
-						RawFileConverters.writeStandard(pool, rawFile, outputPath, fileParams, indicator);
+					ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, VendorFile.THERMO);
+					indicator=createIndicator(fileParams);
+					try {
+						if (fileParams.isDemultiplex()) {
+							RawFileConverters.writeDemux(pool, rawFile, outputPath, fileParams, indicator);
+						} else {
+							RawFileConverters.writeStandard(pool, rawFile, outputPath, fileParams, indicator);
+						}
+					} finally {
+						indicator.close();
 					}
-				} finally {
-					indicator.close();
-				}
 					Logger.logLine("Finished writing "+params.getOutType()+" file");
 				}
 
@@ -107,7 +107,8 @@ public class Main {
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
 
 				if (params.isDemultiplex()) {
-					Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()+" files. Processing without demultiplexing.");
+					Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()
+							+" files. Processing without demultiplexing.");
 				}
 				indicator=createIndicator(params);
 				try {

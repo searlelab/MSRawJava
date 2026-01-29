@@ -1,9 +1,5 @@
 # STYLE NOTES
 
-## Scope and exclusions
-- Included: `core/src/main/java/**` and `gui/src/main/java/**`
-- Excluded: `**/src/test/java/**`, `**/test/**`, `**/tests/**`, `**/generated/**`, `**/build/**`, `**/target/**`, and any files marked `@Generated` (none found)
-
 ## CORE house style summary
 - Tabs for indentation; K&R brace style.
 - Compact spacing around operators (e.g., `a=b`, `if (x==y)`), minimal whitespace.

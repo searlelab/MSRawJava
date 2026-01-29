@@ -98,8 +98,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	public void writeRanges() throws IOException, SQLException {
 		Connection c=getConnection();
 		try {
-			PreparedStatement prep=c
-					.prepareStatement("insert into ranges (Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop, RtStart, RtStop) VALUES (?,?,?,?,?,?,?,?)");
+			PreparedStatement prep=c.prepareStatement(
+					"insert into ranges (Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop, RtStart, RtStop) VALUES (?,?,?,?,?,?,?,?)");
 			try {
 				int rangeCount=0;
 				for (Entry<Range, WindowData> entry : ranges.entrySet()) {
@@ -209,8 +209,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 			try {
 				boolean hasRtStart=doesColumnExist(c, "ranges", "RtStart");
 				boolean hasRtStop=doesColumnExist(c, "ranges", "RtStop");
-				String sql=hasRtStart&&hasRtStop
-						?"select Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop, RtStart, RtStop from Ranges"
+				String sql=hasRtStart&&hasRtStop?"select Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop, RtStart, RtStop from Ranges"
 						:"select Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop from Ranges";
 				ResultSet rs=s.executeQuery(sql);
 
@@ -868,11 +867,12 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				} else {
 					scanWindowSelect=", IsolationWindowLower as ScanWindowLower, IsolationWindowUpper as ScanWindowUpper";
 				}
-				String isolationCenterSelect=hasIsolationCenter?", IsolationWindowCenter":", (IsolationWindowLower+IsolationWindowUpper)/2.0 as IsolationWindowCenter";
+				String isolationCenterSelect=hasIsolationCenter?", IsolationWindowCenter"
+						:", (IsolationWindowLower+IsolationWindowUpper)/2.0 as IsolationWindowCenter";
 
 				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper"
-						+isolationCenterSelect+", PrecursorCharge"+scanWindowSelect+" from spectra "+"where ScanStartTime>="+minRT
-						+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
+						+isolationCenterSelect+", PrecursorCharge"+scanWindowSelect+" from spectra "+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT
+						+" order by ScanStartTime");
 				while (rs.next()) {
 					String name=rs.getString(1);
 					int index=rs.getInt(2);

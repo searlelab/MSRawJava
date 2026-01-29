@@ -47,15 +47,12 @@ class RawSpectrumMergeUtilsTest {
 
 	@Test
 	void binnedMergeSpectra_accumulatesIntensityAndIms() {
-		double[] mz={100.0};
-		float[] intens1={10.0f};
-		float[] intens2={30.0f};
-		float[] ims1={1.0f};
-		float[] ims2={2.0f};
-		List<AcquiredSpectrum> spectra=List.of(
-			scan("a", mz, intens1, ims1),
-			scan("b", mz, intens2, ims2)
-		);
+		double[] mz= {100.0};
+		float[] intens1= {10.0f};
+		float[] intens2= {30.0f};
+		float[] ims1= {1.0f};
+		float[] ims2= {2.0f};
+		List<AcquiredSpectrum> spectra=List.of(scan("a", mz, intens1, ims1), scan("b", mz, intens2, ims2));
 
 		AcquiredSpectrum merged=RawSpectrumMergeUtils.binnedMergeSpectra(spectra, 0.5);
 		assertEquals(1, merged.getMassArray().length);
@@ -66,10 +63,8 @@ class RawSpectrumMergeUtilsTest {
 
 	@Test
 	void accurateMergeSpectra_mergesWithinTolerance() {
-		List<AcquiredSpectrum> spectra=List.of(
-			scan("a", new double[] {100.0}, new float[] {10.0f}, null),
-			scan("b", new double[] {100.2}, new float[] {5.0f}, null)
-		);
+		List<AcquiredSpectrum> spectra=List.of(scan("a", new double[] {100.0}, new float[] {10.0f}, null),
+				scan("b", new double[] {100.2}, new float[] {5.0f}, null));
 		AcquiredSpectrum merged=RawSpectrumMergeUtils.accurateMergeSpectra(spectra, new FixedTolerance(0.5));
 		assertEquals(1, merged.getMassArray().length);
 		assertEquals(15.0f, merged.getIntensityArray()[0], 1e-6f);
