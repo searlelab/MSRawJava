@@ -38,8 +38,6 @@ import io.grpc.ManagedChannel;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
-import sun.misc.Unsafe;
-
 class ThermoRawFileStubTest {
 
 	@TempDir
@@ -163,18 +161,7 @@ class ThermoRawFileStubTest {
 	}
 
 	private static GrpcServerLauncher allocateLauncher(int port) throws Exception {
-		Unsafe unsafe=getUnsafe();
-		GrpcServerLauncher launcher=(GrpcServerLauncher)unsafe.allocateInstance(GrpcServerLauncher.class);
-		setField(launcher, "port", port);
-		setField(launcher, "proc", null);
-		setField(launcher, "workDir", null);
-		return launcher;
-	}
-
-	private static Unsafe getUnsafe() throws Exception {
-		Field field=Unsafe.class.getDeclaredField("theUnsafe");
-		field.setAccessible(true);
-		return (Unsafe)field.get(null);
+		return GrpcServerLauncher.forTest(port, null, null);
 	}
 
 	private static final class FakeManagedChannel extends ManagedChannel {

@@ -13,8 +13,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import sun.misc.Unsafe;
-
 class GrpcServerLauncherUtilityTest {
 
 	private String originalOsName;
@@ -70,18 +68,7 @@ class GrpcServerLauncherUtilityTest {
 	}
 
 	private static GrpcServerLauncher allocateLauncher(int port, Process proc, Path workDir) throws Exception {
-		Unsafe unsafe=getUnsafe();
-		GrpcServerLauncher launcher=(GrpcServerLauncher)unsafe.allocateInstance(GrpcServerLauncher.class);
-		setField(launcher, "port", port);
-		setField(launcher, "proc", proc);
-		setField(launcher, "workDir", workDir);
-		return launcher;
-	}
-
-	private static Unsafe getUnsafe() throws Exception {
-		Field field=Unsafe.class.getDeclaredField("theUnsafe");
-		field.setAccessible(true);
-		return (Unsafe)field.get(null);
+		return GrpcServerLauncher.forTest(port, proc, workDir);
 	}
 
 	private static void setField(Object target, String name, Object value) throws Exception {

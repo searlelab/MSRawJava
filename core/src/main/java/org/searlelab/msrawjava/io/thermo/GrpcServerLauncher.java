@@ -144,6 +144,17 @@ final class GrpcServerLauncher implements AutoCloseable {
 		Logger.logLine(String.format(Locale.ROOT, "Thermo server: port "+port+" ready in %.2f s", (System.nanoTime()-start)/1_000_000_000.0));
 	}
 
+	// Test-only constructor helper to avoid spinning up native processes.
+	static GrpcServerLauncher forTest(int port, Process proc, Path workDir) {
+		return new GrpcServerLauncher(port, proc, workDir);
+	}
+
+	private GrpcServerLauncher(int port, Process proc, Path workDir) {
+		this.port=port;
+		this.proc=proc;
+		this.workDir=workDir;
+	}
+
 	int port() {
 		return port;
 	}
