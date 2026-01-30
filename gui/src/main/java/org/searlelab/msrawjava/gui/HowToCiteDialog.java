@@ -18,6 +18,7 @@ import javax.swing.event.HyperlinkListener;
 
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 
+import org.searlelab.msrawjava.Version;
 import org.searlelab.msrawjava.logging.Logger;
 
 /**
@@ -50,7 +51,12 @@ public final class HowToCiteDialog {
 		content.add(about, BorderLayout.CENTER);
 
 		String citeHtml="<html><p style=\"font-size:10px; font-family: Helvetica, sans-serif\">"+"Please cite the MSRawJava code repository:<br/>"
-				+"<a href=\"https://github.com/searlelab/MSRawJava\">https://github.com/searlelab/MSRawJava</a>"+"</p></html>";
+				+"<a href=\"https://github.com/searlelab/MSRawJava\">https://github.com/searlelab/MSRawJava</a><br/><br/>"
+				+"Version: "+Version.getVersion()+"<br/>"
+				+"Build date: "+Version.getBuildDate()+"<br/>"
+				+"JVM: "+Version.getJvmName()+" ("+Version.getJvmVersion()+")<br/>"
+				+"Runtime: "+Version.getRuntimeName()+" ("+Version.getRuntimeVersion()+")"
+				+"</p></html>";
 
 		JEditorPane cite=new JEditorPane("text/html", citeHtml);
 		cite.setEditable(false);

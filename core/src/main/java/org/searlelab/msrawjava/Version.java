@@ -1,6 +1,10 @@
 package org.searlelab.msrawjava;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.StringTokenizer;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 
 import org.searlelab.msrawjava.logging.Logger;
 
@@ -10,19 +14,70 @@ import org.searlelab.msrawjava.logging.Logger;
  */
 public class Version implements Comparable<Version> {
 	private static final String UNKNOWN_VERSION="0.0.0";
+	private static final String UNKNOWN_BUILD_DATE="unknown";
+	private static final String MANIFEST_PATH="META-INF/MANIFEST.MF";
 	private final int major;
 	private final int minor;
 	private final int revision;
 	private final boolean snapshot;
 	private final boolean addV;
+	private static volatile Manifest manifestCache;
 
 	public static String getVersion() {
 		Package p=Version.class.getPackage();
 		String version=(p!=null)?p.getImplementationVersion():UNKNOWN_VERSION;
-		if (version!=null) {
+		if (version!=null&&!version.equals(UNKNOWN_VERSION)) {
 			return version;
-		} else {
-			return UNKNOWN_VERSION;
+		}
+		String manifestVersion=getManifestAttribute("Build-Revision");
+		if (manifestVersion!=null) {
+			return manifestVersion;
+		}
+		return UNKNOWN_VERSION;
+	}
+
+	public static Version getVersionObject() {
+		return new Version(getVersion());
+	}
+
+	public static String getBuildDate() {
+		String buildDate=getManifestAttribute("Build-Date");
+		return buildDate!=null?buildDate:UNKNOWN_BUILD_DATE;
+	}
+
+	public static String getJvmName() {
+		return System.getProperty("java.vm.name");
+	}
+
+	public static String getJvmVersion() {
+		return System.getProperty("java.vm.version");
+	}
+
+	public static String getRuntimeName() {
+		return System.getProperty("java.runtime.name");
+	}
+
+	public static String getRuntimeVersion() {
+		return System.getProperty("java.runtime.version");
+	}
+
+	private static String getManifestAttribute(String name) {
+		Manifest manifest=manifestCache;
+		if (manifest==null) {
+			manifest=loadManifest();
+			manifestCache=manifest;
+		}
+		if (manifest==null) return null;
+		Attributes attributes=manifest.getMainAttributes();
+		return attributes!=null?attributes.getValue(name):null;
+	}
+
+	private static Manifest loadManifest() {
+		try (InputStream in=Version.class.getClassLoader().getResourceAsStream(MANIFEST_PATH)) {
+			if (in==null) return null;
+			return new Manifest(in);
+		} catch (IOException e) {
+			return null;
 		}
 	}
 

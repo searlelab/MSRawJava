@@ -155,6 +155,8 @@
 						<manifestEntries>
 							<Implementation-Title>${project.artifactId}</Implementation-Title>
 							<Implementation-Version>${project.version}</Implementation-Version>
+							<Build-Date>${maven.build.timestamp}</Build-Date>
+							<Build-Revision>${revision}</Build-Revision>
 						</manifestEntries>
 					</archive>
 				</configuration>

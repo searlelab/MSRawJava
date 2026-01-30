@@ -55,6 +55,12 @@ class VersionParsingTest {
 	}
 
 	@Test
+	void parsesThreePartVersionWithDoubleDigitMinor() {
+		Version v=new Version("26.1.30");
+		assertEquals("26.1.30", v.toString());
+	}
+
+	@Test
 	void invalidRevisionLogsAndUsesMinusOne() {
 		Version v=new Version("1.2.beta");
 		assertEquals("1.2.-1", v.toString());
@@ -81,8 +87,11 @@ class VersionParsingTest {
 		Main.VersionProvider provider=new Main.VersionProvider();
 		String[] version=provider.getVersion();
 		assertNotNull(version);
-		assertEquals(1, version.length);
-		assertTrue(version[0]!=null&&!version[0].isEmpty());
+		assertEquals(4, version.length);
+		for (String line : version) {
+			assertNotNull(line);
+			assertTrue(!line.isEmpty());
+		}
 	}
 
 	private static void resetLogger() {

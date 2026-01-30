@@ -319,7 +319,16 @@ public class Main {
 	public static class VersionProvider implements CommandLine.IVersionProvider {
 		@Override
 		public String[] getVersion() {
-			return new String[] {Version.getVersion()};
+			String vmName=Version.getJvmName();
+			String vmVersion=Version.getJvmVersion();
+			String runtimeName=Version.getRuntimeName();
+			String runtimeVersion=Version.getRuntimeVersion();
+			return new String[] {
+					"MSRawJava "+Version.getVersion(),
+					"Build date: "+Version.getBuildDate(),
+					"JVM: "+vmName+" ("+vmVersion+")",
+					"Runtime: "+runtimeName+" ("+runtimeVersion+")"
+			};
 		}
 	}
 }
