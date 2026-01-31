@@ -29,6 +29,7 @@ import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.algorithms.RawSpectrumMergeUtils;
 import org.searlelab.msrawjava.gui.GUIPreferences;
 import org.searlelab.msrawjava.gui.graphing.BasicChartGenerator;
+import org.searlelab.msrawjava.gui.graphing.BoxPlotGenerator;
 import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
 import org.searlelab.msrawjava.gui.graphing.GraphType;
 import org.searlelab.msrawjava.gui.graphing.HistogramUtils;
@@ -228,8 +229,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		ExtendedChartPanel ticChart=buildTicChart();
 		rawSplit.setTopComponent(ticChart);
 
-		boxplotSplit.setTopComponent(VisualizationCharts.getBoxplotChart(null, "Precursor Isolation Window", "Ion Injection Time (ms)", data.getIitByRange()));
-		boxplotSplit.setBottomComponent(VisualizationCharts.getBoxplotChart(null, "Retention Time Bin (min)", "Ion Injection Time (ms)", data.getIitByRt()));
+		boxplotSplit.setTopComponent(BoxPlotGenerator.getBoxplotChart(null, "Precursor Isolation Window", "Ion Injection Time (ms)", data.getIitByRange()));
+		boxplotSplit.setBottomComponent(BoxPlotGenerator.getBoxplotChart(null, "Retention Time Bin (min)", "Ion Injection Time (ms)", data.getIitByRt()));
 
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(STRUCTURE_TITLE), structureChart);
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(GLOBAL_TITLE), globalChart);

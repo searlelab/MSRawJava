@@ -39,8 +39,12 @@ public final class StructureChartBuilder {
 
 		HashMap<Range, ArrayList<Float>> stripeRts=new HashMap<>();
 		HashMap<Range, ArrayList<Float>> precursorRts=new HashMap<>();
+		int count=0;
 		if (summaries!=null) {
 			for (ScanSummary summary : summaries) {
+				count++;
+				if (count>1000) break; // limit to first 1000 scans (should be inclusive for DIA
+				
 				float rt=summary.getScanStartTime();
 				if (summary.isPrecursor()) {
 					Range r=new Range((float)summary.getScanWindowLower(), (float)summary.getScanWindowUpper());
@@ -60,10 +64,7 @@ public final class StructureChartBuilder {
 		float firstScan=Float.MAX_VALUE;
 		float lastScan=0.0f;
 
-		int count=0;
 		for (Map.Entry<Range, ArrayList<Float>> entry : sortedStripes.entrySet()) {
-			count++;
-			if (count>50) break; // FIXME
 			Range range=entry.getKey();
 			ArrayList<Float> rts=entry.getValue();
 			if (rts.isEmpty()) continue;
@@ -94,8 +95,6 @@ public final class StructureChartBuilder {
 			float minRt=firstScan-rtRangeMargin;
 			float maxRt=lastScan+rtRangeMargin;
 			for (Map.Entry<Range, ArrayList<Float>> entry : sortedPrecursors.entrySet()) {
-				count++;
-				if (count>50) break; // FIXME
 				Range range=entry.getKey();
 				ArrayList<Float> rts=entry.getValue();
 				for (float rt : rts) {
@@ -127,10 +126,7 @@ public final class StructureChartBuilder {
 		boolean anyRtRange=false;
 		boolean everyOther=false;
 
-		int count=0;
 		for (Map.Entry<Range, WindowData> entry : sorted.entrySet()) {
-			count++;
-			if (count>50) break; // FIXME
 			Range range=entry.getKey();
 			WindowData data=entry.getValue();
 			double x=range.getStart();

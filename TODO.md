@@ -5,7 +5,7 @@
 - better spectrum naming for Thermo, maybe for Bruker as well that match proteowizard
 - readers for mzML, check for missing data. Remember status lights!
 - migrate todo into a real todo/changelog split to make it easier to track higher-level changes
-- needs more testing with PASEF-off TIMS files
+- **high priority bug** needs testing with PASEF-off TIMS files! Does it even work?
 
 ## GUI 
-- bug where visualization only really works for DIA data and either doesn't see DDA data for Bruker or takes forever to build for Thermo. PRM data for Thermo has problems with the structure charts
+- low priority bug where structure visualization only shows DDA ranges that are repeated (rare). However, is it a good idea to plot all DDA ranges? There may be 100k points. Note, Bruker parser doesn't produce range data for DDA.

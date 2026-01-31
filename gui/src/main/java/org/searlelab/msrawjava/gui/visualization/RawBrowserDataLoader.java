@@ -25,14 +25,14 @@ public final class RawBrowserDataLoader {
 	private RawBrowserDataLoader() {
 	}
 
-	public static RawBrowserData build(StripeFileInterface stripe) throws Exception {
+	public static RawBrowserData build(StripeFileInterface rawFile) throws Exception {
 		ArrayList<ScanSummary> scans=new ArrayList<>();
-		List<ScanSummary> summaries=stripe.getScanSummaries(-Float.MAX_VALUE, Float.MAX_VALUE);
+		List<ScanSummary> summaries=rawFile.getScanSummaries(-Float.MAX_VALUE, Float.MAX_VALUE);
 		scans.addAll(summaries);
 		Collections.sort(scans, new ScanSummaryComparator());
 
-		ExtendedChartPanel structure=StructureChartBuilder.buildLocalStructureChart(stripe.getRanges(), summaries);
-		ExtendedChartPanel global=StructureChartBuilder.buildGlobalStructureChart(stripe.getRanges());
+		ExtendedChartPanel structure=StructureChartBuilder.buildLocalStructureChart(rawFile.getRanges(), summaries);
+		ExtendedChartPanel global=StructureChartBuilder.buildGlobalStructureChart(rawFile.getRanges());
 
 		float maxTicLocal=0.0f;
 		TFloatArrayList ticX=new TFloatArrayList();
@@ -40,7 +40,7 @@ public final class RawBrowserDataLoader {
 
 		XYTrace chromatogramTrace;
 		try {
-			Pair<float[], float[]> tic=stripe.getTICTrace();
+			Pair<float[], float[]> tic=rawFile.getTICTrace();
 			float[] mins=MatrixMath.divide(tic.x, 60.0f);
 			chromatogramTrace=new XYTrace(mins, tic.y, GraphType.area, "Precursor TIC", new java.awt.Color(0x55, 0x55, 0xF6), null);
 			for (int i=0; i<mins.length; i++) {
