@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -155,7 +156,6 @@ public class RawFileConverters {
 			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 			Map<Range, WindowData> ranges=rawFile.getRanges();
 
-			outFile.setRanges(new HashMap<Range, WindowData>(ranges));
 			outFile.addMetadata(rawFile.getMetadata());
 
 			ArrayList<Range> acquiredWindows=new ArrayList<>(ranges.keySet());
@@ -164,6 +164,9 @@ public class RawFileConverters {
 			DemuxConfig demuxConfig=params.getDemuxConfig()==null?new DemuxConfig():params.getDemuxConfig();
 			MassTolerance tolerance=params.getDemuxTolerance();
 			StaggeredDemultiplexer demultiplexer=new StaggeredDemultiplexer(acquiredWindows, tolerance, demuxConfig);
+
+			// Track per-sub-window retention times to compute ranges after demultiplexing
+			HashMap<Range, ArrayList<Float>> subWindowRTs=new HashMap<>();
 
 			CycleAssembler assembler=new CycleAssembler(acquiredWindows);
 			ArrayDeque<ArrayList<FragmentScan>> last5=new ArrayDeque<>(5);
@@ -180,6 +183,11 @@ public class RawFileConverters {
 
 			final Consumer<ArrayList<FragmentScan>> publishDemuxedCycle=(cycleDemuxed) -> {
 				if (cycleDemuxed!=null&&!cycleDemuxed.isEmpty()) {
+					// Track retention times per sub-window for computing ranges later
+					for (FragmentScan fs : cycleDemuxed) {
+						Range subRange=fs.getPrecursorRange();
+						subWindowRTs.computeIfAbsent(subRange, k -> new ArrayList<>()).add(fs.getScanStartTime());
+					}
 					submitWrite(outFile, new ArrayList<PrecursorScan>(), cycleDemuxed, writerRef, writeFuturesRef, firstWriteErrorRef);
 				}
 			};
@@ -295,6 +303,35 @@ public class RawFileConverters {
 					writerRef.shutdownNow();
 				}
 			}
+
+			// Build output ranges from demultiplexed sub-windows using observed data
+			HashMap<Range, WindowData> demuxRanges=new HashMap<>();
+			for (Map.Entry<Range, ArrayList<Float>> entry : subWindowRTs.entrySet()) {
+				Range subRange=entry.getKey();
+				ArrayList<Float> rts=entry.getValue();
+				Collections.sort(rts);
+
+				int numberOfMSMS=rts.size();
+				float averageDutyCycle=0f;
+				if (rts.size()>=2) {
+					float totalDelta=rts.get(rts.size()-1)-rts.get(0);
+					averageDutyCycle=totalDelta/(rts.size()-1);
+				}
+
+				Optional<Range> rtRange=Optional.of(new Range(rts.get(0), rts.get(rts.size()-1)));
+
+				// Carry over ion mobility range from an original acquired window that contains this sub-window
+				Optional<Range> ionMobilityRange=Optional.empty();
+				for (Map.Entry<Range, WindowData> re : ranges.entrySet()) {
+					if (re.getKey().contains(subRange.getMiddle())&&re.getValue().getIonMobilityRange().isPresent()) {
+						ionMobilityRange=re.getValue().getIonMobilityRange();
+						break;
+					}
+				}
+
+				demuxRanges.put(subRange, new WindowData(averageDutyCycle, numberOfMSMS, ionMobilityRange, rtRange));
+			}
+			outFile.setRanges(demuxRanges);
 
 			// Save & close
 			Path outputPath=params.getOutputFilePathOverride();

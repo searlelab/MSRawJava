@@ -82,6 +82,13 @@ public class StaggeredDemultiplexer {
 	}
 
 	/**
+	 * Returns the design matrix used by this demultiplexer.
+	 */
+	public DemuxDesignMatrix getDesignMatrix() {
+		return designMatrix;
+	}
+
+	/**
 	 * Demultiplexes staggered DIA spectra from 5 complete cycles.
 	 * Uses a spectrum-centric approach where each acquired spectrum is the anchor
 	 * for demultiplexing the sub-windows it covers.
