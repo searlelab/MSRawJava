@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.model.DemultiplexedFragmentScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
@@ -587,8 +588,8 @@ class PwizValidationTest {
 			DemuxCycle cycleP2=cycles.get(i+2);
 
 			// Run our demultiplexer
-			ArrayList<FragmentScan> javaResult=javaDemux.demultiplex(cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra, cycleP1.spectra, cycleP2.spectra,
-					scanNumber);
+			ArrayList<DemultiplexedFragmentScan> javaResult=javaDemux.demultiplex(cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra, cycleP1.spectra,
+					cycleP2.spectra, scanNumber);
 
 			scanNumber+=javaResult.size();
 			totalJavaScans+=javaResult.size();
@@ -857,7 +858,8 @@ class PwizValidationTest {
 			}
 
 			// Run demultiplexer
-			ArrayList<FragmentScan> result=javaDemux.demultiplex(cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra, cycleP1.spectra, cycleP2.spectra, 1);
+			ArrayList<DemultiplexedFragmentScan> result=javaDemux.demultiplex(cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra, cycleP1.spectra,
+					cycleP2.spectra, 1);
 
 			int emptyCount=0;
 			int nonEmptyCount=0;

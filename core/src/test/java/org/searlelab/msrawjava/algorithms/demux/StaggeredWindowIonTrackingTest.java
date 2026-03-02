@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.model.DemultiplexedFragmentScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.Range;
@@ -246,7 +247,7 @@ class StaggeredWindowIonTrackingTest {
 		ArrayList<Range> windowList=new ArrayList<>(origFile.getRanges().keySet());
 		windowList.sort(null);
 		StaggeredDemultiplexer javaDemux=new StaggeredDemultiplexer(windowList, TOLERANCE);
-		ArrayList<FragmentScan> javaResult=javaDemux.demultiplex(bundle.cycleM2.spectra, bundle.cycleM1.spectra, bundle.cycleCenter.spectra,
+		ArrayList<DemultiplexedFragmentScan> javaResult=javaDemux.demultiplex(bundle.cycleM2.spectra, bundle.cycleM1.spectra, bundle.cycleCenter.spectra,
 				bundle.cycleP1.spectra, bundle.cycleP2.spectra, 1);
 
 		FragmentScan javaTarget=findClosestDemuxScan(javaResult, targetSubWindow, anchor.getScanStartTime());
@@ -304,7 +305,7 @@ class StaggeredWindowIonTrackingTest {
 		return best;
 	}
 
-	private FragmentScan findClosestDemuxScan(List<FragmentScan> scans, DemuxWindow targetSubWindow, float targetRt) {
+	private FragmentScan findClosestDemuxScan(List<? extends FragmentScan> scans, DemuxWindow targetSubWindow, float targetRt) {
 		FragmentScan best=null;
 		float bestDelta=Float.MAX_VALUE;
 		for (FragmentScan scan : scans) {

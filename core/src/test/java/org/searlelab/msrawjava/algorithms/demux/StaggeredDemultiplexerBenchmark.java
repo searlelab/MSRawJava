@@ -12,6 +12,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.model.DemultiplexedFragmentScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.Range;
@@ -65,8 +66,8 @@ class StaggeredDemultiplexerBenchmark {
 			DemuxCycle cycleP1=cycles.get(i+1);
 			DemuxCycle cycleP2=cycles.get(i+2);
 
-			ArrayList<FragmentScan> javaResult=demux.demultiplex(cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra, cycleP1.spectra, cycleP2.spectra,
-					scanNumber);
+			ArrayList<DemultiplexedFragmentScan> javaResult=demux.demultiplex(cycleM2.spectra, cycleM1.spectra, cycleCenter.spectra, cycleP1.spectra,
+					cycleP2.spectra, scanNumber);
 			scanNumber+=javaResult.size();
 			totalOutputs+=javaResult.size();
 		}

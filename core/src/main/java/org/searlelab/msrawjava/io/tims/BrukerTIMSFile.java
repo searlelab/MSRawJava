@@ -566,7 +566,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 					Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(frameId-1, 0, 99999, t1); // ms1 reads all scans
 
-					final String name=Integer.toString(frameId);
+					final String name=buildBrukerFrameScanName(frameId, 1, numScans);
 					if (triplet==null||triplet.x.length==0) {
 						out.add(new PrecursorScan(name, frameId, rt, 0, scanWindowLower, scanWindowUpper, injTime, new double[0], new float[0], new float[0]));
 					} else {
@@ -695,7 +695,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 								ims[i]=getIMSFromScanNumber(triplet.z[i], numScans);
 							}
 
-							final String name=Integer.toString(frameId)+"_"+Integer.toString(precursorID); // spectrumName
+							final String name=buildBrukerFrameScanName(frameId, scanLo, scanHi);
 							out.add(new FragmentScan(name, // spectrumName
 									parent, // precursorName from Precursors.Parent
 									precursorID, // spectrumIndex
@@ -859,7 +859,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 								ims[i]=getIMSFromScanNumber(triplet.z[i], numScans);
 							}
 
-							final String name="frame="+Integer.toString(frameId)+" start="+scanLo+" stop="+scanHi;
+							final String name=buildBrukerFrameScanName(frameId, scanLo, scanHi);
 
 							out.add(new FragmentScan(name, // spectrumName
 									parent, // precursorName from Precursors.Parent
@@ -901,7 +901,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 		ArrayList<ScanSummary> out=new ArrayList<>();
 
-		String ms1Sql="SELECT Id, Time, AccumulationTime FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
+		String ms1Sql="SELECT Id, Time, AccumulationTime, NumScans FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
 		try (PreparedStatement ps=conn.prepareStatement(ms1Sql)) {
 			ps.setInt(1, ms1Key);
 			ps.setDouble(2, rtStart);
@@ -911,14 +911,16 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					int frameId=rs.getInt(1);
 					float rt=rs.getFloat(2);
 					float injTime=accumulationTimeSeconds(rs.getFloat(3));
-					out.add(new ScanSummary(Integer.toString(frameId), frameId, rt, 0, -1.0, true, injTime, scanWindowLower, scanWindowUpper, scanWindowLower,
-							scanWindowUpper, (byte)0));
+					int numScans=rs.getInt(4);
+					String name=buildBrukerFrameScanName(frameId, 1, numScans);
+					out.add(new ScanSummary(name, frameId, rt, 0, -1.0, true, injTime, scanWindowLower, scanWindowUpper, scanWindowLower, scanWindowUpper,
+							(byte)0));
 				}
 			}
 		}
 
 		if (tableExists("DiaFrameMsMsWindows")&&tableExists("DiaFrameMsMsInfo")) {
-			String ms2Sql="SELECT F.Id, F.Time, F.AccumulationTime, W.IsolationMz, W.IsolationWidth "+"FROM Frames F "
+			String ms2Sql="SELECT F.Id, F.Time, F.AccumulationTime, W.IsolationMz, W.IsolationWidth, W.ScanNumBegin, W.ScanNumEnd "+"FROM Frames F "
 					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
 					+"WHERE F.MsMsType = ? AND F.Time BETWEEN ? AND ? "+"ORDER BY F.Time ASC, W.IsolationMz ASC";
 			try (PreparedStatement ps=conn.prepareStatement(ms2Sql)) {
@@ -932,17 +934,20 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						float injTime=accumulationTimeSeconds(rs.getFloat(3));
 						double center=rs.getDouble(4);
 						double width=rs.getDouble(5);
+						int scanBegin=rs.getInt(6);
+						int scanEnd=rs.getInt(7);
 						double lo=center-0.5*width;
 						double hi=center+0.5*width;
-						out.add(new ScanSummary(Integer.toString(frameId), frameId, rt, 0, center, false, injTime, lo, hi, scanWindowLower, scanWindowUpper,
-								(byte)0));
+						String name=buildBrukerFrameScanName(frameId, scanBegin, scanEnd);
+						out.add(new ScanSummary(name, frameId, rt, 0, center, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, (byte)0));
 					}
 				}
 			}
 		}
 		if (ms2Key==8&&tableExists("PasefFrameMsMsInfo")&&tableExists("Precursors")) {
 			String ms2Sql="SELECT I.frame, F.Time, F.AccumulationTime, I.IsolationMz, I.IsolationWidth, "
-					+"COALESCE(P.MonoisotopicMz, P.largestPeakMz, I.IsolationMz) AS targetMz, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor "
+					+"COALESCE(P.MonoisotopicMz, P.largestPeakMz, I.IsolationMz) AS targetMz, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor, "
+					+"I.ScanNumBegin, I.ScanNumEnd "
 					+"FROM PasefFrameMsMsInfo I, Frames F, Precursors P "
 					+"WHERE I.frame = F.Id AND I.Precursor = P.Id AND F.MsMsType = 8 AND F.Time BETWEEN ? AND ? "+"ORDER BY F.Time ASC, I.IsolationMz ASC";
 			try (PreparedStatement ps=conn.prepareStatement(ms2Sql)) {
@@ -958,10 +963,12 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						double targetMz=rs.getDouble(6);
 						byte charge=(byte)Math.max(0, rs.getInt(7));
 						int precursorId=rs.getInt(9);
+						int scanBegin=rs.getInt(10);
+						int scanEnd=rs.getInt(11);
 
 						double lo=center-0.5*width;
 						double hi=center+0.5*width;
-						String name=frameId+"_"+precursorId;
+						String name=buildBrukerFrameScanName(frameId, scanBegin, scanEnd);
 						double summaryMz=targetMz>0.0?targetMz:(center>0.0?center:-1.0);
 						out.add(new ScanSummary(name, precursorId, rt, 0, summaryMz, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, charge));
 					}
@@ -1005,6 +1012,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		return (float)(accumulationMs/1000.0);
 	}
 
+	private static String buildBrukerFrameScanName(int frameId, int scanStart, int scanEnd) {
+		return "frame="+frameId+" scanStart="+scanStart+" scanEnd="+scanEnd;
+	}
+
 	private ArrayList<FragmentScan> extractDIASpectra(ArrayList<Meta> metas, final boolean sqrt, double scanWindowLower, double scanWindowUpper) {
 		ArrayList<FragmentScan> out=new ArrayList<>();
 		// For each frame, emit one FragmentScan per window using IM scan bounds if present
@@ -1022,7 +1033,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 					// Build a stable id and names
 					final int scanID=m.frameId*100+w.windowGroup; // simple monotone id
-					final String name=Integer.toString(m.frameId)+"_"+w.windowGroup;
+					final String name=buildBrukerFrameScanName(m.frameId, w.scanLo, w.scanHi);
 
 					final int n=triplet.x==null?0:triplet.x.length;
 					if (n==0) {

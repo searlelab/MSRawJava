@@ -41,12 +41,14 @@ class ThermoRawFileSummaryTest {
 
 		ScanSummary ms1=summaries.get(0);
 		assertEquals(1, ms1.getSpectrumIndex());
+		assertEquals("scan=1", ms1.getSpectrumName());
 		assertEquals(-1.0, ms1.getPrecursorMz(), 1e-6);
 		assertEquals(300.0, ms1.getIsolationWindowLower(), 1e-6);
 		assertEquals(400.0, ms1.getIsolationWindowUpper(), 1e-6);
 
 		ScanSummary ms2=summaries.get(1);
 		assertEquals(2, ms2.getSpectrumIndex());
+		assertEquals("scan=2", ms2.getSpectrumName());
 		assertEquals(450.0, ms2.getPrecursorMz(), 1e-6);
 		assertEquals(400.0, ms2.getIsolationWindowLower(), 1e-6);
 		assertEquals(500.0, ms2.getIsolationWindowUpper(), 1e-6);

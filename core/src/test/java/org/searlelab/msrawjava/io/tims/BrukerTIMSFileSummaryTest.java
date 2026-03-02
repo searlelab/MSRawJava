@@ -37,6 +37,12 @@ class BrukerTIMSFileSummaryTest {
 		ScanSummary ms2=summaries.stream().filter(s -> !s.isPrecursor()).findFirst().orElse(null);
 		assertNotNull(ms1, "Expected an MS1 summary");
 		assertNotNull(ms2, "Expected an MS2 summary");
+		assertTrue(ms1.getSpectrumName().startsWith("frame="));
+		assertTrue(ms1.getSpectrumName().contains("scanStart="));
+		assertTrue(ms1.getSpectrumName().contains("scanEnd="));
+		assertTrue(ms2.getSpectrumName().startsWith("frame="));
+		assertTrue(ms2.getSpectrumName().contains("scanStart="));
+		assertTrue(ms2.getSpectrumName().contains("scanEnd="));
 
 		AcquiredSpectrum ms1Spec=file.getSpectrum(ms1);
 		assertNotNull(ms1Spec);
@@ -72,6 +78,12 @@ class BrukerTIMSFileSummaryTest {
 		ScanSummary ms2=summaries.stream().filter(s -> !s.isPrecursor()).findFirst().orElse(null);
 		assertNotNull(ms1, "Expected an MS1 summary");
 		assertNotNull(ms2, "Expected an MS2 summary");
+		assertTrue(ms1.getSpectrumName().startsWith("frame="));
+		assertTrue(ms1.getSpectrumName().contains("scanStart="));
+		assertTrue(ms1.getSpectrumName().contains("scanEnd="));
+		assertTrue(ms2.getSpectrumName().startsWith("frame="));
+		assertTrue(ms2.getSpectrumName().contains("scanStart="));
+		assertTrue(ms2.getSpectrumName().contains("scanEnd="));
 
 		assertNotNull(file.getSpectrum(ms1));
 		AcquiredSpectrum ms2Spec=file.getSpectrum(ms2);

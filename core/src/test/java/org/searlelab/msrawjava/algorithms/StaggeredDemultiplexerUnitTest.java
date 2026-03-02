@@ -8,6 +8,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
+import org.searlelab.msrawjava.model.DemultiplexedFragmentScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
@@ -73,7 +74,7 @@ class StaggeredDemultiplexerUnitTest {
 		float[][] intensities=new float[][] {{}, {}};
 		ArrayList<FragmentScan> cycle=buildCycle(3.0f, masses, intensities);
 
-		ArrayList<FragmentScan> outputs=demux.demultiplex(cycle, cycle, cycle, cycle, cycle, 1);
+		ArrayList<DemultiplexedFragmentScan> outputs=demux.demultiplex(cycle, cycle, cycle, cycle, cycle, 1);
 
 		assertEquals(4, outputs.size());
 		for (FragmentScan scan : outputs) {
@@ -102,7 +103,7 @@ class StaggeredDemultiplexerUnitTest {
 		float[][] intensities=new float[][] {{}, {}};
 		ArrayList<FragmentScan> cycle=buildCycle(3.0f, masses, intensities);
 
-		ArrayList<FragmentScan> outputs=demux.demultiplex(cycle, cycle, cycle, cycle, cycle, 1);
+		ArrayList<DemultiplexedFragmentScan> outputs=demux.demultiplex(cycle, cycle, cycle, cycle, cycle, 1);
 
 		assertEquals(2, outputs.size());
 		for (FragmentScan scan : outputs) {
@@ -130,7 +131,7 @@ class StaggeredDemultiplexerUnitTest {
 		ArrayList<FragmentScan> cycleP1=buildCycle(2.0f, massesB, intensitiesB);
 		ArrayList<FragmentScan> cycleP2=buildCycle(1.0f, massesB, intensitiesB);
 
-		ArrayList<FragmentScan> outputs=demux.demultiplex(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2, 1);
+		ArrayList<DemultiplexedFragmentScan> outputs=demux.demultiplex(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2, 1);
 
 		assertEquals(2, outputs.size());
 		for (FragmentScan scan : outputs) {

@@ -30,6 +30,8 @@ class RawFileConvertersIT {
 		String content=readHead(mgf, 16384);
 		assertTrue(content.contains("BEGIN IONS"));
 		assertTrue(content.contains("END IONS"));
+		assertTrue(content.contains("TITLE=merged="));
+		assertTrue(content.contains("frame="));
 
 		threads.close();
 	}

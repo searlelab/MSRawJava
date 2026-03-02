@@ -27,6 +27,7 @@ import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
+import org.searlelab.msrawjava.model.DemultiplexedFragmentScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.PeakInterface;
@@ -170,7 +171,7 @@ public class RawFileConverters {
 
 			CycleAssembler assembler=new CycleAssembler(acquiredWindows);
 			ArrayDeque<ArrayList<FragmentScan>> last5=new ArrayDeque<>(5);
-			ArrayDeque<Future<ArrayList<FragmentScan>>> demuxQueue=new ArrayDeque<>();
+			ArrayDeque<Future<ArrayList<DemultiplexedFragmentScan>>> demuxQueue=new ArrayDeque<>();
 			ExecutorService compute=pool.computePool();
 			int workers=getWorkerCount(compute);
 			int maxInflight=Math.max(1, workers*2);
@@ -181,14 +182,15 @@ public class RawFileConverters {
 			final ArrayDeque<CompletableFuture<Void>> writeFuturesRef=writeFutures;
 			final AtomicReference<Throwable> firstWriteErrorRef=firstWriteError;
 
-			final Consumer<ArrayList<FragmentScan>> publishDemuxedCycle=(cycleDemuxed) -> {
+			final Consumer<ArrayList<DemultiplexedFragmentScan>> publishDemuxedCycle=(cycleDemuxed) -> {
 				if (cycleDemuxed!=null&&!cycleDemuxed.isEmpty()) {
 					// Track retention times per sub-window for computing ranges later
-					for (FragmentScan fs : cycleDemuxed) {
+					for (DemultiplexedFragmentScan fs : cycleDemuxed) {
 						Range subRange=fs.getPrecursorRange();
 						subWindowRTs.computeIfAbsent(subRange, k -> new ArrayList<>()).add(fs.getScanStartTime());
 					}
-					submitWrite(outFile, new ArrayList<PrecursorScan>(), cycleDemuxed, writerRef, writeFuturesRef, firstWriteErrorRef);
+					submitWrite(outFile, new ArrayList<PrecursorScan>(), new ArrayList<FragmentScan>(cycleDemuxed), writerRef, writeFuturesRef,
+							firstWriteErrorRef);
 				}
 			};
 
@@ -248,7 +250,7 @@ public class RawFileConverters {
 						+ms2s.size()+" MS2", totalProgress);
 
 				while (demuxQueue.size()>maxInflight) {
-					ArrayList<FragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
+					ArrayList<DemultiplexedFragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
 					publishDemuxedCycle.accept(demuxed);
 				}
 				drainWriteFutures(writeFuturesRef, maxInflight, firstWriteErrorRef);
@@ -283,7 +285,7 @@ public class RawFileConverters {
 			}
 
 			while (!demuxQueue.isEmpty()) {
-				ArrayList<FragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
+				ArrayList<DemultiplexedFragmentScan> demuxed=getDemuxResult(demuxQueue.removeFirst());
 				publishDemuxedCycle.accept(demuxed);
 			}
 			drainWriteFutures(writeFuturesRef, 0, firstWriteErrorRef);
@@ -420,10 +422,10 @@ public class RawFileConverters {
 						if (imsPeaks!=null&&!imsPeaks.isEmpty()) {
 							Collections.sort(imsPeaks);
 							imsPeaks=TIMSPeakPicker.peakPickAcrossIMS(imsPeaks);
-							return ms1s.get(idx).rebuild(sn, imsPeaks); // never null for MS1
+							return withBrukerMergedSpectrumName(ms1s.get(idx).rebuild(sn, imsPeaks)); // never null for MS1
 						}
 						Collections.sort(peaks);
-						return ms1s.get(idx).rebuild(sn, peaks);
+						return withBrukerMergedSpectrumName(ms1s.get(idx).rebuild(sn, peaks));
 					}));
 				}
 
@@ -438,11 +440,11 @@ public class RawFileConverters {
 						if (imsPeaks!=null&&!imsPeaks.isEmpty()) {
 							imsPeaks=TIMSPeakPicker.peakPickAcrossIMS(imsPeaks);
 							if (timsFile.isPASEFDDA()&&imsPeaks.isEmpty()) return null; // don't worry about scan gaps
-							return ms2s.get(idx).rebuild(sn, imsPeaks);
+							return withBrukerMergedSpectrumName(ms2s.get(idx).rebuild(sn, imsPeaks));
 						}
 
 						if (timsFile.isPASEFDDA()&&peaks.isEmpty()) return null;
-						return ms2s.get(idx).rebuild(sn, peaks);
+						return withBrukerMergedSpectrumName(ms2s.get(idx).rebuild(sn, peaks));
 					}));
 				}
 				if (progress.isCanceled()) return false;
@@ -509,6 +511,38 @@ public class RawFileConverters {
 		}
 	}
 
+	static String addBrukerMergedPrefix(String spectrumName, int mergedIndex) {
+		if (spectrumName!=null&&spectrumName.startsWith("merged=")) {
+			return spectrumName;
+		}
+		String prefix="merged="+mergedIndex;
+		if (spectrumName==null||spectrumName.isBlank()) {
+			return prefix;
+		}
+		return prefix+" "+spectrumName.trim();
+	}
+
+	private static PrecursorScan withBrukerMergedSpectrumName(PrecursorScan scan) {
+		String name=addBrukerMergedPrefix(scan.getSpectrumName(), scan.getSpectrumIndex());
+		return copyPrecursorWithName(scan, name);
+	}
+
+	private static FragmentScan withBrukerMergedSpectrumName(FragmentScan scan) {
+		String name=addBrukerMergedPrefix(scan.getSpectrumName(), scan.getSpectrumIndex());
+		return copyFragmentWithName(scan, name);
+	}
+
+	private static PrecursorScan copyPrecursorWithName(PrecursorScan scan, String spectrumName) {
+		return new PrecursorScan(spectrumName, scan.getSpectrumIndex(), scan.getScanStartTime(), scan.getFraction(), scan.getScanWindowLower(),
+				scan.getScanWindowUpper(), scan.getIonInjectionTime(), scan.getMassArray(), scan.getIntensityArray(), scan.getIonMobilityArray().orElse(null));
+	}
+
+	private static FragmentScan copyFragmentWithName(FragmentScan scan, String spectrumName) {
+		return new FragmentScan(spectrumName, scan.getPrecursorName(), scan.getSpectrumIndex(), scan.getPrecursorMZ(), scan.getScanStartTime(),
+				scan.getFraction(), scan.getIonInjectionTime(), scan.getIsolationWindowLower(), scan.getIsolationWindowUpper(), scan.getMassArray(),
+				scan.getIntensityArray(), scan.getIonMobilityArray().orElse(null), scan.getCharge(), scan.getScanWindowLower(), scan.getScanWindowUpper());
+	}
+
 	private static ThreadFactory namedFactory(String base) {
 		AtomicInteger n=new AtomicInteger(1);
 		return r -> {
@@ -554,7 +588,7 @@ public class RawFileConverters {
 		}
 	}
 
-	private static ArrayList<FragmentScan> getDemuxResult(Future<ArrayList<FragmentScan>> future) {
+	private static ArrayList<DemultiplexedFragmentScan> getDemuxResult(Future<ArrayList<DemultiplexedFragmentScan>> future) {
 		try {
 			return future.get();
 		} catch (Exception e) {

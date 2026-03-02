@@ -83,9 +83,11 @@ class ThermoRawFileStubTest {
 		List<PrecursorScan> precursors=rawFile.getPrecursors(0, 100);
 		assertEquals(2, precursors.size());
 		assertTrue(precursors.get(0).getScanStartTime()<=precursors.get(1).getScanStartTime());
+		assertEquals("scan=1", precursors.get(0).getSpectrumName());
 
 		List<FragmentScan> stripes=rawFile.getStripes(new Range(400.0, 402.0), 0, 100, true);
 		assertEquals(2, stripes.size());
+		assertEquals("scan=3", stripes.get(0).getSpectrumName());
 		assertEquals(0.0f, stripes.get(0).getIntensityArray()[0], 1e-6f);
 		assertEquals((float)Math.sqrt(9.0f), stripes.get(1).getIntensityArray()[0], 1e-6f);
 

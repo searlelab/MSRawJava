@@ -2,6 +2,7 @@ package org.searlelab.msrawjava.algorithms;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Locale;
 
 import org.ejml.data.DMatrixRMaj;
@@ -14,6 +15,7 @@ import org.searlelab.msrawjava.algorithms.demux.LogQuadraticInterpolator;
 import org.searlelab.msrawjava.algorithms.demux.NNLSSolver;
 import org.searlelab.msrawjava.algorithms.demux.RetentionTimeInterpolator;
 import org.searlelab.msrawjava.logging.Logger;
+import org.searlelab.msrawjava.model.DemultiplexedFragmentScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.Peak;
@@ -117,16 +119,16 @@ public class StaggeredDemultiplexer {
 	 *            cycle at t+2 (latest)
 	 * @param currentScanNumber
 	 *            starting scan number for output spectra
-	 * @return demultiplexed FragmentScans
+	 * @return demultiplexed spectra with explicit original scan and demux code metadata
 	 */
-	public ArrayList<FragmentScan> demultiplex(ArrayList<FragmentScan> cycleM2, ArrayList<FragmentScan> cycleM1, ArrayList<FragmentScan> cycleCenter,
-			ArrayList<FragmentScan> cycleP1, ArrayList<FragmentScan> cycleP2, int currentScanNumber) {
+	public ArrayList<DemultiplexedFragmentScan> demultiplex(ArrayList<FragmentScan> cycleM2, ArrayList<FragmentScan> cycleM1,
+			ArrayList<FragmentScan> cycleCenter, ArrayList<FragmentScan> cycleP1, ArrayList<FragmentScan> cycleP2, int currentScanNumber) {
 
 		// Validate input
 		validateCycles(cycleM2, cycleM1, cycleCenter, cycleP1, cycleP2);
 
 		// Build output: iterate by acquired spectrum in center cycle (spectrum-centric approach)
-		ArrayList<FragmentScan> demuxResults=new ArrayList<>();
+		ArrayList<DemultiplexedFragmentScan> demuxResults=new ArrayList<>();
 		int baseScanNumber=currentScanNumber;
 
 		int windowCount=cycleCenter.size();
@@ -158,11 +160,14 @@ public class StaggeredDemultiplexer {
 			// Find the sub-windows covered by this spectrum
 			DemuxWindow[] coveredSubWindows=coveredByAnchor[anchorIdx];
 			DemuxWindow[] activeSubWindows=activeByAnchor!=null?activeByAnchor[anchorIdx]:coveredSubWindows;
+			HashMap<Integer, Integer> demuxCodeBySubWindow=getDemuxCodeBySubWindow(activeSubWindows);
 
 			TDoubleArrayList transitions=collectMzValuesFromAnchor(anchorSpectrum);
 			if (transitions.isEmpty()) {
 				for (DemuxWindow subWindow : activeSubWindows) {
-					FragmentScan empty=createEmptySubWindowScan(subWindow, targetRT, currentScanNumber++, anchorSpectrum);
+					int demuxCode=demuxCodeBySubWindow.getOrDefault(Integer.valueOf(subWindow.getIndex()), Integer.valueOf(0)).intValue();
+					DemultiplexedFragmentScan empty=createEmptySubWindowScan(subWindow, targetRT, currentScanNumber++, anchorSpectrum,
+							anchorSpectrum.getSpectrumIndex(), demuxCode);
 					demuxResults.add(empty);
 				}
 				continue;
@@ -233,7 +238,9 @@ public class StaggeredDemultiplexer {
 					}
 				}
 
-				FragmentScan outputScan=createSubWindowScan(subWindow, targetRT, currentScanNumber++, mzOut.toArray(), intOut.toArray(), anchorSpectrum);
+				int demuxCode=demuxCodeBySubWindow.getOrDefault(Integer.valueOf(subWindow.getIndex()), Integer.valueOf(0)).intValue();
+				DemultiplexedFragmentScan outputScan=createSubWindowScan(subWindow, targetRT, currentScanNumber++, mzOut.toArray(), intOut.toArray(),
+						anchorSpectrum, anchorSpectrum.getSpectrumIndex(), demuxCode);
 				demuxResults.add(outputScan);
 			}
 		}
@@ -324,6 +331,27 @@ public class StaggeredDemultiplexer {
 			}
 		}
 		return filtered.toArray(new DemuxWindow[0]);
+	}
+
+	private HashMap<Integer, Integer> getDemuxCodeBySubWindow(DemuxWindow[] subWindows) {
+		HashMap<Integer, Integer> demuxCodeBySubWindow=new HashMap<>();
+		ArrayList<DemuxWindow> orderedSubWindows=new ArrayList<>(Arrays.asList(subWindows));
+		orderedSubWindows.sort((a, b) -> {
+			int c=Double.compare(a.getLowerMz(), b.getLowerMz());
+			if (c!=0) return c;
+			c=Double.compare(a.getUpperMz(), b.getUpperMz());
+			if (c!=0) return c;
+			return Integer.compare(a.getIndex(), b.getIndex());
+		});
+
+		if (orderedSubWindows.size()>2) {
+			throw new IllegalStateException("Expected at most 2 sub-windows per anchor, found "+orderedSubWindows.size());
+		}
+		for (int i=0; i<orderedSubWindows.size(); i++) {
+			int demuxCode=orderedSubWindows.size()==1?0:i;
+			demuxCodeBySubWindow.put(Integer.valueOf(orderedSubWindows.get(i).getIndex()), Integer.valueOf(demuxCode));
+		}
+		return demuxCodeBySubWindow;
 	}
 
 	/**
@@ -592,23 +620,27 @@ public class StaggeredDemultiplexer {
 		return order;
 	}
 
-	private FragmentScan createEmptySubWindowScan(DemuxWindow subWindow, float targetRT, int scanNumber, FragmentScan template) {
-		return template.rebuild(scanNumber, targetRT, new ArrayList<>(), subWindow.getLowerMz(), subWindow.getUpperMz());
+	private DemultiplexedFragmentScan createEmptySubWindowScan(DemuxWindow subWindow, float targetRT, int scanNumber, FragmentScan template,
+			int originalSpectrumIndex, int demuxCode) {
+		FragmentScan scan=template.rebuild(scanNumber, targetRT, new ArrayList<>(), subWindow.getLowerMz(), subWindow.getUpperMz());
+		return new DemultiplexedFragmentScan(scan, originalSpectrumIndex, demuxCode);
 	}
 
-	private FragmentScan createSubWindowScan(DemuxWindow subWindow, float targetRT, int scanNumber, double[] mzs, float[] intensities, FragmentScan template) {
+	private DemultiplexedFragmentScan createSubWindowScan(DemuxWindow subWindow, float targetRT, int scanNumber, double[] mzs, float[] intensities,
+			FragmentScan template, int originalSpectrumIndex, int demuxCode) {
 		ArrayList<Peak> peaks=new ArrayList<>(mzs.length);
 		for (int i=0; i<mzs.length; i++) {
 			peaks.add(new Peak(mzs[i], intensities[i]));
 		}
 
-		return template.rebuild(scanNumber, targetRT, peaks, subWindow.getLowerMz(), subWindow.getUpperMz());
+		FragmentScan scan=template.rebuild(scanNumber, targetRT, peaks, subWindow.getLowerMz(), subWindow.getUpperMz());
+		return new DemultiplexedFragmentScan(scan, originalSpectrumIndex, demuxCode);
 	}
 
-	private ArrayList<FragmentScan> resequenceScans(ArrayList<FragmentScan> scans, int startScanNumber) {
-		ArrayList<FragmentScan> reindexed=new ArrayList<>(scans.size());
+	private ArrayList<DemultiplexedFragmentScan> resequenceScans(ArrayList<DemultiplexedFragmentScan> scans, int startScanNumber) {
+		ArrayList<DemultiplexedFragmentScan> reindexed=new ArrayList<>(scans.size());
 		int scanNumber=startScanNumber;
-		for (FragmentScan scan : scans) {
+		for (DemultiplexedFragmentScan scan : scans) {
 			reindexed.add(scan.renumber(scanNumber++));
 		}
 		return reindexed;
