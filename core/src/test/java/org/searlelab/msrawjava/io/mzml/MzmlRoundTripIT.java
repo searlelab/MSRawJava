@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -31,6 +32,7 @@ import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 class MzmlRoundTripIT {
 
 	private static final Path INPUT=Path.of("src", "test", "resources", "rawdata", "HeLa_16mzst_29to31min.dia");
+	private static final Path MZML_FIXTURE=Path.of("src", "test", "resources", "rawdata", "HeLa_16mzst_29to31min.mzML");
 
 	@TempDir
 	Path tmp;
@@ -118,6 +120,63 @@ class MzmlRoundTripIT {
 		}
 	}
 
+	@Test
+	void mzmlToDia_preservesCountsAndMetadataAndUniqueIndices() throws Exception {
+		Assumptions.assumeTrue(Files.exists(MZML_FIXTURE), "Fixture mzML not present: "+MZML_FIXTURE);
+
+		Path outDir=tmp.resolve("from_fixture");
+		Files.createDirectories(outDir);
+
+		MzmlSummaryCounts expected=readMzmlSummaryCounts(MZML_FIXTURE);
+
+		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
+		try {
+			LoggingProgressIndicator indicator=new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
+
+			ConversionParameters diaParams=ConversionParameters.builder().outType(OutputType.EncyclopeDIA).build();
+			MzmlFile mzml=new MzmlFile();
+			mzml.openFile(MZML_FIXTURE.toFile());
+			try {
+				RawFileConverters.writeStandard(pool, mzml, outDir, diaParams, indicator);
+			} finally {
+				mzml.close();
+			}
+
+			Path outDia=OutputType.EncyclopeDIA.getOutputFilePath(outDir, MZML_FIXTURE.getFileName().toString());
+			assertTrue(Files.exists(outDia), "Converted DIA output should exist");
+			assertTrue(Files.size(outDia)>0L, "Converted DIA output should not be empty");
+
+			EncyclopeDIAFile dia=new EncyclopeDIAFile();
+			dia.openFile(outDia.toFile());
+			try {
+				ArrayList<ScanSummary> outputSummaries=dia.getScanSummaries(0f, Float.MAX_VALUE);
+				int outputPrecursors=0;
+				int outputFragments=0;
+				HashSet<Integer> fragmentIndices=new HashSet<>();
+				for (ScanSummary summary : outputSummaries) {
+					if (summary.isPrecursor()) {
+						outputPrecursors++;
+					} else {
+						outputFragments++;
+						assertTrue(fragmentIndices.add(summary.getSpectrumIndex()), "Fragment SpectrumIndex should be unique");
+					}
+				}
+				assertEquals(expected.precursors, outputPrecursors, "Precursor count should match mzML input summaries");
+				assertEquals(expected.fragments, outputFragments, "Fragment count should match mzML input summaries");
+
+				String metadataTotalPrecursorTic=dia.getMetadata().get(EncyclopeDIAFile.TOTAL_PRECURSOR_TIC_ATTRIBUTE);
+				assertTrue(metadataTotalPrecursorTic!=null&&!metadataTotalPrecursorTic.isBlank(),
+						"Converted DIA should include totalPrecursorTIC metadata");
+				assertRelativelyClose(Double.parseDouble(metadataTotalPrecursorTic), dia.getTIC(), 1e-6,
+						"Metadata totalPrecursorTIC should match DIA precursor TIC sum");
+			} finally {
+				dia.close();
+			}
+		} finally {
+			pool.close();
+		}
+	}
+
 	private static Counts readDiaCounts(Path file) throws Exception {
 		EncyclopeDIAFile dia=new EncyclopeDIAFile();
 		dia.openFile(file.toFile());
@@ -131,28 +190,48 @@ class MzmlRoundTripIT {
 			float fragmentRtMin=Float.MAX_VALUE;
 			float fragmentRtMax=-Float.MAX_VALUE;
 			HashMap<String, Integer> fragmentWindowHistogram=new HashMap<>();
-				for (ScanSummary summary : summaries) {
-					if (summary.isPrecursor()) {
-						precursors++;
-						precursorRtMin=Math.min(precursorRtMin, summary.getScanStartTime());
-						precursorRtMax=Math.max(precursorRtMax, summary.getScanStartTime());
+			for (ScanSummary summary : summaries) {
+				if (summary.isPrecursor()) {
+					precursors++;
+					precursorRtMin=Math.min(precursorRtMin, summary.getScanStartTime());
+					precursorRtMax=Math.max(precursorRtMax, summary.getScanStartTime());
 				} else {
 					fragments++;
 					fragmentRtMin=Math.min(fragmentRtMin, summary.getScanStartTime());
 					fragmentRtMax=Math.max(fragmentRtMax, summary.getScanStartTime());
 					String key=windowKey(summary.getIsolationWindowLower(), summary.getIsolationWindowUpper());
-						fragmentWindowHistogram.merge(key, 1, Integer::sum);
-					}
+					fragmentWindowHistogram.merge(key, 1, Integer::sum);
 				}
-				Pair<float[], float[]> ticTrace=dia.getTICTrace();
-				String metadataTotalPrecursorTic=dia.getMetadata().get(EncyclopeDIAFile.TOTAL_PRECURSOR_TIC_ATTRIBUTE);
-				float totalTic=dia.getTIC();
-				float gradient=dia.getGradientLength();
-				return new Counts(ranges.size(), precursors, fragments, gradient, totalTic, ticTrace.x.length, precursorRtMin, precursorRtMax, fragmentRtMin,
-						fragmentRtMax, fragmentWindowHistogram, sortedRangeFingerprints(ranges), metadataTotalPrecursorTic, ticTrace.x, ticTrace.y,
-						sum(ticTrace.y));
+			}
+			Pair<float[], float[]> ticTrace=dia.getTICTrace();
+			String metadataTotalPrecursorTic=dia.getMetadata().get(EncyclopeDIAFile.TOTAL_PRECURSOR_TIC_ATTRIBUTE);
+			float totalTic=dia.getTIC();
+			float gradient=dia.getGradientLength();
+			return new Counts(ranges.size(), precursors, fragments, gradient, totalTic, ticTrace.x.length, precursorRtMin, precursorRtMax, fragmentRtMin,
+					fragmentRtMax, fragmentWindowHistogram, sortedRangeFingerprints(ranges), metadataTotalPrecursorTic, ticTrace.x, ticTrace.y,
+					sum(ticTrace.y));
 		} finally {
 			dia.close();
+		}
+	}
+
+	private static MzmlSummaryCounts readMzmlSummaryCounts(Path file) throws Exception {
+		MzmlFile mzml=new MzmlFile();
+		mzml.openFile(file.toFile());
+		try {
+			ArrayList<ScanSummary> summaries=mzml.getScanSummaries(-Float.MAX_VALUE, Float.MAX_VALUE);
+			int precursors=0;
+			int fragments=0;
+			for (ScanSummary summary : summaries) {
+				if (summary.isPrecursor()) {
+					precursors++;
+				} else {
+					fragments++;
+				}
+			}
+			return new MzmlSummaryCounts(precursors, fragments);
+		} finally {
+			mzml.close();
 		}
 	}
 
@@ -235,6 +314,16 @@ class MzmlRoundTripIT {
 		RangeFingerprint(float start, float stop) {
 			this.start=start;
 			this.stop=stop;
+		}
+	}
+
+	private static final class MzmlSummaryCounts {
+		final int precursors;
+		final int fragments;
+
+		MzmlSummaryCounts(int precursors, int fragments) {
+			this.precursors=precursors;
+			this.fragments=fragments;
 		}
 	}
 }

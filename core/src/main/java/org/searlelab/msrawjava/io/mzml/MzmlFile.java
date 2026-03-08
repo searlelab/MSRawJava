@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.zip.DataFormatException;
 
@@ -49,6 +50,11 @@ public class MzmlFile implements StripeFileInterface {
 	// TIC data harvested during index pass (MS1 only)
 	private final ArrayList<Float> ms1Rts=new ArrayList<>();
 	private final ArrayList<Float> ms1Tics=new ArrayList<>();
+
+	@FunctionalInterface
+	public interface SpectrumConsumer {
+		void accept(PrecursorScan precursor, FragmentScan fragment) throws Exception;
+	}
 
 	@Override
 	public void openFile(File userFile) throws IOException, SQLException {
@@ -516,6 +522,23 @@ public class MzmlFile implements StripeFileInterface {
 	@Override
 	public void close() {
 		open=false;
+	}
+
+	/**
+	 * Streams all spectra from mzML in a single pass and emits decoded scans via the supplied consumer.
+	 * Intended for high-throughput conversion paths to avoid repeated file re-reads.
+	 */
+	public void streamAllSpectra(SpectrumConsumer consumer) throws IOException {
+		if (!open) {
+			throw new IOException("mzML file is not open");
+		}
+		Objects.requireNonNull(consumer, "consumer");
+		new MzmlSaxSpectrumStreamer(userFile, index, consumer).stream();
+	}
+
+	/** Number of spectra indexed during openFile(), used for progress reporting. */
+	public int getSpectrumCount() {
+		return index.size();
 	}
 
 	// ---- Data pass: re-parse the file and decode binary arrays for matching spectra ----

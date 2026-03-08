@@ -25,6 +25,7 @@ import org.searlelab.msrawjava.algorithms.CycleAssembler;
 import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
@@ -46,6 +47,8 @@ import org.searlelab.msrawjava.threading.ProcessingThreadPool;
  */
 public class RawFileConverters {
 	private static final int NUMBER_OF_REPORTING_SECTIONS=100;
+	private static final int MZML_STREAM_BATCH_SIZE=512;
+	private static final int MZML_PROGRESS_UPDATE_INTERVAL=1024;
 
 	/**
 	 * Reads a Thermo RAW, batches spectra over time, attaches metadata and DIA ranges, streams MS1/MS2 to the chosen
@@ -72,6 +75,10 @@ public class RawFileConverters {
 			outFile.addMetadata(rawFile.getMetadata());
 			outFile.setFileName(originalFileName, rawFile.toString());
 			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
+
+			if (rawFile instanceof MzmlFile) {
+				return writeStandardMzmlFastPath((MzmlFile)rawFile, outFile, outputDirPath, params, progress, originalFileName, startTime);
+			}
 
 			writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
 			ArrayDeque<CompletableFuture<Void>> writeFutures=new ArrayDeque<>();
@@ -529,6 +536,98 @@ public class RawFileConverters {
 		}
 	}
 
+	private static boolean writeStandardMzmlFastPath(MzmlFile mzmlFile, OutputSpectrumFile outFile, Path outputDirPath, ConversionParameters params,
+			ProgressIndicator progress, String originalFileName, long startTime) throws Exception {
+		ExecutorService writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
+		try {
+			ArrayDeque<CompletableFuture<Void>> writeFutures=new ArrayDeque<>();
+			AtomicReference<Throwable> firstWriteError=new AtomicReference<>();
+			final ExecutorService writerRef=writer;
+			final ArrayDeque<CompletableFuture<Void>> writeFuturesRef=writeFutures;
+			final AtomicReference<Throwable> firstWriteErrorRef=firstWriteError;
+
+			final ArrayList<PrecursorScan> pendingMS1=new ArrayList<>(MZML_STREAM_BATCH_SIZE/2);
+			final ArrayList<FragmentScan> pendingMS2=new ArrayList<>(MZML_STREAM_BATCH_SIZE/2);
+			final double[] totalPrecursorTic= {0.0};
+			final int totalSpectra=Math.max(1, mzmlFile.getSpectrumCount());
+			final int[] parsedCount= {0};
+
+			try {
+				mzmlFile.streamAllSpectra((precursor, fragment) -> {
+					if (progress.isCanceled()) {
+						throw new StreamingCanceledException();
+					}
+
+					if (precursor!=null) {
+						pendingMS1.add(precursor);
+						totalPrecursorTic[0]+=precursor.getTIC();
+					}
+					if (fragment!=null) {
+						pendingMS2.add(fragment);
+					}
+					parsedCount[0]++;
+
+					if ((pendingMS1.size()+pendingMS2.size())>=MZML_STREAM_BATCH_SIZE) {
+						submitWrite(outFile, new ArrayList<>(pendingMS1), new ArrayList<>(pendingMS2), writerRef, writeFuturesRef, firstWriteErrorRef);
+						pendingMS1.clear();
+						pendingMS2.clear();
+						drainWriteFutures(writeFuturesRef, 2, firstWriteErrorRef);
+					}
+
+					if (parsedCount[0]%MZML_PROGRESS_UPDATE_INTERVAL==0||parsedCount[0]==totalSpectra) {
+						float totalProgress=parsedCount[0]/(float)(totalSpectra+Math.max(1, totalSpectra/20)); // only go up to 95%
+						progress.update("Parsed "+parsedCount[0]+" / "+totalSpectra+" mzML spectra", Math.min(totalProgress, 0.95f));
+					}
+				});
+			} catch (StreamingCanceledException canceled) {
+				return false;
+			}
+
+			if (progress.isCanceled()) return false;
+
+			if (!pendingMS1.isEmpty()||!pendingMS2.isEmpty()) {
+				submitWrite(outFile, new ArrayList<>(pendingMS1), new ArrayList<>(pendingMS2), writerRef, writeFuturesRef, firstWriteErrorRef);
+			}
+
+			drainWriteFutures(writeFuturesRef, 0, firstWriteErrorRef);
+			writerRef.shutdown();
+			writerRef.awaitTermination(365, TimeUnit.DAYS);
+			try {
+				CompletableFuture.allOf(writeFuturesRef.toArray(new CompletableFuture[0])).join();
+			} catch (CompletionException ce) {
+				Throwable error=firstWriteErrorRef.get();
+				if (error instanceof Exception) {
+					throw (Exception)error;
+				}
+				throw new Exception(error);
+			} finally {
+				if (!writer.awaitTermination(30, TimeUnit.SECONDS)) {
+					writer.shutdownNow();
+				}
+			}
+
+			Path outputPath=params.getOutputFilePathOverride();
+			if (outputPath==null) {
+				outputPath=params.getOutType().getOutputFilePath(outputDirPath, originalFileName);
+			}
+			writeTotalPrecursorTicMetadata(outFile, totalPrecursorTic[0]);
+			outFile.saveAsFile(outputPath.toFile());
+			outFile.close();
+
+			String message="Total conversion took "+(System.currentTimeMillis()-startTime)/1000f+" seconds.";
+			Logger.logLine(message);
+			progress.update(message);
+			progress.update("Finished converting "+originalFileName+"!", 1.0f);
+			return true;
+		} finally {
+			try {
+				writer.shutdownNow();
+			} catch (Throwable t) {
+				/* ignore */
+			}
+		}
+	}
+
 	static String addBrukerMergedPrefix(String spectrumName, int mergedIndex) {
 		if (spectrumName!=null&&spectrumName.startsWith("merged=")) {
 			return spectrumName;
@@ -655,5 +754,9 @@ public class RawFileConverters {
 		HashMap<String, String> totalTicMetadata=new HashMap<>();
 		totalTicMetadata.put(EncyclopeDIAFile.TOTAL_PRECURSOR_TIC_ATTRIBUTE, Double.toString(totalPrecursorTic));
 		outFile.addMetadata(totalTicMetadata);
+	}
+
+	private static final class StreamingCanceledException extends RuntimeException {
+		private static final long serialVersionUID=1L;
 	}
 }
