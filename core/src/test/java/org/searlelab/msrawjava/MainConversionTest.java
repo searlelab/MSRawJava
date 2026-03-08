@@ -71,4 +71,71 @@ class MainConversionTest {
 					"Unexpected failure while attempting Thermo conversion: "+root.getClass().getName());
 		}
 	}
+
+	@Test
+	void convertKnownFiles_handlesMzmlInput(@TempDir Path tempDir) throws Exception {
+		Path mzml=Path.of("src", "test", "resources", "rawdata", "HeLa_16mzst_29to31min.mzML");
+		Assumptions.assumeTrue(Files.isRegularFile(mzml), "Fixture missing: "+mzml);
+
+		ConversionParameters params=ConversionParameters.builder().addFile(mzml.toFile()).outType(OutputType.mgf).outputDirPath(tempDir).discoverMzMLFiles(true)
+				.build();
+		Main.convertKnownFiles(params);
+
+		Path expected=tempDir.resolve("HeLa_16mzst_29to31min.mgf");
+		assertTrue(Files.exists(expected), "Expected mzML output file at "+expected);
+	}
+
+	@Test
+	void convertKnownFiles_handlesMzmlInputWithDemuxSuffix(@TempDir Path tempDir) throws Exception {
+		Path mzml=Path.of("src", "test", "resources", "rawdata", "HeLa_16mzst_29to31min.mzML");
+		Assumptions.assumeTrue(Files.isRegularFile(mzml), "Fixture missing: "+mzml);
+
+		ConversionParameters params=ConversionParameters.builder().addFile(mzml.toFile()).outType(OutputType.mgf).outputDirPath(tempDir).discoverMzMLFiles(true)
+				.demultiplex(true).build();
+		Main.convertKnownFiles(params);
+
+		Path expected=tempDir.resolve("HeLa_16mzst_29to31min.demux.mgf");
+		assertTrue(Files.exists(expected), "Expected demux mzML output file at "+expected);
+	}
+
+	@Test
+	void convertKnownFiles_enforcesMzmlNoOverwriteWhenOutputDirNotProvided(@TempDir Path tempDir) throws Exception {
+		Path source=Path.of("src", "test", "resources", "rawdata", "HeLa_16mzst_29to31min.mzML");
+		Assumptions.assumeTrue(Files.isRegularFile(source), "Fixture missing: "+source);
+		Path local=tempDir.resolve("local.mzML");
+		Files.copy(source, local);
+
+		ConversionParameters params=ConversionParameters.builder().addFile(local.toFile()).outType(OutputType.mzML).discoverMzMLFiles(true).build();
+		Main.convertKnownFiles(params);
+
+		Path expected=tempDir.resolve("local.2.mzML");
+		assertTrue(Files.exists(expected), "Expected no-overwrite mzML output file at "+expected);
+	}
+
+	@Test
+	void convertKnownFiles_enforcesDiaNoOverwriteWhenOutputDirNotProvided(@TempDir Path tempDir) throws Exception {
+		Path source=Path.of("src", "test", "resources", "rawdata", "HeLa_16mzst_29to31min.dia");
+		Assumptions.assumeTrue(Files.isRegularFile(source), "Fixture missing: "+source);
+		Path local=tempDir.resolve("local.dia");
+		Files.copy(source, local);
+
+		ConversionParameters params=ConversionParameters.builder().addFile(local.toFile()).outType(OutputType.EncyclopeDIA).discoverDIAFiles(true).build();
+		Main.convertKnownFiles(params);
+
+		Path expected=tempDir.resolve("local.2.dia");
+		assertTrue(Files.exists(expected), "Expected no-overwrite DIA output file at "+expected);
+	}
+
+	@Test
+	void convertKnownFiles_handlesBrukerInputWithDemuxFlag(@TempDir Path tempDir) throws Exception {
+		Path ddir=Path.of("src", "test", "resources", "rawdata", "dda_test.d");
+		Assumptions.assumeTrue(Files.isDirectory(ddir), "Fixture missing: "+ddir);
+
+		ConversionParameters params=ConversionParameters.builder().addFile(ddir.toFile()).outType(OutputType.mgf).outputDirPath(tempDir).demultiplex(true)
+				.build();
+		Main.convertKnownFiles(params);
+
+		Path expected=tempDir.resolve("dda_test.mgf");
+		assertTrue(Files.exists(expected), "Expected Bruker demux-flag output file at "+expected);
+	}
 }

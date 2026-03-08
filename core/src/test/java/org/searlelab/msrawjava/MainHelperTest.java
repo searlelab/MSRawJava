@@ -78,6 +78,29 @@ class MainHelperTest {
 	}
 
 	@Test
+	void maybeOverrideOutput_enforcesMzmlNoOverwriteSuffix() throws Exception {
+		Method method=Main.class.getDeclaredMethod("maybeOverrideOutput", ConversionParameters.class, Path.class, Path.class, VendorFile.class);
+		method.setAccessible(true);
+
+		ConversionParameters base=ConversionParameters.builder().outType(OutputType.mzML).demultiplex(false).outputDirPath(null).build();
+		Path input=Path.of("/data/sample.mzML");
+		Path output=Path.of("/out");
+
+		ConversionParameters updated=(ConversionParameters)method.invoke(null, base, input, output, VendorFile.MZML);
+		assertEquals(output.resolve("sample.2"+MzmlConstants.MZML_EXTENSION), updated.getOutputFilePathOverride());
+	}
+
+	@Test
+	void maybeOverrideOutput_demuxNotAppliedForBrukerSource() throws Exception {
+		Method method=Main.class.getDeclaredMethod("maybeOverrideOutput", ConversionParameters.class, Path.class, Path.class, VendorFile.class);
+		method.setAccessible(true);
+
+		ConversionParameters base=ConversionParameters.builder().outType(OutputType.mgf).demultiplex(true).build();
+		ConversionParameters updated=(ConversionParameters)method.invoke(null, base, Path.of("/data/run.d"), Path.of("/out"), VendorFile.BRUKER);
+		assertNull(updated.getOutputFilePathOverride());
+	}
+
+	@Test
 	void createIndicator_respectsSilentAndBatchModes() throws Exception {
 		Method method=Main.class.getDeclaredMethod("createIndicator", ConversionParameters.class);
 		method.setAccessible(true);

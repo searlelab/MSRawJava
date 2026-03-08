@@ -89,4 +89,16 @@ class MainCliArgumentsTest {
 		assertEquals(OutputType.mgf, Main.OutputFormat.mgf.toOutputType());
 		assertEquals(OutputType.mzML, Main.OutputFormat.mzml.toOutputType());
 	}
+
+	@Test
+	void call_silentModeExecutesWithoutWelcomeLogs(@TempDir Path tempDir) throws Exception {
+		Path inputDir=tempDir.resolve("empty");
+		java.nio.file.Files.createDirectories(inputDir);
+
+		Main.CliArguments args=new Main.CliArguments();
+		new CommandLine(args).parseArgs("--silent", inputDir.toString());
+
+		Integer exitCode=args.call();
+		assertEquals(0, exitCode);
+	}
 }

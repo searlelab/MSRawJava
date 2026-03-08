@@ -3,15 +3,20 @@ package org.searlelab.msrawjava.io.mzml;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 import java.util.zip.Deflater;
 
@@ -435,5 +440,190 @@ class MzmlFileTest {
 		assertEquals(1, reader.getStripes(narrow, 0, 30, false).size());
 
 		reader.close();
+	}
+
+	@Test
+	void openFileWithMalformedXmlThrowsIOException() throws Exception {
+		File malformed=writeMzml("<mzML><run><spectrumList>");
+		MzmlFile reader=new MzmlFile();
+		assertThrows(IOException.class, () -> reader.openFile(malformed));
+	}
+
+	@Test
+	void streamAllSpectraValidatesStateAndConsumer() throws Exception {
+		MzmlFile closedReader=new MzmlFile();
+		assertThrows(IOException.class, () -> closedReader.streamAllSpectra((p, f) -> {}));
+
+		String xml=mzmlHeader()+ms1Spectrum(0, 10.0f, 100.0, 1200.0, new double[] {100.0}, new float[] {5.0f}, 5.0f, false)+mzmlFooter();
+		MzmlFile openReader=new MzmlFile();
+		openReader.openFile(writeMzml(xml));
+		assertThrows(NullPointerException.class, () -> openReader.streamAllSpectra(null));
+		openReader.close();
+	}
+
+	@Test
+	void parseMetadataUserParamIgnoresInvalidNames() throws Exception {
+		String xml="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+"<mzML xmlns=\"http://psi.hupo.org/ms/mzml\" version=\"1.1.1\">\n"
+				+"  <cvList count=\"1\"><cv id=\"MS\" fullName=\"PSI-MS\" version=\"4.1.136\" URI=\"\"/></cvList>\n"+"  <fileDescription>\n"
+				+"    <fileContent><cvParam cvRef=\"MS\" accession=\"MS:1000579\" value=\"\"/></fileContent>\n"+"    <sourceFileList count=\"1\">\n"
+				+"      <sourceFile id=\"SRC1\" name=\"x\" location=\"file:///x\">\n"+"        <userParam value=\"nameless\"/>\n"
+				+"        <userParam name=\"other.prefix.ignored\" value=\"nope\"/>\n"
+				+"        <userParam name=\"msrawjava.metadata.\" value=\"blank-key\"/>\n"
+				+"        <userParam name=\"msrawjava.metadata.keep\" value=\"ok\"/>\n"+"      </sourceFile>\n"+"    </sourceFileList>\n"
+				+"  </fileDescription>\n"+"  <run id=\"run1\">\n"+"    <spectrumList count=\"0\" defaultDataProcessingRef=\"dp\"/>\n"+"  </run>\n"+"</mzML>\n";
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+		Map<String, String> meta=reader.getMetadata();
+		assertEquals("ok", meta.get("keep"));
+		assertFalse(meta.containsKey(""));
+		assertFalse(meta.containsKey("other.prefix.ignored"));
+		reader.close();
+	}
+
+	@Test
+	void getSpectrumReturnsNullForNullOrUnknownSummary() throws Exception {
+		String xml=mzmlHeader()+ms1Spectrum(0, 10.0f, 100.0, 1200.0, new double[] {100.0}, new float[] {5.0f}, 5.0f, false)+mzmlFooter();
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+		assertNull(reader.getSpectrum(null));
+		ScanSummary missing=new ScanSummary("missing", 9999, 0f, 0, -1.0, true, null, 0, 0, 0, 0, (byte)0);
+		assertNull(reader.getSpectrum(missing));
+		reader.close();
+	}
+
+	@Test
+	void getStripesSqrtAppliesForBothOverloads() throws Exception {
+		double[] mz= {200.0, 300.0};
+		float[] inten= {4.0f, 9.0f};
+		String xml=mzmlHeader()+ms2Spectrum(0, 10.0f, 500.0, 12.5, 500.0, (byte)2, mz, inten, false)+mzmlFooter();
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+
+		ArrayList<FragmentScan> byMz=reader.getStripes(500.0, 0, 20, true);
+		assertEquals(1, byMz.size());
+		assertEquals(2.0f, byMz.get(0).getIntensityArray()[0], 1e-5f);
+		assertEquals(3.0f, byMz.get(0).getIntensityArray()[1], 1e-5f);
+
+		ArrayList<FragmentScan> byRange=reader.getStripes(new Range(490.0, 510.0), 0, 20, true);
+		assertEquals(1, byRange.size());
+		assertEquals(2.0f, byRange.get(0).getIntensityArray()[0], 1e-5f);
+		assertEquals(3.0f, byRange.get(0).getIntensityArray()[1], 1e-5f);
+
+		reader.close();
+	}
+
+	@Test
+	void cursorFallbackWorksWhenSpectrumHasNoIdOrIndex() throws Exception {
+		StringBuilder spectra=new StringBuilder();
+		for (int i=0; i<20; i++) {
+			spectra.append(ms1SpectrumNoIdNoIndex(5.0f+i, 100.0+i, 10.0f+i));
+		}
+		String xml=mzmlHeader().replace("PLACEHOLDER", "20")+spectra+mzmlFooter();
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+		ArrayList<ScanSummary> summaries=reader.getScanSummaries(0, 100);
+		assertEquals(20, summaries.size());
+
+		assertEquals(100.0, reader.getSpectrum(summaries.get(0)).getMassArray()[0], 1e-6);
+		assertEquals(110.0, reader.getSpectrum(summaries.get(10)).getMassArray()[0], 1e-6);
+		assertEquals(110.0, reader.getSpectrum(summaries.get(10)).getMassArray()[0], 1e-6);
+		reader.close();
+	}
+
+	@Test
+	void spectrumCacheEvictsEldestEntryAfterCapacity() throws Exception {
+		int count=300;
+		StringBuilder spectra=new StringBuilder();
+		for (int i=0; i<count; i++) {
+			spectra.append(ms1Spectrum(i, i+1.0f, 100.0, 1200.0, new double[] {100.0+i}, new float[] {1.0f+i}, 1.0f, false));
+		}
+		String xml=mzmlHeader().replace("PLACEHOLDER", Integer.toString(count))+spectra+mzmlFooter();
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+		ArrayList<ScanSummary> summaries=reader.getScanSummaries(0, Float.MAX_VALUE);
+		for (ScanSummary summary : summaries) {
+			assertNotNull(reader.getSpectrum(summary));
+		}
+
+		Map<Integer, ?> cache=extractPrivateMap(reader, "spectrumCache");
+		assertTrue(cache.size()<=256);
+		assertFalse(cache.containsKey(summaries.get(0).getSpectrumIndex()));
+		reader.close();
+	}
+
+	@Test
+	void skewedOffsetHintUsesForwardSearchFallback() throws Exception {
+		String paddedComment="<!--"+("x".repeat(7000))+"-->";
+		String xml="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+"<mzML xmlns=\"http://psi.hupo.org/ms/mzml\" version=\"1.1.1\">\n"
+				+"  <cvList count=\"2\">\n"+"    <cv id=\"MS\" fullName=\"PSI-MS\" version=\"4.1.136\" URI=\"\"/>\n"
+				+"    <cv id=\"UO\" fullName=\"Unit Ontology\" version=\"1\" URI=\"\"/>\n"+"  </cvList>\n"+paddedComment+"\n"+"  <run id=\"run1\">\n"
+				+"    <spectrumList count=\"1\" defaultDataProcessingRef=\"dp\">\n"
+				+ms1Spectrum(0, 10.0f, 100.0, 1200.0, new double[] {321.0}, new float[] {4.0f}, 4.0f, false)
+				+"    </spectrumList>\n"+"  </run>\n"+"</mzML>\n";
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+		List<MzmlFile.MzmlScanEntry> entries=extractPrivateIndex(reader);
+		entries.get(0).spectrumOffsetHint=0L;
+
+		ArrayList<ScanSummary> summaries=reader.getScanSummaries(0, 20);
+		assertEquals(1, summaries.size());
+		assertEquals(321.0, reader.getSpectrum(summaries.get(0)).getMassArray()[0], 1e-6);
+		reader.close();
+	}
+
+	@Test
+	void streamAllSpectraEmitsPrecursorAndFragment() throws Exception {
+		double[] mz= {200.0};
+		float[] inten= {7.0f};
+		String xml=mzmlHeader()+ms1Spectrum(0, 10.0f, 100.0, 1200.0, mz, inten, 7.0f, true)
+				+ms2Spectrum(1, 11.0f, 500.0, 12.5, 500.0, (byte)3, mz, inten, true)+mzmlFooter();
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+		int[] counts= {0, 0};
+		reader.streamAllSpectra((precursor, fragment) -> {
+			if (precursor!=null) counts[0]++;
+			if (fragment!=null) counts[1]++;
+		});
+		assertEquals(1, counts[0]);
+		assertEquals(1, counts[1]);
+		reader.close();
+	}
+
+	private static String ms1SpectrumNoIdNoIndex(float rtSeconds, double mz, float intensity) {
+		return "      <spectrum defaultArrayLength=\"1\">\n"+"        <cvParam cvRef=\"MS\" accession=\"MS:1000511\" name=\"ms level\" value=\"1\"/>\n"
+				+"        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""+intensity+"\"/>\n"+"        <scanList count=\"1\">\n"
+				+"          <scan>\n"
+				+"            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""+rtSeconds
+				+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n"+"          </scan>\n"+"        </scanList>\n"
+				+"        <binaryDataArrayList count=\"2\">\n"+"          <binaryDataArray>\n"
+				+"            <cvParam cvRef=\"MS\" accession=\"MS:1000514\" name=\"m/z array\"/>\n"
+				+"            <cvParam cvRef=\"MS\" accession=\"MS:1000523\" name=\"64-bit float\"/>\n"
+				+"            <cvParam cvRef=\"MS\" accession=\"MS:1000576\"/>\n"+"            <binary>"+encode64Double(new double[] {mz})+"</binary>\n"
+				+"          </binaryDataArray>\n"+"          <binaryDataArray>\n"
+				+"            <cvParam cvRef=\"MS\" accession=\"MS:1000515\" name=\"intensity array\"/>\n"
+				+"            <cvParam cvRef=\"MS\" accession=\"MS:1000521\" name=\"32-bit float\"/>\n"
+				+"            <cvParam cvRef=\"MS\" accession=\"MS:1000576\"/>\n"+"            <binary>"+encode32Float(new float[] {intensity})+"</binary>\n"
+				+"          </binaryDataArray>\n"+"        </binaryDataArrayList>\n"+"      </spectrum>\n";
+	}
+
+	@SuppressWarnings("unchecked")
+	private static List<MzmlFile.MzmlScanEntry> extractPrivateIndex(MzmlFile reader) throws Exception {
+		Field f=MzmlFile.class.getDeclaredField("index");
+		f.setAccessible(true);
+		return (List<MzmlFile.MzmlScanEntry>)f.get(reader);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<Integer, ?> extractPrivateMap(MzmlFile reader, String fieldName) throws Exception {
+		Field f=MzmlFile.class.getDeclaredField(fieldName);
+		f.setAccessible(true);
+		return (Map<Integer, ?>)f.get(reader);
 	}
 }
