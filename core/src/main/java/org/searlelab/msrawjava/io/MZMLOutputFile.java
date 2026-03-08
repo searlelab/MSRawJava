@@ -1,5 +1,7 @@
 package org.searlelab.msrawjava.io;
 
+import static org.searlelab.msrawjava.io.mzml.MzmlConstants.*;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -12,7 +14,6 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
@@ -20,6 +21,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.searlelab.msrawjava.Version;
+import org.searlelab.msrawjava.io.mzml.MzmlBinaryUtils;
 import org.searlelab.msrawjava.io.utils.StreamCopy;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -29,14 +31,12 @@ import org.searlelab.msrawjava.model.WindowData;
 
 /**
  * MZMLOutputFile writes mzML in a streaming manner, assembling instrument/run metadata and spectra into a consistent,
- * indexed XML artifact. It emphasizes deterministic serialization and controlled memory use, mapping the project’s
+ * indexed XML artifact. It emphasizes deterministic serialization and controlled memory use, mapping the project's
  * model types to mzML structures while keeping CV terms and checksums coherent.
  */
 public class MZMLOutputFile implements OutputSpectrumFile {
 
 	private static final String SPECTRUM_LIST_COUNT_PLACEHOLDER="SPECTRUM_LIST_COUNT_PLACEHOLDER";
-
-	public static final String MZML_EXTENSION=".mzML";
 
 	private Path tempPath=null;
 	private BufferedWriter out=null;
@@ -159,8 +159,8 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 	private void writeFileDescription() throws IOException {
 		out.write("  <fileDescription>\n");
 		out.write("    <fileContent>\n");
-		out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1000579\" name=\"MS1 spectrum\" value=\"\"/>\n");
-		out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1000580\" name=\"MSn spectrum\" value=\"\"/>\n");
+		out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_MS1_SPECTRUM+"\" name=\"MS1 spectrum\" value=\"\"/>\n");
+		out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_MSN_SPECTRUM+"\" name=\"MSn spectrum\" value=\"\"/>\n");
 		out.write("    </fileContent>\n");
 
 		out.write("    <sourceFileList count=\"1\">\n");
@@ -172,7 +172,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		}
 		String srcLoc=(sourcePath!=null?"file://"+escapeXml(sourcePath):"file:///");
 		out.write("      <sourceFile id=\""+srcId+"\" name=\""+escapeXml(srcName)+"\" location=\""+srcLoc+"\">\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000776\" name=\"scan number only nativeID format\" value=\"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_SCAN_NUMBER_NATIVE_ID+"\" name=\"scan number only nativeID format\" value=\"\"/>\n");
 
 		String formatAcc=guessFileFormatAccession(srcName, meta);
 		String formatName=cvName(formatAcc);
@@ -190,7 +190,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		}
 
 		if (sha1==null) sha1="0000000000000000000000000000000000000000"; // worst case placeholder
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000569\" name=\"SHA-1\" value=\""+sha1+"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_SHA1+"\" name=\"SHA-1\" value=\""+sha1+"\"/>\n");
 
 		out.write("      </sourceFile>\n");
 		out.write("    </sourceFileList>\n");
@@ -208,19 +208,19 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 
 		if (vendor.toLowerCase(Locale.ROOT).contains("bruker")||model.contains("tims")) {
 			// Bruker timsTOF series
-			out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1003123\" name=\"Bruker Daltonics timsTOF series\" value=\"\"/>\n");
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_BRUKER_TIMSTOF_SERIES+"\" name=\"Bruker Daltonics timsTOF series\" value=\"\"/>\n");
 		} else if (model.contains("orbitrap")||vendor.toLowerCase(Locale.ROOT).contains("thermo")) {
 			// Generic Thermo model bucket + serial
-			out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1000492\" name=\"Thermo Electron instrument model\" value=\"\"/>\n");
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_THERMO_INSTRUMENT_MODEL+"\" name=\"Thermo Electron instrument model\" value=\"\"/>\n");
 		} else {
-			// Fallback: generic instrument model term 
-			out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1000031\" name=\"instrument model\" value=\"\"/>\n");
+			// Fallback: generic instrument model term
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_INSTRUMENT_MODEL+"\" name=\"instrument model\" value=\"\"/>\n");
 		}
 
 		// instrument serial number if present
 		String serial=meta.getOrDefault("meta.InstrumentSerialNumber", meta.getOrDefault("instrument.serial_number", null));
 		if (serial!=null&&!serial.isEmpty()) {
-			out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1000529\" name=\"instrument serial number\" value=\""+escapeXml(serial)+"\"/>\n");
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_INSTRUMENT_SERIAL_NUMBER+"\" name=\"instrument serial number\" value=\""+escapeXml(serial)+"\"/>\n");
 		}
 
 		out.write("    </referenceableParamGroup>\n");
@@ -235,12 +235,12 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 			String acq=meta.get("meta.AcquisitionSoftware");
 			String acqVer=meta.getOrDefault("meta.AcquisitionSoftwareVersion", "unknown");
 			out.write("    <software id=\"ACQ\" version=\""+escapeXml(acqVer)+"\">\n");
-			out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1000531\" name=\"acquisition software\" value=\""+escapeXml(acq)+"\"/>\n");
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_ACQUISITION_SOFTWARE+"\" name=\"acquisition software\" value=\""+escapeXml(acq)+"\"/>\n");
 			out.write("    </software>\n");
 		}
 
 		out.write("    <software id=\"msrawjava\" version=\""+escapeXml(Version.getVersion())+"\">\n");
-		out.write("      <cvParam cvRef=\"MS\" accession=\"MS:1000799\" name=\"custom unreleased software tool\" value=\"msrawjava\"/>\n");
+		out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_CUSTOM_SOFTWARE+"\" name=\"custom unreleased software tool\" value=\"msrawjava\"/>\n");
 		out.write("    </software>\n");
 		out.write("  </softwareList>\n");
 	}
@@ -253,7 +253,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 
 		// Source
 		out.write("        <source order=\"1\">\n");
-		out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000073\" name=\"electrospray ionization\" value=\"\"/>\n");
+		out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_ELECTROSPRAY_IONIZATION+"\" name=\"electrospray ionization\" value=\"\"/>\n");
 		out.write("        </source>\n");
 
 		String vendorLc=meta.getOrDefault("meta.InstrumentVendor", "").toLowerCase(Locale.ROOT);
@@ -261,22 +261,22 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("        <analyzer order=\"2\">\n");
 		if (vendorLc.contains("thermo")) {
 			if (modelLc.contains("orbitrap")) {
-				out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000484\" name=\"orbitrap\" value=\"\"/>\n");
+				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_ORBITRAP+"\" name=\"orbitrap\" value=\"\"/>\n");
 			} else if (modelLc.contains("astral")) {
-				out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000084\" name=\"time-of-flight\" value=\"\"/>\n");
+				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_TIME_OF_FLIGHT+"\" name=\"time-of-flight\" value=\"\"/>\n");
 			} else if (modelLc.contains("stellar")) {
-				out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000291\" name=\"linear ion trap\" value=\"\"/>\n");
+				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_LINEAR_ION_TRAP+"\" name=\"linear ion trap\" value=\"\"/>\n");
 			}
 		} else {
-			out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000084\" name=\"time-of-flight\" value=\"\"/>\n");
+			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_TIME_OF_FLIGHT+"\" name=\"time-of-flight\" value=\"\"/>\n");
 		}
 		out.write("        </analyzer>\n");
 
 		out.write("        <detector order=\"3\">\n");
 		if (vendorLc.contains("thermo")||modelLc.contains("orbitrap")) {
-			out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000624\" name=\"inductive detector\" value=\"\"/>\n");
+			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_INDUCTIVE_DETECTOR+"\" name=\"inductive detector\" value=\"\"/>\n");
 		} else {
-			out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000114\" name=\"microchannel plate detector\" value=\"\"/>\n");
+			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_MICROCHANNEL_PLATE_DETECTOR+"\" name=\"microchannel plate detector\" value=\"\"/>\n");
 		}
 		out.write("        </detector>\n");
 
@@ -292,14 +292,14 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("  <dataProcessingList count=\"1\">\n");
 		out.write("    <dataProcessing id=\"msrawjava_processing\">\n");
 		out.write("      <processingMethod order=\"0\" softwareRef=\"msrawjava\">\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000544\" name=\"Conversion to mzML\" value=\"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_CONVERSION_TO_MZML+"\" name=\"Conversion to mzML\" value=\"\"/>\n");
 		out.write("      </processingMethod>\n");
 		out.write("    </dataProcessing>\n");
 		out.write("  </dataProcessingList>\n");
 	}
 
 	private void openSpectrumList() throws IOException {
-		// ★ Write a stable placeholder we’ll replace at saveAsFile(...)
+		// ★ Write a stable placeholder we'll replace at saveAsFile(...)
 		out.write("    <spectrumList count=\""+SPECTRUM_LIST_COUNT_PLACEHOLDER+"\" defaultDataProcessingRef=\"msrawjava_processing\">\n");
 		spectrumListOpen=true;
 	}
@@ -315,26 +315,26 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		final int n=Math.min(scan.getMassArray().length, scan.getIntensityArray().length);
 		String id="scan="+scan.getSpectrumIndex();
 		out.write("      <spectrum id=\""+id+"\" index=\""+(spectrumCount++)+"\" defaultArrayLength=\""+n+"\">\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000511\" name=\"ms level\" value=\"1\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000579\" name=\"MS1 spectrum\" value=\"\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000127\" name=\"centroid spectrum\" value=\"\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000130\" name=\"positive scan\" value=\"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_MS_LEVEL+"\" name=\"ms level\" value=\"1\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_MS1_SPECTRUM+"\" name=\"MS1 spectrum\" value=\"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_CENTROID_SPECTRUM+"\" name=\"centroid spectrum\" value=\"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_POSITIVE_SCAN+"\" name=\"positive scan\" value=\"\"/>\n");
 
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000505\" name=\"base peak intensity\" value=\""+fmtIntens(scan.getBasePeak().getIntensity())
-				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""+fmtIntens(scan.getTIC())+"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_BASE_PEAK_INTENSITY+"\" name=\"base peak intensity\" value=\""+fmtIntens(scan.getBasePeak().getIntensity())
+				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_DETECTOR_COUNTS_UNIT+"\" unitName=\"number of detector counts\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_TOTAL_ION_CURRENT+"\" name=\"total ion current\" value=\""+fmtIntens(scan.getTIC())+"\"/>\n");
 
 		writeIonMobilityLimitsUserParams(scan.getIonMobilityArray());
 
 		out.write("        <scanList count=\"1\">\n");
-		out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000795\" name=\"no combination\" value=\"\"/>\n");
+		out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_NO_COMBINATION+"\" name=\"no combination\" value=\"\"/>\n");
 		out.write("          <scan instrumentConfigurationRef=\"IC1\">\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""+fmtTimeInSec(scan.getScanStartTime())
-				+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
+		out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_SCAN_START_TIME+"\" name=\"scan start time\" value=\""+fmtTimeInSec(scan.getScanStartTime())
+				+"\" unitCvRef=\"UO\" unitAccession=\""+UO_SECOND+"\" unitName=\"second\"/>\n");
 		if (scan.getIonInjectionTime()!=null) {
 			double iitMs=scan.getIonInjectionTime()*1000.0;
-			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""+fmtTimeInMs(iitMs)
-					+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+			out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_ION_INJECTION_TIME+"\" name=\"ion injection time\" value=\""+fmtTimeInMs(iitMs)
+					+"\" unitCvRef=\"UO\" unitAccession=\""+UO_MILLISECOND+"\" unitName=\"millisecond\"/>\n");
 		}
 
 		writeScanWindow(scan.getScanWindowLower(), scan.getScanWindowUpper());
@@ -349,27 +349,27 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		final int n=Math.min(scan.getMassArray().length, scan.getIntensityArray().length);
 		String id="scan="+scan.getSpectrumIndex();
 		out.write("      <spectrum id=\""+id+"\" index=\""+(spectrumCount++)+"\" defaultArrayLength=\""+n+"\">\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000511\" name=\"ms level\" value=\"2\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000580\" name=\"MSn spectrum\" value=\"\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000127\" name=\"centroid spectrum\" value=\"\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000130\" name=\"positive scan\" value=\"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_MS_LEVEL+"\" name=\"ms level\" value=\"2\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_MSN_SPECTRUM+"\" name=\"MSn spectrum\" value=\"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_CENTROID_SPECTRUM+"\" name=\"centroid spectrum\" value=\"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_POSITIVE_SCAN+"\" name=\"positive scan\" value=\"\"/>\n");
 
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000505\" name=\"base peak intensity\" value=\""+fmtIntens(scan.getBasePeak().getIntensity())
-				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
-		out.write("        <cvParam cvRef=\"MS\" accession=\"MS:1000285\" name=\"total ion current\" value=\""+fmtIntens(scan.getTIC())+"\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_BASE_PEAK_INTENSITY+"\" name=\"base peak intensity\" value=\""+fmtIntens(scan.getBasePeak().getIntensity())
+				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_DETECTOR_COUNTS_UNIT+"\" unitName=\"number of detector counts\"/>\n");
+		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_TOTAL_ION_CURRENT+"\" name=\"total ion current\" value=\""+fmtIntens(scan.getTIC())+"\"/>\n");
 
 		writeIonMobilityLimitsUserParams(scan.getIonMobilityArray());
 
 		out.write("        <scanList count=\"1\">\n");
-		out.write("          <cvParam cvRef=\"MS\" accession=\"MS:1000795\" name=\"no combination\" value=\"\"/>\n");
+		out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_NO_COMBINATION+"\" name=\"no combination\" value=\"\"/>\n");
 		out.write("          <scan instrumentConfigurationRef=\"IC1\">\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000016\" name=\"scan start time\" value=\""+fmtTimeInSec(scan.getScanStartTime())
-				+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n");
+		out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_SCAN_START_TIME+"\" name=\"scan start time\" value=\""+fmtTimeInSec(scan.getScanStartTime())
+				+"\" unitCvRef=\"UO\" unitAccession=\""+UO_SECOND+"\" unitName=\"second\"/>\n");
 
 		if (scan.getIonInjectionTime()!=null) {
 			double iitMs=scan.getIonInjectionTime()*1000.0;
-			out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000927\" name=\"ion injection time\" value=\""+fmtTimeInMs(iitMs)
-					+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000028\" unitName=\"millisecond\"/>\n");
+			out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_ION_INJECTION_TIME+"\" name=\"ion injection time\" value=\""+fmtTimeInMs(iitMs)
+					+"\" unitCvRef=\"UO\" unitAccession=\""+UO_MILLISECOND+"\" unitName=\"millisecond\"/>\n");
 		}
 
 		writeScanWindow(scan.getScanWindowLower(), scan.getScanWindowUpper());
@@ -382,26 +382,26 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		double isolationCenter=(scan.getIsolationWindowUpper()+scan.getIsolationWindowLower())/2.0;
 		double isolationOffset=(scan.getIsolationWindowUpper()-scan.getIsolationWindowLower())/2.0;
 
-		out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000827\" name=\"isolation window target m/z\" value=\""+fmtMz(isolationCenter)
-				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000040\" unitName=\"m/z\"/>\n");
-		out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000828\" name=\"isolation window lower offset\" value=\""+fmtMz(isolationOffset)
-				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000040\" unitName=\"m/z\"/>\n");
-		out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000829\" name=\"isolation window upper offset\" value=\""+fmtMz(isolationOffset)
-				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000040\" unitName=\"m/z\"/>\n");
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_TARGET_MZ+"\" name=\"isolation window target m/z\" value=\""+fmtMz(isolationCenter)
+				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_LOWER_OFFSET+"\" name=\"isolation window lower offset\" value=\""+fmtMz(isolationOffset)
+				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_UPPER_OFFSET+"\" name=\"isolation window upper offset\" value=\""+fmtMz(isolationOffset)
+				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
 		out.write("              </isolationWindow>\n");
 
 		out.write("            <selectedIonList count=\"1\">\n");
 		out.write("              <selectedIon>\n");
-		out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000744\" name=\"selected ion m/z\" value=\""+fmtMz(scan.getPrecursorMZ())
-				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000040\" unitName=\"m/z\"/>\n");
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_SELECTED_ION_MZ+"\" name=\"selected ion m/z\" value=\""+fmtMz(scan.getPrecursorMZ())
+				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
 		byte z=scan.getCharge();
 		if (z!=0) {
-			out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000041\" name=\"charge state\" value=\""+z+"\"/>\n");
+			out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_CHARGE_STATE+"\" name=\"charge state\" value=\""+z+"\"/>\n");
 		}
 		out.write("              </selectedIon>\n");
 		out.write("            </selectedIonList>\n");
 		out.write("            <activation>\n");
-		String act=meta.getOrDefault("activation.method", "MS:1000422");
+		String act=meta.getOrDefault("activation.method", CV_BEAM_TYPE_CID);
 		out.write("              <cvParam cvRef=\"MS\" accession=\""+act+"\" name=\""+cvName(act)+"\" value=\"\"/>\n");
 		out.write("            </activation>\n");
 		out.write("          </precursor>\n");
@@ -430,26 +430,26 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 
 	private void writeBinaryDataArrayList(double[] mz, float[] intensity) throws IOException {
 		int n=Math.min(mz.length, intensity.length);
-		String mz64=encode64(toBytes64(mz, n));
-		String i32=encode64(toBytes32(intensity, n));
+		String mz64=MzmlBinaryUtils.encodeBase64(MzmlBinaryUtils.doublesToBytes(mz, n));
+		String i32=MzmlBinaryUtils.encodeBase64(MzmlBinaryUtils.floatsToBytes(intensity, n));
 
 		out.write("        <binaryDataArrayList count=\"2\">\n");
 
 		// m/z array (64-bit float) + m/z unit
 		out.write("          <binaryDataArray encodedLength=\""+mz64.length()+"\">\n");
 		out.write(
-				"            <cvParam cvRef=\"MS\" accession=\"MS:1000514\" name=\"m/z array\" value=\"\" unitCvRef=\"MS\" unitAccession=\"MS:1000040\" unitName=\"m/z\"/>\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000523\" name=\"64-bit float\" value=\"\"/>\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000576\" name=\"no compression\" value=\"\"/>\n");
+				"            <cvParam cvRef=\"MS\" accession=\""+CV_MZ_ARRAY+"\" name=\"m/z array\" value=\"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
+		out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_64_BIT_FLOAT+"\" name=\"64-bit float\" value=\"\"/>\n");
+		out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_NO_COMPRESSION+"\" name=\"no compression\" value=\"\"/>\n");
 		out.write("            <binary>"+mz64+"</binary>\n");
 		out.write("          </binaryDataArray>\n");
 
 		// intensity array (32-bit float) + counts unit
 		out.write("          <binaryDataArray encodedLength=\""+i32.length()+"\">\n");
 		out.write(
-				"            <cvParam cvRef=\"MS\" accession=\"MS:1000515\" name=\"intensity array\" value=\"\" unitCvRef=\"MS\" unitAccession=\"MS:1000131\" unitName=\"number of detector counts\"/>\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000521\" name=\"32-bit float\" value=\"\"/>\n");
-		out.write("            <cvParam cvRef=\"MS\" accession=\"MS:1000576\" name=\"no compression\" value=\"\"/>\n");
+				"            <cvParam cvRef=\"MS\" accession=\""+CV_INTENSITY_ARRAY+"\" name=\"intensity array\" value=\"\" unitCvRef=\"MS\" unitAccession=\""+CV_DETECTOR_COUNTS_UNIT+"\" unitName=\"number of detector counts\"/>\n");
+		out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_32_BIT_FLOAT+"\" name=\"32-bit float\" value=\"\"/>\n");
+		out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_NO_COMPRESSION+"\" name=\"no compression\" value=\"\"/>\n");
 		out.write("            <binary>"+i32+"</binary>\n");
 		out.write("          </binaryDataArray>\n");
 
@@ -459,10 +459,10 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 	private void writeScanWindow(double lower, double upper) throws IOException {
 		out.write("            <scanWindowList count=\"1\">\n");
 		out.write("              <scanWindow>\n");
-		out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000501\" name=\"scan window lower limit\" value=\""+fmtMz(lower)
-				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000040\" unitName=\"m/z\"/>\n");
-		out.write("                <cvParam cvRef=\"MS\" accession=\"MS:1000500\" name=\"scan window upper limit\" value=\""+fmtMz(upper)
-				+"\" unitCvRef=\"MS\" unitAccession=\"MS:1000040\" unitName=\"m/z\"/>\n");
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_SCAN_WINDOW_LOWER_LIMIT+"\" name=\"scan window lower limit\" value=\""+fmtMz(lower)
+				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_SCAN_WINDOW_UPPER_LIMIT+"\" name=\"scan window upper limit\" value=\""+fmtMz(upper)
+				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
 		out.write("              </scanWindow>\n");
 		out.write("            </scanWindowList>\n");
 	}
@@ -487,62 +487,27 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		return String.format("%.3f", v);
 	}
 
-	private static String encode64(byte[] bytes) {
-		return Base64.getEncoder().encodeToString(bytes);
-	}
-
-	private static byte[] toBytes64(double[] a, int n) {
-		// little-endian IEEE-754 doubles
-		byte[] out=new byte[n*8];
-		for (int i=0; i<n; i++) {
-			long bits=Double.doubleToRawLongBits(a[i]);
-			int o=i*8;
-			out[o]=(byte)(bits);
-			out[o+1]=(byte)(bits>>>8);
-			out[o+2]=(byte)(bits>>>16);
-			out[o+3]=(byte)(bits>>>24);
-			out[o+4]=(byte)(bits>>>32);
-			out[o+5]=(byte)(bits>>>40);
-			out[o+6]=(byte)(bits>>>48);
-			out[o+7]=(byte)(bits>>>56);
-		}
-		return out;
-	}
-
-	private static byte[] toBytes32(float[] a, int n) {
-		byte[] out=new byte[n*4];
-		for (int i=0; i<n; i++) {
-			int bits=Float.floatToRawIntBits(a[i]);
-			int o=i*4;
-			out[o]=(byte)(bits);
-			out[o+1]=(byte)(bits>>>8);
-			out[o+2]=(byte)(bits>>>16);
-			out[o+3]=(byte)(bits>>>24);
-		}
-		return out;
-	}
-
 	private static String escapeXml(String s) {
 		return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
 	}
 
 	private static String cvName(String accession) {
 		switch (accession) {
-			case "MS:1000563":
+			case CV_THERMO_RAW_FORMAT:
 				return "Thermo RAW format";
-			case "MS:1000584":
+			case CV_MZML_FORMAT:
 				return "mzML format";
-			case "MS:1000567":
+			case CV_BRUKER_YEP_FORMAT:
 				return "Bruker/Agilent YEP format";
-			case "MS:1000442":
+			case CV_TOF_MASS_ANALYZER:
 				return "time-of-flight mass analyzer";
-			case "MS:1000484":
+			case CV_ORBITRAP:
 				return "orbitrap";
-			case "MS:1002817":
+			case CV_BRUKER_TDF_FORMAT:
 				return "Bruker TDF format";
-			case "MS:1002818":
+			case CV_BRUKER_TDF_NATIVE_ID:
 				return "Bruker TDF nativeID format";
-			case "MS:1000422":
+			case CV_BEAM_TYPE_CID:
 				return "beam-type collision-induced dissociation";
 			default:
 				return accession;
@@ -551,11 +516,11 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 
 	private static String guessFileFormatAccession(String fileName, Map<String, String> meta) {
 		String lower=(fileName==null?"":fileName.toLowerCase(Locale.ROOT));
-		if (lower.endsWith(".raw")) return "MS:1000563"; // Thermo RAW format
-		if (lower.endsWith(".mzml")) return "MS:1000584"; // mzML
-		if (lower.endsWith(".yep")) return "MS:1000567"; // Bruker/Agilent YEP
-		if (lower.endsWith(".d")||lower.endsWith(".tdf")) return "MS:1002817"; // Bruker timsTOF .d (TDF)
-		return "MS:1000584";
+		if (lower.endsWith(".raw")) return CV_THERMO_RAW_FORMAT;
+		if (lower.endsWith(".mzml")) return CV_MZML_FORMAT;
+		if (lower.endsWith(".yep")) return CV_BRUKER_YEP_FORMAT;
+		if (lower.endsWith(".d")||lower.endsWith(".tdf")) return CV_BRUKER_TDF_FORMAT;
+		return CV_MZML_FORMAT;
 	}
 
 	private static String computeSHA1Safe(String path) {

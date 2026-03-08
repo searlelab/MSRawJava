@@ -62,6 +62,23 @@ class VendorFileFinderTest {
 	}
 
 	@Test
+	void findFromDirectory_withDiscoverMzml_collectsMzmlFiles_caseInsensitive(@TempDir Path tmp) throws Exception {
+		Path upper=tmp.resolve("sampleA.mzML");
+		Path lower=tmp.resolve("sampleB.mzml");
+		Files.writeString(upper, "x");
+		Files.writeString(lower, "y");
+		Files.writeString(tmp.resolve("ignore.txt"), "z");
+
+		VendorFiles files=new VendorFiles();
+		VendorFileFinder.findAndAddRawAndD(tmp, files, false, true);
+
+		assertEquals(2, files.getMzmlFiles().size(), "Expected both mzML files");
+		Set<String> mzmlNames=files.getMzmlFiles().stream().map(p -> p.getFileName().toString()).collect(Collectors.toCollection(TreeSet::new));
+		assertTrue(mzmlNames.contains("sampleA.mzML"));
+		assertTrue(mzmlNames.contains("sampleB.mzml"));
+	}
+
+	@Test
 	void singleRawFile_shortCircuitsToRawOnly() throws Exception {
 		Path raw=RAWDATA.resolve("Stellar_DDA.raw");
 		Assumptions.assumeTrue(Files.exists(raw), "Fixture missing: "+raw);

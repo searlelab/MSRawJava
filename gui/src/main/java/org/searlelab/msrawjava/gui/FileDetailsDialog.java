@@ -24,6 +24,7 @@ import org.searlelab.msrawjava.gui.visualization.RawBrowserPanel;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 
@@ -117,6 +118,12 @@ public class FileDetailsDialog {
 						stripe=dia;
 						RawBrowserData data=RawBrowserDataLoader.build(dia);
 						return StripeResult.success(dia, data);
+					} else if (vendor==VendorFile.MZML) {
+						MzmlFile mzml=new MzmlFile();
+						mzml.openFile(f);
+						stripe=mzml;
+						RawBrowserData data=RawBrowserDataLoader.build(mzml);
+						return StripeResult.success(mzml, data);
 					} else {
 						return StripeResult.error("Unsupported file");
 					}

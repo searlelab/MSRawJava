@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.MGFOutputFile;
-import org.searlelab.msrawjava.io.MZMLOutputFile;
+import org.searlelab.msrawjava.io.mzml.MzmlConstants;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -40,7 +40,7 @@ class MainHelperTest {
 		Path output=Path.of("/out");
 		ConversionParameters updated=(ConversionParameters)method.invoke(null, base, input, output, VendorFile.THERMO);
 		assertNotNull(updated.getOutputFilePathOverride());
-		assertEquals(output.resolve("run.demux"+MZMLOutputFile.MZML_EXTENSION), updated.getOutputFilePathOverride());
+		assertEquals(output.resolve("run.demux"+MzmlConstants.MZML_EXTENSION), updated.getOutputFilePathOverride());
 
 		ConversionParameters mgfBase=ConversionParameters.builder().outType(OutputType.mgf).demultiplex(true).build();
 		ConversionParameters mgfUpdated=(ConversionParameters)method.invoke(null, mgfBase, input, output, VendorFile.THERMO);

@@ -33,7 +33,7 @@ class ConversionParametersTest {
 		MassTolerance tol=new PPMMassTolerance(5.0);
 		DemuxConfig demux=new DemuxConfig();
 
-		ConversionParameters p=new ConversionParameters(files, type, out, ms1, ms2, true, tol, demux, tmp.resolve("log.txt"), true, false, true, true,
+		ConversionParameters p=new ConversionParameters(files, type, out, ms1, ms2, true, tol, demux, tmp.resolve("log.txt"), true, false, true, true, false,
 				tmp.resolve("override.mzML"));
 		assertEquals(files, p.getFileList());
 		assertEquals(type, p.getOutType());
@@ -48,7 +48,7 @@ class ConversionParametersTest {
 		assertFalse(p.isSilent());
 		assertTrue(p.isNoAnsi());
 
-		ConversionParameters p2=new ConversionParameters(files, type, null, ms1, ms2, false, tol, demux, null, false, true, false, false, null);
+		ConversionParameters p2=new ConversionParameters(files, type, null, ms1, ms2, false, tol, demux, null, false, true, false, false, false, null);
 		assertNull(p2.getOutputDirPath(), "null output directory should be allowed");
 		assertFalse(p2.isDemultiplex());
 		assertTrue(p2.isSilent());

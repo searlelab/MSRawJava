@@ -30,6 +30,12 @@ public final class VendorFileFinder {
 		return files;
 	}
 
+	public static VendorFiles findAndAddRawAndD(Path start, boolean includeDia, boolean includeMzml) throws IOException {
+		VendorFiles files=new VendorFiles();
+		findAndAddRawAndD(start, files, includeDia, includeMzml);
+		return files;
+	}
+
 	/**
 	 * Collects vendor data roots under the given path.
 	 * - If the path is a .raw file, it's added to rawFiles.
@@ -48,11 +54,24 @@ public final class VendorFileFinder {
 	 * - Otherwise, recursively walks and collects both (and .dia when enabled).
 	 */
 	public static void findAndAddRawAndD(Path start, VendorFiles files, boolean includeDia) throws IOException {
+		findAndAddRawAndD(start, files, includeDia, false);
+	}
+
+	/**
+	 * Collects vendor data roots under the given path.
+	 * - If the path is a .raw file, it's added to rawFiles.
+	 * - If the path is a .d directory, it's added to dDirs and not descended into.
+	 * - If includeDia is true and the path is a .dia file, it's added to diaFiles.
+	 * - If includeMzml is true and the path is a .mzML file, it's added to mzmlFiles.
+	 * - Otherwise, recursively walks and collects all enabled types.
+	 */
+	public static void findAndAddRawAndD(Path start, VendorFiles files, boolean includeDia, boolean includeMzml) throws IOException {
 		Objects.requireNonNull(start, "start");
 
 		final ArrayList<Path> raw=new ArrayList<>();
 		final ArrayList<Path> ddirs=new ArrayList<>();
 		final ArrayList<Path> dias=new ArrayList<>();
+		final ArrayList<Path> mzmls=new ArrayList<>();
 
 		if (!Files.exists(start)) {
 			throw new NoSuchFileException("Path does not exist: "+start);
@@ -67,13 +86,15 @@ public final class VendorFileFinder {
 				raw.add(root);
 			} else if (VendorFile.isDiaFile(root)) {
 				dias.add(root);
+			} else if (includeMzml&&VendorFile.isMzMLFile(root)) {
+				mzmls.add(root);
 			}
-			files.add(raw, ddirs, dias);
+			files.add(raw, ddirs, dias, mzmls);
 			return;
 		}
 		if (VendorFile.isDotDFile(root)) {
 			ddirs.add(root);
-			files.add(raw, ddirs, dias);
+			files.add(raw, ddirs, dias, mzmls);
 			return;
 		}
 
@@ -96,6 +117,8 @@ public final class VendorFileFinder {
 					raw.add(file.toAbsolutePath().normalize());
 				} else if (includeDia&&attrs.isRegularFile()&&VendorFile.isDiaFile(file)) {
 					dias.add(file.toAbsolutePath().normalize());
+				} else if (includeMzml&&attrs.isRegularFile()&&VendorFile.isMzMLFile(file)) {
+					mzmls.add(file.toAbsolutePath().normalize());
 				}
 				return FileVisitResult.CONTINUE;
 			}
@@ -107,7 +130,7 @@ public final class VendorFileFinder {
 			}
 		});
 
-		files.add(raw, ddirs, dias);
+		files.add(raw, ddirs, dias, mzmls);
 		return;
 	}
 }

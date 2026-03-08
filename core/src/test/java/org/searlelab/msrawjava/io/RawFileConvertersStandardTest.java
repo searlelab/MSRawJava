@@ -1,13 +1,18 @@
 package org.searlelab.msrawjava.io;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -87,6 +92,60 @@ class RawFileConvertersStandardTest {
 		assertFalse(ok, "Expected writeStandard to return false when canceled");
 		Path outFile=outputDir.resolve("cancel.mgf");
 		assertFalse(Files.exists(outFile), "Canceled conversion should not save output");
+	}
+
+	@Test
+	void writeStandard_dia_boundaryRt_doesNotDuplicateSpectrumIndex() throws Exception {
+		Path outputDir=tmp.resolve("out_boundary_dia");
+		Files.createDirectories(outputDir);
+
+		FakeStripeFile raw=new FakeStripeFile(tmp.resolve("boundary.mzML").toFile());
+		raw.setGradientLength(100.0f); // sectionTime=1.0s with 100 sections
+		raw.setRanges(Map.of(new Range(449.5f, 450.5f), new WindowData(1.0f, 1)));
+		raw.setMetadata(Map.of("filename", "boundary.mzML", "filelocation", "/tmp/boundary.mzML"));
+
+		ArrayList<PrecursorScan> ms1s=new ArrayList<>();
+		ms1s.add(new PrecursorScan("ms1", 1, 0.5f, 0, 400.0, 500.0, null, new double[] {401.0}, new float[] {10.0f}, null));
+		ArrayList<FragmentScan> ms2s=new ArrayList<>();
+		// Exactly at section boundary (1.0 sec)
+		ms2s.add(new FragmentScan("ms2-boundary", "prec", 2, 450.0, 1.0f, 0, null, 449.5, 450.5, new double[] {450.1}, new float[] {5.0f}, null,
+				(byte)2, 0.0, 2000.0));
+		raw.setScans(ms1s, ms2s);
+
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.EncyclopeDIA).build();
+		CapturingProgress progress=new CapturingProgress();
+		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
+		boolean ok;
+		try {
+			ok=RawFileConverters.writeStandard(pool, raw, outputDir, params, progress);
+		} finally {
+			pool.close();
+		}
+
+		assertTrue(ok, "Expected DIA conversion to succeed");
+		Path outFile=outputDir.resolve("boundary.dia");
+		assertTrue(Files.exists(outFile), "Expected output DIA to exist");
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+outFile)) {
+			assertEquals(1, count(c, "select count(*) from spectra"), "Expected one MS2 row");
+			assertEquals(1, count(c, "select count(*) from spectra where SpectrumIndex=2"), "Boundary scan should be inserted once");
+			assertEquals(0, count(c, "select count(*) from (select SpectrumIndex, count(*) c from spectra group by SpectrumIndex having c>1)"),
+					"No duplicated SpectrumIndex values should exist");
+		}
+	}
+
+	@Test
+	void sectionQueryStop_usesNextDownExceptLast() throws Exception {
+		Method method=RawFileConverters.class.getDeclaredMethod("sectionQueryStop", float.class, boolean.class);
+		method.setAccessible(true);
+
+		float stop=1.0f;
+		float nonLast=(Float)method.invoke(null, stop, false);
+		float last=(Float)method.invoke(null, stop, true);
+
+		assertEquals(Math.nextDown(stop), nonLast);
+		assertTrue(nonLast<stop);
+		assertEquals(Float.MAX_VALUE, last);
 	}
 
 	private static ArrayList<PrecursorScan> singleMs1() {
@@ -183,7 +242,12 @@ class RawFileConvertersStandardTest {
 
 		@Override
 		public ArrayList<PrecursorScan> getPrecursors(float minRT, float maxRT) {
-			return minRT==0.0f?ms1s:new ArrayList<>();
+			ArrayList<PrecursorScan> out=new ArrayList<>();
+			for (PrecursorScan scan : ms1s) {
+				float rt=scan.getScanStartTime();
+				if (rt>=minRT&&rt<=maxRT) out.add(scan);
+			}
+			return out;
 		}
 
 		@Override
@@ -193,18 +257,27 @@ class RawFileConvertersStandardTest {
 
 		@Override
 		public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) {
-			return minRT==0.0f?ms2s:new ArrayList<>();
+			ArrayList<FragmentScan> out=new ArrayList<>();
+			for (FragmentScan scan : ms2s) {
+				float rt=scan.getScanStartTime();
+				if (rt<minRT||rt>maxRT) continue;
+				if (scan.getIsolationWindowLower()>targetMzRange.getStop()||scan.getIsolationWindowUpper()<targetMzRange.getStart()) continue;
+				out.add(scan);
+			}
+			return out;
 		}
 
 		@Override
 		public ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) {
 			ArrayList<ScanSummary> out=new ArrayList<>();
 			for (PrecursorScan ms1 : ms1s) {
+				if (ms1.getScanStartTime()<minRT||ms1.getScanStartTime()>maxRT) continue;
 				out.add(new ScanSummary(ms1.getSpectrumName(), ms1.getSpectrumIndex(), ms1.getScanStartTime(), ms1.getFraction(), -1.0, true,
 						ms1.getIonInjectionTime(), ms1.getIsolationWindowLower(), ms1.getIsolationWindowUpper(), ms1.getScanWindowLower(),
 						ms1.getScanWindowUpper(), (byte)0));
 			}
 			for (FragmentScan ms2 : ms2s) {
+				if (ms2.getScanStartTime()<minRT||ms2.getScanStartTime()>maxRT) continue;
 				out.add(new ScanSummary(ms2.getSpectrumName(), ms2.getSpectrumIndex(), ms2.getScanStartTime(), ms2.getFraction(), ms2.getPrecursorMZ(), false,
 						ms2.getIonInjectionTime(), ms2.getIsolationWindowLower(), ms2.getIsolationWindowUpper(), ms2.getScanWindowLower(),
 						ms2.getScanWindowUpper(), ms2.getCharge()));
@@ -257,6 +330,12 @@ class RawFileConvertersStandardTest {
 		@Override
 		public String getOriginalFileName() {
 			return file.getName();
+		}
+	}
+
+	private static int count(Connection c, String sql) throws SQLException {
+		try (Statement s=c.createStatement(); java.sql.ResultSet rs=s.executeQuery(sql)) {
+			return rs.next()?rs.getInt(1):0;
 		}
 	}
 }

@@ -132,6 +132,7 @@ public final class MenuManager {
 		if (VendorFile.BRUKER.matchesPath(selected.toPath())) return selected;
 		if (VendorFile.THERMO.matchesPath(selected.toPath())) return selected;
 		if (VendorFile.ENCYCLOPEDIA.matchesPath(selected.toPath())) return selected;
+		if (VendorFile.MZML.matchesPath(selected.toPath())) return selected;
 		return null;
 	}
 

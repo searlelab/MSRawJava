@@ -82,11 +82,13 @@ public class RawFileConverters {
 			float start=0.0f;
 			float sectionTime=gradientLength/sections;
 			for (int i=0; i<sections; i++) {
-				float stop=(i==sections-1)?Float.MAX_VALUE:start+sectionTime;
+				boolean lastSection=i==sections-1;
+				float stop=lastSection?Float.MAX_VALUE:start+sectionTime;
+				float queryStop=sectionQueryStop(stop, lastSection);
 
-				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, stop);
+				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, queryStop);
 				if (progress.isCanceled()) return false;
-				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, stop, false);
+				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, queryStop, false);
 				if (progress.isCanceled()) return false;
 
 				submitWrite(outFile, ms1s, ms2s, writerRef, writeFuturesRef, firstWriteErrorRef);
@@ -204,14 +206,16 @@ public class RawFileConverters {
 			int currentScanNumber=1;
 
 			for (int i=0; i<sections; i++) {
-				float stop=(i==sections-1)?Float.MAX_VALUE:start+sectionTime;
+				boolean lastSection=i==sections-1;
+				float stop=lastSection?Float.MAX_VALUE:start+sectionTime;
+				float queryStop=sectionQueryStop(stop, lastSection);
 
 				// Publish MS1s as-is (unchanged semantics)
-				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, stop);
+				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, queryStop);
 				if (progress.isCanceled()) return false;
 
 				// Gather MS2s for cycle assembly (don’t directly publish them)
-				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, stop, false);
+				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, queryStop, false);
 				if (progress.isCanceled()) return false;
 
 				// Feed MS2 scans into the cycle assembler in arrival order
@@ -398,11 +402,13 @@ public class RawFileConverters {
 			float sectionTime=gradientLength/sections;
 
 			for (int i=0; i<sections; i++) {
-				float stop=(i==sections-1)?Float.MAX_VALUE:start+sectionTime;
+				boolean lastSection=i==sections-1;
+				float stop=lastSection?Float.MAX_VALUE:start+sectionTime;
+				float queryStop=sectionQueryStop(stop, lastSection);
 
-				ArrayList<PrecursorScan> ms1s=timsFile.getPrecursors(start, stop);
+				ArrayList<PrecursorScan> ms1s=timsFile.getPrecursors(start, queryStop);
 				if (progress.isCanceled()) return false;
-				ArrayList<FragmentScan> ms2s=timsFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, stop, false);
+				ArrayList<FragmentScan> ms2s=timsFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, queryStop, false);
 				if (progress.isCanceled()) return false;
 
 				// Pre-allocate scan numbers (missing scans are OK)
@@ -541,6 +547,11 @@ public class RawFileConverters {
 		return new FragmentScan(spectrumName, scan.getPrecursorName(), scan.getSpectrumIndex(), scan.getPrecursorMZ(), scan.getScanStartTime(),
 				scan.getFraction(), scan.getIonInjectionTime(), scan.getIsolationWindowLower(), scan.getIsolationWindowUpper(), scan.getMassArray(),
 				scan.getIntensityArray(), scan.getIonMobilityArray().orElse(null), scan.getCharge(), scan.getScanWindowLower(), scan.getScanWindowUpper());
+	}
+
+	// Use non-overlapping section query windows while keeping the section progression unchanged.
+	private static float sectionQueryStop(float stop, boolean isLastSection) {
+		return isLastSection?Float.MAX_VALUE:Math.nextDown(stop);
 	}
 
 	private static ThreadFactory namedFactory(String base) {

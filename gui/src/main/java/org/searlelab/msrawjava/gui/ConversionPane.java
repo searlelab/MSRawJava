@@ -48,6 +48,7 @@ import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
@@ -649,6 +650,14 @@ public class ConversionPane extends JPanel {
 					} else {
 						ok=RawFileConverters.writeStandard(pool, dia, outputDir, params, this);
 					}
+				} else if (vendor==VendorFile.MZML) {
+					MzmlFile mzml=new MzmlFile();
+					mzml.openFile(input.toFile());
+					if (demultiplex) {
+						ok=RawFileConverters.writeDemux(pool, mzml, outputDir, params, this);
+					} else {
+						ok=RawFileConverters.writeStandard(pool, mzml, outputDir, params, this);
+					}
 				} else {
 					if (demultiplex) {
 						Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()+" files");
@@ -680,13 +689,14 @@ public class ConversionPane extends JPanel {
 		private java.nio.file.Path resolveOutputOverride(VendorFile source, Path input, Path outputDir, OutputType outType, boolean demultiplex) {
 			String name=input.getFileName().toString();
 			boolean isDiaInput=VendorFile.ENCYCLOPEDIA.matchesName(name);
-			if (demultiplex&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA)) {
+			boolean isMzmlInput=VendorFile.MZML.matchesName(name);
+			if (demultiplex&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA||source==VendorFile.MZML)) {
 				String base=stripExtension(name);
 				String suffix;
 				if (outType==OutputType.EncyclopeDIA) {
 					suffix=".demux"+org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile.DIA_EXTENSION;
 				} else if (outType==OutputType.mzML) {
-					suffix=".demux"+org.searlelab.msrawjava.io.MZMLOutputFile.MZML_EXTENSION;
+					suffix=".demux"+org.searlelab.msrawjava.io.mzml.MzmlConstants.MZML_EXTENSION;
 				} else if (outType==OutputType.mgf) {
 					suffix=".demux"+org.searlelab.msrawjava.io.MGFOutputFile.MGF_EXTENSION;
 				} else {
@@ -697,6 +707,10 @@ public class ConversionPane extends JPanel {
 			if (source==VendorFile.ENCYCLOPEDIA&&outType==OutputType.EncyclopeDIA&&isDiaInput) {
 				String base=name.substring(0, name.length()-4);
 				return outputDir.resolve(base+".2"+org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile.DIA_EXTENSION);
+			}
+			if (source==VendorFile.MZML&&outType==OutputType.mzML&&isMzmlInput) {
+				String base=name.substring(0, name.length()-5);
+				return outputDir.resolve(base+".2"+org.searlelab.msrawjava.io.mzml.MzmlConstants.MZML_EXTENSION);
 			}
 			return null;
 		}

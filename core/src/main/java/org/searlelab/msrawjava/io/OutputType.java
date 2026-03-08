@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.rmi.UnexpectedException;
 
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.io.mzml.MzmlConstants;
 
 /**
  * OutputType enumerates supported output formats and serves as a compact selector for the corresponding writer
@@ -42,7 +43,7 @@ public enum OutputType {
 			case mgf:
 				return outputDirPath.resolve(changeExtension(filename, MGFOutputFile.MGF_EXTENSION));
 			case mzML:
-				return outputDirPath.resolve(changeExtension(filename, MZMLOutputFile.MZML_EXTENSION));
+				return outputDirPath.resolve(changeExtension(filename, MzmlConstants.MZML_EXTENSION));
 
 			default:
 				throw new RuntimeException("Unknown file type "+this);

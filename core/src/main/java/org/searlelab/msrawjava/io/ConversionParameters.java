@@ -27,11 +27,12 @@ public class ConversionParameters {
 	private final boolean silent;
 	private final boolean noAnsi;
 	private final boolean discoverDIAFiles;
+	private final boolean discoverMzMLFiles;
 	private final Path outputFilePathOverride;
 
 	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity, float minimumMS2Intensity,
 			boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi,
-			boolean discoverDIAFiles, Path outputFilePathOverride) {
+			boolean discoverDIAFiles, boolean discoverMzMLFiles, Path outputFilePathOverride) {
 		this.fileList=new ArrayList<>(fileList==null?Collections.emptyList():fileList);
 		this.outType=outType;
 		this.outputDirPath=outputDirPath;
@@ -45,6 +46,7 @@ public class ConversionParameters {
 		this.silent=silent;
 		this.noAnsi=noAnsi;
 		this.discoverDIAFiles=discoverDIAFiles;
+		this.discoverMzMLFiles=discoverMzMLFiles;
 		this.outputFilePathOverride=outputFilePathOverride;
 	}
 
@@ -100,6 +102,10 @@ public class ConversionParameters {
 		return discoverDIAFiles;
 	}
 
+	public boolean isDiscoverMzMLFiles() {
+		return discoverMzMLFiles;
+	}
+
 	public Path getOutputFilePathOverride() {
 		return outputFilePathOverride;
 	}
@@ -108,7 +114,8 @@ public class ConversionParameters {
 	public String toString() {
 		return "ConversionParameters[outType="+outType+", outputDirPath="+outputDirPath+", minMS1="+minimumMS1Intensity+", minMS2="+minimumMS2Intensity
 				+", demux="+demultiplex+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig+", logFilePath="+logFilePath+", batch="+batch
-				+", silent="+silent+", noAnsi="+noAnsi+", discoverDIAFiles="+discoverDIAFiles+", outputFilePathOverride="+outputFilePathOverride+"]";
+				+", silent="+silent+", noAnsi="+noAnsi+", discoverDIAFiles="+discoverDIAFiles+", discoverMzMLFiles="+discoverMzMLFiles
+				+", outputFilePathOverride="+outputFilePathOverride+"]";
 	}
 
 	public static Builder builder() {
@@ -129,6 +136,7 @@ public class ConversionParameters {
 		private boolean silent=false;
 		private boolean noAnsi=false;
 		private boolean discoverDIAFiles=false;
+		private boolean discoverMzMLFiles=false;
 		private Path outputFilePathOverride=null;
 
 		public Builder fileList(List<File> files) {
@@ -201,6 +209,11 @@ public class ConversionParameters {
 			return this;
 		}
 
+		public Builder discoverMzMLFiles(boolean discoverMzMLFiles) {
+			this.discoverMzMLFiles=discoverMzMLFiles;
+			return this;
+		}
+
 		public Builder outputFilePathOverride(Path outputFilePathOverride) {
 			this.outputFilePathOverride=outputFilePathOverride;
 			return this;
@@ -208,7 +221,7 @@ public class ConversionParameters {
 
 		public ConversionParameters build() {
 			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance,
-					demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, outputFilePathOverride);
+					demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride);
 		}
 	}
 }

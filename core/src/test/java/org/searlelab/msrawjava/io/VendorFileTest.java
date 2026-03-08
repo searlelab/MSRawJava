@@ -51,8 +51,9 @@ class VendorFileTest {
 		assertEquals(VendorFile.THERMO, VendorFile.fromName("test.raw").orElseThrow());
 		assertEquals(VendorFile.BRUKER, VendorFile.fromName("test.d").orElseThrow());
 		assertEquals(VendorFile.ENCYCLOPEDIA, VendorFile.fromName("test.dia").orElseThrow());
+		assertEquals(VendorFile.MZML, VendorFile.fromName("test.mzml").orElseThrow());
 		assertTrue(VendorFile.fromName(null).isEmpty());
 
-		assertEquals(3, VendorFile.list().size());
+		assertEquals(4, VendorFile.list().size());
 	}
 }

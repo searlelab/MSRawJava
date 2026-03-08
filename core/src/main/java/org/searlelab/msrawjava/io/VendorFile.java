@@ -11,7 +11,7 @@ import java.util.Optional;
  * and extension helpers across the core and GUI.
  */
 public enum VendorFile {
-	THERMO("Thermo", ".raw", false), BRUKER("Bruker", ".d", true), ENCYCLOPEDIA("EncyclopeDIA", ".dia", false);
+	THERMO("Thermo", ".raw", false), BRUKER("Bruker", ".d", true), ENCYCLOPEDIA("EncyclopeDIA", ".dia", false), MZML("mzML", ".mzml", false);
 
 	private final String vendorName;
 	private final String extension;
@@ -83,5 +83,9 @@ public enum VendorFile {
 
 	public static boolean isDiaFile(Path root) {
 		return VendorFile.ENCYCLOPEDIA.matchesPath(root);
+	}
+
+	public static boolean isMzMLFile(Path root) {
+		return VendorFile.MZML.matchesPath(root);
 	}
 }

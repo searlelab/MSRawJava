@@ -223,7 +223,7 @@ public class RawFileBrowser extends JFrame {
 			@Override
 			protected JComponent doInBackground() {
 				try {
-					VendorFiles files=VendorFileFinder.findAndAddRawAndD(dir.toPath(), true);
+					VendorFiles files=VendorFileFinder.findAndAddRawAndD(dir.toPath(), true, true);
 					if (isCancelled()) return null;
 
 					DirectorySummaryPanel panel=new DirectorySummaryPanel(files);

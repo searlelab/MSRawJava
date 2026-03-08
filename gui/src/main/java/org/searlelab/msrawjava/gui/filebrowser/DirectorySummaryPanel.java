@@ -69,6 +69,7 @@ import org.searlelab.msrawjava.gui.GUIPreferences;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.utils.Pair;
@@ -178,11 +179,17 @@ public class DirectorySummaryPanel extends JPanel {
 			diaRows.add(DirRow.fromDia(p));
 		}
 		Collections.sort(diaRows);
+		ArrayList<DirRow> mzmlRows=new ArrayList<DirRow>();
+		for (Path p : files.getMzmlFiles()) {
+			mzmlRows.add(DirRow.fromMzml(p));
+		}
+		Collections.sort(mzmlRows);
 
-		ArrayList<DirRow> allRows=new ArrayList<DirRow>(brukerRows.size()+thermoRows.size()+diaRows.size());
+		ArrayList<DirRow> allRows=new ArrayList<DirRow>(brukerRows.size()+thermoRows.size()+diaRows.size()+mzmlRows.size());
 		allRows.addAll(brukerRows);
 		allRows.addAll(thermoRows);
 		allRows.addAll(diaRows);
+		allRows.addAll(mzmlRows);
 		Collections.sort(allRows);
 
 		model.addRows(allRows);
@@ -193,6 +200,9 @@ public class DirectorySummaryPanel extends JPanel {
 			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
 		}
 		for (DirRow row : diaRows) {
+			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
+		}
+		for (DirRow row : mzmlRows) {
 			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
 		}
 		for (DirRow row : thermoRows) {
@@ -444,6 +454,27 @@ public class DirectorySummaryPanel extends JPanel {
 			} finally {
 				try {
 					if (dia!=null) dia.close();
+				} catch (Throwable t) {
+				}
+			}
+		} else if (row.vendor==VendorFile.MZML) {
+			MzmlFile mzml=new MzmlFile();
+			try {
+				mzml.openFile(row.path.toFile());
+				Pair<float[], float[]> tic=mzml.getTICTrace();
+				row.totalTIC=mzml.getTIC();
+				row.gradientMin=mzml.getGradientLength()/60f;
+				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
+				markSlowBitsDone(row);
+				safeRowUpdate(row);
+			} catch (Throwable ignore) {
+				row.spark=FAILED;
+				markSlowBitsDone(row);
+				safeRowUpdate(row);
+			} finally {
+				try {
+					mzml.close();
 				} catch (Throwable t) {
 				}
 			}
@@ -771,6 +802,17 @@ public class DirectorySummaryPanel extends JPanel {
 				Logger.errorException(e);
 			}
 			return new DirRow(p, VendorFile.ENCYCLOPEDIA, size, modified);
+		}
+
+		static DirRow fromMzml(Path p) {
+			long size=(Files.isRegularFile(p)?p.toFile().length():0L);
+			Date modified=null;
+			try {
+				modified=new Date(Files.getLastModifiedTime(p).toMillis());
+			} catch (IOException e) {
+				Logger.errorException(e);
+			}
+			return new DirRow(p, VendorFile.MZML, size, modified);
 		}
 
 		static DirRow fromBruker(Path p) {
