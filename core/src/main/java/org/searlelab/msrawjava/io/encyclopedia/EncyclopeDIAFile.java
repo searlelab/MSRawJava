@@ -499,11 +499,21 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public float getTIC() throws IOException, SQLException {
-		String value=getMetadata().get(TOTAL_PRECURSOR_TIC_ATTRIBUTE);
-		if (value==null) {
-			return MatrixMath.sum(getTICTrace().y);
+		Connection c=getConnection();
+		try {
+			Statement s=c.createStatement();
+			try {
+				ResultSet rs=s.executeQuery("select coalesce(sum(TIC), 0.0) from precursor");
+				if (rs.next()) {
+					return (float)rs.getDouble(1);
+				}
+				return 0.0f;
+			} finally {
+				s.close();
+			}
+		} finally {
+			c.close();
 		}
-		return Float.parseFloat(value);
 	}
 
 	@Override

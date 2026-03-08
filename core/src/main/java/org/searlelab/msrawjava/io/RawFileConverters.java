@@ -1,6 +1,8 @@
 package org.searlelab.msrawjava.io;
 
+import java.io.IOException;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,6 +24,7 @@ import java.util.function.Consumer;
 import org.searlelab.msrawjava.algorithms.CycleAssembler;
 import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
+import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
@@ -66,9 +69,9 @@ public class RawFileConverters {
 			progress.update("Started converting "+originalFileName+"...", 0.0f);
 			long startTime=System.currentTimeMillis();
 
+			outFile.addMetadata(rawFile.getMetadata());
 			outFile.setFileName(originalFileName, rawFile.toString());
 			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
-			outFile.addMetadata(rawFile.getMetadata());
 
 			writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
 			ArrayDeque<CompletableFuture<Void>> writeFutures=new ArrayDeque<>();
@@ -81,12 +84,14 @@ public class RawFileConverters {
 			int sections=NUMBER_OF_REPORTING_SECTIONS;
 			float start=0.0f;
 			float sectionTime=gradientLength/sections;
+			double totalPrecursorTic=0.0;
 			for (int i=0; i<sections; i++) {
 				boolean lastSection=i==sections-1;
 				float stop=lastSection?Float.MAX_VALUE:start+sectionTime;
 				float queryStop=sectionQueryStop(stop, lastSection);
 
 				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, queryStop);
+				totalPrecursorTic+=sumTic(ms1s);
 				if (progress.isCanceled()) return false;
 				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, queryStop, false);
 				if (progress.isCanceled()) return false;
@@ -124,6 +129,7 @@ public class RawFileConverters {
 			if (outputPath==null) {
 				outputPath=params.getOutType().getOutputFilePath(outputDirPath, originalFileName);
 			}
+			writeTotalPrecursorTicMetadata(outFile, totalPrecursorTic);
 			outFile.saveAsFile(outputPath.toFile());
 			outFile.close();
 
@@ -156,10 +162,10 @@ public class RawFileConverters {
 			progress.update("Started converting "+originalFileName+"...", 0.0f);
 			long startTime=System.currentTimeMillis();
 
-			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 			Map<Range, WindowData> ranges=rawFile.getRanges();
 
 			outFile.addMetadata(rawFile.getMetadata());
+			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 
 			ArrayList<Range> acquiredWindows=new ArrayList<>(ranges.keySet());
 			acquiredWindows.sort(null);
@@ -204,6 +210,7 @@ public class RawFileConverters {
 			float start=0f;
 			final float sectionTime=gradientLength/sections;
 			int currentScanNumber=1;
+			double totalPrecursorTic=0.0;
 
 			for (int i=0; i<sections; i++) {
 				boolean lastSection=i==sections-1;
@@ -212,6 +219,7 @@ public class RawFileConverters {
 
 				// Publish MS1s as-is (unchanged semantics)
 				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, queryStop);
+				totalPrecursorTic+=sumTic(ms1s);
 				if (progress.isCanceled()) return false;
 
 				// Gather MS2s for cycle assembly (don’t directly publish them)
@@ -338,6 +346,7 @@ public class RawFileConverters {
 				demuxRanges.put(subRange, new WindowData(averageDutyCycle, numberOfMSMS, ionMobilityRange, rtRange));
 			}
 			outFile.setRanges(demuxRanges);
+			writeTotalPrecursorTicMetadata(outFile, totalPrecursorTic);
 
 			// Save & close
 			Path outputPath=params.getOutputFilePathOverride();
@@ -391,8 +400,8 @@ public class RawFileConverters {
 		AtomicReference<Throwable> firstWriteError=new AtomicReference<>();
 
 		outFile.setRanges(new HashMap<Range, WindowData>(timsFile.getRanges()));
-		outFile.setFileName(originalFileName, timsFilePath.toString());
 		outFile.addMetadata(timsFile.getMetadata());
+		outFile.setFileName(originalFileName, timsFilePath.toString());
 
 		try {
 			int scanNumber=1;
@@ -400,6 +409,7 @@ public class RawFileConverters {
 			int sections=NUMBER_OF_REPORTING_SECTIONS;
 			float start=0.0f;
 			float sectionTime=gradientLength/sections;
+			double totalPrecursorTic=0.0;
 
 			for (int i=0; i<sections; i++) {
 				boolean lastSection=i==sections-1;
@@ -461,6 +471,7 @@ public class RawFileConverters {
 					PrecursorScan ps=getOrNull(f);
 					if (ps!=null) sortedMS1s.add(ps);
 				}
+				totalPrecursorTic+=sumTic(sortedMS1s);
 				if (progress.isCanceled()) return false;
 
 				ArrayList<FragmentScan> sortedMS2s=new ArrayList<>(ms2s.size());
@@ -501,6 +512,7 @@ public class RawFileConverters {
 				}
 			}
 
+			writeTotalPrecursorTicMetadata(outFile, totalPrecursorTic);
 			outFile.saveAsFile(params.getOutType().getOutputFilePath(outputDirPath, originalFileName).toFile());
 			outFile.close();
 
@@ -629,5 +641,19 @@ public class RawFileConverters {
 		} catch (Exception e) {
 			return null;
 		}
+	}
+
+	private static double sumTic(List<PrecursorScan> scans) {
+		double sum=0.0;
+		for (PrecursorScan scan : scans) {
+			sum+=scan.getTIC();
+		}
+		return sum;
+	}
+
+	private static void writeTotalPrecursorTicMetadata(OutputSpectrumFile outFile, double totalPrecursorTic) throws IOException, SQLException {
+		HashMap<String, String> totalTicMetadata=new HashMap<>();
+		totalTicMetadata.put(EncyclopeDIAFile.TOTAL_PRECURSOR_TIC_ATTRIBUTE, Double.toString(totalPrecursorTic));
+		outFile.addMetadata(totalTicMetadata);
 	}
 }

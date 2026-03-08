@@ -36,6 +36,7 @@ import org.searlelab.msrawjava.model.WindowData;
  * - Data pass (on demand): re-reads the file decoding binary arrays only for spectra matching the query.
  */
 public class MzmlFile implements StripeFileInterface {
+	private static final String METADATA_USERPARAM_PREFIX="msrawjava.metadata.";
 
 	private File userFile;
 	private boolean open=false;
@@ -93,6 +94,8 @@ public class MzmlFile implements StripeFileInterface {
 							if (id!=null&&version!=null) {
 								metadata.put("software."+id, version);
 							}
+						} else if ("userParam".equals(localName)) {
+							parseMetadataUserParam(reader);
 						}
 					}
 				}
@@ -100,6 +103,15 @@ public class MzmlFile implements StripeFileInterface {
 				reader.close();
 			}
 		}
+	}
+
+	private void parseMetadataUserParam(XMLStreamReader reader) {
+		String name=reader.getAttributeValue(null, "name");
+		if (name==null||!name.startsWith(METADATA_USERPARAM_PREFIX)) return;
+		String key=name.substring(METADATA_USERPARAM_PREFIX.length());
+		if (key.isBlank()) return;
+		String value=reader.getAttributeValue(null, "value");
+		metadata.put(key, value!=null?value:"");
 	}
 
 	/**

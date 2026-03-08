@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -124,5 +125,26 @@ class MZMLOutputFileTest {
 		String xml=Files.readString(out, StandardCharsets.UTF_8);
 		assertTrue(xml.contains("<sourceFile "), "sourceFile element should be present");
 		assertTrue(xml.contains("location=\"file:///\""), "null source path should default to file:///");
+	}
+
+	@Test
+	void writesRoundTripMetadataAsUserParams() throws Exception {
+		MZMLOutputFile writer=new MZMLOutputFile();
+		writer.openFile();
+		writer.addMetadata(Map.of("totalPrecursorTIC", "1852649200000", "gradientLength", "1234.5"));
+		writer.setFileName("meta_run", "/data/meta_run");
+
+		ArrayList<PrecursorScan> ms1s=new ArrayList<>();
+		ms1s.add(ms1("ms1-1", 1, 1.0f, 100.0, 1000.0, new double[] {100.0}, new float[] {10.0f}, null));
+		writer.addSpectra(ms1s, new ArrayList<>());
+
+		Path out=tmp.resolve("meta.mzML");
+		writer.saveAsFile(out.toFile());
+		writer.close();
+
+		String xml=Files.readString(out, StandardCharsets.UTF_8);
+		assertTrue(xml.contains("name=\"msrawjava.metadata.totalPrecursorTIC\""), "Expected totalPrecursorTIC metadata userParam");
+		assertTrue(xml.contains("value=\"1852649200000\""), "Expected totalPrecursorTIC metadata value");
+		assertTrue(xml.contains("name=\"msrawjava.metadata.gradientLength\""), "Expected gradientLength metadata userParam");
 	}
 }

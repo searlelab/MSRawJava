@@ -417,6 +417,21 @@ class EncyclopeDIAFileTest {
 	}
 
 	@Test
+	void getTIC_usesPrecursorTableEvenWhenMetadataContainsStaleValue() throws Exception {
+		File diaFile=createTestDiaFile();
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+diaFile.getAbsolutePath()); Statement s=c.createStatement()) {
+			s.execute("insert or replace into metadata (Key, Value) values ('totalPrecursorTIC', '1852649200000')");
+		}
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile(diaFile);
+		assertEquals("1852649200000", dia.getMetadata().get(EncyclopeDIAFile.TOTAL_PRECURSOR_TIC_ATTRIBUTE),
+				"Test setup should contain stale metadata TIC");
+		assertEquals(201.0f, dia.getTIC(), 0.0001f, "DIA getTIC should be derived from precursor rows (MS1), not metadata");
+		dia.close();
+	}
+
+	@Test
 	void getStripes_preservesMassAndIonMobility() throws Exception {
 		// Create fragment with specific mass values and ion mobility
 		ArrayList<PrecursorScan> precursors=new ArrayList<>();

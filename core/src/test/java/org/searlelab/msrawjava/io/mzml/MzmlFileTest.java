@@ -140,6 +140,24 @@ class MzmlFileTest {
 	// ---- Tests ----
 
 	@Test
+	void parsesRoundTripMetadataUserParams() throws Exception {
+		String xml="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+"<mzML xmlns=\"http://psi.hupo.org/ms/mzml\" version=\"1.1.1\">\n"
+				+"  <cvList count=\"1\"><cv id=\"MS\" fullName=\"PSI-MS\" version=\"4.1.136\" URI=\"\"/></cvList>\n"+"  <fileDescription>\n"
+				+"    <fileContent><cvParam cvRef=\"MS\" accession=\"MS:1000579\" value=\"\"/></fileContent>\n"+"    <sourceFileList count=\"1\">\n"
+				+"      <sourceFile id=\"SRC1\" name=\"x\" location=\"file:///x\">\n"
+				+"        <userParam name=\"msrawjava.metadata.totalPrecursorTIC\" value=\"1852649200000\"/>\n"
+				+"        <userParam name=\"msrawjava.metadata.gradientLength\" value=\"1234.5\"/>\n"+"      </sourceFile>\n"+"    </sourceFileList>\n"
+				+"  </fileDescription>\n"+"  <run id=\"run1\">\n"+"    <spectrumList count=\"0\" defaultDataProcessingRef=\"dp\"/>\n"+"  </run>\n"+"</mzML>\n";
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+		Map<String, String> meta=reader.getMetadata();
+		assertEquals("1852649200000", meta.get("totalPrecursorTIC"));
+		assertEquals("1234.5", meta.get("gradientLength"));
+		reader.close();
+	}
+
+	@Test
 	void parsesMS1WithUncompressedBinaryArrays() throws Exception {
 		double[] mz= {100.0, 200.0, 300.0};
 		float[] inten= {10.0f, 20.0f, 30.0f};

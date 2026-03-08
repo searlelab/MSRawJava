@@ -14,6 +14,7 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
@@ -37,6 +38,7 @@ import org.searlelab.msrawjava.model.WindowData;
 public class MZMLOutputFile implements OutputSpectrumFile {
 
 	private static final String SPECTRUM_LIST_COUNT_PLACEHOLDER="SPECTRUM_LIST_COUNT_PLACEHOLDER";
+	private static final String METADATA_USERPARAM_PREFIX="msrawjava.metadata.";
 
 	private Path tempPath=null;
 	private BufferedWriter out=null;
@@ -191,11 +193,24 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 
 		if (sha1==null) sha1="0000000000000000000000000000000000000000"; // worst case placeholder
 		out.write("        <cvParam cvRef=\"MS\" accession=\""+CV_SHA1+"\" name=\"SHA-1\" value=\""+sha1+"\"/>\n");
+		writeRoundTripMetadataUserParams();
 
 		out.write("      </sourceFile>\n");
 		out.write("    </sourceFileList>\n");
 
 		out.write("  </fileDescription>\n");
+	}
+
+	private void writeRoundTripMetadataUserParams() throws IOException {
+		if (meta.isEmpty()) return;
+		ArrayList<String> keys=new ArrayList<>(meta.keySet());
+		Collections.sort(keys);
+		for (String key : keys) {
+			if (key==null||key.isBlank()) continue;
+			String value=meta.get(key);
+			if (value==null) continue;
+			out.write("        <userParam name=\""+escapeXml(METADATA_USERPARAM_PREFIX+key)+"\" value=\""+escapeXml(value)+"\"/>\n");
+		}
 	}
 
 	private void writeReferenceableParamGroupList() throws IOException {
