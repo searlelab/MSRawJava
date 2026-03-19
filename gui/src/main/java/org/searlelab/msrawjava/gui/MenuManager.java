@@ -49,13 +49,17 @@ public final class MenuManager {
 		JMenuBar bar=new JMenuBar();
 
 		JMenu file=new JMenu("File");
+		file.setToolTipText("File actions for opening data, preferences, and exiting the application.");
 		JMenuItem open=new JMenuItem("Open");
+		open.setToolTipText("Open a vendor raw file and select it in the browser.");
 		open.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		open.addActionListener(e -> onOpen(browser, false));
 		JMenuItem preferences=new JMenuItem("Preferences");
+		preferences.setToolTipText("Open application preferences.");
 		preferences.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_P, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		preferences.addActionListener(e -> PreferencesDialog.showDialog(browser));
 		JMenuItem quit=new JMenuItem("Quit");
+		quit.setToolTipText("Close the application.");
 		quit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		quit.addActionListener(e -> {
 			browser.dispatchEvent(new WindowEvent(browser, WindowEvent.WINDOW_CLOSING));
@@ -68,15 +72,20 @@ public final class MenuManager {
 		file.add(quit);
 
 		JMenu view=new JMenu("View");
+		view.setToolTipText("View and visualization actions.");
 		JMenuItem visualize=new JMenuItem("Visualize Raw File");
+		visualize.setToolTipText("Open a raw file directly in the visualization dialog.");
 		visualize.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		visualize.addActionListener(e -> onOpen(browser, true));
 		view.add(visualize);
 
 		JMenu help=new JMenu("Help");
+		help.setToolTipText("Help, citation, and educational resources.");
 		JMenuItem cite=new JMenuItem("How to Cite");
+		cite.setToolTipText("Show citation information for MSRawJava.");
 		cite.addActionListener(e -> HowToCiteDialog.showDialog(browser));
 		JMenuItem demos=new JMenuItem("Educational Demos");
+		demos.setToolTipText("Open interactive educational loading-panel demos.");
 		demos.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		demos.addActionListener(e -> LoadingPanelShowcaseDialog.showDialog(browser));
 		help.add(cite);

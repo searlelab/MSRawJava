@@ -85,6 +85,7 @@ public final class HowToCiteDialog {
 		content.add(citePanel, BorderLayout.SOUTH);
 
 		JButton ok=new JButton("OK");
+		ok.setToolTipText("Close this citation dialog.");
 		ok.addActionListener(e -> {
 			dialog.setVisible(false);
 			dialog.dispose();

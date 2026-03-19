@@ -49,6 +49,7 @@ public class ReaderStatusPanel extends JPanel {
 		rows.add(mzmlLine);
 
 		setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
+		setToolTipText("Shows vendor reader availability using status lights for Thermo, Bruker, EncyclopeDIA, and mzML support.");
 		add(rows, BorderLayout.CENTER);
 		setPreferredSize(new Dimension(260, 100));
 		setMinimumSize(new Dimension(200, 100));
@@ -130,12 +131,14 @@ public class ReaderStatusPanel extends JPanel {
 		private static final long serialVersionUID=1L;
 
 		private final IndicatorLight light=new IndicatorLight();
+		private final String sourceName;
 		private final JLabel label;
 		private final JLabel status=new JLabel();
 		private StatusState state=StatusState.WAITING;
 
 		private StatusLine(String name) {
 			super(new FlowLayout(FlowLayout.LEFT, 6, 0));
+			sourceName=name;
 			label=new JLabel(name+":");
 			Font base=label.getFont();
 			label.setFont(base.deriveFont(Font.BOLD));
@@ -146,7 +149,13 @@ public class ReaderStatusPanel extends JPanel {
 		}
 
 		private void setStatusText(String text) {
-			status.setText(text!=null?text:"");
+			String resolved=text!=null?text:"";
+			status.setText(resolved);
+			String tooltip=sourceName+" reader status light and availability state: "+resolved+".";
+			setToolTipText(tooltip);
+			label.setToolTipText(tooltip);
+			status.setToolTipText(tooltip);
+			light.setToolTipText(tooltip);
 		}
 
 		private void setState(StatusState next) {

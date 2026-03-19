@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui.visualization;
 
 import java.awt.BorderLayout;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,6 +25,7 @@ import javax.swing.plaf.basic.BasicSplitPaneDivider;
 import javax.swing.plaf.basic.BasicSplitPaneUI;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
+import javax.swing.table.JTableHeader;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.algorithms.RawSpectrumMergeUtils;
@@ -55,6 +57,10 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final String BOXPLOT_TITLE="Range Statistics";
 	private static final float MINIMUM_MS1_INTENSITY=3.0f;
 	private static final float MINIMUM_MS2_INTENSITY=1.0f;
+	private static final String TIC_TOOLTIP="Precursor TIC across retention time; selected scan ranges are marked when available.";
+	private static final String SPECTRUM_TOOLTIP="Mass spectrum for the currently selected scan or merged scan selection.";
+	private static final String IMS_TOOLTIP="Ion mobility versus m/z view for the selected spectrum.";
+	private static final String HISTOGRAM_TOOLTIP="Log10 fragment intensity distribution for the selected spectrum.";
 
 	private final StripeFileInterface stripe;
 	private final boolean peakPickAcrossIMS;
@@ -109,10 +115,13 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private void initUi() {
 		model=new RawScanTableModel();
 		table=new JTable(model);
+		table.setToolTipText("Lists scans from the opened file. Select one or more rows to update the charts.");
 		rowSorter=new TableRowSorter<>(table.getModel());
 		table.setRowSorter(rowSorter);
+		installScanHeaderTooltips();
 
 		filterField=new JTextField();
+		filterField.setToolTipText("Filter scans in this table by matching text.");
 		filterField.getDocument().addDocumentListener(new DocumentListener() {
 			@Override
 			public void insertUpdate(DocumentEvent e) {
@@ -131,18 +140,30 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		});
 
 		JPanel searchPanel=new JPanel(new BorderLayout());
-		searchPanel.add(new JLabel("Search:"), BorderLayout.WEST);
+		JLabel searchLabel=new JLabel("Search:");
+		searchLabel.setToolTipText("Filter the scan table by text.");
+		searchPanel.add(searchLabel, BorderLayout.WEST);
 		searchPanel.add(filterField, BorderLayout.CENTER);
 
 		JPanel left=new JPanel(new BorderLayout());
-		left.add(new JScrollPane(table), BorderLayout.CENTER);
+		JScrollPane scanTableScroll=new JScrollPane(table);
+		scanTableScroll.setToolTipText("Scan table for this raw file.");
+		left.add(scanTableScroll, BorderLayout.CENTER);
 		left.add(searchPanel, BorderLayout.SOUTH);
 
 		primaryTabs.addTab("Scans", rawSplit);
+		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab("Scans"), "Scan table, TIC view, and selected-spectrum plots.");
 		rawSplit.setBottomComponent(spectrumSplit);
 		primaryTabs.addTab(BOXPLOT_TITLE, boxplotSplit);
-		primaryTabs.addTab(STRUCTURE_TITLE, new JLabel("Loading..."));
-		primaryTabs.addTab(GLOBAL_TITLE, new JLabel("Loading..."));
+		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab(BOXPLOT_TITLE), "Boxplots summarizing ion injection times.");
+		JLabel structureLoading=new JLabel("Loading...");
+		structureLoading.setToolTipText("Global structure chart is loading.");
+		primaryTabs.addTab(STRUCTURE_TITLE, structureLoading);
+		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab(STRUCTURE_TITLE), "Global acquisition structure chart.");
+		JLabel globalLoading=new JLabel("Loading...");
+		globalLoading.setToolTipText("Global summary chart is loading.");
+		primaryTabs.addTab(GLOBAL_TITLE, globalLoading);
+		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab(GLOBAL_TITLE), "Global summary chart for the opened file.");
 
 		split.setLeftComponent(left);
 		split.setRightComponent(primaryTabs);
@@ -179,6 +200,32 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		registerSplitPreference(boxplotSplit, GUIPreferences::setRawBrowserBoxplotSplitRatio);
 
 		applySplitPreferences();
+	}
+
+	private void installScanHeaderTooltips() {
+		JTableHeader header=new JTableHeader(table.getColumnModel()) {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public String getToolTipText(MouseEvent event) {
+				int viewColumn=columnAtPoint(event.getPoint());
+				if (viewColumn<0) return null;
+				int modelColumn=table.convertColumnIndexToModel(viewColumn);
+				return getScanHeaderTooltip(modelColumn);
+			}
+		};
+		header.setToolTipText("Hover a column header to see what it means.");
+		table.setTableHeader(header);
+	}
+
+	private String getScanHeaderTooltip(int modelColumn) {
+		return switch (modelColumn) {
+			case 0 -> "The table row number for this scan.";
+			case 1 -> "The vendor-provided scan or spectrum name.";
+			case 2 -> "The scan start time in minutes.";
+			case 3 -> "The precursor m/z for this scan.";
+			default -> null;
+		};
 	}
 
 	private void updateFilter() {
@@ -229,8 +276,19 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		ExtendedChartPanel ticChart=buildTicChart();
 		rawSplit.setTopComponent(ticChart);
 
-		boxplotSplit.setTopComponent(BoxPlotGenerator.getBoxplotChart(null, "Precursor Isolation Window", "Ion Injection Time (ms)", data.getIitByRange()));
-		boxplotSplit.setBottomComponent(BoxPlotGenerator.getBoxplotChart(null, "Retention Time Bin (min)", "Ion Injection Time (ms)", data.getIitByRt()));
+		ExtendedChartPanel iitByRangeChart=BoxPlotGenerator.getBoxplotChart(null, "Precursor Isolation Window", "Ion Injection Time (ms)", data.getIitByRange());
+		iitByRangeChart.setToolTipText("Distribution of ion injection times grouped by precursor isolation window.");
+		boxplotSplit.setTopComponent(iitByRangeChart);
+		ExtendedChartPanel iitByRtChart=BoxPlotGenerator.getBoxplotChart(null, "Retention Time Bin (min)", "Ion Injection Time (ms)", data.getIitByRt());
+		iitByRtChart.setToolTipText("Distribution of ion injection times grouped by retention-time bin.");
+		boxplotSplit.setBottomComponent(iitByRtChart);
+
+		if (structureChart!=null) {
+			structureChart.setToolTipText("Structure chart showing DIA isolation-window layout over time.");
+		}
+		if (globalChart!=null) {
+			globalChart.setToolTipText("Global chart summarizing signal and acquisition trends across the run.");
+		}
 
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(STRUCTURE_TITLE), structureChart);
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(GLOBAL_TITLE), globalChart);
@@ -250,7 +308,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 				traces.add(marker);
 			}
 		}
-		return BasicChartGenerator.getChart("Time (min)", "Precursor TIC", false, traces.toArray(new XYTraceInterface[0]));
+		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", "Precursor TIC", false, traces.toArray(new XYTraceInterface[0]));
+		chart.setToolTipText(TIC_TOOLTIP);
+		return chart;
 	}
 
 	private void updateToSelected() {
@@ -323,9 +383,11 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			return;
 		}
 		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new XYTrace(displaySpectrum));
+		spectrumChart.setToolTipText(SPECTRUM_TOOLTIP);
 		boolean hasIms=displaySpectrum.getIonMobilityArray().isPresent()&&MatrixMath.max(displaySpectrum.getIntensityArray())>0.0f;
 		if (hasIms) {
 			ExtendedChartPanel imsChart=BasicChartGenerator.getChart("Ion Mobility", "m/z", false, new ImsSpectrumWrapper(displaySpectrum));
+			imsChart.setToolTipText(IMS_TOOLTIP);
 			imsSpectrumSplit.setLeftComponent(spectrumChart);
 			imsSpectrumSplit.setRightComponent(imsChart);
 			applySplitRatio(imsSpectrumSplit, GUIPreferences.getRawBrowserImsSplitRatio());
@@ -337,6 +399,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		XYTrace intensityHistogram=HistogramUtils.histogramFromLog10(displaySpectrum.getIntensityArray(), "Log10 Fragment Intensity Distribution");
 		ExtendedChartPanel spectrumHistogram=BasicChartGenerator.getChart("Log10 Intensity", "Count (N="+displaySpectrum.getIntensityArray().length+")", false,
 				intensityHistogram);
+		spectrumHistogram.setToolTipText(HISTOGRAM_TOOLTIP);
 		spectrumSplit.setRightComponent(spectrumHistogram);
 
 		ArrayList<XYTraceInterface> markers=new ArrayList<>();

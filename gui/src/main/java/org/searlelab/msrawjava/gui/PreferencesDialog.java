@@ -59,15 +59,20 @@ public class PreferencesDialog extends JDialog {
 	private void buildUi() {
 		JPanel content=new JPanel(new BorderLayout());
 		content.setBorder(BorderFactory.createTitledBorder("Preferences:"));
+		content.setToolTipText("Configure conversion and GUI defaults for MSRawJava.");
 
 		JTabbedPane tabs=new JTabbedPane();
 		tabs.addTab("Conversion", buildConversionTab());
 		tabs.addTab("GUI", buildGuiTab());
+		tabs.setToolTipTextAt(0, "Configure default conversion thresholds and core logging.");
+		tabs.setToolTipTextAt(1, "Configure GUI behavior, appearance, and saved layout resets.");
 		content.add(tabs, BorderLayout.CENTER);
 
 		JPanel buttons=new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
 		JButton ok=new JButton("OK");
 		JButton cancel=new JButton("Cancel");
+		ok.setToolTipText("Save all preference changes and close this dialog.");
+		cancel.setToolTipText("Close this dialog without applying new changes.");
 		ok.addActionListener(e -> onOk());
 		cancel.addActionListener(e -> dispose());
 		buttons.add(ok);
@@ -79,30 +84,50 @@ public class PreferencesDialog extends JDialog {
 
 	private JPanel buildConversionTab() {
 		JPanel panel=new JPanel(new GridBagLayout());
+		panel.setToolTipText("Conversion defaults used for queued processing jobs.");
 		GridBagConstraints gbc=new GridBagConstraints();
 		gbc.insets=new Insets(6, 6, 6, 6);
 		gbc.anchor=GridBagConstraints.WEST;
 
+		String demuxTip="Set the demultiplexing mass tolerance in ppm.";
+		String minMs1Tip="Set the minimum MS1 intensity threshold.";
+		String minMs2Tip="Set the minimum MS2 intensity threshold.";
 		demuxToleranceField.setText(Double.toString(COREPreferences.getDemuxTolerancePpm()));
+		demuxToleranceField.setToolTipText(demuxTip);
 		minMs1Field.setText(Float.toString(COREPreferences.getMinimumMS1Intensity()));
+		minMs1Field.setToolTipText(minMs1Tip);
 		minMs2Field.setText(Float.toString(COREPreferences.getMinimumMS2Intensity()));
+		minMs2Field.setToolTipText(minMs2Tip);
 		verboseCoreBox.setSelected(COREPreferences.isVerboseCoreLogging());
+		verboseCoreBox.setToolTipText("Enable detailed logging from core conversion code.");
+
+		JLabel demuxLabel=new JLabel("Demux tolerance (ppm):");
+		demuxLabel.setToolTipText(demuxTip);
+		demuxLabel.setLabelFor(demuxToleranceField);
 
 		gbc.gridx=0;
 		gbc.gridy=0;
-		panel.add(new JLabel("Demux tolerance (ppm):"), gbc);
+		panel.add(demuxLabel, gbc);
 		gbc.gridx=1;
 		panel.add(demuxToleranceField, gbc);
 
+		JLabel minMs1Label=new JLabel("Minimum MS1 intensity:");
+		minMs1Label.setToolTipText(minMs1Tip);
+		minMs1Label.setLabelFor(minMs1Field);
+
 		gbc.gridx=0;
 		gbc.gridy=1;
-		panel.add(new JLabel("Minimum MS1 intensity:"), gbc);
+		panel.add(minMs1Label, gbc);
 		gbc.gridx=1;
 		panel.add(minMs1Field, gbc);
 
+		JLabel minMs2Label=new JLabel("Minimum MS2 intensity:");
+		minMs2Label.setToolTipText(minMs2Tip);
+		minMs2Label.setLabelFor(minMs2Field);
+
 		gbc.gridx=0;
 		gbc.gridy=2;
-		panel.add(new JLabel("Minimum MS2 intensity:"), gbc);
+		panel.add(minMs2Label, gbc);
 		gbc.gridx=1;
 		panel.add(minMs2Field, gbc);
 
@@ -116,24 +141,34 @@ public class PreferencesDialog extends JDialog {
 
 	private JPanel buildGuiTab() {
 		JPanel panel=new JPanel(new GridBagLayout());
+		panel.setToolTipText("GUI defaults for startup behavior, appearance, and saved layouts.");
 		GridBagConstraints gbc=new GridBagConstraints();
 		gbc.insets=new Insets(6, 6, 6, 6);
 		gbc.anchor=GridBagConstraints.WEST;
 		gbc.fill=GridBagConstraints.HORIZONTAL;
 		gbc.weightx=1.0;
 
+		String lastDirTip="Shows the default directory opened by the browser.";
+		String lookAndFeelTip="Select the application look and feel theme.";
 		lastDirField.setEditable(false);
+		lastDirField.setToolTipText(lastDirTip);
 		String lastDir=GUIPreferences.getLastDirectory();
 		if (lastDir!=null) lastDirField.setText(lastDir);
 
 		loadLookAndFeelOptions();
+		lookAndFeelBox.setToolTipText(lookAndFeelTip);
 
 		JButton browse=new JButton("Browse...");
+		browse.setToolTipText("Choose the default directory shown when the app starts.");
 		browse.addActionListener(e -> chooseLastDir());
+
+		JLabel lastDirLabel=new JLabel("Last directory:");
+		lastDirLabel.setToolTipText(lastDirTip);
+		lastDirLabel.setLabelFor(lastDirField);
 
 		gbc.gridx=0;
 		gbc.gridy=0;
-		panel.add(new JLabel("Last directory:"), gbc);
+		panel.add(lastDirLabel, gbc);
 		gbc.gridy=1;
 		panel.add(lastDirField, gbc);
 		gbc.gridx=1;
@@ -142,14 +177,19 @@ public class PreferencesDialog extends JDialog {
 		panel.add(browse, gbc);
 		gbc.weightx=1.0;
 
+		JLabel lookAndFeelLabel=new JLabel("Look and feel:");
+		lookAndFeelLabel.setToolTipText(lookAndFeelTip);
+		lookAndFeelLabel.setLabelFor(lookAndFeelBox);
+
 		gbc.gridx=0;
 		gbc.gridy=2;
 		gbc.gridwidth=1;
-		panel.add(new JLabel("Look and feel:"), gbc);
+		panel.add(lookAndFeelLabel, gbc);
 		gbc.gridx=1;
 		panel.add(lookAndFeelBox, gbc);
 
 		JButton resetWindowsButton=new JButton("Reset Window Location and Dimensions");
+		resetWindowsButton.setToolTipText("Reset saved window size and position values.");
 		resetWindowsButton.addActionListener(e -> {
 			resetWindows=true;
 			resetWindowsButton.setEnabled(false);
@@ -157,6 +197,7 @@ public class PreferencesDialog extends JDialog {
 		});
 
 		JButton resetSplitsButton=new JButton("Reset Split Pane Dimensions");
+		resetSplitsButton.setToolTipText("Reset all saved split-pane divider positions.");
 		resetSplitsButton.addActionListener(e -> {
 			resetSplits=true;
 			resetSplitsButton.setEnabled(false);
@@ -164,6 +205,7 @@ public class PreferencesDialog extends JDialog {
 		});
 
 		JButton resetTablesButton=new JButton("Reset Table Parameters");
+		resetTablesButton.setToolTipText("Reset saved table sorting, order, and column widths.");
 		resetTablesButton.addActionListener(e -> {
 			resetTables=true;
 			resetTablesButton.setEnabled(false);
@@ -180,6 +222,7 @@ public class PreferencesDialog extends JDialog {
 		panel.add(resetTablesButton, gbc);
 
 		verboseGuiBox.setSelected(GUIPreferences.isVerboseGuiLogging());
+		verboseGuiBox.setToolTipText("Enable detailed logging from GUI components.");
 		gbc.gridy=6;
 		panel.add(verboseGuiBox, gbc);
 

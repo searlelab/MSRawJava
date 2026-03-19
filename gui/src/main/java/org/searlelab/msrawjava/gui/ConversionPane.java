@@ -40,6 +40,7 @@ import javax.swing.UIManager;
 import javax.swing.plaf.basic.BasicSplitPaneDivider;
 import javax.swing.plaf.basic.BasicSplitPaneUI;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.JTableHeader;
 
 import org.searlelab.msrawjava.COREPreferences;
 import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
@@ -120,6 +121,7 @@ public class ConversionPane extends JPanel {
 		queueTable.setDefaultRenderer(Object.class, StripeTableCellRenderer.BASE_RENDERER);
 		queueTable.getColumnModel().getColumn(0).setPreferredWidth(280); // File
 		queueTable.getColumnModel().getColumn(1).setPreferredWidth(120); // Progress
+		installQueueHeaderTooltips();
 		queueTable.getSelectionModel().addListSelectionListener(e -> {
 			if (!e.getValueIsAdjusting()) updateConsoleForSelection();
 		});
@@ -209,9 +211,11 @@ public class ConversionPane extends JPanel {
 			OutputType sel=(OutputType)outTypeBox.getSelectedItem();
 			if (sel!=null) prefs.put(PREF_OUT_TYPE, sel.name());
 		});
+		outTypeBox.setToolTipText("Select the output file format used for queued conversions.");
 
 		boolean savedDemux=prefs.getBoolean(PREF_DEMULTIPLEX, false);
 		demultiplexBox.setSelected(savedDemux);
+		demultiplexBox.setToolTipText("Enable staggered-window demultiplexing for supported files.");
 		lastDemuxSelection=savedDemux;
 		demultiplexBox.addActionListener(e -> {
 			if (suppressDemuxChange) return;
@@ -222,6 +226,7 @@ public class ConversionPane extends JPanel {
 		int defaultThreads=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
 		int savedThreads=Math.max(1, prefs.getInt(PREF_THREADS, defaultThreads));
 		threadSpinner=new JSpinner(new SpinnerNumberModel(savedThreads, 1, 512, 1));
+		threadSpinner.setToolTipText("Set how many files can be converted in parallel.");
 		threadSpinner.addChangeListener(e -> {
 			int n=(Integer)threadSpinner.getValue();
 			prefs.putInt(PREF_THREADS, n);
@@ -243,10 +248,12 @@ public class ConversionPane extends JPanel {
 	private JPanel buildQueueToolbar() {
 		JButton queueSelected=new JButton("Queue Selected");
 		wireButton(queueSelected);
+		queueSelected.setToolTipText("Add any selected files to the processing queue using the output settings.");
 		queueSelected.addActionListener(e -> enqueueFromSupplier());
 
 		JButton cancelAll=new JButton("Cancel");
 		wireButton(cancelAll);
+		cancelAll.setToolTipText("Cancel queued and running conversion jobs.");
 		cancelAll.addActionListener(e -> {
 			dispatcher.pause(true);
 			queueModel.cancelAll();
@@ -254,6 +261,7 @@ public class ConversionPane extends JPanel {
 
 		JButton restart=new JButton("Restart");
 		wireButton(restart);
+		restart.setToolTipText("Requeue failed or canceled jobs and resume processing.");
 		restart.addActionListener(e -> {
 			queueModel.requeueFailedAndCanceled();
 			dispatcher.pause(false);
@@ -262,6 +270,7 @@ public class ConversionPane extends JPanel {
 
 		JButton clear=new JButton("Clear");
 		wireButton(clear);
+		clear.setToolTipText("Remove jobs that have not started or were canceled.");
 		clear.addActionListener(e -> queueModel.clearUnstartedOrCanceled());
 
 		JPanel tools=new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
@@ -273,13 +282,41 @@ public class ConversionPane extends JPanel {
 		return tools;
 	}
 
+	private void installQueueHeaderTooltips() {
+		JTableHeader header=new JTableHeader(queueTable.getColumnModel()) {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public String getToolTipText(MouseEvent event) {
+				int viewColumn=columnAtPoint(event.getPoint());
+				if (viewColumn<0) return null;
+				int modelColumn=queueTable.convertColumnIndexToModel(viewColumn);
+				return getQueueHeaderTooltip(modelColumn);
+			}
+		};
+		header.setToolTipText("Hover a column header to see what it means.");
+		queueTable.setTableHeader(header);
+	}
+
+	private String getQueueHeaderTooltip(int modelColumn) {
+		return switch (modelColumn) {
+			case 0 -> "The queued source file name.";
+			case 1 -> "Conversion progress for this queued job.";
+			default -> null;
+		};
+	}
+
 	private JPanel buildConsolePanel() {
 		JPanel panel=new JPanel(new BorderLayout());
 		JPanel header=new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
-		header.add(new JLabel("Details"));
+		String detailsTooltip="Shows progress details on the selected job in the queue.";
+		JLabel detailsLabel=new JLabel("Details");
+		detailsLabel.setToolTipText(detailsTooltip);
+		header.add(detailsLabel);
 
 		statusIndicator.setOpaque(false);
 		statusIndicator.setForeground(new Color(0x1976D2)); // blue = running/default
+		statusIndicator.setToolTipText(detailsTooltip);
 		header.add(statusIndicator);
 
 		panel.add(header, BorderLayout.NORTH);

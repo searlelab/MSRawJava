@@ -384,9 +384,11 @@ public class RawFileBrowser extends JFrame {
 		JPopupMenu menu=new JPopupMenu();
 
 		JMenuItem visualize=new JMenuItem("Visualize");
+		visualize.setToolTipText("Open the selected raw file in the visualization dialog.");
 		visualize.addActionListener(ae -> FileDetailsDialog.showFileDetailsDialog(RawFileBrowser.this, p.toFile()));
 
 		JMenuItem showDir=new JMenuItem("Show Enclosing Folder");
+		showDir.setToolTipText("Jump the directory tree to this file's enclosing folder.");
 		showDir.addActionListener(ae -> {
 			File f=p.toFile();
 			File parent=f.isDirectory()?f:f.getParentFile();
@@ -396,6 +398,7 @@ public class RawFileBrowser extends JFrame {
 		});
 
 		JMenuItem selectAll=new JMenuItem("Select All");
+		selectAll.setToolTipText("Select all files currently visible in the directory table.");
 		selectAll.addActionListener(ae -> tbl.selectAll());
 
 		menu.add(visualize);

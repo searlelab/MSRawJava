@@ -108,6 +108,7 @@ public class LoadingPanelShowcaseDialog extends JDialog {
 		updateActivePanel();
 
 		JButton close=new JButton("Close");
+		close.setToolTipText("Close this educational loading-panel showcase.");
 		close.addActionListener(e -> {
 			stopAll();
 			setVisible(false);

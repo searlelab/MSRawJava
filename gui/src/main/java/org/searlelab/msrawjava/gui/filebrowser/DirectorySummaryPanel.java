@@ -11,6 +11,7 @@ import java.awt.RenderingHints;
 import java.awt.Rectangle;
 import java.awt.Dimension;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,6 +63,7 @@ import javax.swing.event.TableColumnModelEvent;
 import javax.swing.event.TableColumnModelListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumn;
+import javax.swing.table.JTableHeader;
 import javax.swing.table.TableRowSorter;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
@@ -143,6 +145,7 @@ public class DirectorySummaryPanel extends JPanel {
 		table.setDefaultRenderer(Date.class, new DateOnlyRenderer());
 		table.setDefaultRenderer(Float.class, new GradientRenderer()); // formats "X.Y min"
 		table.setDefaultRenderer(SparkData.class, new SparkRenderer()); // red filled spark
+		installTableHeaderTooltips();
 
 		table.getColumnModel().getColumn(0).setCellRenderer(StripeTableCellRenderer.ROW_NUMBER_RENDERER);
 		table.getColumnModel().getColumn(1).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
@@ -213,6 +216,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private JPanel buildSearchBar() {
 		JPanel searchBar=new JPanel();
 		searchBar.setLayout(new BoxLayout(searchBar, BoxLayout.X_AXIS));
+		spinner.setToolTipText("Shows progress while file metrics are being read for this directory.");
 		searchBar.add(Box.createHorizontalStrut(6));
 		searchBar.add(spinner);
 		searchBar.add(Box.createHorizontalStrut(10));
@@ -220,8 +224,10 @@ public class DirectorySummaryPanel extends JPanel {
 		searchBar.add(Box.createHorizontalStrut(10));
 		searchBar.add(new JLabel("Search:"));
 		searchBar.add(Box.createHorizontalStrut(6));
+		searchField.setToolTipText("Filter files in this table by file name.");
 		searchBar.add(searchField);
 		searchBar.add(Box.createHorizontalStrut(6));
+		clearButton.setToolTipText("Clear the search text and show all files again.");
 		searchBar.add(clearButton);
 		searchBar.add(Box.createHorizontalStrut(10));
 		searchBar.add(makeSeparator());
@@ -229,6 +235,7 @@ public class DirectorySummaryPanel extends JPanel {
 		searchBar.add(new JLabel("Vendor:"));
 		searchBar.add(Box.createHorizontalStrut(6));
 		initializeVendorFilter();
+		vendorFilter.setToolTipText("Filter for specific raw file vendors or formats.");
 		searchBar.add(vendorFilter);
 		searchBar.add(Box.createHorizontalStrut(6));
 		searchField.getDocument().addDocumentListener(new DocumentListener() {
@@ -266,6 +273,36 @@ public class DirectorySummaryPanel extends JPanel {
 		});
 		updateFilters();
 		return searchBar;
+	}
+
+	private void installTableHeaderTooltips() {
+		JTableHeader header=new JTableHeader(table.getColumnModel()) {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public String getToolTipText(MouseEvent event) {
+				int viewColumn=columnAtPoint(event.getPoint());
+				if (viewColumn<0) return null;
+				int modelColumn=table.convertColumnIndexToModel(viewColumn);
+				return getHeaderTooltip(modelColumn);
+			}
+		};
+		header.setToolTipText("Hover a column header to see what it means.");
+		table.setTableHeader(header);
+	}
+
+	private String getHeaderTooltip(int modelColumn) {
+		return switch (modelColumn) {
+			case 0 -> "The table row number for this file.";
+			case 1 -> "The raw file or directory name.";
+			case 2 -> "The detected vendor or file format.";
+			case 3 -> "The last modified date reported by the file system.";
+			case 4 -> "The total file size on disk.";
+			case 5 -> "The gradient length in minutes.";
+			case 6 -> "The sum of MS1 TIC values across the entire raw file.";
+			case 7 -> "A compact trace of total ion current across retention time.";
+			default -> null;
+		};
 	}
 
 	private void updateFilters() {

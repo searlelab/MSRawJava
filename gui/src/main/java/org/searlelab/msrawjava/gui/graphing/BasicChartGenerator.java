@@ -463,6 +463,7 @@ public class BasicChartGenerator {
 
 	private static void addSaveMenu(final String xAxis, final ExtendedChartPanel chartPanel, final XYTraceInterface... traces) {
 		JMenuItem savePDF=new JMenuItem("Save as PDF");
+		savePDF.setToolTipText("Export this chart to a PDF file.");
 		chartPanel.getPopupMenu().add(savePDF, 0);
 		savePDF.addActionListener(new ActionListener() {
 			@Override
@@ -489,6 +490,7 @@ public class BasicChartGenerator {
 		});
 
 		JMenuItem saveSVG=new JMenuItem("Save as SVG");
+		saveSVG.setToolTipText("Export this chart to an SVG file.");
 		chartPanel.getPopupMenu().add(saveSVG, 1);
 		saveSVG.addActionListener(new ActionListener() {
 			@Override
@@ -515,6 +517,7 @@ public class BasicChartGenerator {
 		});
 
 		JMenuItem copyImage=new JMenuItem("Copy as image");
+		copyImage.setToolTipText("Copy this chart as an image to the clipboard.");
 		chartPanel.getPopupMenu().add(copyImage, 2);
 		copyImage.addActionListener(new ActionListener() {
 			@Override
@@ -529,6 +532,7 @@ public class BasicChartGenerator {
 		});
 
 		JMenuItem copyItem=new JMenuItem("Copy data values");
+		copyItem.setToolTipText("Copy plotted data values to the clipboard as tab-delimited text.");
 		chartPanel.getPopupMenu().add(copyItem, 3);
 		copyItem.addActionListener(new ActionListener() {
 			@Override
