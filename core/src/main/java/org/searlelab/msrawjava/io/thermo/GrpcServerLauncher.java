@@ -2,6 +2,8 @@ package org.searlelab.msrawjava.io.thermo;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -106,16 +108,22 @@ final class GrpcServerLauncher implements AutoCloseable {
 		ProcessBuilder pb=new ProcessBuilder(cmd);
 		pb.environment().put("MSRAW_THERMO_URL", "http://127.0.0.1:"+port);
 		pb.directory(workDir.toFile()); // critical: loader probes base dir for ThermoFisher.*.dll + runtimes/
-		pb.redirectErrorStream(true);
-		if (Logger.getConsoleStatus()!=null&&Logger.getConsoleStatus().isEnabled()) {
+		boolean suppressChildLogs=Logger.getConsoleStatus()!=null&&Logger.getConsoleStatus().isEnabled();
+		if (suppressChildLogs) {
 			pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+			pb.redirectError(ProcessBuilder.Redirect.DISCARD);
 		} else {
-			pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+			pb.redirectOutput(ProcessBuilder.Redirect.PIPE);
+			pb.redirectError(ProcessBuilder.Redirect.PIPE);
 		}
 
 		Logger.logLine("Thermo server: starting process...");
 		long t2=System.nanoTime();
 		this.proc=pb.start();
+		if (!suppressChildLogs) {
+			startStreamPump("thermo-server-stdout", proc.getInputStream(), System.out);
+			startStreamPump("thermo-server-stderr", proc.getErrorStream(), System.err);
+		}
 		Logger.logLine(String.format(Locale.ROOT, "Thermo server: process started (pid %d) in %.2f s", proc.pid(), (System.nanoTime()-t2)/1_000_000_000.0));
 
 		// 3) Wait for port readiness
@@ -142,6 +150,23 @@ final class GrpcServerLauncher implements AutoCloseable {
 			}
 		}
 		Logger.logLine(String.format(Locale.ROOT, "Thermo server: port "+port+" ready in %.2f s", (System.nanoTime()-start)/1_000_000_000.0));
+	}
+
+	private static Thread startStreamPump(String name, InputStream input, PrintStream output) {
+		Thread t=new Thread(() -> {
+			byte[] buffer=new byte[4096];
+			try (InputStream in=input) {
+				int n;
+				while ((n=in.read(buffer))!=-1) {
+					output.write(buffer, 0, n);
+					output.flush();
+				}
+			} catch (IOException ignored) {
+			}
+		}, name);
+		t.setDaemon(true);
+		t.start();
+		return t;
 	}
 
 	// Test-only constructor helper to avoid spinning up native processes.

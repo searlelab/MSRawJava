@@ -12,6 +12,7 @@ import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 public class GuiMain {
 
 	public static void main(String[] args) {
+		LoggingConsoleDialog.installSystemCapture();
 		LookAndFeelManager.applyLookAndFeel(GUIPreferences.getLookAndFeelId(LookAndFeelManager.LAF_FLAT_LIGHT));
 		ThermoServerPool.startAsync();
 		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();

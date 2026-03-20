@@ -88,8 +88,13 @@ public final class MenuManager {
 		demos.setToolTipText("Open interactive educational loading-panel demos.");
 		demos.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		demos.addActionListener(e -> LoadingPanelShowcaseDialog.showDialog(browser));
+		JMenuItem console=new JMenuItem("Logging Console");
+		console.setToolTipText("Show captured standard output and error messages.");
+		console.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+		console.addActionListener(e -> LoggingConsoleDialog.showDialog(browser));
 		help.add(cite);
 		help.add(demos);
+		help.add(console);
 
 		bar.add(file);
 		bar.add(view);

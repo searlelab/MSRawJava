@@ -32,7 +32,6 @@ import javax.swing.JLabel;
 import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 
 import com.formdev.flatlaf.FlatLightLaf;
 
@@ -104,7 +103,7 @@ public class TOFLoadingPanel extends LoadingPanel {
 
 		// Timing & animation
 		private static final int FPS_MS=33; // ~30 FPS
-		private final Timer anim;
+		private final LoadingPanel.MinPriorityAnimationLoop anim;
 		private long lastNanos=0L;
 
 		// Geometry
@@ -144,7 +143,7 @@ public class TOFLoadingPanel extends LoadingPanel {
 			setOpaque(true);
 			makeInitialIons(); // stable ions chosen here
 			recomputeGeometry(); // set geometry & speeds
-			anim=new Timer(FPS_MS, e -> tick());
+			anim=LoadingPanel.createMinPriorityAnimationLoop(FPS_MS, "tof-loading-animation", this::tick);
 			anim.start();
 
 			addComponentListener(new ComponentAdapter() {
@@ -161,24 +160,24 @@ public class TOFLoadingPanel extends LoadingPanel {
 		}
 
 		void stop() {
-			if (anim!=null) anim.stop();
+			anim.stop();
 		}
 
 		void start() {
 			lastNanos=System.nanoTime();
-			if (anim!=null&&!anim.isRunning()) anim.start();
+			if (!anim.isRunning()) anim.start();
 		}
 
 		@Override
 		public void addNotify() {
 			super.addNotify();
 			lastNanos=System.nanoTime();
-			if (anim!=null&&!anim.isRunning()) anim.start();
+			if (!anim.isRunning()) anim.start();
 		}
 
 		@Override
 		public void removeNotify() {
-			if (anim!=null) anim.stop();
+			anim.stop();
 			super.removeNotify();
 		}
 

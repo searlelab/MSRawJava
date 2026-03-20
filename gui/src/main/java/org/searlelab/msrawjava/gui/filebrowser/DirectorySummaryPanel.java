@@ -87,12 +87,18 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final SparkData FAILED=new SparkData(new float[0]);
 	private static final ConcurrentHashMap<Path, SlowBits> SLOW_BITS_CACHE=new ConcurrentHashMap<>();
 	private static final String VENDOR_ALL="All";
+	private static final AtomicInteger SLOW_BITS_THREAD_ID=new AtomicInteger(1);
 
 	private final JTable table;
 	private final DirSummaryModel model=new DirSummaryModel();
 	private final TableRowSorter<DirSummaryModel> sorter;
 	// Use a wider pool to speed up slow-bit extraction on large directories.
-	private final ExecutorService pool=Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors()-2));
+	private final ExecutorService pool=Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors()-2), r -> {
+		Thread t=new Thread(r, "dir-summary-slow-bits-"+SLOW_BITS_THREAD_ID.getAndIncrement());
+		t.setDaemon(true);
+		t.setPriority(Thread.MIN_PRIORITY);
+		return t;
+	});
 	private final Timer loadingTimer;
 	private volatile boolean closed=false;
 	private boolean applyingSavedLayout=false;

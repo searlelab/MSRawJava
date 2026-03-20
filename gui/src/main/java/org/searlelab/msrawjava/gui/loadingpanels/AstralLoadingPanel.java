@@ -35,7 +35,6 @@ import javax.swing.JLabel;
 import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 
 import com.formdev.flatlaf.FlatLightLaf;
 
@@ -130,7 +129,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 		// Detector sits below emitter on left
 		private static final double DETECTOR_DY_FRAC=0.095; // fraction of analyzer height
 
-		private final Timer anim;
+		private final LoadingPanel.MinPriorityAnimationLoop anim;
 		private long lastNanos=0L;
 
 		private int w, h, pad;
@@ -166,7 +165,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 			recomputeGeometry();
 			startNewPacket();
 
-			anim=new Timer(FPS_MS, e -> tick());
+			anim=LoadingPanel.createMinPriorityAnimationLoop(FPS_MS, "astral-loading-animation", this::tick);
 			anim.start();
 
 			addComponentListener(new ComponentAdapter() {
@@ -183,24 +182,24 @@ public class AstralLoadingPanel extends LoadingPanel {
 		}
 
 		void stop() {
-			if (anim!=null) anim.stop();
+			anim.stop();
 		}
 
 		void start() {
 			lastNanos=System.nanoTime();
-			if (anim!=null&&!anim.isRunning()) anim.start();
+			if (!anim.isRunning()) anim.start();
 		}
 
 		@Override
 		public void addNotify() {
 			super.addNotify();
 			lastNanos=System.nanoTime();
-			if (anim!=null&&!anim.isRunning()) anim.start();
+			if (!anim.isRunning()) anim.start();
 		}
 
 		@Override
 		public void removeNotify() {
-			if (anim!=null) anim.stop();
+			anim.stop();
 			super.removeNotify();
 		}
 

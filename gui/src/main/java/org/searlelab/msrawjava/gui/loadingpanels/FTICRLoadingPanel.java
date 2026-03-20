@@ -28,7 +28,6 @@ import javax.swing.JLabel;
 import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 
 import com.formdev.flatlaf.FlatLightLaf;
 
@@ -106,7 +105,7 @@ public class FTICRLoadingPanel extends LoadingPanel {
 		// frequency range from ions (rad/s)
 		private double omegaMin, omegaMax;
 
-		private Timer anim;
+		private final LoadingPanel.MinPriorityAnimationLoop anim;
 		private long lastNanos=0L;
 
 		// Geometry cache
@@ -131,7 +130,7 @@ public class FTICRLoadingPanel extends LoadingPanel {
 			for (int i=0; i<FFT_BINS; i++)
 				binColor[i]=new Color(90, 130, 210);
 
-			anim=new Timer(FPS_MS, e -> tick());
+			anim=LoadingPanel.createMinPriorityAnimationLoop(FPS_MS, "fticr-loading-animation", this::tick);
 			anim.start();
 
 			addComponentListener(new ComponentAdapter() {
@@ -148,24 +147,24 @@ public class FTICRLoadingPanel extends LoadingPanel {
 		}
 
 		void stop() {
-			if (anim!=null) anim.stop();
+			anim.stop();
 		}
 
 		void start() {
 			lastNanos=System.nanoTime();
-			if (anim!=null&&!anim.isRunning()) anim.start();
+			if (!anim.isRunning()) anim.start();
 		}
 
 		@Override
 		public void addNotify() {
 			super.addNotify();
 			lastNanos=System.nanoTime();
-			if (anim!=null&&!anim.isRunning()) anim.start();
+			if (!anim.isRunning()) anim.start();
 		}
 
 		@Override
 		public void removeNotify() {
-			if (anim!=null) anim.stop();
+			anim.stop();
 			super.removeNotify();
 		}
 

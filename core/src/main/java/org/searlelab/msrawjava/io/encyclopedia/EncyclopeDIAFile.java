@@ -39,6 +39,7 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
+import org.sqlite.SQLiteException;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -260,6 +261,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 					fractionNames.put(fraction, name);
 				}
+			} catch (SQLiteException e) {
+				Logger.errorLine("Error getting fractions, likely caused from reading an older file: "+e.getMessage());
 			} finally {
 				s.close();
 			}

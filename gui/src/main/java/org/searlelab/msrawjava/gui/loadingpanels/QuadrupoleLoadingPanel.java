@@ -29,7 +29,6 @@ import javax.swing.JLabel;
 import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 import javax.swing.WindowConstants;
 
 /** Quadrupole mass filter loader: wide, short analyzer; very wide passband; 10 peptide-like ions (m/z 400–1000). */
@@ -146,7 +145,7 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 		// Animation / traversal
 		private static final int FPS_MS=Math.round(1000f*1f/30f); // ~30 FPS
 		private static final double FLIGHT_TIME=3; // seconds across analyzer (visual)
-		private Timer anim;
+		private final LoadingPanel.MinPriorityAnimationLoop anim;
 		private long lastNanos=0L;
 
 		// Geometry (wide + short analyzer)
@@ -180,7 +179,7 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 				ions.add(new Ion(mz, colorByMz(mz)));
 			}
 
-			anim=new Timer(FPS_MS, e -> tick());
+			anim=LoadingPanel.createMinPriorityAnimationLoop(FPS_MS, "quadrupole-loading-animation", this::tick);
 			// start timer in addNotify() after geometry
 			addComponentListener(new ComponentAdapter() {
 				@Override
@@ -203,13 +202,19 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 			if (!anim.isRunning()) anim.start();
 		}
 
+		@Override
+		public void removeNotify() {
+			anim.stop();
+			super.removeNotify();
+		}
+
 		void start() {
 			lastNanos=System.nanoTime();
-			if (anim!=null&&!anim.isRunning()) anim.start();
+			if (!anim.isRunning()) anim.start();
 		}
 
 		void stop() {
-			if (anim!=null) anim.stop();
+			anim.stop();
 		}
 
 		// ---------------- Geometry (wide + short analyzer) ----------------
