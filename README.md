@@ -1,6 +1,7 @@
 # MSRawJava: Java-first readers for Bruker timsTOF and Thermo RAW
 <img align="left" src="gui/splash@2x.png" width=200 style="margin-right: 15px;">
-MSRawJava is a Java-first toolkit for efficiently reading Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X. The code provides additional tooling for reading spectra and metadata into a standard object model, and producing analysis-ready outputs (`.mzML`, `.MGF`, [EncyclopeDIA](https://bitbucket.org/searleb/encyclopedia) `.DIA`). The library exposes a uniform Java API and a compact CLI. Vendor specifics are isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo, so the public surface remains consistent across platforms.
+
+MSRawJava is a Java-first toolkit for efficiently reading Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X. The code provides additional tooling for reading spectra and metadata into a standard object model, and producing analysis-ready outputs (`.mzML`, `.MGF`, and [EncyclopeDIA](https://bitbucket.org/searleb/encyclopedia/wiki/Home) `.DIA`). The library exposes a uniform Java API and a compact CLI. Vendor specifics are isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo, so the public surface remains consistent across platforms.
 
 ## What MSRawJava is and is not
 **MSRawJava is not a [ProteoWizard](https://proteowizard.sourceforge.io/) replacement.** MSRawJava has a significantly smaller surface area than ProteoWizard, supporting only a narrow set of Vendor files and output formats. Additionally, there are very limited options for processing raw files and no options for non-vendor peak picking. In exchange, MSRawJava offers higher conversion speed and a more straightforward interface for daily work in the GUI, at the command line, and via programmatic interfaces. It also provides rich, integrated visualization of raw files, with a forensic focus to catch mistakes in data acquisition. This visualization focuses on rapid understanding of the entire raw data file (rather than spectrum by spectrum), enabling interrogation of windowing and global trends. Lastly, it offers high (>90%) test coverage in the core code and first-class support for Apple computers as well as Linux and Windows. **Use ProteoWizard for completeness and MSRawJava for "real-life" tasks.**
@@ -37,7 +38,7 @@ Bruker timsTOF-specific Rust binaries are embedded in the jar under `META-INF/li
 
 
 ## CLI usage
-The CLI in `Main.java` accepts files or directories and searches them for Bruker `.d` and Thermo `.raw` files, with optional EncyclopeDIA `.dia` discovery when enabled. Command line options include:
+The CLI in `Main.java` accepts files or directories and searches them for Bruker `.d` and Thermo `.raw` files, with optional [EncyclopeDIA](https://bitbucket.org/searleb/encyclopedia/wiki/Home) `.dia` discovery when enabled. Command line options include:
 
 ```
   -f, --format [fmt]        Output format: dia|mgf|mzml (default dia)
