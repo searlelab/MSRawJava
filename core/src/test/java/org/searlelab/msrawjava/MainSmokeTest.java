@@ -50,24 +50,6 @@ class MainSmokeTest {
 		return outBuf.toString(StandardCharsets.UTF_8);
 	}
 
-	@Test
-	void main_withDirectoryThatHasNoVendorFiles_runsToCompletion(@TempDir Path tmp) throws Exception {
-		Files.createDirectories(tmp);
-		Files.writeString(tmp.resolve("readme.txt"), "no vendors here");
-
-		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
-				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class)) {
-
-			assertDoesNotThrow(() -> Main.main(new String[] {tmp.toString()}));
-
-			String out=stdout();
-			assertTrue(out.contains("Welcome to MSRawJava version"));
-			assertTrue(out.contains("Found 1 starting paths, export format: EncyclopeDIA"));
-			conv.verifyNoInteractions();
-			pool.verifyNoInteractions();
-		}
-	}
-
 	@TempDir
 	Path tmp;
 

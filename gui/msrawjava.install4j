@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <install4j version="12.0.2" transformSequenceNumber="12">
-  <directoryPresets config="/Users/searle.brian/Documents/java/MSRawJava/gui/target/msrawjava-0.5.292.jar" />
-  <application name="MSRawJava" applicationId="7985-7208-6179-2855" mediaDir="target/install4j" shortName="MSRawJava" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="0.0.1" macVolumeId="c048ca009eaf9ba9">
+  <directoryPresets config="/Users/searleb/Documents/java/MSRawJava/gui" />
+  <application name="MSRawJava" applicationId="7985-7208-6179-2855" mediaDir="target/install4j" shortName="MSRawJava" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="26.3.20" macVolumeId="c048ca009eaf9ba9">
     <jreBundles jdkProviderId="Adoptium" release="21/latest" />
   </application>
   <files>
@@ -10,7 +10,7 @@
     </mountPoints>
     <entries>
       <dirEntry mountPoint="34" file="./target/lib" entryMode="subdir" subDirectory="lib" />
-      <fileEntry mountPoint="34" file="./target/msrawjava-0.5.292.jar" />
+      <fileEntry mountPoint="34" file="./target/msrawjava-26.3.20.jar" />
     </entries>
   </files>
   <launchers>
@@ -23,7 +23,7 @@
       </splashScreen>
       <java mainClass="org.searlelab.msrawjava.gui.GuiMain" vmParameters="-Xms2g">
         <classPath>
-          <archive location="msrawjava-0.5.292.jar" failOnError="false" />
+          <archive location="msrawjava-26.3.20.jar" failOnError="false" />
           <directory location="lib" failOnError="false" />
         </classPath>
       </java>
@@ -35,6 +35,17 @@
   <installerGui>
     <applications>
       <application id="installer" beanClass="com.install4j.runtime.beans.applications.InstallerApplication">
+        <serializedBean>
+          <property name="customIconImageFiles">
+            <add>
+              <object class="com.install4j.api.beans.ExternalFile">
+                <string>/Users/searleb/Documents/java/MSRawJava/gui/icon256.png</string>
+              </object>
+            </add>
+          </property>
+          <property name="frameHeight" type="int" value="400" />
+          <property name="useCustomIcon" type="boolean" value="true" />
+        </serializedBean>
         <startup>
           <screen id="1" beanClass="com.install4j.runtime.beans.screens.StartupScreen" rollbackBarrierExitCode="0">
             <actions>
@@ -45,6 +56,70 @@
         </startup>
         <screens>
           <screen id="2" beanClass="com.install4j.runtime.beans.screens.WelcomeScreen" styleId="7" rollbackBarrierExitCode="0">
+            <styleOverrides>
+              <styleOverride name="Customize banner image" enabled="true">
+                <group id="41" beanClass="com.install4j.runtime.beans.groups.VerticalFormComponentGroup" useExternalParametrization="true" externalParametrizationName="Customize banner image" externalParametrizationMode="include">
+                  <serializedBean>
+                    <property name="backgroundColor">
+                      <object class="com.install4j.runtime.beans.LightOrDarkColor">
+                        <object class="java.awt.Color">
+                          <int>255</int>
+                          <int>255</int>
+                          <int>255</int>
+                          <int>255</int>
+                        </object>
+                        <object class="java.awt.Color">
+                          <int>49</int>
+                          <int>52</int>
+                          <int>53</int>
+                          <int>255</int>
+                        </object>
+                      </object>
+                    </property>
+                    <property name="borderSides">
+                      <object class="com.install4j.runtime.beans.formcomponents.BorderSides">
+                        <property name="bottom" type="boolean" value="true" />
+                      </object>
+                    </property>
+                    <property name="imageAnchor" type="enum" class="com.install4j.api.beans.Anchor" value="WEST" />
+                    <property name="imageEdgeBackgroundColor">
+                      <object class="com.install4j.runtime.beans.LightOrDarkColor">
+                        <object class="java.awt.Color">
+                          <int>242</int>
+                          <int>242</int>
+                          <int>242</int>
+                          <int>255</int>
+                        </object>
+                        <object class="java.awt.Color">
+                          <int>200</int>
+                          <int>205</int>
+                          <int>212</int>
+                          <int>255</int>
+                        </object>
+                      </object>
+                    </property>
+                    <property name="imageFile">
+                      <object class="com.install4j.api.beans.ExternalFile">
+                        <string>./splash_vert.png</string>
+                      </object>
+                    </property>
+                    <property name="insets">
+                      <object class="java.awt.Insets">
+                        <int>5</int>
+                        <int>10</int>
+                        <int>10</int>
+                        <int>10</int>
+                      </object>
+                    </property>
+                  </serializedBean>
+                  <externalParametrizationPropertyNames>
+                    <propertyName>imageAnchor</propertyName>
+                    <propertyName>imageEdgeBackgroundColor</propertyName>
+                    <propertyName>imageFile</propertyName>
+                  </externalParametrizationPropertyNames>
+                </group>
+              </styleOverride>
+            </styleOverrides>
             <actions>
               <action id="7" beanClass="com.install4j.runtime.beans.actions.misc.LoadResponseFileAction" rollbackBarrierExitCode="0" multiExec="true">
                 <serializedBean>
@@ -163,6 +238,70 @@ return console.askOkCancel(message, true);
             </formComponents>
           </screen>
           <screen id="20" beanClass="com.install4j.runtime.beans.screens.FinishedScreen" styleId="16" rollbackBarrierExitCode="0" finishScreen="true">
+            <styleOverrides>
+              <styleOverride name="Customize banner image" enabled="true">
+                <group id="42" beanClass="com.install4j.runtime.beans.groups.VerticalFormComponentGroup" useExternalParametrization="true" externalParametrizationName="Customize banner image" externalParametrizationMode="include">
+                  <serializedBean>
+                    <property name="backgroundColor">
+                      <object class="com.install4j.runtime.beans.LightOrDarkColor">
+                        <object class="java.awt.Color">
+                          <int>255</int>
+                          <int>255</int>
+                          <int>255</int>
+                          <int>255</int>
+                        </object>
+                        <object class="java.awt.Color">
+                          <int>49</int>
+                          <int>52</int>
+                          <int>53</int>
+                          <int>255</int>
+                        </object>
+                      </object>
+                    </property>
+                    <property name="borderSides">
+                      <object class="com.install4j.runtime.beans.formcomponents.BorderSides">
+                        <property name="bottom" type="boolean" value="true" />
+                      </object>
+                    </property>
+                    <property name="imageAnchor" type="enum" class="com.install4j.api.beans.Anchor" value="WEST" />
+                    <property name="imageEdgeBackgroundColor">
+                      <object class="com.install4j.runtime.beans.LightOrDarkColor">
+                        <object class="java.awt.Color">
+                          <int>242</int>
+                          <int>242</int>
+                          <int>242</int>
+                          <int>255</int>
+                        </object>
+                        <object class="java.awt.Color">
+                          <int>200</int>
+                          <int>205</int>
+                          <int>212</int>
+                          <int>255</int>
+                        </object>
+                      </object>
+                    </property>
+                    <property name="imageFile">
+                      <object class="com.install4j.api.beans.ExternalFile">
+                        <string>./splash_vert.png</string>
+                      </object>
+                    </property>
+                    <property name="insets">
+                      <object class="java.awt.Insets">
+                        <int>5</int>
+                        <int>10</int>
+                        <int>10</int>
+                        <int>10</int>
+                      </object>
+                    </property>
+                  </serializedBean>
+                  <externalParametrizationPropertyNames>
+                    <propertyName>imageAnchor</propertyName>
+                    <propertyName>imageEdgeBackgroundColor</propertyName>
+                    <propertyName>imageFile</propertyName>
+                  </externalParametrizationPropertyNames>
+                </group>
+              </styleOverride>
+            </styleOverrides>
             <formComponents>
               <formComponent id="21" beanClass="com.install4j.runtime.beans.formcomponents.MultilineLabelComponent" insetBottom="10">
                 <serializedBean>
