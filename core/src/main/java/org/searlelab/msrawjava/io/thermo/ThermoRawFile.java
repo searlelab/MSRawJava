@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +39,7 @@ import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
 import io.grpc.ManagedChannel;
+import io.grpc.StatusRuntimeException;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 
 /**
@@ -47,6 +49,7 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
  * MS1/MS2 content as PrecursorScan and FragmentScan objects.
  */
 public final class ThermoRawFile implements StripeFileInterface, Closeable {
+	private static final String INVALID_INSTRUMENT_INDEX_TEXT="instrument index not available for requested device";
 	private Path rawPath=null;
 	private ManagedChannel channel=null;
 	private ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=null;
@@ -92,8 +95,17 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		this.channel=NettyChannelBuilder.forAddress("127.0.0.1", port).usePlaintext().maxInboundMessageSize(64*1024*1024).build();
 		this.stub=ThermoRawServiceGrpc.newBlockingStub(channel);
 
-		OpenReply rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
-		this.sessionId=rep.getSessionId();
+		try {
+			OpenReply rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
+			this.sessionId=rep.getSessionId();
+		} catch (StatusRuntimeException e) {
+			String detail=e.getStatus()!=null?e.getStatus().getDescription():e.getMessage();
+			if (detail!=null&&detail.toLowerCase(Locale.ROOT).contains(INVALID_INSTRUMENT_INDEX_TEXT)) {
+				String name=rawFile.getFileName()!=null?rawFile.getFileName().toString():"RAW file";
+				throw new IOException("Unable to open Thermo RAW '"+name+"': file did not have a valid instrument index.", e);
+			}
+			throw e;
+		}
 	}
 
 	public Map<String, String> getMetadata() throws IOException, SQLException {
