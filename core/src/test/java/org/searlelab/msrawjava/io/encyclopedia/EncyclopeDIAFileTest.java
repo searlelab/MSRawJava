@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -347,6 +348,109 @@ class EncyclopeDIAFileTest {
 
 		assertNotNull(stripes);
 		assertTrue(stripes.isEmpty(), "Should find no spectra for non-overlapping range");
+
+		dia.close();
+	}
+
+	@Test
+	void openFile_legacyRangesWithoutIonMobility_assumesNoIonMobility() throws Exception {
+		Path legacyPath=tmp.resolve("legacy_ranges_no_ims.dia");
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString()); Statement s=c.createStatement()) {
+			s.execute("create table metadata ( Key varchar(255), Value text not null, PRIMARY KEY (Key) )");
+			s.execute("create table ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int, RtStart float, RtStop float )");
+			s.execute("create table fractions ( fraction int, name text, PRIMARY KEY (fraction) )");
+			s.execute("insert into metadata (Key, Value) values ('filename', 'legacy_ranges_no_ims.dia')");
+			s.execute("insert into ranges (Start, Stop, DutyCycle, NumWindows, RtStart, RtStop) values (400.0, 500.0, 0.5, 4, 10.0, 20.0)");
+		}
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile(legacyPath.toFile());
+
+		assertEquals(1, dia.getRanges().size(), "Legacy ranges should load without throwing");
+		WindowData loaded=dia.getRanges().get(new Range(400.0f, 500.0f));
+		assertNotNull(loaded, "Expected legacy m/z range to be present");
+		assertTrue(loaded.getIonMobilityRange().isEmpty(), "Legacy files should default to no ion mobility");
+		assertTrue(loaded.getRtRange().isPresent(), "RT range should still be loaded when present");
+		assertEquals(new Range(10.0f, 20.0f), loaded.getRtRange().orElseThrow());
+
+		dia.close();
+	}
+
+	@Test
+	void openFile_legacySpectraWithoutPrecursorCharge_defaultsChargeToZero() throws Exception {
+		Path legacyPath=tmp.resolve("legacy_spectra_no_charge.dia");
+
+		double[] masses=new double[] {450.0, 460.0};
+		float[] intensities=new float[] {100.0f, 200.0f};
+		byte[] massBytes=ByteConverter.toByteArray(masses);
+		byte[] intensityBytes=ByteConverter.toByteArray(intensities);
+		byte[] massCompressed=CompressionUtils.compress(massBytes);
+		byte[] intensityCompressed=CompressionUtils.compress(intensityBytes);
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString()); Statement s=c.createStatement()) {
+			s.execute("create table metadata ( Key varchar(255), Value text not null, PRIMARY KEY (Key) )");
+			s.execute("create table ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int )");
+			s.execute("create table fractions ( fraction int, name text, PRIMARY KEY (fraction) )");
+			s.execute(
+					"create table precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, TIC float, primary key (SpectrumIndex) )");
+			s.execute(
+					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, primary key (SpectrumIndex) )");
+			s.execute("insert into metadata (Key, Value) values ('filename', 'legacy_spectra_no_charge.dia')");
+			s.execute("insert into ranges (Start, Stop, DutyCycle, NumWindows) values (400.0, 500.0, 0.5, 1)");
+		}
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString())) {
+			try (PreparedStatement prep=c.prepareStatement(
+					"insert into precursor (Fraction, SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, TIC) values (?,?,?,?,?,?,?,?,?,?,?,?)")) {
+				prep.setInt(1, 0);
+				prep.setString(2, "ms1-1");
+				prep.setInt(3, 1);
+				prep.setFloat(4, 1.0f);
+				prep.setNull(5, java.sql.Types.FLOAT);
+				prep.setDouble(6, 100.0);
+				prep.setDouble(7, 900.0);
+				prep.setInt(8, massBytes.length);
+				prep.setBytes(9, massCompressed);
+				prep.setInt(10, intensityBytes.length);
+				prep.setBytes(11, intensityCompressed);
+				prep.setFloat(12, 300.0f);
+				prep.executeUpdate();
+			}
+			try (PreparedStatement prep=c.prepareStatement(
+					"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+				prep.setInt(1, 0);
+				prep.setString(2, "ms2-1");
+				prep.setString(3, "prec");
+				prep.setInt(4, 2);
+				prep.setFloat(5, 1.5f);
+				prep.setNull(6, java.sql.Types.FLOAT);
+				prep.setDouble(7, 400.0);
+				prep.setDouble(8, 450.0);
+				prep.setDouble(9, 500.0);
+				prep.setInt(10, massBytes.length);
+				prep.setBytes(11, massCompressed);
+				prep.setInt(12, intensityBytes.length);
+				prep.setBytes(13, intensityCompressed);
+				prep.executeUpdate();
+			}
+		}
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile(legacyPath.toFile());
+
+		var summaries=dia.getScanSummaries(0.0f, 10.0f);
+		assertEquals(2, summaries.size(), "Expected one precursor and one fragment summary");
+		var fragmentSummary=summaries.stream().filter(s -> !s.isPrecursor()).findFirst().orElseThrow();
+		assertEquals(0, fragmentSummary.getCharge(), "Legacy files should default missing fragment charge to zero");
+
+		ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 0.0f, 10.0f, false);
+		assertEquals(1, stripes.size());
+		assertEquals(0, stripes.get(0).getCharge(), "Legacy stripes should default missing charge to zero");
+		assertTrue(stripes.get(0).getIonMobilityArray().isEmpty(), "Legacy stripes without ion mobility columns should not expose IMS data");
+
+		ArrayList<PrecursorScan> precursors=dia.getPrecursors(0.0f, 10.0f);
+		assertEquals(1, precursors.size());
+		assertTrue(precursors.get(0).getIonMobilityArray().isEmpty(), "Legacy precursor rows without IMS columns should not expose IMS data");
 
 		dia.close();
 	}

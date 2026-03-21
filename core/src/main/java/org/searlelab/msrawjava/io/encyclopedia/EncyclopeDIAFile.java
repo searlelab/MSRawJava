@@ -208,10 +208,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		try {
 			Statement s=c.createStatement();
 			try {
+				boolean hasIonMobilityStart=doesColumnExist(c, "ranges", "IonMobilityStart");
+				boolean hasIonMobilityStop=doesColumnExist(c, "ranges", "IonMobilityStop");
 				boolean hasRtStart=doesColumnExist(c, "ranges", "RtStart");
 				boolean hasRtStop=doesColumnExist(c, "ranges", "RtStop");
-				String sql=hasRtStart&&hasRtStop?"select Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop, RtStart, RtStop from Ranges"
-						:"select Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop from Ranges";
+				String ionMobilitySelect=hasIonMobilityStart&&hasIonMobilityStop?"IonMobilityStart, IonMobilityStop"
+						:"NULL as IonMobilityStart, NULL as IonMobilityStop";
+				String rtSelect=hasRtStart&&hasRtStop?"RtStart, RtStop":"NULL as RtStart, NULL as RtStop";
+				String sql="select Start, Stop, DutyCycle, NumWindows, "+ionMobilitySelect+", "+rtSelect+" from Ranges";
 				ResultSet rs=s.executeQuery(sql);
 
 				while (rs.next()) {
@@ -227,14 +231,10 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					Optional<Range> range=(ionMobilityStart==null||ionMobilityStop==null)?Optional.empty()
 							:Optional.of(new Range(ionMobilityStart, ionMobilityStop));
 
-					Float rtStart=null;
-					Float rtStop=null;
-					if (hasRtStart&&hasRtStop) {
-						rtStart=rs.getFloat(7);
-						if (rs.wasNull()) rtStart=null;
-						rtStop=rs.getFloat(8);
-						if (rs.wasNull()) rtStop=null;
-					}
+					Float rtStart=rs.getFloat(7);
+					if (rs.wasNull()) rtStart=null;
+					Float rtStop=rs.getFloat(8);
+					if (rs.wasNull()) rtStop=null;
 					Optional<Range> rtRange=(rtStart==null||rtStop==null)?Optional.empty():Optional.of(new Range(rtStart, rtStop));
 
 					ranges.put(new Range(start, stop), new WindowData(dutyCycle, numWindows, range, rtRange));
@@ -282,9 +282,27 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery(
-						"select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC, fraction, isolationWindowLower, isolationWindowUpper from precursor "
-								+"where ScanStartTime between "+minRT+" and "+maxRT);
+				boolean hasIonInjectionTime=doesColumnExist(c, "precursor", "IonInjectionTime");
+				boolean hasIonMobilityArrayEncodedLength=doesColumnExist(c, "precursor", "IonMobilityArrayEncodedLength");
+				boolean hasIonMobilityArray=doesColumnExist(c, "precursor", "IonMobilityArray");
+				boolean hasTic=doesColumnExist(c, "precursor", "TIC");
+				boolean hasFraction=doesColumnExist(c, "precursor", "Fraction");
+				boolean hasIsolationWindowLower=doesColumnExist(c, "precursor", "IsolationWindowLower");
+				boolean hasIsolationWindowUpper=doesColumnExist(c, "precursor", "IsolationWindowUpper");
+
+				String ionInjectionTimeSelect=hasIonInjectionTime?"IonInjectionTime":"NULL as IonInjectionTime";
+				String ionMobilitySelect=hasIonMobilityArrayEncodedLength&&hasIonMobilityArray?"IonMobilityArrayEncodedLength, IonMobilityArray"
+						:"NULL as IonMobilityArrayEncodedLength, NULL as IonMobilityArray";
+				String ticSelect=hasTic?"TIC":"0.0 as TIC";
+				String fractionSelect=hasFraction?"Fraction":"0 as Fraction";
+				String isolationWindowLowerSelect=hasIsolationWindowLower?"IsolationWindowLower":"0.0 as IsolationWindowLower";
+				String isolationWindowUpperSelect=hasIsolationWindowUpper?"IsolationWindowUpper":"999999999.0 as IsolationWindowUpper";
+
+				String sql="select SpectrumName, SpectrumIndex, ScanStartTime, "+ionInjectionTimeSelect
+						+", MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, "+ionMobilitySelect+", "+ticSelect+", "
+						+fractionSelect+", "+isolationWindowLowerSelect+", "+isolationWindowUpperSelect+" from precursor where ScanStartTime between "
+						+minRT+" and "+maxRT;
+				ResultSet rs=s.executeQuery(sql);
 
 				ArrayList<PrecursorScan> precursors=new ArrayList<PrecursorScan>();
 				while (rs.next()) {
@@ -327,10 +345,23 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery(
-						"select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, IonInjectionTime, Fraction from spectra "
-								+"where IsolationWindowLower <= "+targetMz+" and IsolationWindowUpper >= "+targetMz+" and ScanStartTime between "+minRT+" and "
-								+maxRT+" order by ScanStartTime asc");
+				boolean hasPrecursorCharge=doesColumnExist(c, "spectra", "PrecursorCharge");
+				boolean hasIonMobilityArrayEncodedLength=doesColumnExist(c, "spectra", "IonMobilityArrayEncodedLength");
+				boolean hasIonMobilityArray=doesColumnExist(c, "spectra", "IonMobilityArray");
+				boolean hasIonInjectionTime=doesColumnExist(c, "spectra", "IonInjectionTime");
+				boolean hasFraction=doesColumnExist(c, "spectra", "Fraction");
+
+				String precursorChargeSelect=hasPrecursorCharge?"PrecursorCharge":"0 as PrecursorCharge";
+				String ionMobilitySelect=hasIonMobilityArrayEncodedLength&&hasIonMobilityArray?"IonMobilityArrayEncodedLength, IonMobilityArray"
+						:"NULL as IonMobilityArrayEncodedLength, NULL as IonMobilityArray";
+				String ionInjectionTimeSelect=hasIonInjectionTime?"IonInjectionTime":"NULL as IonInjectionTime";
+				String fractionSelect=hasFraction?"Fraction":"0 as Fraction";
+
+				String sql="select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, "
+						+precursorChargeSelect+", MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, "+ionMobilitySelect+", "
+						+ionInjectionTimeSelect+", "+fractionSelect+" from spectra where IsolationWindowLower <= "+targetMz
+						+" and IsolationWindowUpper >= "+targetMz+" and ScanStartTime between "+minRT+" and "+maxRT+" order by ScanStartTime asc";
+				ResultSet rs=s.executeQuery(sql);
 
 				final Vector<FragmentScan> stripes=new Vector<FragmentScan>();
 
@@ -426,10 +457,24 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery(
-						"select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, IonInjectionTime, Fraction from spectra "
-								+"where  IsolationWindowLower <= "+targetMzRange.getStop()+" and IsolationWindowUpper >= "+targetMzRange.getStart()
-								+" and ScanStartTime between "+minRT+" and "+maxRT+" order by ScanStartTime asc");
+				boolean hasPrecursorCharge=doesColumnExist(c, "spectra", "PrecursorCharge");
+				boolean hasIonMobilityArrayEncodedLength=doesColumnExist(c, "spectra", "IonMobilityArrayEncodedLength");
+				boolean hasIonMobilityArray=doesColumnExist(c, "spectra", "IonMobilityArray");
+				boolean hasIonInjectionTime=doesColumnExist(c, "spectra", "IonInjectionTime");
+				boolean hasFraction=doesColumnExist(c, "spectra", "Fraction");
+
+				String precursorChargeSelect=hasPrecursorCharge?"PrecursorCharge":"0 as PrecursorCharge";
+				String ionMobilitySelect=hasIonMobilityArrayEncodedLength&&hasIonMobilityArray?"IonMobilityArrayEncodedLength, IonMobilityArray"
+						:"NULL as IonMobilityArrayEncodedLength, NULL as IonMobilityArray";
+				String ionInjectionTimeSelect=hasIonInjectionTime?"IonInjectionTime":"NULL as IonInjectionTime";
+				String fractionSelect=hasFraction?"Fraction":"0 as Fraction";
+
+				String sql="select SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IsolationWindowLower, IsolationWindowUpper, "
+						+precursorChargeSelect+", MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, "+ionMobilitySelect+", "
+						+ionInjectionTimeSelect+", "+fractionSelect+" from spectra where IsolationWindowLower <= "+targetMzRange.getStop()
+						+" and IsolationWindowUpper >= "+targetMzRange.getStart()+" and ScanStartTime between "+minRT+" and "+maxRT
+						+" order by ScanStartTime asc";
+				ResultSet rs=s.executeQuery(sql);
 
 				final Vector<FragmentScan> stripes=new Vector<FragmentScan>();
 
@@ -856,8 +901,17 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		try {
 			Statement s=c.createStatement();
 			try {
-				ResultSet rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper "
-						+"from precursor where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
+				boolean hasPrecursorIonInjectionTime=doesColumnExist(c, "precursor", "IonInjectionTime");
+				boolean hasPrecursorIsolationWindowLower=doesColumnExist(c, "precursor", "IsolationWindowLower");
+				boolean hasPrecursorIsolationWindowUpper=doesColumnExist(c, "precursor", "IsolationWindowUpper");
+
+				String precursorIonInjectionTimeSelect=hasPrecursorIonInjectionTime?"IonInjectionTime":"NULL as IonInjectionTime";
+				String precursorIsolationWindowLowerSelect=hasPrecursorIsolationWindowLower?"IsolationWindowLower":"0.0 as IsolationWindowLower";
+				String precursorIsolationWindowUpperSelect=hasPrecursorIsolationWindowUpper?"IsolationWindowUpper":"999999999.0 as IsolationWindowUpper";
+
+				ResultSet rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, "+precursorIonInjectionTimeSelect+", "
+						+precursorIsolationWindowLowerSelect+", "+precursorIsolationWindowUpperSelect+" from precursor where ScanStartTime>="+minRT
+						+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
 				while (rs.next()) {
 					String name=rs.getString(1);
 					int index=rs.getInt(2);
@@ -873,6 +927,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				boolean hasScanWindowLower=doesColumnExist(c, "spectra", "ScanWindowLower");
 				boolean hasScanWindowUpper=doesColumnExist(c, "spectra", "ScanWindowUpper");
 				boolean hasIsolationCenter=doesColumnExist(c, "spectra", "IsolationWindowCenter");
+				boolean hasPrecursorCharge=doesColumnExist(c, "spectra", "PrecursorCharge");
+				boolean hasSpectraIonInjectionTime=doesColumnExist(c, "spectra", "IonInjectionTime");
 
 				String scanWindowSelect;
 				if (hasScanWindowLower&&hasScanWindowUpper) {
@@ -882,10 +938,12 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				}
 				String isolationCenterSelect=hasIsolationCenter?", IsolationWindowCenter"
 						:", (IsolationWindowLower+IsolationWindowUpper)/2.0 as IsolationWindowCenter";
+				String precursorChargeSelect=hasPrecursorCharge?", PrecursorCharge":", 0 as PrecursorCharge";
+				String spectraIonInjectionTimeSelect=hasSpectraIonInjectionTime?", IonInjectionTime":", NULL as IonInjectionTime";
 
-				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper"
-						+isolationCenterSelect+", PrecursorCharge"+scanWindowSelect+" from spectra "+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT
-						+" order by ScanStartTime");
+				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime"+spectraIonInjectionTimeSelect
+						+", IsolationWindowLower, IsolationWindowUpper"+isolationCenterSelect+precursorChargeSelect+scanWindowSelect+" from spectra "
+						+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
 				while (rs.next()) {
 					String name=rs.getString(1);
 					int index=rs.getInt(2);
