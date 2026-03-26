@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui.visualization;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -20,6 +21,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.RowFilter;
+import javax.swing.SwingConstants;
 import javax.swing.SwingWorker;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
@@ -28,6 +30,7 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.plaf.basic.BasicSplitPaneDivider;
 import javax.swing.plaf.basic.BasicSplitPaneUI;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import javax.swing.table.JTableHeader;
@@ -42,6 +45,7 @@ import org.searlelab.msrawjava.gui.graphing.GraphType;
 import org.searlelab.msrawjava.gui.graphing.HistogramUtils;
 import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.gui.graphing.XYTraceInterface;
+import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
@@ -181,6 +185,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		rowSorter=new TableRowSorter<>(table.getModel());
 		table.setRowSorter(rowSorter);
 		installScanHeaderTooltips();
+		installScanCellRenderers();
 
 		filterField=new JTextField();
 		filterField.setToolTipText("Filter scans in this table by matching text.");
@@ -290,6 +295,25 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		};
 		header.setToolTipText("Hover a column header to see what it means.");
 		table.setTableHeader(header);
+	}
+
+	private void installScanCellRenderers() {
+		DefaultTableCellRenderer scientificRenderer=new DefaultTableCellRenderer() {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+				super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+				setHorizontalAlignment(SwingConstants.RIGHT);
+				if (value instanceof Number n) {
+					setText(StripeTableCellRenderer.formatScientific(n));
+				} else {
+					setText("");
+				}
+				return this;
+			}
+		};
+		table.getColumnModel().getColumn(4).setCellRenderer(scientificRenderer);
 	}
 
 	private String getScanHeaderTooltip(int modelColumn) {
