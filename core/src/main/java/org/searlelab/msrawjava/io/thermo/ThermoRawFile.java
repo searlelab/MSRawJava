@@ -242,9 +242,9 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		for (SpectrumSummary s : reply.getSummariesList()) {
 			boolean precursor=s.getMsLevel()==1;
 			String spectrumName=buildDefaultSpectrumName(s.getScanNumber());
-			out.add(new ScanSummary(spectrumName, s.getScanNumber(), (float)s.getRtSeconds(), 0, precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0,
-					precursor, (float)s.getIonInjectionTimeS(), s.getIsoLower(), s.getIsoUpper(), s.getScanWindowLower(), s.getScanWindowUpper(),
-					(byte)s.getCharge()));
+			out.add(new ScanSummary(spectrumName, s.getScanNumber(), (float)s.getRtSeconds(), 0, (float)s.getTic(),
+					precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0, precursor, (float)s.getIonInjectionTimeS(), s.getIsoLower(), s.getIsoUpper(),
+					s.getScanWindowLower(), s.getScanWindowUpper(), (byte)s.getCharge()));
 		}
 		out.sort(Comparator.comparingDouble(ScanSummary::getScanStartTime));
 		return out;

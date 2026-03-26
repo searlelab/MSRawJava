@@ -9,6 +9,7 @@ public final class ScanSummary {
 	private final int spectrumIndex;
 	private final float scanStartTime;
 	private final int fraction;
+	private final float tic;
 	private final double precursorMz;
 	private final boolean precursor;
 	private final Float ionInjectionTime;
@@ -20,10 +21,17 @@ public final class ScanSummary {
 
 	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double precursorMz, boolean precursor, Float ionInjectionTime,
 			double isolationWindowLower, double isolationWindowUpper, double scanWindowLower, double scanWindowUpper, byte charge) {
+		this(spectrumName, spectrumIndex, scanStartTime, fraction, Float.NaN, precursorMz, precursor, ionInjectionTime, isolationWindowLower,
+				isolationWindowUpper, scanWindowLower, scanWindowUpper, charge);
+	}
+
+	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, float tic, double precursorMz, boolean precursor,
+			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double scanWindowLower, double scanWindowUpper, byte charge) {
 		this.spectrumName=spectrumName;
 		this.spectrumIndex=spectrumIndex;
 		this.scanStartTime=scanStartTime;
 		this.fraction=fraction;
+		this.tic=tic;
 		this.precursorMz=precursorMz;
 		this.precursor=precursor;
 		this.ionInjectionTime=ionInjectionTime;
@@ -48,6 +56,10 @@ public final class ScanSummary {
 
 	public int getFraction() {
 		return fraction;
+	}
+
+	public float getTic() {
+		return tic;
 	}
 
 	public double getPrecursorMz() {

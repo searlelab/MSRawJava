@@ -108,6 +108,7 @@ message SpectrumSummary {
   double ion_injection_time_s = 9;
   double scan_window_lower = 10;
   double scan_window_upper = 11;
+  double tic = 12;
 }
 
 message SummariesReply {

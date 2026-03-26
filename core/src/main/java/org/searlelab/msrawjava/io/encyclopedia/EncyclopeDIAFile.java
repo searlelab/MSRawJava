@@ -55,7 +55,7 @@ import gnu.trove.procedure.TIntObjectProcedure;
  */
 public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, StripeFileInterface {
 	public static final DateFormat m_ISO8601Local=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-	private static final Version MOST_RECENT_VERSION=new Version(0, 7, 0, false);
+	private static final Version MOST_RECENT_VERSION=new Version(0, 8, 0, false);
 
 	private static final String UNKNOWN_VALUE="unknown";
 	public static final String FILELOCATION_ATTRIBUTE="filelocation";
@@ -667,6 +667,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		addMetadata(map);
 	}
 
+	private void setFileVersion(Connection c) throws SQLException {
+		try (PreparedStatement prep=c.prepareStatement("insert or replace into metadata (Key, Value) VALUES (?,?)")) {
+			prep.setString(1, VERSION_STRING);
+			prep.setString(2, MOST_RECENT_VERSION.toString());
+			prep.executeUpdate();
+		}
+	}
+
 	@Override
 	public void setFileName(String sourceName, String fileLocation) throws IOException, SQLException {
 		HashMap<String, String> map=new HashMap<String, String>();
@@ -798,8 +806,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	public void addStripe(ArrayList<FragmentScan> stripes) throws IOException, SQLException {
 		try (Connection c=getConnection()) {
 			try (PreparedStatement prep=c.prepareStatement(
-					"insert into spectra (SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, Fraction, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray)"
-							+" VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+					"insert into spectra (SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, Fraction, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray, TIC)"
+							+" VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
 				// handle commits manually
 				c.setAutoCommit(false);
 
@@ -843,6 +851,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				prep.setInt(index++, ionMobilityByteArray.length);
 				prep.setBytes(index++, CompressionUtils.compress(ionMobilityByteArray));
 			}
+			prep.setFloat(index++, stripe.getTIC());
 			prep.addBatch();
 		}
 		prep.executeBatch();
@@ -857,7 +866,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				s.execute(
 						"create table if not exists ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int, IonMobilityStart float, IonMobilityStop float, RtStart float, RtStop float )");
 				s.execute(
-						"create table if not exists spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
+						"create table if not exists spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, TIC float, primary key (SpectrumIndex) )");
 				s.execute(
 						"create table if not exists precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, TIC float, primary key (SpectrumIndex) )");
 				s.execute("create table if not exists fractions ( Fraction int not null, Name string not null, primary key (Fraction) )");
@@ -894,6 +903,67 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		}
 	}
 
+	public boolean needsSpectraTicUpgrade() throws IOException, SQLException {
+		if (userFile==null||!userFile.exists()) return false;
+		Connection c=getConnection();
+		try {
+			if (!doesTableExist(c, "spectra")) return false;
+			return !doesColumnExist(c, "spectra", "TIC");
+		} finally {
+			c.close();
+		}
+	}
+
+	public void upgradeSchemaToV080() throws Exception {
+		if (userFile==null||!userFile.exists()) return;
+		Logger.logLine("Starting DIA schema upgrade to 0.8.0 for file: "+userFile.getAbsolutePath());
+
+		Connection c=getConnection(userFile, false);
+		try {
+			if (!doesTableExist(c, "spectra")) {
+				setFileVersion(c);
+				c.commit();
+				Logger.logLine("Completed DIA schema upgrade to 0.8.0 for file: "+userFile.getAbsolutePath()+" (no spectra table present).");
+				return;
+			}
+
+			if (!doesColumnExist(c, "spectra", "TIC")) {
+				try (Statement alter=c.createStatement()) {
+					alter.execute("ALTER TABLE spectra ADD COLUMN TIC float");
+				}
+			}
+
+			int spectraCount=0;
+			try (Statement s=c.createStatement();
+					ResultSet rs=s.executeQuery("SELECT SpectrumIndex, IntensityEncodedLength, IntensityArray FROM spectra");
+					PreparedStatement update=c.prepareStatement("UPDATE spectra SET TIC=? WHERE SpectrumIndex=?")) {
+				while (rs.next()) {
+					int spectrumIndex=rs.getInt(1);
+					int encodedLength=rs.getInt(2);
+					byte[] intensityBytes=rs.getBytes(3);
+
+					float tic=Float.NaN;
+					if (intensityBytes!=null&&encodedLength>0) {
+						float[] intensities=ByteConverter.toFloatArray(CompressionUtils.decompress(intensityBytes, encodedLength));
+						tic=MatrixMath.sum(intensities);
+					}
+
+					update.setFloat(1, tic);
+					update.setInt(2, spectrumIndex);
+					update.addBatch();
+					spectraCount++;
+				}
+				update.executeBatch();
+			}
+
+			setFileVersion(c);
+			c.commit();
+			Logger.logLine("Completed DIA schema upgrade to 0.8.0 for file: "+userFile.getAbsolutePath()+" (backfilled TIC for "+spectraCount+" spectra).");
+		} finally {
+			c.close();
+		}
+	}
+
 	@Override
 	public ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) throws IOException, SQLException {
 		ArrayList<ScanSummary> out=new ArrayList<>();
@@ -904,14 +974,16 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				boolean hasPrecursorIonInjectionTime=doesColumnExist(c, "precursor", "IonInjectionTime");
 				boolean hasPrecursorIsolationWindowLower=doesColumnExist(c, "precursor", "IsolationWindowLower");
 				boolean hasPrecursorIsolationWindowUpper=doesColumnExist(c, "precursor", "IsolationWindowUpper");
+				boolean hasPrecursorTic=doesColumnExist(c, "precursor", "TIC");
 
 				String precursorIonInjectionTimeSelect=hasPrecursorIonInjectionTime?"IonInjectionTime":"NULL as IonInjectionTime";
 				String precursorIsolationWindowLowerSelect=hasPrecursorIsolationWindowLower?"IsolationWindowLower":"0.0 as IsolationWindowLower";
 				String precursorIsolationWindowUpperSelect=hasPrecursorIsolationWindowUpper?"IsolationWindowUpper":"999999999.0 as IsolationWindowUpper";
+				String precursorTicSelect=hasPrecursorTic?"TIC":"NULL as TIC";
 
 				ResultSet rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime, "+precursorIonInjectionTimeSelect+", "
-						+precursorIsolationWindowLowerSelect+", "+precursorIsolationWindowUpperSelect+" from precursor where ScanStartTime>="+minRT
-						+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
+						+precursorIsolationWindowLowerSelect+", "+precursorIsolationWindowUpperSelect+", "+precursorTicSelect+" from precursor where ScanStartTime>="
+						+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
 				while (rs.next()) {
 					String name=rs.getString(1);
 					int index=rs.getInt(2);
@@ -920,7 +992,9 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					if (rs.wasNull()) iit=null;
 					double isoLo=rs.getDouble(5);
 					double isoHi=rs.getDouble(6);
-					out.add(new ScanSummary(name, index, rt, 0, -1.0, true, iit, isoLo, isoHi, isoLo, isoHi, (byte)0));
+					float tic=rs.getFloat(7);
+					if (rs.wasNull()) tic=Float.NaN;
+					out.add(new ScanSummary(name, index, rt, 0, tic, -1.0, true, iit, isoLo, isoHi, isoLo, isoHi, (byte)0));
 				}
 				rs.close();
 
@@ -929,6 +1003,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				boolean hasIsolationCenter=doesColumnExist(c, "spectra", "IsolationWindowCenter");
 				boolean hasPrecursorCharge=doesColumnExist(c, "spectra", "PrecursorCharge");
 				boolean hasSpectraIonInjectionTime=doesColumnExist(c, "spectra", "IonInjectionTime");
+				boolean hasSpectraTic=doesColumnExist(c, "spectra", "TIC");
 
 				String scanWindowSelect;
 				if (hasScanWindowLower&&hasScanWindowUpper) {
@@ -940,9 +1015,11 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 						:", (IsolationWindowLower+IsolationWindowUpper)/2.0 as IsolationWindowCenter";
 				String precursorChargeSelect=hasPrecursorCharge?", PrecursorCharge":", 0 as PrecursorCharge";
 				String spectraIonInjectionTimeSelect=hasSpectraIonInjectionTime?", IonInjectionTime":", NULL as IonInjectionTime";
+				String spectraTicSelect=hasSpectraTic?", TIC":", NULL as TIC";
 
 				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime"+spectraIonInjectionTimeSelect
-						+", IsolationWindowLower, IsolationWindowUpper"+isolationCenterSelect+precursorChargeSelect+scanWindowSelect+" from spectra "
+						+", IsolationWindowLower, IsolationWindowUpper"+isolationCenterSelect+precursorChargeSelect+scanWindowSelect+spectraTicSelect
+						+" from spectra "
 						+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
 				while (rs.next()) {
 					String name=rs.getString(1);
@@ -956,7 +1033,9 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					byte charge=(byte)rs.getInt(8);
 					double scanLo=rs.getDouble(9);
 					double scanHi=rs.getDouble(10);
-					out.add(new ScanSummary(name, index, rt, 0, center, false, iit, isoLo, isoHi, scanLo, scanHi, charge));
+					float tic=rs.getFloat(11);
+					if (rs.wasNull()) tic=Float.NaN;
+					out.add(new ScanSummary(name, index, rt, 0, tic, center, false, iit, isoLo, isoHi, scanLo, scanHi, charge));
 				}
 				rs.close();
 			} finally {

@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Optional;
 
+import org.searlelab.msrawjava.algorithms.MatrixMath;
+
 /**
  * PrecursorScan models an MS1 (precursor) spectrum in the unified data model, carrying calibrated m/z and intensity
  * arrays plus relevant scan metadata such as retention-time context and identifiers.
@@ -20,6 +22,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 	private final double[] massArray;
 	private final float[] intensityArray;
 	private final float[] ionMobilityArray;
+	private final float tic;
 
 	public PrecursorScan(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double scanWindowLower, double scanWindowUpper,
 			Float ionInjectionTime, double[] massArray, float[] intensityArray, float[] ionMobilityArray) {
@@ -33,6 +36,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 		this.massArray=massArray;
 		this.intensityArray=intensityArray;
 		this.ionMobilityArray=ionMobilityArray;
+		this.tic=MatrixMath.sum(intensityArray);
 	}
 
 	public PrecursorScan rebuild(int newSpectrumIndex, ArrayList<? extends PeakInterface> peaks) {
@@ -151,10 +155,6 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 
 	@Override
 	public float getTIC() {
-		float tic=0.0f;
-		for (int i=0; i<intensityArray.length; i++) {
-			tic+=intensityArray[i];
-		}
 		return tic;
 	}
 

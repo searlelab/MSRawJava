@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.io.encyclopedia;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -92,6 +93,7 @@ class EncyclopeDIAFileTest {
 
 			// Sanity check a spectra row has isolation window and spectrum index
 			assertTrue(count(c, "select count(*) from spectra where SpectrumIndex=2")==1);
+			assertTrue(hasColumn(c, "spectra", "TIC"), "New DIA schema should include spectra.TIC");
 		}
 
 		dia=new EncyclopeDIAFile();
@@ -115,6 +117,12 @@ class EncyclopeDIAFileTest {
 	private static String string(Connection c, String sql) throws SQLException {
 		try (Statement s=c.createStatement(); ResultSet rs=s.executeQuery(sql)) {
 			return rs.next()?rs.getString(1):null;
+		}
+	}
+
+	private static boolean hasColumn(Connection c, String table, String column) throws SQLException {
+		try (ResultSet rs=c.getMetaData().getColumns(null, null, table, column)) {
+			return rs.next();
 		}
 	}
 
@@ -442,6 +450,7 @@ class EncyclopeDIAFileTest {
 		assertEquals(2, summaries.size(), "Expected one precursor and one fragment summary");
 		var fragmentSummary=summaries.stream().filter(s -> !s.isPrecursor()).findFirst().orElseThrow();
 		assertEquals(0, fragmentSummary.getCharge(), "Legacy files should default missing fragment charge to zero");
+		assertTrue(Float.isNaN(fragmentSummary.getTic()), "Legacy spectra without TIC should expose NaN summary TIC");
 
 		ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 0.0f, 10.0f, false);
 		assertEquals(1, stripes.size());
@@ -453,6 +462,66 @@ class EncyclopeDIAFileTest {
 		assertTrue(precursors.get(0).getIonMobilityArray().isEmpty(), "Legacy precursor rows without IMS columns should not expose IMS data");
 
 		dia.close();
+	}
+
+	@Test
+	void upgradeSchemaToV080_addsSpectraTicAndBackfillsValues() throws Exception {
+		Path legacyPath=tmp.resolve("legacy_upgrade_070.dia");
+
+		double[] masses=new double[] {450.0, 460.0};
+		float[] intensities=new float[] {100.0f, 200.0f};
+		byte[] massBytes=ByteConverter.toByteArray(masses);
+		byte[] intensityBytes=ByteConverter.toByteArray(intensities);
+		byte[] massCompressed=CompressionUtils.compress(massBytes);
+		byte[] intensityCompressed=CompressionUtils.compress(intensityBytes);
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString()); Statement s=c.createStatement()) {
+			s.execute("create table metadata ( Key varchar(255), Value text not null, PRIMARY KEY (Key) )");
+			s.execute("create table ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int )");
+			s.execute("create table fractions ( fraction int, name text, PRIMARY KEY (fraction) )");
+			s.execute(
+					"create table precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, TIC float, primary key (SpectrumIndex) )");
+			s.execute(
+					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, primary key (SpectrumIndex) )");
+			s.execute("insert into metadata (Key, Value) values ('filename', 'legacy_upgrade_070.dia')");
+			s.execute("insert into metadata (Key, Value) values ('version', '0.7.0')");
+			s.execute("insert into ranges (Start, Stop, DutyCycle, NumWindows) values (400.0, 500.0, 0.5, 1)");
+		}
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString());
+				PreparedStatement prep=c.prepareStatement(
+						"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+			prep.setInt(1, 0);
+			prep.setString(2, "ms2-1");
+			prep.setString(3, "prec");
+			prep.setInt(4, 2);
+			prep.setFloat(5, 1.5f);
+			prep.setNull(6, java.sql.Types.FLOAT);
+			prep.setDouble(7, 400.0);
+			prep.setDouble(8, 450.0);
+			prep.setDouble(9, 500.0);
+			prep.setInt(10, massBytes.length);
+			prep.setBytes(11, massCompressed);
+			prep.setInt(12, intensityBytes.length);
+			prep.setBytes(13, intensityCompressed);
+			prep.executeUpdate();
+		}
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile(legacyPath.toFile());
+		assertTrue(dia.needsSpectraTicUpgrade(), "Legacy schema should require spectra TIC upgrade");
+		dia.upgradeSchemaToV080();
+		assertFalse(dia.needsSpectraTicUpgrade(), "Upgrade should add spectra TIC column");
+		dia.close();
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString()); Statement s=c.createStatement()) {
+			assertTrue(hasColumn(c, "spectra", "TIC"), "Upgraded schema should include spectra.TIC");
+			assertEquals("0.8.0", string(c, "select Value from metadata where Key='version'"));
+			try (ResultSet rs=s.executeQuery("select TIC from spectra where SpectrumIndex=2")) {
+				assertTrue(rs.next());
+				assertEquals(300.0f, rs.getFloat(1), 0.001f, "TIC should be backfilled from intensity array");
+			}
+		}
 	}
 
 	@Test

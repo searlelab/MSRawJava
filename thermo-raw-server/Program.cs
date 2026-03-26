@@ -474,6 +474,13 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            int charge;
 	            int precursorScan;
 	            ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan);
+	            double tic = 0.0;
+	            try
+	            {
+	                var stats = raw.GetScanStatsForScanNumber(scan);
+	                if (stats != null) tic = stats.TIC;
+	            }
+	            catch { }
 
 	            double swLo, swHi;
 	            GetScanWindow(evt, out swLo, out swHi);
@@ -490,7 +497,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	                PrecursorName = precursorScan.ToString(CultureInfo.InvariantCulture),
 	                IonInjectionTimeS = injS,
 	                ScanWindowLower = swLo,
-	                ScanWindowUpper = swHi
+	                ScanWindowUpper = swHi,
+	                Tic = tic
 	            };
 	            reply.Summaries.Add(summary);
 	        }

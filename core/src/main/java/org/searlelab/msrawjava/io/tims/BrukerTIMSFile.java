@@ -901,7 +901,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 		ArrayList<ScanSummary> out=new ArrayList<>();
 
-		String ms1Sql="SELECT Id, Time, AccumulationTime, NumScans FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
+		String ms1Sql="SELECT Id, Time, AccumulationTime, SummedIntensities, NumScans FROM Frames WHERE MsMsType = ? AND Time BETWEEN ? AND ? ORDER BY Time ASC";
 		try (PreparedStatement ps=conn.prepareStatement(ms1Sql)) {
 			ps.setInt(1, ms1Key);
 			ps.setDouble(2, rtStart);
@@ -911,16 +911,18 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					int frameId=rs.getInt(1);
 					float rt=rs.getFloat(2);
 					float injTime=accumulationTimeSeconds(rs.getFloat(3));
-					int numScans=rs.getInt(4);
+					float tic=(float)rs.getDouble(4);
+					int numScans=rs.getInt(5);
 					String name=buildBrukerFrameScanName(frameId, 1, numScans);
-					out.add(new ScanSummary(name, frameId, rt, 0, -1.0, true, injTime, scanWindowLower, scanWindowUpper, scanWindowLower, scanWindowUpper,
-							(byte)0));
+					out.add(new ScanSummary(name, frameId, rt, 0, tic, -1.0, true, injTime, scanWindowLower, scanWindowUpper, scanWindowLower,
+							scanWindowUpper, (byte)0));
 				}
 			}
 		}
 
 		if (tableExists("DiaFrameMsMsWindows")&&tableExists("DiaFrameMsMsInfo")) {
-			String ms2Sql="SELECT F.Id, F.Time, F.AccumulationTime, W.IsolationMz, W.IsolationWidth, W.ScanNumBegin, W.ScanNumEnd "+"FROM Frames F "
+			String ms2Sql="SELECT F.Id, F.Time, F.AccumulationTime, F.SummedIntensities, W.IsolationMz, W.IsolationWidth, W.ScanNumBegin, W.ScanNumEnd "
+					+"FROM Frames F "
 					+"JOIN DiaFrameMsMsInfo I ON I.Frame = F.Id "+"JOIN DiaFrameMsMsWindows W ON W.WindowGroup = I.WindowGroup "
 					+"WHERE F.MsMsType = ? AND F.Time BETWEEN ? AND ? "+"ORDER BY F.Time ASC, W.IsolationMz ASC";
 			try (PreparedStatement ps=conn.prepareStatement(ms2Sql)) {
@@ -932,20 +934,21 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						int frameId=rs.getInt(1);
 						float rt=rs.getFloat(2);
 						float injTime=accumulationTimeSeconds(rs.getFloat(3));
-						double center=rs.getDouble(4);
-						double width=rs.getDouble(5);
-						int scanBegin=rs.getInt(6);
-						int scanEnd=rs.getInt(7);
+						float tic=(float)rs.getDouble(4);
+						double center=rs.getDouble(5);
+						double width=rs.getDouble(6);
+						int scanBegin=rs.getInt(7);
+						int scanEnd=rs.getInt(8);
 						double lo=center-0.5*width;
 						double hi=center+0.5*width;
 						String name=buildBrukerFrameScanName(frameId, scanBegin, scanEnd);
-						out.add(new ScanSummary(name, frameId, rt, 0, center, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, (byte)0));
+						out.add(new ScanSummary(name, frameId, rt, 0, tic, center, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, (byte)0));
 					}
 				}
 			}
 		}
 		if (ms2Key==8&&tableExists("PasefFrameMsMsInfo")&&tableExists("Precursors")) {
-			String ms2Sql="SELECT I.frame, F.Time, F.AccumulationTime, I.IsolationMz, I.IsolationWidth, "
+			String ms2Sql="SELECT I.frame, F.Time, F.AccumulationTime, F.SummedIntensities, I.IsolationMz, I.IsolationWidth, "
 					+"COALESCE(P.MonoisotopicMz, P.largestPeakMz, I.IsolationMz) AS targetMz, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor, "
 					+"I.ScanNumBegin, I.ScanNumEnd "
 					+"FROM PasefFrameMsMsInfo I, Frames F, Precursors P "
@@ -958,19 +961,20 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 						int frameId=rs.getInt(1);
 						float rt=rs.getFloat(2);
 						float injTime=accumulationTimeSeconds(rs.getFloat(3));
-						double center=rs.getDouble(4);
-						double width=rs.getDouble(5);
-						double targetMz=rs.getDouble(6);
-						byte charge=(byte)Math.max(0, rs.getInt(7));
-						int precursorId=rs.getInt(9);
-						int scanBegin=rs.getInt(10);
-						int scanEnd=rs.getInt(11);
+						float tic=(float)rs.getDouble(4);
+						double center=rs.getDouble(5);
+						double width=rs.getDouble(6);
+						double targetMz=rs.getDouble(7);
+						byte charge=(byte)Math.max(0, rs.getInt(8));
+						int precursorId=rs.getInt(10);
+						int scanBegin=rs.getInt(11);
+						int scanEnd=rs.getInt(12);
 
 						double lo=center-0.5*width;
 						double hi=center+0.5*width;
 						String name=buildBrukerFrameScanName(frameId, scanBegin, scanEnd);
 						double summaryMz=targetMz>0.0?targetMz:(center>0.0?center:-1.0);
-						out.add(new ScanSummary(name, precursorId, rt, 0, summaryMz, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, charge));
+						out.add(new ScanSummary(name, precursorId, rt, 0, tic, summaryMz, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, charge));
 					}
 				}
 			}

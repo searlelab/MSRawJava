@@ -484,8 +484,8 @@ public class MzmlFile implements StripeFileInterface {
 					scanLower=isoLower;
 					scanUpper=isoUpper;
 				}
-				out.add(new ScanSummary(entry.spectrumId, entry.index, entry.scanStartTime, 0, precursorMz, isPrecursor, entry.ionInjectionTime, isoLower,
-						isoUpper, scanLower, scanUpper, entry.charge));
+				out.add(new ScanSummary(entry.spectrumId, entry.index, entry.scanStartTime, 0, entry.tic, precursorMz, isPrecursor, entry.ionInjectionTime,
+						isoLower, isoUpper, scanLower, scanUpper, entry.charge));
 			}
 		}
 		out.sort((a, b) -> Float.compare(a.getScanStartTime(), b.getScanStartTime()));

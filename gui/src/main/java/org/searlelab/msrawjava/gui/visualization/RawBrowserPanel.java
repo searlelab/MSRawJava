@@ -3,10 +3,15 @@ package org.searlelab.msrawjava.gui.visualization;
 import java.awt.BorderLayout;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
 
+import javax.swing.DefaultComboBoxModel;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -44,6 +49,7 @@ import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.PeakWithIMS;
+import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 
 /**
@@ -57,7 +63,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final String BOXPLOT_TITLE="Range Statistics";
 	private static final float MINIMUM_MS1_INTENSITY=3.0f;
 	private static final float MINIMUM_MS2_INTENSITY=1.0f;
-	private static final String TIC_TOOLTIP="Precursor TIC across retention time; selected scan ranges are marked when available.";
+	private static final String TIC_TOOLTIP="Total ion current across retention time; selected scan ranges are marked when available.";
 	private static final String SPECTRUM_TOOLTIP="Mass spectrum for the currently selected scan or merged scan selection.";
 	private static final String IMS_TOOLTIP="Ion mobility versus m/z view for the selected spectrum.";
 	private static final String HISTOGRAM_TOOLTIP="Log10 fragment intensity distribution for the selected spectrum.";
@@ -69,6 +75,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private JTable table;
 	private TableRowSorter<TableModel> rowSorter;
 	private JTextField filterField;
+	private JComboBox<ScanTypeFilterOption> scanTypeFilter;
 
 	private final JSplitPane boxplotSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane rawSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
@@ -77,8 +84,12 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private final JSplitPane split=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JTabbedPane primaryTabs=new JTabbedPane();
 
-	private XYTrace chromatogram;
-	private float maxTic;
+	private List<ScanSummary> allScans=List.of();
+	private XYTrace globalChromatogram;
+	private float globalMaxTic;
+	private XYTrace activeChromatogram;
+	private float activeMaxTic;
+	private ScanTypeFilterOption activeScanType=ScanTypeFilterOption.allSpectra();
 
 	private ExtendedChartPanel structureChart;
 	private ExtendedChartPanel globalChart;
@@ -96,6 +107,57 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			this.displaySpectrum=displaySpectrum;
 			this.minRT=minRT;
 			this.maxRT=maxRT;
+		}
+	}
+
+	private static final class ScanTypeFilterOption {
+		private enum Kind {
+			ALL,
+			MS1,
+			MS2_RANGE
+		}
+
+		private final Kind kind;
+		private final Range range;
+		private final String label;
+
+		private ScanTypeFilterOption(Kind kind, Range range, String label) {
+			this.kind=kind;
+			this.range=range;
+			this.label=label;
+		}
+
+		private static ScanTypeFilterOption allSpectra() {
+			return new ScanTypeFilterOption(Kind.ALL, null, "All spectra");
+		}
+
+		private static ScanTypeFilterOption ms1() {
+			return new ScanTypeFilterOption(Kind.MS1, null, "MS1");
+		}
+
+		private static ScanTypeFilterOption ms2Range(Range range) {
+			String start=String.format(Locale.ROOT, "%.1f", Math.round(range.getStart()*10.0f)/10.0f);
+			String stop=String.format(Locale.ROOT, "%.1f", Math.round(range.getStop()*10.0f)/10.0f);
+			return new ScanTypeFilterOption(Kind.MS2_RANGE, range, "MS2 "+start+" to "+stop+" m/z");
+		}
+
+		private boolean includes(ScanSummary summary) {
+			if (summary==null) return false;
+			double precursorMz=summary.getPrecursorMz();
+			return switch (kind) {
+				case ALL -> true;
+				case MS1 -> precursorMz<0.0;
+				case MS2_RANGE -> precursorMz>=0.0&&range!=null&&range.contains(precursorMz);
+			};
+		}
+
+		private boolean isAll() {
+			return kind==Kind.ALL;
+		}
+
+		@Override
+		public String toString() {
+			return label;
 		}
 	}
 
@@ -139,6 +201,17 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			}
 		});
 
+		scanTypeFilter=new JComboBox<>();
+		scanTypeFilter.setToolTipText("Filter scans by acquisition type and precursor m/z range.");
+		initializeScanTypeFilter();
+		scanTypeFilter.addActionListener(e -> updateFilter());
+
+		JPanel scanTypePanel=new JPanel(new BorderLayout());
+		JLabel scanTypeLabel=new JLabel("Scan type:");
+		scanTypeLabel.setToolTipText("Filter by MS1 or a specific MS2 isolation window.");
+		scanTypePanel.add(scanTypeLabel, BorderLayout.WEST);
+		scanTypePanel.add(scanTypeFilter, BorderLayout.CENTER);
+
 		JPanel searchPanel=new JPanel(new BorderLayout());
 		JLabel searchLabel=new JLabel("Search:");
 		searchLabel.setToolTipText("Filter the scan table by text.");
@@ -148,6 +221,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		JPanel left=new JPanel(new BorderLayout());
 		JScrollPane scanTableScroll=new JScrollPane(table);
 		scanTableScroll.setToolTipText("Scan table for this raw file.");
+		left.add(scanTypePanel, BorderLayout.NORTH);
 		left.add(scanTableScroll, BorderLayout.CENTER);
 		left.add(searchPanel, BorderLayout.SOUTH);
 
@@ -223,18 +297,129 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			case 0 -> "The table row number for this scan.";
 			case 1 -> "The vendor-provided scan or spectrum name.";
 			case 2 -> "The scan start time in minutes.";
-			case 3 -> "The precursor m/z for this scan.";
+			case 3 -> "The precursor m/z for this scan (blank for MS1).";
+			case 4 -> "Total ion current for this scan.";
 			default -> null;
 		};
 	}
 
+	private void initializeScanTypeFilter() {
+		ArrayList<ScanTypeFilterOption> options=new ArrayList<>();
+		options.add(ScanTypeFilterOption.allSpectra());
+		options.add(ScanTypeFilterOption.ms1());
+		if (stripe!=null) {
+			Map<Range, ?> ranges=stripe.getRanges();
+			if (ranges!=null&&!ranges.isEmpty()) {
+				ArrayList<Range> sortedRanges=new ArrayList<>(ranges.keySet());
+				sortedRanges.sort(Comparator.naturalOrder());
+				for (Range range : sortedRanges) {
+					options.add(ScanTypeFilterOption.ms2Range(range));
+				}
+			}
+		}
+		scanTypeFilter.setModel(new DefaultComboBoxModel<>(options.toArray(new ScanTypeFilterOption[0])));
+		scanTypeFilter.setSelectedIndex(0);
+	}
+
 	private void updateFilter() {
-		String text=filterField.getText();
-		if (text.trim().isEmpty()) {
+		String raw=filterField.getText();
+		String search=(raw==null)?"":raw.trim().toLowerCase(Locale.ROOT);
+		ScanTypeFilterOption selected=(ScanTypeFilterOption)scanTypeFilter.getSelectedItem();
+		if (selected==null) selected=ScanTypeFilterOption.allSpectra();
+		if (selected!=activeScanType) {
+			activeScanType=selected;
+			updateActiveTicTrace(selected);
+		}
+		if (selected.isAll()&&search.isEmpty()) {
 			rowSorter.setRowFilter(null);
 		} else {
-			rowSorter.setRowFilter(RowFilter.regexFilter("(?i)"+text));
+			final String searchText=search;
+			final ScanTypeFilterOption scanType=selected;
+			rowSorter.setRowFilter(new RowFilter<TableModel, Integer>() {
+				@Override
+				public boolean include(Entry<? extends TableModel, ? extends Integer> entry) {
+					ScanSummary summary=model.getSelectedRow(entry.getIdentifier());
+					if (!scanType.includes(summary)) return false;
+					if (searchText.isEmpty()) return true;
+					for (int i=0; i<entry.getValueCount(); i++) {
+						Object value=entry.getValue(i);
+						if (value==null) continue;
+						String cell=value.toString().toLowerCase(Locale.ROOT);
+						if (cell.contains(searchText)) return true;
+					}
+					return false;
+				}
+			});
 		}
+		syncSelectionToFilteredRows();
+		refreshTicChartForCurrentSelection();
+	}
+
+	private void syncSelectionToFilteredRows() {
+		if (table.getRowCount()<=0) {
+			table.clearSelection();
+			resetScan(null);
+			return;
+		}
+		if (table.getSelectedRow()>=0) return;
+		table.setRowSelectionInterval(0, 0);
+	}
+
+	private void updateActiveTicTrace(ScanTypeFilterOption selected) {
+		if (selected==null||selected.isAll()) {
+			activeChromatogram=globalChromatogram;
+			activeMaxTic=globalMaxTic;
+			return;
+		}
+
+		ArrayList<Float> xMinutes=new ArrayList<>();
+		ArrayList<Float> yTic=new ArrayList<>();
+		float max=0.0f;
+		for (ScanSummary summary : allScans) {
+			if (!selected.includes(summary)) continue;
+			float tic=summary.getTic();
+			if (!Float.isFinite(tic)) continue;
+			float x=summary.getScanStartTime()/60f;
+			xMinutes.add(x);
+			yTic.add(tic);
+			if (tic>max) max=tic;
+		}
+
+		float[] xArray=new float[xMinutes.size()];
+		float[] yArray=new float[yTic.size()];
+		for (int i=0; i<xMinutes.size(); i++) {
+			xArray[i]=xMinutes.get(i);
+			yArray[i]=yTic.get(i);
+		}
+		activeChromatogram=new XYTrace(xArray, yArray, GraphType.area, selected.toString()+" TIC", new java.awt.Color(0x55, 0x55, 0xF6), null);
+		activeMaxTic=max;
+	}
+
+	private void refreshTicChartForCurrentSelection() {
+		int[] selection=table.getSelectedRows();
+		if (selection.length<=0) {
+			rawSplit.setTopComponent(buildTicChart());
+			return;
+		}
+		float minRT=Float.MAX_VALUE;
+		float maxRT=-Float.MAX_VALUE;
+		for (int row : selection) {
+			ScanSummary entry=model.getSelectedRow(table.convertRowIndexToModel(row));
+			float rt=entry.getScanStartTime()/60f;
+			if (rt<minRT) minRT=rt;
+			if (rt>maxRT) maxRT=rt;
+		}
+		ArrayList<XYTraceInterface> markers=new ArrayList<>();
+		float markerMax=Math.max(activeMaxTic, 1.0f);
+		if (minRT==maxRT) {
+			markers.add(new XYTrace(new double[] {minRT, minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker", java.awt.Color.black, 2.0f));
+		} else {
+			markers.add(
+					new XYTrace(new double[] {minRT, minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-min", java.awt.Color.black, 2.0f));
+			markers.add(
+					new XYTrace(new double[] {maxRT, maxRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-max", java.awt.Color.black, 2.0f));
+		}
+		rawSplit.setTopComponent(buildTicChart(markers.toArray(new XYTraceInterface[0])));
 	}
 
 	private void startLoad() {
@@ -266,8 +451,11 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private void applyData(RawBrowserData data) {
-		this.chromatogram=data.getChromatogram();
-		this.maxTic=data.getMaxTic();
+		this.allScans=new ArrayList<>(data.getScans());
+		this.globalChromatogram=data.getChromatogram();
+		this.globalMaxTic=data.getMaxTic();
+		this.activeChromatogram=globalChromatogram;
+		this.activeMaxTic=globalMaxTic;
 		this.structureChart=data.getStructureChart();
 		this.globalChart=data.getGlobalChart();
 
@@ -293,22 +481,20 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(STRUCTURE_TITLE), structureChart);
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(GLOBAL_TITLE), globalChart);
 
-		if (model.getRowCount()>0) {
-			table.addRowSelectionInterval(0, 0);
-		}
+		updateFilter();
 
 		SwingUtilities.invokeLater(this::applySplitPreferences);
 	}
 
 	private ExtendedChartPanel buildTicChart(XYTraceInterface... markerTraces) {
 		ArrayList<XYTraceInterface> traces=new ArrayList<>();
-		if (chromatogram!=null) traces.add(chromatogram);
+		if (activeChromatogram!=null) traces.add(activeChromatogram);
 		if (markerTraces!=null) {
 			for (XYTraceInterface marker : markerTraces) {
 				traces.add(marker);
 			}
 		}
-		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", "Precursor TIC", false, traces.toArray(new XYTraceInterface[0]));
+		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", "TIC", false, traces.toArray(new XYTraceInterface[0]));
 		chart.setToolTipText(TIC_TOOLTIP);
 		return chart;
 	}
@@ -403,13 +589,15 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		spectrumSplit.setRightComponent(spectrumHistogram);
 
 		ArrayList<XYTraceInterface> markers=new ArrayList<>();
+		float markerMax=Math.max(activeMaxTic, 1.0f);
 		if (result.minRT==result.maxRT) {
-			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker", java.awt.Color.black,
+			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker",
+					java.awt.Color.black,
 					2.0f));
 		} else {
-			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-min",
+			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-min",
 					java.awt.Color.black, 2.0f));
-			markers.add(new XYTrace(new double[] {result.maxRT, result.maxRT}, new double[] {0, maxTic}, GraphType.dashedline, "marker-max",
+			markers.add(new XYTrace(new double[] {result.maxRT, result.maxRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-max",
 					java.awt.Color.black, 2.0f));
 		}
 		rawSplit.setTopComponent(buildTicChart(markers.toArray(new XYTraceInterface[0])));

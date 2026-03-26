@@ -10,6 +10,9 @@ import java.io.File;
 
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JProgressBar;
+import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 
 import org.searlelab.msrawjava.gui.utils.BackgroundKeyboardListener;
@@ -115,6 +118,29 @@ public class FileDetailsDialog {
 					} else if (vendor==VendorFile.ENCYCLOPEDIA) {
 						EncyclopeDIAFile dia=new EncyclopeDIAFile();
 						dia.openFile(f);
+						if (dia.needsSpectraTicUpgrade()) {
+							final boolean[] upgradeAccepted=new boolean[] {false};
+							SwingUtilities.invokeAndWait(() -> {
+								int choice=JOptionPane.showConfirmDialog(dlg,
+										"This DIA file uses an older schema (0.7.0) without spectra TIC.\nUpgrade to 0.8.0 now and calculate TIC values?",
+										"Upgrade DIA Schema", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+								upgradeAccepted[0]=choice==JOptionPane.YES_OPTION;
+							});
+							if (upgradeAccepted[0]) {
+								final JDialog[] waitDialog=new JDialog[1];
+								SwingUtilities.invokeAndWait(() -> {
+									waitDialog[0]=createUpgradeWaitDialog(dlg, "Upgrading DIA schema and calculating spectra TIC...");
+									SwingUtilities.invokeLater(() -> waitDialog[0].setVisible(true));
+								});
+								try {
+									dia.upgradeSchemaToV080();
+								} finally {
+									SwingUtilities.invokeLater(() -> {
+										if (waitDialog[0]!=null) waitDialog[0].dispose();
+									});
+								}
+							}
+						}
 						stripe=dia;
 						RawBrowserData data=RawBrowserDataLoader.build(dia);
 						return StripeResult.success(dia, data);
@@ -203,6 +229,28 @@ public class FileDetailsDialog {
 		});
 
 		worker.execute();
+	}
+
+	private static JDialog createUpgradeWaitDialog(JDialog owner, String message) {
+		JDialog wait=new JDialog(owner, "Upgrading DIA File", true);
+		wait.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+		wait.setResizable(false);
+		wait.setLayout(new GridBagLayout());
+		GridBagConstraints gbc=new GridBagConstraints();
+		gbc.gridx=0;
+		gbc.gridy=0;
+		gbc.anchor=GridBagConstraints.CENTER;
+		gbc.insets=new java.awt.Insets(8, 12, 6, 12);
+		wait.add(new JLabel(message), gbc);
+		gbc.gridy=1;
+		gbc.fill=GridBagConstraints.HORIZONTAL;
+		gbc.weightx=1.0;
+		JProgressBar bar=new JProgressBar();
+		bar.setIndeterminate(true);
+		wait.add(bar, gbc);
+		wait.pack();
+		wait.setLocationRelativeTo(owner);
+		return wait;
 	}
 
 }

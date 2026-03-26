@@ -28,6 +28,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	private final float[] intensityArray;
 	private final float[] ionMobilityArray; // can be nullable
 	private final byte charge;
+	private final float tic;
 
 	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, double precursorMz, float scanStartTime, int fraction,
 			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double[] massArray, float[] intensityArray,
@@ -48,6 +49,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 		this.charge=charge;
 		this.scanWindowLower=scanWindowLower;
 		this.scanWindowUpper=scanWindowUpper;
+		this.tic=MatrixMath.sum(intensityArray);
 	}
 
 	@Override
@@ -135,7 +137,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 
 	@Override
 	public float getTIC() {
-		return MatrixMath.sum(intensityArray);
+		return tic;
 	}
 
 	@Override

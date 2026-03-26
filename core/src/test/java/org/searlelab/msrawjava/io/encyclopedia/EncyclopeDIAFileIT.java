@@ -92,6 +92,7 @@ class EncyclopeDIAFileIT {
 			// A couple of representative columns exist (schema sanity)
 			assertTrue(hasColumn(c, "spectra", "SpectrumIndex"));
 			assertTrue(hasColumn(c, "spectra", "IsolationWindowLower"));
+			assertTrue(hasColumn(c, "spectra", "TIC"));
 			assertTrue(hasColumn(c, "precursor", "SpectrumIndex"));
 			assertTrue(hasColumn(c, "metadata", "Key"));
 			assertTrue(hasColumn(c, "metadata", "Value"));
