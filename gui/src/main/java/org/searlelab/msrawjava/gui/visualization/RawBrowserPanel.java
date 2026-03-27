@@ -1,6 +1,8 @@
 package org.searlelab.msrawjava.gui.visualization;
 
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -12,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
 
 import javax.swing.DefaultComboBoxModel;
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -34,7 +37,15 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import javax.swing.table.JTableHeader;
+import javax.swing.text.AbstractDocument;
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;
 
+import org.jfree.chart.annotations.XYBoxAnnotation;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.data.xy.XYSeriesCollection;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.algorithms.RawSpectrumMergeUtils;
 import org.searlelab.msrawjava.gui.GUIPreferences;
@@ -68,9 +79,13 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final float MINIMUM_MS1_INTENSITY=3.0f;
 	private static final float MINIMUM_MS2_INTENSITY=1.0f;
 	private static final String TIC_TOOLTIP="Total ion current across retention time; selected scan ranges are marked when available.";
+	private static final String XIC_TOOLTIP="Extracted ion chromatograms for target m/z values in the selected scan type.";
 	private static final String SPECTRUM_TOOLTIP="Mass spectrum for the currently selected scan or merged scan selection.";
 	private static final String IMS_TOOLTIP="Ion mobility versus m/z view for the selected spectrum.";
 	private static final String HISTOGRAM_TOOLTIP="Log10 fragment intensity distribution for the selected spectrum.";
+	private static final Color[] XIC_COLORS=new Color[] {
+			new Color(0xE6, 0x4A, 0x19), new Color(0x00, 0x79, 0x6B), new Color(0x1E, 0x88, 0xE5), new Color(0x8E, 0x24, 0xAA), new Color(0x6D, 0x4C, 0x41),
+			new Color(0x43, 0xA0, 0x47), new Color(0xFB, 0x8C, 0x00), new Color(0x39, 0x49, 0xAB)};
 
 	private final StripeFileInterface stripe;
 	private final boolean peakPickAcrossIMS;
@@ -80,6 +95,12 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private TableRowSorter<TableModel> rowSorter;
 	private JTextField filterField;
 	private JComboBox<ScanTypeFilterOption> scanTypeFilter;
+	private JLabel xicLabel;
+	private JTextField xicField;
+	private JComboBox<XicToleranceOption> xicToleranceFilter;
+	private JButton extractXicButton;
+	private JPanel topChartContainer;
+	private JPanel topChartContent;
 
 	private final JSplitPane boxplotSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane rawSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
@@ -98,7 +119,14 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private ExtendedChartPanel structureChart;
 	private ExtendedChartPanel globalChart;
 	private long selectionToken=0L;
+	private long xicToken=0L;
 	private int suppressSplitSave=0;
+	private SelectionResult currentSelection;
+	private List<Double> activeXicTargets=List.of();
+	private List<XYTrace> activeXicTraces=List.of();
+	private XicToleranceOption activeXicTolerance=XicToleranceOption.DEFAULT;
+	private float activeXicMax=0.0f;
+	private boolean xicActive=false;
 
 	private static final class SelectionResult {
 		private final List<AcquiredSpectrum> entries;
@@ -111,6 +139,84 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			this.displaySpectrum=displaySpectrum;
 			this.minRT=minRT;
 			this.maxRT=maxRT;
+		}
+	}
+
+	private static final class XicExtractionResult {
+		private final List<XYTrace> traces;
+		private final float maxIntensity;
+
+		private XicExtractionResult(List<XYTrace> traces, float maxIntensity) {
+			this.traces=traces;
+			this.maxIntensity=maxIntensity;
+		}
+	}
+
+	private static final class XicToleranceOption {
+		private enum Unit {
+			PPM,
+			DA
+		}
+
+		private static final XicToleranceOption DEFAULT=new XicToleranceOption("10 ppm", Unit.PPM, 10.0);
+
+		private final String label;
+		private final Unit unit;
+		private final double value;
+
+		private XicToleranceOption(String label, Unit unit, double value) {
+			this.label=label;
+			this.unit=unit;
+			this.value=value;
+		}
+
+		private double toleranceMz(double mz) {
+			if (unit==Unit.DA) return value;
+			return Math.abs(mz)*value/1_000_000.0;
+		}
+
+		private static XicToleranceOption[] valuesForUi() {
+			return new XicToleranceOption[] {new XicToleranceOption("5 ppm", Unit.PPM, 5.0), DEFAULT, new XicToleranceOption("25 ppm", Unit.PPM, 25.0),
+					new XicToleranceOption("100 ppm", Unit.PPM, 100.0), new XicToleranceOption("0.4 m/z", Unit.DA, 0.4),
+					new XicToleranceOption("1.0 m/z", Unit.DA, 1.0)};
+		}
+
+		@Override
+		public String toString() {
+			return label;
+		}
+	}
+
+	private static final class XicInputFilter extends DocumentFilter {
+		private static boolean isAllowedSingleChar(char c) {
+			return (c>='0'&&c<='9')||c=='.'||c==','||c==' ';
+		}
+
+		@Override
+		public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) throws BadLocationException {
+			if (string==null||string.isEmpty()) return;
+			if (string.length()==1) {
+				char c=string.charAt(0);
+				if (!isAllowedSingleChar(c)) return;
+				super.insertString(fb, offset, string, attr);
+				return;
+			}
+			super.insertString(fb, offset, RawBrowserXicUtils.sanitizeXicPasteChunk(string), attr);
+		}
+
+		@Override
+		public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
+			if (text==null) {
+				super.replace(fb, offset, length, null, attrs);
+				return;
+			}
+			if (text.length()==1) {
+				char c=text.charAt(0);
+				if (!isAllowedSingleChar(c)) return;
+				super.replace(fb, offset, length, text, attrs);
+				return;
+			}
+			super.replace(fb, offset, length, RawBrowserXicUtils.sanitizeXicPasteChunk(text), attrs);
 		}
 	}
 
@@ -211,6 +317,33 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		initializeScanTypeFilter();
 		scanTypeFilter.addActionListener(e -> updateFilter());
 
+		xicLabel=new JLabel("XIC m/zs: ");
+		xicField=new JTextField();
+		xicField.setToolTipText("Enter one or more m/z targets (comma or whitespace separated).");
+		((AbstractDocument)xicField.getDocument()).setDocumentFilter(new XicInputFilter());
+
+		xicToleranceFilter=new JComboBox<>(XicToleranceOption.valuesForUi());
+		xicToleranceFilter.setSelectedItem(XicToleranceOption.DEFAULT);
+		xicToleranceFilter.setToolTipText("Mass tolerance used for XIC extraction.");
+
+		extractXicButton=new JButton("Extract XICs");
+		extractXicButton.setToolTipText("Extract and plot XIC traces for entered m/z values.");
+		extractXicButton.addActionListener(e -> onExtractXicClicked());
+
+		JPanel xicEastPanel=new JPanel(new BorderLayout(6, 0));
+		xicEastPanel.add(xicToleranceFilter, BorderLayout.CENTER);
+		xicEastPanel.add(extractXicButton, BorderLayout.EAST);
+
+		JPanel xicBar=new JPanel(new BorderLayout(6, 0));
+		xicBar.add(xicLabel, BorderLayout.WEST);
+		xicBar.add(xicField, BorderLayout.CENTER);
+		xicBar.add(xicEastPanel, BorderLayout.EAST);
+
+		topChartContent=new JPanel(new BorderLayout());
+		topChartContainer=new JPanel(new BorderLayout());
+		topChartContainer.add(xicBar, BorderLayout.NORTH);
+		topChartContainer.add(topChartContent, BorderLayout.CENTER);
+
 		JPanel scanTypePanel=new JPanel(new BorderLayout());
 		JLabel scanTypeLabel=new JLabel("Scan type:");
 		scanTypeLabel.setToolTipText("Filter by MS1 or a specific MS2 isolation window.");
@@ -232,6 +365,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		primaryTabs.addTab("Scans", rawSplit);
 		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab("Scans"), "Scan table, TIC view, and selected-spectrum plots.");
+		rawSplit.setTopComponent(topChartContainer);
 		rawSplit.setBottomComponent(spectrumSplit);
 		primaryTabs.addTab(BOXPLOT_TITLE, boxplotSplit);
 		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab(BOXPLOT_TITLE), "Boxplots summarizing ion injection times.");
@@ -350,9 +484,17 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		String search=(raw==null)?"":raw.trim().toLowerCase(Locale.ROOT);
 		ScanTypeFilterOption selected=(ScanTypeFilterOption)scanTypeFilter.getSelectedItem();
 		if (selected==null) selected=ScanTypeFilterOption.allSpectra();
-		if (selected!=activeScanType) {
+		boolean scanTypeChanged=selected!=activeScanType;
+		if (scanTypeChanged) {
 			activeScanType=selected;
 			updateActiveTicTrace(selected);
+			updateXicControlEnabledState();
+			if (selected.isAll()) {
+				clearXicState();
+				resetScan(currentSelection);
+			} else if (!activeXicTargets.isEmpty()) {
+				extractXicTracesAsync(activeXicTargets, getSelectedXicTolerance());
+			}
 		}
 		if (selected.isAll()&&search.isEmpty()) {
 			rowSorter.setRowFilter(null);
@@ -376,7 +518,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			});
 		}
 		syncSelectionToFilteredRows();
-		refreshTicChartForCurrentSelection();
+		refreshTopChartForCurrentSelection();
 	}
 
 	private void syncSelectionToFilteredRows() {
@@ -419,10 +561,10 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		activeMaxTic=max;
 	}
 
-	private void refreshTicChartForCurrentSelection() {
+	private void refreshTopChartForCurrentSelection() {
 		int[] selection=table.getSelectedRows();
 		if (selection.length<=0) {
-			rawSplit.setTopComponent(buildTicChart());
+			setTopChart(buildChromatogramChart());
 			return;
 		}
 		float minRT=Float.MAX_VALUE;
@@ -433,17 +575,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			if (rt<minRT) minRT=rt;
 			if (rt>maxRT) maxRT=rt;
 		}
-		ArrayList<XYTraceInterface> markers=new ArrayList<>();
-		float markerMax=Math.max(activeMaxTic, 1.0f);
-		if (minRT==maxRT) {
-			markers.add(new XYTrace(new double[] {minRT, minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker", java.awt.Color.black, 2.0f));
-		} else {
-			markers.add(
-					new XYTrace(new double[] {minRT, minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-min", java.awt.Color.black, 2.0f));
-			markers.add(
-					new XYTrace(new double[] {maxRT, maxRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-max", java.awt.Color.black, 2.0f));
-		}
-		rawSplit.setTopComponent(buildTicChart(markers.toArray(new XYTraceInterface[0])));
+		setTopChart(buildChromatogramChart(buildSelectionMarkers(minRT, maxRT)));
 	}
 
 	private void startLoad() {
@@ -480,13 +612,18 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		this.globalMaxTic=data.getMaxTic();
 		this.activeChromatogram=globalChromatogram;
 		this.activeMaxTic=globalMaxTic;
+		this.currentSelection=null;
+		this.xicActive=false;
+		this.activeXicTargets=List.of();
+		this.activeXicTraces=List.of();
+		this.activeXicMax=0.0f;
 		this.structureChart=data.getStructureChart();
 		this.globalChart=data.getGlobalChart();
 
 		model.updateEntries(data.getScans());
 
-		ExtendedChartPanel ticChart=buildTicChart();
-		rawSplit.setTopComponent(ticChart);
+		setTopChart(buildChromatogramChart());
+		updateXicControlEnabledState();
 
 		ExtendedChartPanel iitByRangeChart=BoxPlotGenerator.getBoxplotChart(null, "Precursor Isolation Window", "Ion Injection Time (ms)", data.getIitByRange());
 		iitByRangeChart.setToolTipText("Distribution of ion injection times grouped by precursor isolation window.");
@@ -510,17 +647,224 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		SwingUtilities.invokeLater(this::applySplitPreferences);
 	}
 
-	private ExtendedChartPanel buildTicChart(XYTraceInterface... markerTraces) {
+	private void onExtractXicClicked() {
+		if (activeScanType==null||activeScanType.isAll()) return;
+		List<Double> targets=RawBrowserXicUtils.parseTargetMzs(xicField.getText());
+		if (targets.isEmpty()) {
+			clearXicState();
+			resetScan(currentSelection);
+			return;
+		}
+		extractXicTracesAsync(targets, getSelectedXicTolerance());
+	}
+
+	private XicToleranceOption getSelectedXicTolerance() {
+		XicToleranceOption selected=(XicToleranceOption)xicToleranceFilter.getSelectedItem();
+		return selected==null?XicToleranceOption.DEFAULT:selected;
+	}
+
+	private void extractXicTracesAsync(List<Double> targets, XicToleranceOption toleranceOption) {
+		final long token=++xicToken;
+		final ScanTypeFilterOption scanTypeAtRequest=activeScanType;
+		final List<Double> targetCopy=List.copyOf(targets);
+		final XicToleranceOption tolerance=toleranceOption;
+
+		new SwingWorker<XicExtractionResult, Void>() {
+			@Override
+			protected XicExtractionResult doInBackground() throws Exception {
+				return extractXicTraceData(scanTypeAtRequest, targetCopy, tolerance);
+			}
+
+			@Override
+			protected void done() {
+				if (token!=xicToken) return;
+				try {
+					XicExtractionResult result=get();
+					activeXicTargets=targetCopy;
+					activeXicTolerance=tolerance;
+					activeXicTraces=result.traces;
+					activeXicMax=result.maxIntensity;
+					xicActive=true;
+					resetScan(currentSelection);
+				} catch (Exception ex) {
+					Logger.logException(ex);
+				}
+			}
+		}.execute();
+	}
+
+	private XicExtractionResult extractXicTraceData(ScanTypeFilterOption scanType, List<Double> targets, XicToleranceOption toleranceOption) {
+		ArrayList<ScanSummary> sourceScans=new ArrayList<>();
+		for (ScanSummary summary : allScans) {
+			if (scanType.includes(summary)) sourceScans.add(summary);
+		}
+		sourceScans.sort((a, b) -> Float.compare(a.getScanStartTime(), b.getScanStartTime()));
+
+		double[] xMinutes=new double[sourceScans.size()];
+		double[][] traces=new double[targets.size()][sourceScans.size()];
+		float max=0.0f;
+
+		for (int i=0; i<sourceScans.size(); i++) {
+			ScanSummary summary=sourceScans.get(i);
+			xMinutes[i]=summary.getScanStartTime()/60.0;
+			AcquiredSpectrum spectrum;
+			try {
+				spectrum=stripe.getSpectrum(summary);
+			} catch (Exception e) {
+				Logger.logException(e);
+				continue;
+			}
+			if (spectrum==null) continue;
+			double[] mz=spectrum.getMassArray();
+			float[] intensity=spectrum.getIntensityArray();
+			for (int t=0; t<targets.size(); t++) {
+				double target=targets.get(t);
+				double tol=toleranceOption.toleranceMz(target);
+				double sum=RawBrowserXicUtils.sumIntensityWithinTolerance(mz, intensity, target, tol);
+				traces[t][i]=sum;
+				if (sum>max) max=(float)sum;
+			}
+		}
+
+		ArrayList<XYTrace> xicTraces=new ArrayList<>();
+		for (int t=0; t<targets.size(); t++) {
+			double target=targets.get(t);
+			String label=String.format(Locale.ROOT, "XIC %.4f", target);
+			xicTraces.add(new XYTrace(xMinutes, traces[t], GraphType.line, label, getXicColor(t), 3.0f));
+		}
+
+		return new XicExtractionResult(xicTraces, max);
+	}
+
+	private void clearXicState() {
+		xicToken++;
+		xicActive=false;
+		activeXicTargets=List.of();
+		activeXicTraces=List.of();
+		activeXicMax=0.0f;
+	}
+
+	private void updateXicControlEnabledState() {
+		boolean enabled=activeScanType!=null&&!activeScanType.isAll();
+		if (xicLabel!=null) xicLabel.setEnabled(enabled);
+		if (xicField!=null) xicField.setEnabled(enabled);
+		if (xicToleranceFilter!=null) xicToleranceFilter.setEnabled(enabled);
+		if (extractXicButton!=null) extractXicButton.setEnabled(enabled);
+	}
+
+	private boolean isXicModeActive() {
+		return xicActive&&!activeXicTargets.isEmpty();
+	}
+
+	private float getActiveChromatogramMax() {
+		return isXicModeActive()?activeXicMax:activeMaxTic;
+	}
+
+	private void setTopChart(ExtendedChartPanel chart) {
+		if (topChartContent==null) return;
+		topChartContent.removeAll();
+		topChartContent.add(chart, BorderLayout.CENTER);
+		topChartContent.revalidate();
+		topChartContent.repaint();
+	}
+
+	private XYTraceInterface[] buildSelectionMarkers(float minRT, float maxRT) {
+		ArrayList<XYTraceInterface> markers=new ArrayList<>();
+		float markerMax=Math.max(getActiveChromatogramMax(), 1.0f);
+		if (minRT==maxRT) {
+			markers.add(new XYTrace(new double[] {minRT, minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker", java.awt.Color.black, 2.0f));
+		} else {
+			markers.add(
+					new XYTrace(new double[] {minRT, minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-min", java.awt.Color.black, 2.0f));
+			markers.add(
+					new XYTrace(new double[] {maxRT, maxRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-max", java.awt.Color.black, 2.0f));
+		}
+		return markers.toArray(new XYTraceInterface[0]);
+	}
+
+	private ExtendedChartPanel buildChromatogramChart(XYTraceInterface... markerTraces) {
 		ArrayList<XYTraceInterface> traces=new ArrayList<>();
-		if (activeChromatogram!=null) traces.add(activeChromatogram);
+		boolean showLegend=false;
+		String yAxis="TIC";
+		String tooltip=TIC_TOOLTIP;
+
+		if (isXicModeActive()) {
+			traces.addAll(activeXicTraces);
+			showLegend=true;
+			yAxis="XIC";
+			tooltip=XIC_TOOLTIP;
+		} else if (activeChromatogram!=null) {
+			traces.add(activeChromatogram);
+		}
+
 		if (markerTraces!=null) {
 			for (XYTraceInterface marker : markerTraces) {
 				traces.add(marker);
 			}
 		}
-		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", "TIC", false, traces.toArray(new XYTraceInterface[0]));
-		chart.setToolTipText(TIC_TOOLTIP);
+
+		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", yAxis, showLegend, traces.toArray(new XYTraceInterface[0]));
+		chart.setToolTipText(tooltip);
 		return chart;
+	}
+
+	private Color getXicColor(int targetIndex) {
+		return XIC_COLORS[targetIndex%XIC_COLORS.length];
+	}
+
+	private Color withAlpha(Color color, float alpha) {
+		return new Color(color.getRed()/255.0f, color.getGreen()/255.0f, color.getBlue()/255.0f, alpha);
+	}
+
+	private int getMatchingXicTargetIndex(double mz) {
+		if (!isXicModeActive()) return -1;
+		for (int i=0; i<activeXicTargets.size(); i++) {
+			double target=activeXicTargets.get(i);
+			double tolerance=activeXicTolerance.toleranceMz(target);
+			if (mz>=target-tolerance&&mz<=target+tolerance) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	private void applySpectrumXicOverlays(ExtendedChartPanel spectrumChart, AcquiredSpectrum spectrum) {
+		if (!isXicModeActive()||spectrumChart==null||spectrum==null) return;
+		XYPlot plot=spectrumChart.getChart().getXYPlot();
+		if (plot==null) return;
+
+		double spectrumMax=Math.max(0.0, MatrixMath.max(spectrum.getIntensityArray()));
+		if (spectrumMax<=0.0) spectrumMax=1.0;
+		double divider=spectrumChart.getDivider();
+		if (!(divider>0.0)) divider=1.0;
+		double chartMaxY=spectrumMax/divider;
+
+		for (int i=0; i<activeXicTargets.size(); i++) {
+			double target=activeXicTargets.get(i);
+			double tol=activeXicTolerance.toleranceMz(target);
+			double left=target-tol;
+			double right=target+tol;
+			Color base=getXicColor(i);
+			Color shade=withAlpha(base, 0.2f);
+			plot.addAnnotation(new XYBoxAnnotation(left, 0.0, right, chartMaxY, new BasicStroke(1.0f), shade, shade));
+		}
+
+		if (!(plot.getRenderer(0) instanceof XYLineAndShapeRenderer renderer)) return;
+		if (!(plot.getDataset(0) instanceof XYSeriesCollection dataset)) return;
+
+		for (int seriesIndex=0; seriesIndex<dataset.getSeriesCount(); seriesIndex++) {
+			if (dataset.getItemCount(seriesIndex)<2) continue;
+			double y=dataset.getYValue(seriesIndex, 1);
+			if (Math.abs(y)<1e-12) continue; // baseline or empty peak
+
+			double mz=dataset.getXValue(seriesIndex, 0);
+			int targetIndex=getMatchingXicTargetIndex(mz);
+			if (targetIndex<0) continue;
+
+			Color color=getXicColor(targetIndex);
+			renderer.setSeriesPaint(seriesIndex, color);
+			renderer.setSeriesStroke(seriesIndex, new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+		}
 	}
 
 	private void updateToSelected() {
@@ -578,8 +922,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private void resetScan(SelectionResult result) {
+		currentSelection=result;
 		if (result==null||result.entries==null||result.entries.isEmpty()) {
-			rawSplit.setTopComponent(buildTicChart());
+			setTopChart(buildChromatogramChart());
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
 			spectrumSplit.setRightComponent(new JLabel(""));
 			return;
@@ -587,12 +932,13 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		AcquiredSpectrum displaySpectrum=result.displaySpectrum;
 		if (displaySpectrum==null) {
-			rawSplit.setTopComponent(buildTicChart());
+			setTopChart(buildChromatogramChart());
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
 			spectrumSplit.setRightComponent(new JLabel(""));
 			return;
 		}
 		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new XYTrace(displaySpectrum));
+		applySpectrumXicOverlays(spectrumChart, displaySpectrum);
 		spectrumChart.setToolTipText(SPECTRUM_TOOLTIP);
 		boolean hasIms=displaySpectrum.getIonMobilityArray().isPresent()&&MatrixMath.max(displaySpectrum.getIntensityArray())>0.0f;
 		if (hasIms) {
@@ -612,19 +958,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		spectrumHistogram.setToolTipText(HISTOGRAM_TOOLTIP);
 		spectrumSplit.setRightComponent(spectrumHistogram);
 
-		ArrayList<XYTraceInterface> markers=new ArrayList<>();
-		float markerMax=Math.max(activeMaxTic, 1.0f);
-		if (result.minRT==result.maxRT) {
-			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker",
-					java.awt.Color.black,
-					2.0f));
-		} else {
-			markers.add(new XYTrace(new double[] {result.minRT, result.minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-min",
-					java.awt.Color.black, 2.0f));
-			markers.add(new XYTrace(new double[] {result.maxRT, result.maxRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-max",
-					java.awt.Color.black, 2.0f));
-		}
-		rawSplit.setTopComponent(buildTicChart(markers.toArray(new XYTraceInterface[0])));
+		setTopChart(buildChromatogramChart(buildSelectionMarkers(result.minRT, result.maxRT)));
 
 		applySplitPreferences();
 	}
