@@ -67,10 +67,19 @@ public class BasicChartGenerator {
 	private static BasicStroke peakStroke=new BasicStroke(1.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
 
 	public static ExtendedChartPanel getChart(String xAxis, String yAxis, boolean displayLegend, XYTraceInterface... traces) {
-		return getChart(xAxis, yAxis, displayLegend, 0.0, 14, traces);
+		return getChart(xAxis, yAxis, displayLegend?LegendMode.INLINE:LegendMode.NONE, traces);
 	}
 
 	public static ExtendedChartPanel getChart(final String xAxis, String yAxis, boolean displayLegend, double maxY, int fontSize,
+			final XYTraceInterface... traces) {
+		return getChart(xAxis, yAxis, displayLegend?LegendMode.INLINE:LegendMode.NONE, maxY, fontSize, traces);
+	}
+
+	public static ExtendedChartPanel getChart(String xAxis, String yAxis, LegendMode legendMode, XYTraceInterface... traces) {
+		return getChart(xAxis, yAxis, legendMode, 0.0, 14, traces);
+	}
+
+	public static ExtendedChartPanel getChart(final String xAxis, String yAxis, LegendMode legendMode, double maxY, int fontSize,
 			final XYTraceInterface... traces) {
 		if (maxY==0.0&&traces.length>0) {
 			maxY=XYTrace.getMaxY(traces)*1.05;
@@ -151,10 +160,26 @@ public class BasicChartGenerator {
 		}
 
 		final ExtendedChartPanel chartPanel=new ExtendedChartPanel(chart, name, false, divider);
-		if (!displayLegend) {
-			chartPanel.getChart().removeLegend();
-		} else {
-			chartPanel.getChart().getLegend().setItemFont(font3);
+		LegendMode resolvedMode=legendMode==null?LegendMode.NONE:legendMode;
+		switch (resolvedMode) {
+			case NONE:
+				chartPanel.disableLegendDrawer();
+				chartPanel.getChart().removeLegend();
+				break;
+			case INLINE:
+				chartPanel.disableLegendDrawer();
+				if (chartPanel.getChart().getLegend()!=null) {
+					chartPanel.getChart().getLegend().setVisible(true);
+					chartPanel.getChart().getLegend().setItemFont(font3);
+				}
+				break;
+			case DRAWER:
+				if (chartPanel.getChart().getLegend()!=null) {
+					chartPanel.getChart().getLegend().setVisible(false);
+					chartPanel.getChart().getLegend().setItemFont(font3);
+				}
+				chartPanel.enableLegendDrawer();
+				break;
 		}
 		addSaveMenu(xAxis, chartPanel, traces);
 
@@ -524,7 +549,11 @@ public class BasicChartGenerator {
 			public void actionPerformed(ActionEvent e) {
 				BufferedImage image=new BufferedImage(chartPanel.getWidth(), chartPanel.getHeight(), BufferedImage.TYPE_INT_RGB);
 				Graphics g=image.getGraphics();
-				chartPanel.paint(g);
+				if (chartPanel.getChart()!=null) {
+					chartPanel.getChart().draw((Graphics2D)g, new Rectangle2D.Double(0, 0, image.getWidth(), image.getHeight()));
+				} else {
+					chartPanel.paint(g);
+				}
 				g.dispose();
 				TransferableImage trans=new TransferableImage(image);
 				Toolkit.getDefaultToolkit().getSystemClipboard().setContents(trans, null);
@@ -579,16 +608,20 @@ public class BasicChartGenerator {
 			g2.setColor(bg);
 			g2.fillRect(0, 0, d.width, d.height);
 
-			RepaintManager rm=RepaintManager.currentManager(panel);
-			boolean oldDB=rm.isDoubleBufferingEnabled();
-			Dimension oldSize=panel.getSize();
-			try {
-				rm.setDoubleBufferingEnabled(false);
-				panel.doLayout();
-				panel.printAll(g2);
-			} finally {
-				panel.setSize(oldSize);
-				rm.setDoubleBufferingEnabled(oldDB);
+			if (panel instanceof ExtendedChartPanel chartPanel&&chartPanel.getChart()!=null) {
+				chartPanel.getChart().draw(g2, new Rectangle2D.Double(0, 0, d.width, d.height));
+			} else {
+				RepaintManager rm=RepaintManager.currentManager(panel);
+				boolean oldDB=rm.isDoubleBufferingEnabled();
+				Dimension oldSize=panel.getSize();
+				try {
+					rm.setDoubleBufferingEnabled(false);
+					panel.doLayout();
+					panel.printAll(g2);
+				} finally {
+					panel.setSize(oldSize);
+					rm.setDoubleBufferingEnabled(oldDB);
+				}
 			}
 
 			SVGUtils.writeToSVG(f, g2.getSVGElement());

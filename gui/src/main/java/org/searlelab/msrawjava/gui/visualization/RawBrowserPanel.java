@@ -53,6 +53,7 @@ import org.searlelab.msrawjava.gui.graphing.BasicChartGenerator;
 import org.searlelab.msrawjava.gui.graphing.BoxPlotGenerator;
 import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
 import org.searlelab.msrawjava.gui.graphing.GraphType;
+import org.searlelab.msrawjava.gui.graphing.LegendMode;
 import org.searlelab.msrawjava.gui.graphing.HistogramUtils;
 import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.gui.graphing.XYTraceInterface;
@@ -806,13 +807,13 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 	private ExtendedChartPanel buildChromatogramChart(XYTraceInterface... markerTraces) {
 		ArrayList<XYTraceInterface> traces=new ArrayList<>();
-		boolean showLegend=false;
+		LegendMode legendMode=LegendMode.NONE;
 		String yAxis="TIC";
 		String tooltip=TIC_TOOLTIP;
 
 		if (isXicModeActive()) {
 			traces.addAll(activeXicTraces);
-			showLegend=true;
+			legendMode=LegendMode.DRAWER;
 			yAxis="XIC";
 			tooltip=XIC_TOOLTIP;
 		} else if (activeChromatogram!=null) {
@@ -825,7 +826,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			}
 		}
 
-		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", yAxis, showLegend, traces.toArray(new XYTraceInterface[0]));
+		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", yAxis, legendMode, traces.toArray(new XYTraceInterface[0]));
 		chart.setToolTipText(tooltip);
 		return chart;
 	}

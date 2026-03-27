@@ -11,6 +11,7 @@ public class ExtendedChartPanel extends ChartPanel {
 
 	private final double divider;
 	private final String name;
+	private ChartLegendDrawerSupport legendDrawerSupport;
 
 	public ExtendedChartPanel(JFreeChart chart, String name, boolean useBuffer, double divider) {
 		super(chart, useBuffer);
@@ -31,5 +32,45 @@ public class ExtendedChartPanel extends ChartPanel {
 
 	public double getDivider() {
 		return divider;
+	}
+
+	public void enableLegendDrawer() {
+		if (legendDrawerSupport==null) {
+			legendDrawerSupport=new ChartLegendDrawerSupport(this);
+		} else {
+			legendDrawerSupport.refreshLegendRows();
+		}
+		if (getChart()!=null&&getChart().getLegend()!=null) {
+			getChart().getLegend().setVisible(false);
+		}
+	}
+
+	public void disableLegendDrawer() {
+		if (legendDrawerSupport!=null) {
+			legendDrawerSupport.detach();
+			legendDrawerSupport=null;
+		}
+		if (getChart()!=null&&getChart().getLegend()!=null) {
+			getChart().getLegend().setVisible(true);
+		}
+	}
+
+	public boolean isLegendDrawerEnabled() {
+		return legendDrawerSupport!=null;
+	}
+
+	ChartLegendDrawerSupport getLegendDrawerSupportForTest() {
+		return legendDrawerSupport;
+	}
+
+	@Override
+	public void setChart(JFreeChart chart) {
+		super.setChart(chart);
+		if (legendDrawerSupport!=null) {
+			legendDrawerSupport.refreshLegendRows();
+			if (chart!=null&&chart.getLegend()!=null) {
+				chart.getLegend().setVisible(false);
+			}
+		}
 	}
 }
