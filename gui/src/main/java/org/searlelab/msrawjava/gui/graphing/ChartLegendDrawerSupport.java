@@ -37,14 +37,22 @@ import javax.swing.UIManager;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
+import org.jfree.chart.ChartMouseEvent;
+import org.jfree.chart.ChartMouseListener;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemCollection;
 import org.jfree.chart.LegendItemSource;
+import org.jfree.chart.annotations.XYAnnotation;
+import org.jfree.chart.annotations.XYLineAnnotation;
+import org.jfree.chart.entity.ChartEntity;
+import org.jfree.chart.entity.XYItemEntity;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.Plot;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.LegendTitle;
+import org.jfree.data.xy.XYDataset;
 
 /**
  * Swing overlay that provides a hover-open legend drawer for chart panels.
@@ -56,6 +64,9 @@ final class ChartLegendDrawerSupport {
 	private static final int MAX_DRAWER_WIDTH=320;
 	private static final double DRAWER_WIDTH_RATIO=0.45;
 	private static final int HIDE_DELAY_MS=200;
+	private static final double TRACE_CLICK_TOLERANCE_PX=8.0;
+	private static final Color HALO_COLOR=new Color(255, 235, 59, 140);
+	private static final Color HALO_OUTER_COLOR=new Color(255, 235, 59, 90);
 
 	private final ExtendedChartPanel chartPanel;
 	private final JButton glyphButton;
@@ -71,18 +82,41 @@ final class ChartLegendDrawerSupport {
 	private final MouseAdapter hoverListener;
 	private final ComponentAdapter resizeListener;
 	private final DocumentListener filterListener;
+	private final ChartMouseListener chartMouseListener;
 
 	private final ArrayList<LegendRow> legendRows=new ArrayList<>();
+	private final ArrayList<XYAnnotation> selectedHaloAnnotations=new ArrayList<>();
 	private LayoutManager priorLayout;
 	private boolean attached=false;
+	private String selectedLegendKey;
 
 	private static final class LegendRow {
+		private final String legendKey;
 		private final String normalizedLabel;
+		private final int datasetIndex;
+		private final int seriesIndex;
 		private final JPanel component;
+		private final LegendSwatch swatch;
 
-		private LegendRow(String normalizedLabel, JPanel component) {
+		private LegendRow(String legendKey, String normalizedLabel, int datasetIndex, int seriesIndex, JPanel component, LegendSwatch swatch) {
+			this.legendKey=legendKey;
 			this.normalizedLabel=normalizedLabel;
+			this.datasetIndex=datasetIndex;
+			this.seriesIndex=seriesIndex;
 			this.component=component;
+			this.swatch=swatch;
+		}
+	}
+
+	private static final class TraceHit {
+		private final int datasetIndex;
+		private final int seriesIndex;
+		private final double distanceSq;
+
+		private TraceHit(int datasetIndex, int seriesIndex, double distanceSq) {
+			this.datasetIndex=datasetIndex;
+			this.seriesIndex=seriesIndex;
+			this.distanceSq=distanceSq;
 		}
 	}
 
@@ -144,6 +178,17 @@ final class ChartLegendDrawerSupport {
 				applyFilter();
 			}
 		};
+		this.chartMouseListener=new ChartMouseListener() {
+			@Override
+			public void chartMouseClicked(ChartMouseEvent event) {
+				handleChartClick(event);
+			}
+
+			@Override
+			public void chartMouseMoved(ChartMouseEvent event) {
+				// no-op
+			}
+		};
 
 		attach();
 	}
@@ -169,23 +214,31 @@ final class ChartLegendDrawerSupport {
 		uninstallHoverListeners();
 		filterField.getDocument().removeDocumentListener(filterListener);
 		chartPanel.removeComponentListener(resizeListener);
+		chartPanel.removeChartMouseListener(chartMouseListener);
 		chartPanel.remove(glyphButton);
 		chartPanel.remove(drawerPanel);
 		if (priorLayout!=null) {
 			chartPanel.setLayout(priorLayout);
 		}
+		clearSelectedTraceHalo();
 		chartPanel.revalidate();
 		chartPanel.repaint();
 	}
 
 	void refreshLegendRows() {
 		legendRows.clear();
+		selectedLegendKey=null;
+		clearSelectedTraceHalo();
 		for (LegendItem item : extractLegendItems()) {
 			if (item==null) continue;
 			String label=item.getLabel();
 			if (label==null) label="";
-			JPanel row=buildLegendRow(item, label);
-			legendRows.add(new LegendRow(label.toLowerCase(Locale.ROOT), row));
+			String legendKey=buildLegendKey(item);
+			JPanel row=buildLegendRow(item, label, legendKey);
+			int datasetIndex=item.getDatasetIndex();
+			int seriesIndex=item.getSeriesIndex();
+			LegendSwatch swatch=(LegendSwatch)((JPanel)row).getComponent(0);
+			legendRows.add(new LegendRow(legendKey, label.toLowerCase(Locale.ROOT), datasetIndex, seriesIndex, row, swatch));
 		}
 
 		titleLabel.setText("Legend ("+legendRows.size()+")");
@@ -218,6 +271,27 @@ final class ChartLegendDrawerSupport {
 
 	void setFilterTextForTest(String text) {
 		filterField.setText(text==null?"":text);
+	}
+
+	void selectLegendIndexForTest(int index) {
+		if (index<0||index>=legendRows.size()) return;
+		selectLegendEntry(legendRows.get(index).legendKey);
+	}
+
+	void selectTraceForTest(int datasetIndex, int seriesIndex) {
+		selectLegendEntryFromTrace(datasetIndex, seriesIndex);
+	}
+
+	int getSelectedLegendCountForTest() {
+		int count=0;
+		for (LegendRow row : legendRows) {
+			if (row.legendKey.equals(selectedLegendKey)) count++;
+		}
+		return count;
+	}
+
+	int getSelectedHaloAnnotationCountForTest() {
+		return selectedHaloAnnotations.size();
 	}
 
 	private JButton buildGlyphButton() {
@@ -285,6 +359,8 @@ final class ChartLegendDrawerSupport {
 
 		filterField.getDocument().addDocumentListener(filterListener);
 		chartPanel.addComponentListener(resizeListener);
+		chartPanel.addChartMouseListener(chartMouseListener);
+		System.out.println("[LegendDrawer] ChartMouseListener registered for panel="+chartPanel.getName());
 	}
 
 	private void installHoverListeners() {
@@ -375,7 +451,7 @@ final class ChartLegendDrawerSupport {
 		drawerPanel.revalidate();
 	}
 
-	private JPanel buildLegendRow(LegendItem item, String label) {
+	private JPanel buildLegendRow(LegendItem item, String label, String legendKey) {
 		JPanel row=new JPanel(new BorderLayout(8, 0));
 		row.setOpaque(true);
 		row.setBackground(getPanelBackground());
@@ -395,8 +471,24 @@ final class ChartLegendDrawerSupport {
 		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, rowHeight));
 		row.setPreferredSize(new Dimension(row.getPreferredSize().width, rowHeight));
 
+		MouseAdapter clickListener=new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				selectLegendEntry(legendKey);
+			}
+		};
+		addClickListenersRecursive(row, clickListener);
 		addHoverListenersRecursive(row);
 		return row;
+	}
+
+	private void addClickListenersRecursive(Component component, MouseAdapter listener) {
+		component.addMouseListener(listener);
+		if (component instanceof java.awt.Container container) {
+			for (Component child : container.getComponents()) {
+				addClickListenersRecursive(child, listener);
+			}
+		}
 	}
 
 	private void applyFilter() {
@@ -408,6 +500,7 @@ final class ChartLegendDrawerSupport {
 		for (LegendRow row : legendRows) {
 			boolean visible=normalized.isEmpty()||row.normalizedLabel.contains(normalized);
 			if (!visible) continue;
+			applyRowSelectionStyle(row, row.legendKey.equals(selectedLegendKey));
 			rowsPanel.add(row.component);
 			visibleCount++;
 		}
@@ -418,6 +511,241 @@ final class ChartLegendDrawerSupport {
 		}
 		rowsPanel.revalidate();
 		rowsPanel.repaint();
+	}
+
+	private void selectLegendEntry(String legendKey) {
+		if (legendKey==null||legendKey.isBlank()) return;
+		System.out.println("[LegendDrawer] selectLegendEntry legendKey="+legendKey+" current="+selectedLegendKey);
+		if (legendKey.equals(selectedLegendKey)) {
+			System.out.println("[LegendDrawer] same selection clicked again, clearing selection");
+			clearLegendSelection();
+			return;
+		}
+		selectedLegendKey=legendKey;
+		for (LegendRow row : legendRows) {
+			applyRowSelectionStyle(row, row.legendKey.equals(legendKey));
+			if (row.legendKey.equals(legendKey)) {
+				applySelectedTraceHalo(row);
+			}
+		}
+		rowsPanel.repaint();
+	}
+
+	private void clearLegendSelection() {
+		System.out.println("[LegendDrawer] clearLegendSelection");
+		selectedLegendKey=null;
+		clearSelectedTraceHalo();
+		for (LegendRow row : legendRows) {
+			applyRowSelectionStyle(row, false);
+		}
+		rowsPanel.repaint();
+	}
+
+	private void handleChartClick(ChartMouseEvent event) {
+		if (event==null) return;
+		MouseEvent trigger=event.getTrigger();
+		String clickPoint=trigger==null?"(unknown)":("("+trigger.getX()+","+trigger.getY()+")");
+		ChartEntity entity=event.getEntity();
+		System.out.println("[LegendDrawer] chart click at "+clickPoint+" entity="+(entity==null?"null":entity.getClass().getSimpleName()));
+		JFreeChart chart=chartPanel.getChart();
+		if (!(chart!=null&&chart.getPlot() instanceof XYPlot xyPlot)) return;
+		if (entity instanceof XYItemEntity xyEntity) {
+			XYDataset dataset=xyEntity.getDataset();
+			if (dataset==null) return;
+			int datasetIndex=resolveDatasetIndex(xyPlot, dataset);
+			System.out.println("[LegendDrawer] XYItemEntity series="+xyEntity.getSeriesIndex()+" item="+xyEntity.getItem()+
+					" resolvedDatasetIndex="+datasetIndex+" legendRows="+legendRows.size());
+			if (datasetIndex>=0) {
+				selectLegendEntryFromTrace(datasetIndex, xyEntity.getSeriesIndex());
+				return;
+			}
+		}
+		TraceHit hit=findNearestTraceHit(xyPlot, trigger);
+		if (hit==null) {
+			System.out.println("[LegendDrawer] no trace hit for click");
+			return;
+		}
+		System.out.println("[LegendDrawer] fallback trace hit dataset="+hit.datasetIndex+" series="+hit.seriesIndex+" distancePx="+Math.sqrt(hit.distanceSq));
+		selectLegendEntryFromTrace(hit.datasetIndex, hit.seriesIndex);
+	}
+
+	private TraceHit findNearestTraceHit(XYPlot xyPlot, MouseEvent trigger) {
+		if (xyPlot==null||trigger==null) return null;
+		Rectangle2D dataArea=chartPanel.getScreenDataArea(trigger.getX(), trigger.getY());
+		if (dataArea==null||dataArea.isEmpty()) {
+			dataArea=chartPanel.getScreenDataArea();
+		}
+		if (dataArea==null||dataArea.isEmpty()) return null;
+		if (xyPlot.getDomainAxis()==null||xyPlot.getRangeAxis()==null) return null;
+
+		double clickX=trigger.getX();
+		double clickY=trigger.getY();
+		double toleranceSq=TRACE_CLICK_TOLERANCE_PX*TRACE_CLICK_TOLERANCE_PX;
+		TraceHit bestHit=null;
+		for (int datasetIndex=0; datasetIndex<xyPlot.getDatasetCount(); datasetIndex++) {
+			XYDataset dataset=xyPlot.getDataset(datasetIndex);
+			if (dataset==null) continue;
+			for (int seriesIndex=0; seriesIndex<dataset.getSeriesCount(); seriesIndex++) {
+				int itemCount=dataset.getItemCount(seriesIndex);
+				if (itemCount<2) continue;
+				for (int i=1; i<itemCount; i++) {
+					double x1=dataset.getXValue(seriesIndex, i-1);
+					double y1=dataset.getYValue(seriesIndex, i-1);
+					double x2=dataset.getXValue(seriesIndex, i);
+					double y2=dataset.getYValue(seriesIndex, i);
+					if (!Double.isFinite(x1)||!Double.isFinite(y1)||!Double.isFinite(x2)||!Double.isFinite(y2)) continue;
+					double sx1=xyPlot.getDomainAxis().valueToJava2D(x1, dataArea, xyPlot.getDomainAxisEdge());
+					double sy1=xyPlot.getRangeAxis().valueToJava2D(y1, dataArea, xyPlot.getRangeAxisEdge());
+					double sx2=xyPlot.getDomainAxis().valueToJava2D(x2, dataArea, xyPlot.getDomainAxisEdge());
+					double sy2=xyPlot.getRangeAxis().valueToJava2D(y2, dataArea, xyPlot.getRangeAxisEdge());
+					double distanceSq=distancePointToSegmentSq(clickX, clickY, sx1, sy1, sx2, sy2);
+					if (distanceSq>toleranceSq) continue;
+					if (bestHit==null||distanceSq<bestHit.distanceSq) {
+						bestHit=new TraceHit(datasetIndex, seriesIndex, distanceSq);
+					}
+				}
+			}
+		}
+		return bestHit;
+	}
+
+	private double distancePointToSegmentSq(double px, double py, double x1, double y1, double x2, double y2) {
+		double dx=x2-x1;
+		double dy=y2-y1;
+		if (dx==0.0&&dy==0.0) {
+			double sx=px-x1;
+			double sy=py-y1;
+			return (sx*sx)+(sy*sy);
+		}
+		double t=((px-x1)*dx+(py-y1)*dy)/((dx*dx)+(dy*dy));
+		double clampedT=Math.max(0.0, Math.min(1.0, t));
+		double closestX=x1+(clampedT*dx);
+		double closestY=y1+(clampedT*dy);
+		double ex=px-closestX;
+		double ey=py-closestY;
+		return (ex*ex)+(ey*ey);
+	}
+
+	private void selectLegendEntryFromTrace(int datasetIndex, int seriesIndex) {
+		LegendRow row=findLegendRowForTrace(datasetIndex, seriesIndex);
+		if (row==null) {
+			System.out.println("[LegendDrawer] no legend row match for dataset="+datasetIndex+" series="+seriesIndex);
+			return;
+		}
+		System.out.println("[LegendDrawer] matched legend row key="+row.legendKey+" label="+row.normalizedLabel);
+		selectLegendEntry(row.legendKey);
+	}
+
+	private LegendRow findLegendRowForTrace(int datasetIndex, int seriesIndex) {
+		for (LegendRow row : legendRows) {
+			if (row.datasetIndex==datasetIndex&&row.seriesIndex==seriesIndex) {
+				return row;
+			}
+		}
+		JFreeChart chart=chartPanel.getChart();
+		if (!(chart!=null&&chart.getPlot() instanceof XYPlot xyPlot)) return null;
+		XYDataset dataset=xyPlot.getDataset(datasetIndex);
+		if (dataset==null||seriesIndex<0||seriesIndex>=dataset.getSeriesCount()) return null;
+		Comparable<?> seriesKey=dataset.getSeriesKey(seriesIndex);
+		if (seriesKey==null) return null;
+		String normalizedKey=seriesKey.toString().toLowerCase(Locale.ROOT);
+		for (LegendRow row : legendRows) {
+			if (row.normalizedLabel.equals(normalizedKey)) {
+				return row;
+			}
+		}
+		return null;
+	}
+
+	private int resolveDatasetIndex(XYPlot xyPlot, XYDataset dataset) {
+		for (int i=0; i<xyPlot.getDatasetCount(); i++) {
+			if (xyPlot.getDataset(i)==dataset) return i;
+		}
+		return -1;
+	}
+
+	private void applyRowSelectionStyle(LegendRow row, boolean selected) {
+		Color background=selected?new Color(255, 235, 59, 55):getPanelBackground();
+		row.component.setBackground(background);
+		row.component.setBorder(selected?BorderFactory.createLineBorder(new Color(255, 235, 59, 180))
+				:BorderFactory.createEmptyBorder(4, 4, 4, 4));
+		row.swatch.setSelected(selected);
+	}
+
+	private void applySelectedTraceHalo(LegendRow row) {
+		clearSelectedTraceHalo();
+		JFreeChart chart=chartPanel.getChart();
+		if (chart==null) return;
+		if (!(chart.getPlot() instanceof XYPlot xyPlot)) return;
+		int datasetIndex=row.datasetIndex;
+		int seriesIndex=row.seriesIndex;
+		if (datasetIndex<0&&xyPlot.getDatasetCount()>0) {
+			datasetIndex=0;
+		}
+		if (datasetIndex<0) return;
+		XYDataset dataset=xyPlot.getDataset(datasetIndex);
+		if (dataset==null) return;
+		if (seriesIndex<0||seriesIndex>=dataset.getSeriesCount()) {
+			seriesIndex=findSeriesIndexByLabel(dataset, row);
+		}
+		if (seriesIndex<0||seriesIndex>=dataset.getSeriesCount()) return;
+
+		float baseStroke=2.0f;
+		XYItemRenderer renderer=xyPlot.getRenderer(datasetIndex);
+		if (renderer!=null) {
+			Stroke stroke=renderer.getSeriesStroke(seriesIndex);
+			if (stroke==null) stroke=renderer.getDefaultStroke();
+			if (stroke instanceof BasicStroke bs&&Float.isFinite(bs.getLineWidth())) {
+				baseStroke=Math.max(1.0f, bs.getLineWidth());
+			}
+		}
+		BasicStroke outer=new BasicStroke(baseStroke+8.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+		BasicStroke inner=new BasicStroke(baseStroke+4.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+
+		int itemCount=dataset.getItemCount(seriesIndex);
+		if (itemCount<2) return;
+		for (int i=1; i<itemCount; i++) {
+			double x1=dataset.getXValue(seriesIndex, i-1);
+			double y1=dataset.getYValue(seriesIndex, i-1);
+			double x2=dataset.getXValue(seriesIndex, i);
+			double y2=dataset.getYValue(seriesIndex, i);
+			if (!Double.isFinite(x1)||!Double.isFinite(y1)||!Double.isFinite(x2)||!Double.isFinite(y2)) continue;
+			XYLineAnnotation outerLine=new XYLineAnnotation(x1, y1, x2, y2, outer, HALO_OUTER_COLOR);
+			XYLineAnnotation innerLine=new XYLineAnnotation(x1, y1, x2, y2, inner, HALO_COLOR);
+			selectedHaloAnnotations.add(outerLine);
+			selectedHaloAnnotations.add(innerLine);
+			xyPlot.addAnnotation(outerLine, false);
+			xyPlot.addAnnotation(innerLine, false);
+		}
+		chartPanel.repaint();
+	}
+
+	private int findSeriesIndexByLabel(XYDataset dataset, LegendRow row) {
+		String lowerLabel=row.normalizedLabel;
+		for (int i=0; i<dataset.getSeriesCount(); i++) {
+			Comparable<?> key=dataset.getSeriesKey(i);
+			if (key==null) continue;
+			String normalized=key.toString().toLowerCase(Locale.ROOT);
+			if (normalized.equals(lowerLabel)) return i;
+		}
+		return -1;
+	}
+
+	private void clearSelectedTraceHalo() {
+		JFreeChart chart=chartPanel.getChart();
+		if (!(chart!=null&&chart.getPlot() instanceof XYPlot xyPlot)) {
+			selectedHaloAnnotations.clear();
+			return;
+		}
+		for (XYAnnotation annotation : selectedHaloAnnotations) {
+			xyPlot.removeAnnotation(annotation);
+		}
+		selectedHaloAnnotations.clear();
+	}
+
+	private String buildLegendKey(LegendItem item) {
+		String label=item.getLabel()==null?"":item.getLabel();
+		return item.getDatasetIndex()+":"+item.getSeriesIndex()+":"+label;
 	}
 
 	private List<LegendItem> extractLegendItems() {
@@ -484,10 +812,16 @@ final class ChartLegendDrawerSupport {
 	private static final class LegendSwatch extends JPanel {
 		private static final long serialVersionUID=1L;
 		private final LegendItem item;
+		private boolean selected;
 
 		private LegendSwatch(LegendItem item) {
 			this.item=item;
 			setOpaque(false);
+		}
+
+		private void setSelected(boolean selected) {
+			this.selected=selected;
+			repaint();
 		}
 
 		@Override
@@ -498,12 +832,24 @@ final class ChartLegendDrawerSupport {
 				int width=getWidth();
 				int height=getHeight();
 				int centerY=Math.max(1, height/2);
+				if (selected) {
+					g2.setColor(new Color(255, 235, 59, 65));
+					g2.fillRoundRect(0, 0, width, height, 8, 8);
+				}
 				Paint linePaint=item.getLinePaint()!=null?item.getLinePaint():item.getFillPaint();
 				Paint fillPaint=item.getFillPaint()!=null?item.getFillPaint():item.getLinePaint();
 				if (linePaint==null) linePaint=getPanelForeground();
 				if (fillPaint==null) fillPaint=linePaint;
 
 				if (item.isLineVisible()) {
+					if (selected) {
+						g2.setPaint(HALO_OUTER_COLOR);
+						g2.setStroke(new BasicStroke(8.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+						g2.drawLine(2, centerY, Math.max(2, width-2), centerY);
+						g2.setPaint(HALO_COLOR);
+						g2.setStroke(new BasicStroke(5.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+						g2.drawLine(2, centerY, Math.max(2, width-2), centerY);
+					}
 					g2.setPaint(linePaint);
 					Stroke stroke=item.getLineStroke();
 					g2.setStroke(stroke!=null?stroke:new BasicStroke(2.0f));
