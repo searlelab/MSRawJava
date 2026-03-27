@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui.visualization;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 
@@ -9,30 +10,36 @@ import org.junit.jupiter.api.Test;
 class RawBrowserXicUtilsTest {
 
 	@Test
-	void sanitizeXicText_filtersUnsupportedCharacters() {
-		String input="445.34, abc\n500.2\t600.1#@!";
-		String sanitized=RawBrowserXicUtils.sanitizeXicText(input);
-		assertEquals("445.34, 500.2 600.1", sanitized);
+	void tokenizeQueryTokens_isBracketAwareAndPreservesNamedModSpaces() {
+		List<String> tokens=RawBrowserXicUtils
+				.tokenizeQueryTokens("445.34, _LTDC[Carbamidomethyl (C)]VVM[Oxidation (M)]R_+2  PEPTIDE++");
+		assertEquals(List.of("445.34", "_LTDC[Carbamidomethyl (C)]VVM[Oxidation (M)]R_+2", "PEPTIDE++"), tokens);
 	}
 
 	@Test
-	void sanitizeXicText_collapsesCommaAndSpaceRuns() {
-		String input=" 445.34,, , ,   500.2   ,,, 600.1 ";
-		String sanitized=RawBrowserXicUtils.sanitizeXicText(input);
-		assertEquals("445.34, 500.2, 600.1", sanitized);
+	void parseXicTargets_supportsMixedNumericAndPeptideTokens() {
+		RawBrowserXicUtils.ParsedXicTargets parsed=RawBrowserXicUtils.parseXicTargets("445.34, PEPTIDE+2");
+		assertEquals(4, parsed.precursorTargets().size());
+		assertEquals(13, parsed.fragmentTargets().size());
+
+		assertEquals("XIC 445.3400", parsed.precursorTargets().get(0).label());
+		assertEquals("XIC 445.3400", parsed.fragmentTargets().get(0).label());
+		assertTrue(parsed.precursorTargets().stream().anyMatch(t -> t.label().equals("PEPTIDE+2 [M]")));
+		assertTrue(parsed.fragmentTargets().stream().anyMatch(t -> t.label().contains(" b1+")));
 	}
 
 	@Test
-	void sanitizeXicPasteChunk_keepsDelimiterSeparationWithoutTrim() {
-		String chunk=",  , \n\t500.2,,, 600.1  ";
+	void sanitizeXicPasteChunk_normalizesLineBreaksAndDelimiterRuns() {
+		String chunk="445.34,\nPEPTIDER++\t[Oxidation (M)]   ,, 500.2";
 		String sanitized=RawBrowserXicUtils.sanitizeXicPasteChunk(chunk);
-		assertEquals(", 500.2, 600.1 ", sanitized);
+		assertEquals("445.34, PEPTIDER++ [Oxidation (M)], 500.2", sanitized);
 	}
 
 	@Test
-	void parseTargetMzs_supportsMixedDelimitersAndDeduplicates() {
-		List<Double> parsed=RawBrowserXicUtils.parseTargetMzs("445.34, 500.2\n600.1 500.2 0 foo");
-		assertEquals(List.of(445.34, 500.2, 600.1), parsed);
+	void sanitizeXicText_retainsPeptideCharacters() {
+		String input="_PEPTIDER++_, 500.2\nRLSISS[+79.966331]";
+		String sanitized=RawBrowserXicUtils.sanitizeXicText(input);
+		assertEquals("_PEPTIDER++_, 500.2 RLSISS[+79.966331]", sanitized);
 	}
 
 	@Test

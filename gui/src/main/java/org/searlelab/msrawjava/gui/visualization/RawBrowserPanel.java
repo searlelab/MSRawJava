@@ -122,7 +122,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private long xicToken=0L;
 	private int suppressSplitSave=0;
 	private SelectionResult currentSelection;
-	private List<Double> activeXicTargets=List.of();
+	private RawBrowserXicUtils.ParsedXicTargets activeParsedXicTargets=RawBrowserXicUtils.ParsedXicTargets.empty();
+	private List<RawBrowserXicUtils.XicTarget> activeXicTargets=List.of();
 	private List<XYTrace> activeXicTraces=List.of();
 	private XicToleranceOption activeXicTolerance=XicToleranceOption.DEFAULT;
 	private float activeXicMax=0.0f;
@@ -189,7 +190,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 	private static final class XicInputFilter extends DocumentFilter {
 		private static boolean isAllowedSingleChar(char c) {
-			return (c>='0'&&c<='9')||c=='.'||c==','||c==' ';
+			return RawBrowserXicUtils.isAllowedXicChar(c);
 		}
 
 		@Override
@@ -263,6 +264,10 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		private boolean isAll() {
 			return kind==Kind.ALL;
+		}
+
+		private boolean isMs1() {
+			return kind==Kind.MS1;
 		}
 
 		@Override
@@ -492,8 +497,14 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			if (selected.isAll()) {
 				clearXicState();
 				resetScan(currentSelection);
-			} else if (!activeXicTargets.isEmpty()) {
-				extractXicTracesAsync(activeXicTargets, getSelectedXicTolerance());
+			} else if (activeParsedXicTargets.hasAnyTargets()) {
+				List<RawBrowserXicUtils.XicTarget> targets=selectTargetsForScanType(activeParsedXicTargets, selected);
+				if (targets.isEmpty()) {
+					clearXicState();
+					resetScan(currentSelection);
+				} else {
+					extractXicTracesAsync(targets, getSelectedXicTolerance());
+				}
 			}
 		}
 		if (selected.isAll()&&search.isEmpty()) {
@@ -614,6 +625,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		this.activeMaxTic=globalMaxTic;
 		this.currentSelection=null;
 		this.xicActive=false;
+		this.activeParsedXicTargets=RawBrowserXicUtils.ParsedXicTargets.empty();
 		this.activeXicTargets=List.of();
 		this.activeXicTraces=List.of();
 		this.activeXicMax=0.0f;
@@ -649,12 +661,14 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 	private void onExtractXicClicked() {
 		if (activeScanType==null||activeScanType.isAll()) return;
-		List<Double> targets=RawBrowserXicUtils.parseTargetMzs(xicField.getText());
+		RawBrowserXicUtils.ParsedXicTargets parsedTargets=RawBrowserXicUtils.parseXicTargets(xicField.getText());
+		List<RawBrowserXicUtils.XicTarget> targets=selectTargetsForScanType(parsedTargets, activeScanType);
 		if (targets.isEmpty()) {
 			clearXicState();
 			resetScan(currentSelection);
 			return;
 		}
+		activeParsedXicTargets=parsedTargets;
 		extractXicTracesAsync(targets, getSelectedXicTolerance());
 	}
 
@@ -663,10 +677,16 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		return selected==null?XicToleranceOption.DEFAULT:selected;
 	}
 
-	private void extractXicTracesAsync(List<Double> targets, XicToleranceOption toleranceOption) {
+	private List<RawBrowserXicUtils.XicTarget> selectTargetsForScanType(RawBrowserXicUtils.ParsedXicTargets parsedTargets, ScanTypeFilterOption scanType) {
+		if (parsedTargets==null||scanType==null||scanType.isAll()) return List.of();
+		if (scanType.isMs1()) return parsedTargets.precursorTargets();
+		return parsedTargets.fragmentTargets();
+	}
+
+	private void extractXicTracesAsync(List<RawBrowserXicUtils.XicTarget> targets, XicToleranceOption toleranceOption) {
 		final long token=++xicToken;
 		final ScanTypeFilterOption scanTypeAtRequest=activeScanType;
-		final List<Double> targetCopy=List.copyOf(targets);
+		final List<RawBrowserXicUtils.XicTarget> targetCopy=List.copyOf(targets);
 		final XicToleranceOption tolerance=toleranceOption;
 
 		new SwingWorker<XicExtractionResult, Void>() {
@@ -693,7 +713,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		}.execute();
 	}
 
-	private XicExtractionResult extractXicTraceData(ScanTypeFilterOption scanType, List<Double> targets, XicToleranceOption toleranceOption) {
+	private XicExtractionResult extractXicTraceData(ScanTypeFilterOption scanType, List<RawBrowserXicUtils.XicTarget> targets,
+			XicToleranceOption toleranceOption) {
 		ArrayList<ScanSummary> sourceScans=new ArrayList<>();
 		for (ScanSummary summary : allScans) {
 			if (scanType.includes(summary)) sourceScans.add(summary);
@@ -718,7 +739,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			double[] mz=spectrum.getMassArray();
 			float[] intensity=spectrum.getIntensityArray();
 			for (int t=0; t<targets.size(); t++) {
-				double target=targets.get(t);
+				double target=targets.get(t).mz();
 				double tol=toleranceOption.toleranceMz(target);
 				double sum=RawBrowserXicUtils.sumIntensityWithinTolerance(mz, intensity, target, tol);
 				traces[t][i]=sum;
@@ -728,8 +749,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		ArrayList<XYTrace> xicTraces=new ArrayList<>();
 		for (int t=0; t<targets.size(); t++) {
-			double target=targets.get(t);
-			String label=String.format(Locale.ROOT, "XIC %.4f", target);
+			RawBrowserXicUtils.XicTarget target=targets.get(t);
+			String label=target.label();
 			xicTraces.add(new XYTrace(xMinutes, traces[t], GraphType.line, label, getXicColor(t), 3.0f));
 		}
 
@@ -739,6 +760,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private void clearXicState() {
 		xicToken++;
 		xicActive=false;
+		activeParsedXicTargets=RawBrowserXicUtils.ParsedXicTargets.empty();
 		activeXicTargets=List.of();
 		activeXicTraces=List.of();
 		activeXicMax=0.0f;
@@ -819,7 +841,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private int getMatchingXicTargetIndex(double mz) {
 		if (!isXicModeActive()) return -1;
 		for (int i=0; i<activeXicTargets.size(); i++) {
-			double target=activeXicTargets.get(i);
+			double target=activeXicTargets.get(i).mz();
 			double tolerance=activeXicTolerance.toleranceMz(target);
 			if (mz>=target-tolerance&&mz<=target+tolerance) {
 				return i;
@@ -840,7 +862,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		double chartMaxY=spectrumMax/divider;
 
 		for (int i=0; i<activeXicTargets.size(); i++) {
-			double target=activeXicTargets.get(i);
+			double target=activeXicTargets.get(i).mz();
 			double tol=activeXicTolerance.toleranceMz(target);
 			double left=target-tol;
 			double right=target+tol;
