@@ -26,6 +26,7 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.RowFilter;
 import javax.swing.SwingConstants;
+import javax.swing.Timer;
 import javax.swing.SwingWorker;
 import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
@@ -48,6 +49,7 @@ import org.jfree.chart.annotations.XYBoxAnnotation;
 import org.jfree.chart.annotations.XYLineAnnotation;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.algorithms.RawSpectrumMergeUtils;
@@ -133,6 +135,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private float activeXicMax=0.0f;
 	private boolean xicActive=false;
 	private int activeXicExtractionCount=0;
+	private volatile XicExtractionProgress activeXicProgress;
+	private Timer xicProgressTimer;
+	private long xicProgressTimerToken=-1L;
 	private ExtendedChartPanel topChromatogramChart;
 	private final ArrayList<XYAnnotation> chromatogramSelectionAnnotations=new ArrayList<>();
 
@@ -160,15 +165,32 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		}
 	}
 
+	private static final class XicExtractionProgress {
+		private final long token;
+		private final Object lock=new Object();
+		private final double[] xMinutes;
+		private final double[][] traces;
+		private int extractedCount;
+		private int flushedCount;
+		private float maxIntensity;
+
+		private XicExtractionProgress(long token, double[] xMinutes, double[][] traces) {
+			this.token=token;
+			this.xMinutes=xMinutes;
+			this.traces=traces;
+			this.extractedCount=0;
+			this.flushedCount=0;
+			this.maxIntensity=0.0f;
+		}
+	}
+
 	private static final class ChartAxisView {
 		private final boolean hasDomainRange;
-		private final boolean domainAutoRange;
 		private final double domainLower;
 		private final double domainUpper;
 
-		private ChartAxisView(boolean hasDomainRange, boolean domainAutoRange, double domainLower, double domainUpper) {
+		private ChartAxisView(boolean hasDomainRange, double domainLower, double domainUpper) {
 			this.hasDomainRange=hasDomainRange;
-			this.domainAutoRange=domainAutoRange;
 			this.domainLower=domainLower;
 			this.domainUpper=domainUpper;
 		}
@@ -715,12 +737,22 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		final ScanTypeFilterOption scanTypeAtRequest=activeScanType;
 		final List<RawBrowserXicUtils.XicTarget> targetCopy=List.copyOf(targets);
 		final XicToleranceOption tolerance=toleranceOption;
+		activeXicTargets=targetCopy;
+		activeXicTolerance=tolerance;
+		activeXicMax=0.0f;
+		activeXicTraces=buildEmptyXicTraces(targetCopy);
+		xicActive=true;
+		activeXicProgress=null;
+		refreshChromatogramChart();
+		resetScan(currentSelection);
+
 		beginXicExtraction();
+		startXicProgressTimer(token);
 
 		new SwingWorker<XicExtractionResult, Void>() {
 			@Override
 			protected XicExtractionResult doInBackground() throws Exception {
-				return extractXicTraceData(scanTypeAtRequest, targetCopy, tolerance);
+				return extractXicTraceData(token, scanTypeAtRequest, targetCopy, tolerance);
 			}
 
 			@Override
@@ -728,23 +760,21 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 				try {
 					if (token!=xicToken) return;
 					XicExtractionResult result=get();
-					activeXicTargets=targetCopy;
-					activeXicTolerance=tolerance;
 					activeXicTraces=result.traces;
 					activeXicMax=result.maxIntensity;
-					xicActive=true;
-					refreshChromatogramChart();
-					resetScan(currentSelection);
+					flushXicProgress(token, true);
+					refreshTopChartForCurrentSelection();
 				} catch (Exception ex) {
 					Logger.logException(ex);
 				} finally {
+					stopXicProgressTimer(token);
 					endXicExtraction();
 				}
 			}
 		}.execute();
 	}
 
-	private XicExtractionResult extractXicTraceData(ScanTypeFilterOption scanType, List<RawBrowserXicUtils.XicTarget> targets,
+	private XicExtractionResult extractXicTraceData(long token, ScanTypeFilterOption scanType, List<RawBrowserXicUtils.XicTarget> targets,
 			XicToleranceOption toleranceOption) {
 		ArrayList<ScanSummary> sourceScans=new ArrayList<>();
 		for (ScanSummary summary : allScans) {
@@ -754,47 +784,134 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		double[] xMinutes=new double[sourceScans.size()];
 		double[][] traces=new double[targets.size()][sourceScans.size()];
-		float max=0.0f;
+		XicExtractionProgress progress=new XicExtractionProgress(token, xMinutes, traces);
+		activeXicProgress=progress;
 
 		for (int i=0; i<sourceScans.size(); i++) {
 			ScanSummary summary=sourceScans.get(i);
 			xMinutes[i]=summary.getScanStartTime()/60.0;
+			float scanMax=0.0f;
 			AcquiredSpectrum spectrum;
 			try {
 				spectrum=stripe.getSpectrum(summary);
 			} catch (Exception e) {
 				Logger.logException(e);
-				continue;
+				spectrum=null;
 			}
-			if (spectrum==null) continue;
-			double[] mz=spectrum.getMassArray();
-			float[] intensity=spectrum.getIntensityArray();
-			for (int t=0; t<targets.size(); t++) {
-				double target=targets.get(t).mz();
-				double tol=toleranceOption.toleranceMz(target);
-				double sum=RawBrowserXicUtils.sumIntensityWithinTolerance(mz, intensity, target, tol);
-				traces[t][i]=sum;
-				if (sum>max) max=(float)sum;
+			if (spectrum!=null) {
+				double[] mz=spectrum.getMassArray();
+				float[] intensity=spectrum.getIntensityArray();
+				for (int t=0; t<targets.size(); t++) {
+					double target=targets.get(t).mz();
+					double tol=toleranceOption.toleranceMz(target);
+					double sum=RawBrowserXicUtils.sumIntensityWithinTolerance(mz, intensity, target, tol);
+					traces[t][i]=sum;
+					if (sum>scanMax) scanMax=(float)sum;
+				}
+			}
+			synchronized (progress.lock) {
+				if (scanMax>progress.maxIntensity) {
+					progress.maxIntensity=scanMax;
+				}
+				progress.extractedCount=i+1;
 			}
 		}
 
 		ArrayList<XYTrace> xicTraces=new ArrayList<>();
 		for (int t=0; t<targets.size(); t++) {
 			RawBrowserXicUtils.XicTarget target=targets.get(t);
-			String label=String.format(Locale.ROOT, "%s (%.3f m/z)", target.label(), target.mz());
+			String label=formatXicTargetLabel(target);
 			xicTraces.add(new XYTrace(xMinutes, traces[t], GraphType.line, label, getXicColor(t), 3.0f));
 		}
 
+		float max;
+		synchronized (progress.lock) {
+			max=progress.maxIntensity;
+		}
 		return new XicExtractionResult(xicTraces, max);
 	}
 
 	private void clearXicState() {
 		xicToken++;
+		stopXicProgressTimer(-1L);
+		activeXicProgress=null;
 		xicActive=false;
 		activeParsedXicTargets=RawBrowserXicUtils.ParsedXicTargets.empty();
 		activeXicTargets=List.of();
 		activeXicTraces=List.of();
 		activeXicMax=0.0f;
+	}
+
+	private List<XYTrace> buildEmptyXicTraces(List<RawBrowserXicUtils.XicTarget> targets) {
+		ArrayList<XYTrace> traces=new ArrayList<>();
+		for (int i=0; i<targets.size(); i++) {
+			RawBrowserXicUtils.XicTarget target=targets.get(i);
+			traces.add(new XYTrace(new double[0], new double[0], GraphType.line, formatXicTargetLabel(target), getXicColor(i), 3.0f));
+		}
+		return traces;
+	}
+
+	private String formatXicTargetLabel(RawBrowserXicUtils.XicTarget target) {
+		return String.format(Locale.ROOT, "%s (%.3f m/z)", target.label(), target.mz());
+	}
+
+	private void startXicProgressTimer(long token) {
+		stopXicProgressTimer(-1L);
+		xicProgressTimerToken=token;
+		xicProgressTimer=new Timer(200, e -> flushXicProgress(token, false));
+		xicProgressTimer.setRepeats(true);
+		xicProgressTimer.start();
+	}
+
+	private void stopXicProgressTimer(long token) {
+		if (xicProgressTimer==null) return;
+		if (token>=0L&&xicProgressTimerToken!=token) return;
+		xicProgressTimer.stop();
+		xicProgressTimer=null;
+		xicProgressTimerToken=-1L;
+	}
+
+	private void flushXicProgress(long token, boolean flushAll) {
+		if (token!=xicToken) {
+			stopXicProgressTimer(token);
+			return;
+		}
+		XicExtractionProgress progress=activeXicProgress;
+		if (progress==null||progress.token!=token) return;
+		if (topChromatogramChart==null||topChromatogramChart.getChart()==null) return;
+		XYPlot plot=topChromatogramChart.getChart().getXYPlot();
+		if (plot==null) return;
+
+		int startIndex;
+		int endIndex;
+		float progressMax;
+		synchronized (progress.lock) {
+			startIndex=progress.flushedCount;
+			int extracted=progress.extractedCount;
+			endIndex=flushAll?progress.xMinutes.length:extracted;
+			if (endIndex<startIndex) endIndex=startIndex;
+			progress.flushedCount=endIndex;
+			progressMax=progress.maxIntensity;
+		}
+		if (endIndex>startIndex) {
+			int traceCount=Math.min(activeXicTargets.size(), progress.traces.length);
+			for (int t=0; t<traceCount; t++) {
+				if (!(plot.getDataset(t) instanceof XYSeriesCollection seriesCollection)||seriesCollection.getSeriesCount()<=0) continue;
+				XYSeries series=seriesCollection.getSeries(0);
+				series.setNotify(false);
+				for (int i=startIndex; i<endIndex; i++) {
+					double x=progress.xMinutes[i];
+					double y=progress.traces[t][i];
+					if (!Double.isFinite(x)||!Double.isFinite(y)) continue;
+					series.add(x, y, false);
+				}
+				series.setNotify(true);
+			}
+		}
+		if (progressMax!=activeXicMax) {
+			activeXicMax=progressMax;
+			refreshTopChartForCurrentSelection();
+		}
 	}
 
 	private void beginXicExtraction() {
@@ -810,6 +927,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private void resetXicExtractionBusyState() {
+		stopXicProgressTimer(-1L);
+		activeXicProgress=null;
 		activeXicExtractionCount=0;
 		updateXicBusyCursor();
 	}
@@ -868,21 +987,20 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		if (topChromatogramChart==null||topChromatogramChart.getChart()==null) return null;
 		XYPlot plot=topChromatogramChart.getChart().getXYPlot();
 		if (plot==null||plot.getDomainAxis()==null||plot.getRangeAxis()==null) return null;
-		boolean domainAuto=plot.getDomainAxis().isAutoRange();
 		double domainLower=plot.getDomainAxis().getLowerBound();
 		double domainUpper=plot.getDomainAxis().getUpperBound();
 		boolean hasDomainRange=Double.isFinite(domainLower)&&Double.isFinite(domainUpper)&&domainUpper>domainLower;
-		return new ChartAxisView(hasDomainRange, domainAuto, domainLower, domainUpper);
+		return new ChartAxisView(hasDomainRange, domainLower, domainUpper);
 	}
 
 	private void applyTopChartAxisView(ChartAxisView axisView, ExtendedChartPanel chart) {
 		if (axisView==null||chart==null||chart.getChart()==null) return;
 		XYPlot plot=chart.getChart().getXYPlot();
 		if (plot==null||plot.getDomainAxis()==null||plot.getRangeAxis()==null) return;
-		if (axisView.domainAutoRange) {
-			plot.getDomainAxis().setAutoRange(true);
-		} else if (axisView.hasDomainRange) {
+		if (axisView.hasDomainRange) {
 			plot.getDomainAxis().setRange(axisView.domainLower, axisView.domainUpper);
+		} else {
+			plot.getDomainAxis().setAutoRange(true);
 		}
 		plot.getRangeAxis().setAutoRange(true);
 	}
