@@ -165,7 +165,7 @@ public final class PeptideQueryParser {
 
 		String suffix=token.substring(suffixStart);
 		if (suffix.isEmpty()||suffix.charAt(0)!='+') {
-			return new ChargeSplit(token, 1);
+			return new ChargeSplit(token, 2);
 		}
 
 		int charge;

@@ -4,6 +4,7 @@ import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,7 +43,9 @@ import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DocumentFilter;
 
+import org.jfree.chart.annotations.XYAnnotation;
 import org.jfree.chart.annotations.XYBoxAnnotation;
+import org.jfree.chart.annotations.XYLineAnnotation;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.data.xy.XYSeriesCollection;
@@ -129,6 +132,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private XicToleranceOption activeXicTolerance=XicToleranceOption.DEFAULT;
 	private float activeXicMax=0.0f;
 	private boolean xicActive=false;
+	private int activeXicExtractionCount=0;
+	private ExtendedChartPanel topChromatogramChart;
+	private final ArrayList<XYAnnotation> chromatogramSelectionAnnotations=new ArrayList<>();
 
 	private static final class SelectionResult {
 		private final List<AcquiredSpectrum> entries;
@@ -151,6 +157,20 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		private XicExtractionResult(List<XYTrace> traces, float maxIntensity) {
 			this.traces=traces;
 			this.maxIntensity=maxIntensity;
+		}
+	}
+
+	private static final class ChartAxisView {
+		private final boolean hasDomainRange;
+		private final boolean domainAutoRange;
+		private final double domainLower;
+		private final double domainUpper;
+
+		private ChartAxisView(boolean hasDomainRange, boolean domainAutoRange, double domainLower, double domainUpper) {
+			this.hasDomainRange=hasDomainRange;
+			this.domainAutoRange=domainAutoRange;
+			this.domainLower=domainLower;
+			this.domainUpper=domainUpper;
 		}
 	}
 
@@ -495,6 +515,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			activeScanType=selected;
 			updateActiveTicTrace(selected);
 			updateXicControlEnabledState();
+			boolean asyncReextract=false;
 			if (selected.isAll()) {
 				clearXicState();
 				resetScan(currentSelection);
@@ -504,8 +525,12 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 					clearXicState();
 					resetScan(currentSelection);
 				} else {
+					asyncReextract=true;
 					extractXicTracesAsync(targets, getSelectedXicTolerance());
 				}
+			}
+			if (!asyncReextract) {
+				refreshChromatogramChart();
 			}
 		}
 		if (selected.isAll()&&search.isEmpty()) {
@@ -576,7 +601,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private void refreshTopChartForCurrentSelection() {
 		int[] selection=table.getSelectedRows();
 		if (selection.length<=0) {
-			setTopChart(buildChromatogramChart());
+			updateTopChartSelectionMarkers(Float.NaN, Float.NaN);
 			return;
 		}
 		float minRT=Float.MAX_VALUE;
@@ -587,7 +612,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			if (rt<minRT) minRT=rt;
 			if (rt>maxRT) maxRT=rt;
 		}
-		setTopChart(buildChromatogramChart(buildSelectionMarkers(minRT, maxRT)));
+		updateTopChartSelectionMarkers(minRT, maxRT);
 	}
 
 	private void startLoad() {
@@ -635,7 +660,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		model.updateEntries(data.getScans());
 
-		setTopChart(buildChromatogramChart());
+		refreshChromatogramChart(false);
 		updateXicControlEnabledState();
 
 		ExtendedChartPanel iitByRangeChart=BoxPlotGenerator.getBoxplotChart(null, "Precursor Isolation Window", "Ion Injection Time (ms)", data.getIitByRange());
@@ -666,6 +691,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		List<RawBrowserXicUtils.XicTarget> targets=selectTargetsForScanType(parsedTargets, activeScanType);
 		if (targets.isEmpty()) {
 			clearXicState();
+			refreshChromatogramChart();
 			resetScan(currentSelection);
 			return;
 		}
@@ -689,6 +715,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		final ScanTypeFilterOption scanTypeAtRequest=activeScanType;
 		final List<RawBrowserXicUtils.XicTarget> targetCopy=List.copyOf(targets);
 		final XicToleranceOption tolerance=toleranceOption;
+		beginXicExtraction();
 
 		new SwingWorker<XicExtractionResult, Void>() {
 			@Override
@@ -698,17 +725,20 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 			@Override
 			protected void done() {
-				if (token!=xicToken) return;
 				try {
+					if (token!=xicToken) return;
 					XicExtractionResult result=get();
 					activeXicTargets=targetCopy;
 					activeXicTolerance=tolerance;
 					activeXicTraces=result.traces;
 					activeXicMax=result.maxIntensity;
 					xicActive=true;
+					refreshChromatogramChart();
 					resetScan(currentSelection);
 				} catch (Exception ex) {
 					Logger.logException(ex);
+				} finally {
+					endXicExtraction();
 				}
 			}
 		}.execute();
@@ -751,7 +781,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		ArrayList<XYTrace> xicTraces=new ArrayList<>();
 		for (int t=0; t<targets.size(); t++) {
 			RawBrowserXicUtils.XicTarget target=targets.get(t);
-			String label=target.label();
+			String label=String.format(Locale.ROOT, "%s (%.3f m/z)", target.label(), target.mz());
 			xicTraces.add(new XYTrace(xMinutes, traces[t], GraphType.line, label, getXicColor(t), 3.0f));
 		}
 
@@ -765,6 +795,32 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		activeXicTargets=List.of();
 		activeXicTraces=List.of();
 		activeXicMax=0.0f;
+	}
+
+	private void beginXicExtraction() {
+		activeXicExtractionCount++;
+		updateXicBusyCursor();
+	}
+
+	private void endXicExtraction() {
+		if (activeXicExtractionCount>0) {
+			activeXicExtractionCount--;
+		}
+		updateXicBusyCursor();
+	}
+
+	private void resetXicExtractionBusyState() {
+		activeXicExtractionCount=0;
+		updateXicBusyCursor();
+	}
+
+	private void updateXicBusyCursor() {
+		Cursor cursor=(activeXicExtractionCount>0)?Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR):Cursor.getDefaultCursor();
+		setCursor(cursor);
+		if (table!=null) table.setCursor(cursor);
+		if (topChartContainer!=null) topChartContainer.setCursor(cursor);
+		if (topChartContent!=null) topChartContent.setCursor(cursor);
+		if (primaryTabs!=null) primaryTabs.setCursor(cursor);
 	}
 
 	private void updateXicControlEnabledState() {
@@ -785,27 +841,94 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 	private void setTopChart(ExtendedChartPanel chart) {
 		if (topChartContent==null) return;
+		if (topChromatogramChart!=null&&topChromatogramChart!=chart) {
+			clearTopChartSelectionMarkers();
+		}
 		topChartContent.removeAll();
 		topChartContent.add(chart, BorderLayout.CENTER);
+		topChromatogramChart=chart;
+		chromatogramSelectionAnnotations.clear();
 		topChartContent.revalidate();
 		topChartContent.repaint();
 	}
 
-	private XYTraceInterface[] buildSelectionMarkers(float minRT, float maxRT) {
-		ArrayList<XYTraceInterface> markers=new ArrayList<>();
-		float markerMax=Math.max(getActiveChromatogramMax(), 1.0f);
-		if (minRT==maxRT) {
-			markers.add(new XYTrace(new double[] {minRT, minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker", java.awt.Color.black, 2.0f));
-		} else {
-			markers.add(
-					new XYTrace(new double[] {minRT, minRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-min", java.awt.Color.black, 2.0f));
-			markers.add(
-					new XYTrace(new double[] {maxRT, maxRT}, new double[] {0, markerMax}, GraphType.dashedline, "marker-max", java.awt.Color.black, 2.0f));
-		}
-		return markers.toArray(new XYTraceInterface[0]);
+	private void refreshChromatogramChart() {
+		refreshChromatogramChart(true);
 	}
 
-	private ExtendedChartPanel buildChromatogramChart(XYTraceInterface... markerTraces) {
+	private void refreshChromatogramChart(boolean preserveAxisView) {
+		ChartAxisView axisView=preserveAxisView?captureTopChartAxisView():null;
+		ExtendedChartPanel chart=buildChromatogramChart();
+		setTopChart(chart);
+		applyTopChartAxisView(axisView, chart);
+		refreshTopChartForCurrentSelection();
+	}
+
+	private ChartAxisView captureTopChartAxisView() {
+		if (topChromatogramChart==null||topChromatogramChart.getChart()==null) return null;
+		XYPlot plot=topChromatogramChart.getChart().getXYPlot();
+		if (plot==null||plot.getDomainAxis()==null||plot.getRangeAxis()==null) return null;
+		boolean domainAuto=plot.getDomainAxis().isAutoRange();
+		double domainLower=plot.getDomainAxis().getLowerBound();
+		double domainUpper=plot.getDomainAxis().getUpperBound();
+		boolean hasDomainRange=Double.isFinite(domainLower)&&Double.isFinite(domainUpper)&&domainUpper>domainLower;
+		return new ChartAxisView(hasDomainRange, domainAuto, domainLower, domainUpper);
+	}
+
+	private void applyTopChartAxisView(ChartAxisView axisView, ExtendedChartPanel chart) {
+		if (axisView==null||chart==null||chart.getChart()==null) return;
+		XYPlot plot=chart.getChart().getXYPlot();
+		if (plot==null||plot.getDomainAxis()==null||plot.getRangeAxis()==null) return;
+		if (axisView.domainAutoRange) {
+			plot.getDomainAxis().setAutoRange(true);
+		} else if (axisView.hasDomainRange) {
+			plot.getDomainAxis().setRange(axisView.domainLower, axisView.domainUpper);
+		}
+		plot.getRangeAxis().setAutoRange(true);
+	}
+
+	private void clearTopChartSelectionMarkers() {
+		if (topChromatogramChart==null) {
+			chromatogramSelectionAnnotations.clear();
+			return;
+		}
+		XYPlot plot=topChromatogramChart.getChart().getXYPlot();
+		if (plot==null) {
+			chromatogramSelectionAnnotations.clear();
+			return;
+		}
+		for (XYAnnotation annotation : chromatogramSelectionAnnotations) {
+			plot.removeAnnotation(annotation);
+		}
+		chromatogramSelectionAnnotations.clear();
+	}
+
+	private void updateTopChartSelectionMarkers(float minRT, float maxRT) {
+		clearTopChartSelectionMarkers();
+		if (topChromatogramChart==null) return;
+		if (!Float.isFinite(minRT)||!Float.isFinite(maxRT)) return;
+
+		XYPlot plot=topChromatogramChart.getChart().getXYPlot();
+		if (plot==null) return;
+
+		double markerMax=Math.max(getActiveChromatogramMax(), 1.0f);
+		BasicStroke stroke=new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0.0f, new float[] {3.0f, 5.0f}, 0.0f);
+		if (Math.abs(minRT-maxRT)<1e-6) {
+			XYLineAnnotation marker=new XYLineAnnotation(minRT, 0.0, minRT, markerMax, stroke, java.awt.Color.black);
+			chromatogramSelectionAnnotations.add(marker);
+			plot.addAnnotation(marker, false);
+		} else {
+			XYLineAnnotation minMarker=new XYLineAnnotation(minRT, 0.0, minRT, markerMax, stroke, java.awt.Color.black);
+			XYLineAnnotation maxMarker=new XYLineAnnotation(maxRT, 0.0, maxRT, markerMax, stroke, java.awt.Color.black);
+			chromatogramSelectionAnnotations.add(minMarker);
+			chromatogramSelectionAnnotations.add(maxMarker);
+			plot.addAnnotation(minMarker, false);
+			plot.addAnnotation(maxMarker, false);
+		}
+		topChromatogramChart.repaint();
+	}
+
+	private ExtendedChartPanel buildChromatogramChart() {
 		ArrayList<XYTraceInterface> traces=new ArrayList<>();
 		LegendMode legendMode=LegendMode.NONE;
 		String yAxis="TIC";
@@ -818,12 +941,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			tooltip=XIC_TOOLTIP;
 		} else if (activeChromatogram!=null) {
 			traces.add(activeChromatogram);
-		}
-
-		if (markerTraces!=null) {
-			for (XYTraceInterface marker : markerTraces) {
-				traces.add(marker);
-			}
 		}
 
 		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", yAxis, legendMode, traces.toArray(new XYTraceInterface[0]));
@@ -947,7 +1064,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private void resetScan(SelectionResult result) {
 		currentSelection=result;
 		if (result==null||result.entries==null||result.entries.isEmpty()) {
-			setTopChart(buildChromatogramChart());
+			updateTopChartSelectionMarkers(Float.NaN, Float.NaN);
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
 			spectrumSplit.setRightComponent(new JLabel(""));
 			return;
@@ -955,7 +1072,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		AcquiredSpectrum displaySpectrum=result.displaySpectrum;
 		if (displaySpectrum==null) {
-			setTopChart(buildChromatogramChart());
+			updateTopChartSelectionMarkers(Float.NaN, Float.NaN);
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
 			spectrumSplit.setRightComponent(new JLabel(""));
 			return;
@@ -981,7 +1098,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		spectrumHistogram.setToolTipText(HISTOGRAM_TOOLTIP);
 		spectrumSplit.setRightComponent(spectrumHistogram);
 
-		setTopChart(buildChromatogramChart(buildSelectionMarkers(result.minRT, result.maxRT)));
+		updateTopChartSelectionMarkers(result.minRT, result.maxRT);
 
 		applySplitPreferences();
 	}
@@ -1094,6 +1211,11 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 	@Override
 	public void close() throws Exception {
+		if (SwingUtilities.isEventDispatchThread()) {
+			resetXicExtractionBusyState();
+		} else {
+			SwingUtilities.invokeLater(this::resetXicExtractionBusyState);
+		}
 		if (stripe!=null&&stripe.isOpen()) {
 			stripe.close();
 		}

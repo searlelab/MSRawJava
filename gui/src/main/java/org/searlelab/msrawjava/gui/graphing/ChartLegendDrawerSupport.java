@@ -360,7 +360,6 @@ final class ChartLegendDrawerSupport {
 		filterField.getDocument().addDocumentListener(filterListener);
 		chartPanel.addComponentListener(resizeListener);
 		chartPanel.addChartMouseListener(chartMouseListener);
-		System.out.println("[LegendDrawer] ChartMouseListener registered for panel="+chartPanel.getName());
 	}
 
 	private void installHoverListeners() {
@@ -515,9 +514,7 @@ final class ChartLegendDrawerSupport {
 
 	private void selectLegendEntry(String legendKey) {
 		if (legendKey==null||legendKey.isBlank()) return;
-		System.out.println("[LegendDrawer] selectLegendEntry legendKey="+legendKey+" current="+selectedLegendKey);
 		if (legendKey.equals(selectedLegendKey)) {
-			System.out.println("[LegendDrawer] same selection clicked again, clearing selection");
 			clearLegendSelection();
 			return;
 		}
@@ -532,7 +529,6 @@ final class ChartLegendDrawerSupport {
 	}
 
 	private void clearLegendSelection() {
-		System.out.println("[LegendDrawer] clearLegendSelection");
 		selectedLegendKey=null;
 		clearSelectedTraceHalo();
 		for (LegendRow row : legendRows) {
@@ -544,28 +540,20 @@ final class ChartLegendDrawerSupport {
 	private void handleChartClick(ChartMouseEvent event) {
 		if (event==null) return;
 		MouseEvent trigger=event.getTrigger();
-		String clickPoint=trigger==null?"(unknown)":("("+trigger.getX()+","+trigger.getY()+")");
 		ChartEntity entity=event.getEntity();
-		System.out.println("[LegendDrawer] chart click at "+clickPoint+" entity="+(entity==null?"null":entity.getClass().getSimpleName()));
 		JFreeChart chart=chartPanel.getChart();
 		if (!(chart!=null&&chart.getPlot() instanceof XYPlot xyPlot)) return;
 		if (entity instanceof XYItemEntity xyEntity) {
 			XYDataset dataset=xyEntity.getDataset();
 			if (dataset==null) return;
 			int datasetIndex=resolveDatasetIndex(xyPlot, dataset);
-			System.out.println("[LegendDrawer] XYItemEntity series="+xyEntity.getSeriesIndex()+" item="+xyEntity.getItem()+
-					" resolvedDatasetIndex="+datasetIndex+" legendRows="+legendRows.size());
 			if (datasetIndex>=0) {
 				selectLegendEntryFromTrace(datasetIndex, xyEntity.getSeriesIndex());
 				return;
 			}
 		}
 		TraceHit hit=findNearestTraceHit(xyPlot, trigger);
-		if (hit==null) {
-			System.out.println("[LegendDrawer] no trace hit for click");
-			return;
-		}
-		System.out.println("[LegendDrawer] fallback trace hit dataset="+hit.datasetIndex+" series="+hit.seriesIndex+" distancePx="+Math.sqrt(hit.distanceSq));
+		if (hit==null) return;
 		selectLegendEntryFromTrace(hit.datasetIndex, hit.seriesIndex);
 	}
 
@@ -628,11 +616,7 @@ final class ChartLegendDrawerSupport {
 
 	private void selectLegendEntryFromTrace(int datasetIndex, int seriesIndex) {
 		LegendRow row=findLegendRowForTrace(datasetIndex, seriesIndex);
-		if (row==null) {
-			System.out.println("[LegendDrawer] no legend row match for dataset="+datasetIndex+" series="+seriesIndex);
-			return;
-		}
-		System.out.println("[LegendDrawer] matched legend row key="+row.legendKey+" label="+row.normalizedLabel);
+		if (row==null) return;
 		selectLegendEntry(row.legendKey);
 	}
 

@@ -14,7 +14,7 @@ class PeptideQueryParserTest {
 
 	@Test
 	void parseChargeSuffixes_supportsNumericAndPlusNotation() {
-		assertCharge("PEPTIDE", 1);
+		assertCharge("PEPTIDE", 2);
 		assertCharge("PEPTIDE+2", 2);
 		assertCharge("PEPTIDE++", 2);
 		assertCharge("PEPTIDE+3", 3);
@@ -44,7 +44,7 @@ class PeptideQueryParserTest {
 		Optional<ParsedPeptideQuery> parsed=parser.parsePeptide("_LTDC[Carbamidomethyl (C)]VVM[Oxidation (M)]R_");
 		assertTrue(parsed.isPresent());
 		assertEquals("LTDCVVMR", parsed.get().getSequence());
-		assertEquals(1, parsed.get().getPrecursorCharge());
+		assertEquals(2, parsed.get().getPrecursorCharge());
 
 		double[] shifts=parsed.get().getResidueMassShifts();
 		assertEquals(57.021464, shifts[3], 1e-9);

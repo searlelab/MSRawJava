@@ -35,13 +35,17 @@ class PeptideIonGeneratorTest {
 	void generateFragmentTargets_buildsBYLaddersWithChargeBounds() {
 		ParsedPeptideQuery peptide=parser.parsePeptide("PEPTIDE+3").orElseThrow();
 		List<PeptideIonTarget> fragments=generator.generateFragmentTargets(peptide);
-		// length=7 -> 6 cuts, b+y for each cut, z=1 and z=2
+		// length=7 -> 6 cuts, ordered as: b1+..b6+, y1+..y6+, b1++..b6++, y1++..y6++
 		assertEquals(24, fragments.size());
 		assertTrue(fragments.stream().allMatch(t -> t.getCharge()>=1&&t.getCharge()<=2));
-		assertTrue(fragments.stream().anyMatch(t -> t.getLabel().contains(" b1+")));
-		assertTrue(fragments.stream().anyMatch(t -> t.getLabel().contains(" y6+")));
-		assertTrue(fragments.stream().anyMatch(t -> t.getLabel().contains(" b3++")));
-		assertTrue(fragments.stream().anyMatch(t -> t.getLabel().contains(" y4++")));
+		assertEquals("PEPTIDE+3 b1+", fragments.get(0).getLabel());
+		assertEquals("PEPTIDE+3 b6+", fragments.get(5).getLabel());
+		assertEquals("PEPTIDE+3 y1+", fragments.get(6).getLabel());
+		assertEquals("PEPTIDE+3 y6+", fragments.get(11).getLabel());
+		assertEquals("PEPTIDE+3 b1++", fragments.get(12).getLabel());
+		assertEquals("PEPTIDE+3 b6++", fragments.get(17).getLabel());
+		assertEquals("PEPTIDE+3 y1++", fragments.get(18).getLabel());
+		assertEquals("PEPTIDE+3 y6++", fragments.get(23).getLabel());
 	}
 
 	@Test

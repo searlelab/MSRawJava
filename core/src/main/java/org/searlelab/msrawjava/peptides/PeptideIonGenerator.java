@@ -32,6 +32,7 @@ public final class PeptideIonGenerator {
 		if (fragmentChargeMax<1) return List.of();
 
 		int length=peptide.length();
+		int cutCount=length-1;
 		double[] residueNeutralMasses=new double[length];
 		double totalResidueNeutral=0.0;
 		for (int i=0; i<length; i++) {
@@ -40,24 +41,28 @@ public final class PeptideIonGenerator {
 			totalResidueNeutral+=mass;
 		}
 
-		ArrayList<PeptideIonTarget> targets=new ArrayList<>();
+		double[] bNeutralByIndex=new double[cutCount+1];
+		double[] yNeutralByIndex=new double[cutCount+1];
 		double prefixNeutral=0.0;
-		String prefix=peptide.getSequence()+"+"+precursorCharge+" ";
-		for (int cut=1; cut<length; cut++) {
+		for (int cut=1; cut<=cutCount; cut++) {
 			prefixNeutral+=residueNeutralMasses[cut-1];
 			double suffixNeutral=totalResidueNeutral-prefixNeutral;
-
-			double bNeutral=prefixNeutral+peptide.getNTermMassShift();
-			int bIndex=cut;
-
-			double yNeutral=suffixNeutral+PeptideMassConstants.WATER_MASS;
 			int yIndex=length-cut;
+			bNeutralByIndex[cut]=prefixNeutral+peptide.getNTermMassShift();
+			yNeutralByIndex[yIndex]=suffixNeutral+PeptideMassConstants.WATER_MASS;
+		}
 
-			for (int z=1; z<=fragmentChargeMax; z++) {
+		ArrayList<PeptideIonTarget> targets=new ArrayList<>(cutCount*2*fragmentChargeMax);
+		String prefix=peptide.getSequence()+"+"+precursorCharge+" ";
+		for (int z=1; z<=fragmentChargeMax; z++) {
+			for (int bIndex=1; bIndex<=cutCount; bIndex++) {
+				double bNeutral=bNeutralByIndex[bIndex];
 				double bMz=(bNeutral+(z*PeptideMassConstants.PROTON_MASS))/z;
 				String bLabel=prefix+"b"+bIndex+chargeSuffix(z);
 				targets.add(new PeptideIonTarget(bMz, bLabel, peptide.getOriginalToken(), PeptideIonTarget.IonKind.B_ION, -1, bIndex, z));
-
+			}
+			for (int yIndex=1; yIndex<=cutCount; yIndex++) {
+				double yNeutral=yNeutralByIndex[yIndex];
 				double yMz=(yNeutral+(z*PeptideMassConstants.PROTON_MASS))/z;
 				String yLabel=prefix+"y"+yIndex+chargeSuffix(z);
 				targets.add(new PeptideIonTarget(yMz, yLabel, peptide.getOriginalToken(), PeptideIonTarget.IonKind.Y_ION, -1, yIndex, z));

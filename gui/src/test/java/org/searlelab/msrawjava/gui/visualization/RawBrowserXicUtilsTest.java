@@ -29,6 +29,20 @@ class RawBrowserXicUtilsTest {
 	}
 
 	@Test
+	void parseXicTargets_ordersFragmentIonsForLegend() {
+		RawBrowserXicUtils.ParsedXicTargets parsed=RawBrowserXicUtils.parseXicTargets("PEPTIDE+3");
+		assertEquals(24, parsed.fragmentTargets().size());
+		assertEquals("PEPTIDE+3 b1+", parsed.fragmentTargets().get(0).label());
+		assertEquals("PEPTIDE+3 b6+", parsed.fragmentTargets().get(5).label());
+		assertEquals("PEPTIDE+3 y1+", parsed.fragmentTargets().get(6).label());
+		assertEquals("PEPTIDE+3 y6+", parsed.fragmentTargets().get(11).label());
+		assertEquals("PEPTIDE+3 b1++", parsed.fragmentTargets().get(12).label());
+		assertEquals("PEPTIDE+3 b6++", parsed.fragmentTargets().get(17).label());
+		assertEquals("PEPTIDE+3 y1++", parsed.fragmentTargets().get(18).label());
+		assertEquals("PEPTIDE+3 y6++", parsed.fragmentTargets().get(23).label());
+	}
+
+	@Test
 	void sanitizeXicPasteChunk_normalizesLineBreaksAndDelimiterRuns() {
 		String chunk="445.34,\nPEPTIDER++\t[Oxidation (M)]   ,, 500.2";
 		String sanitized=RawBrowserXicUtils.sanitizeXicPasteChunk(chunk);
