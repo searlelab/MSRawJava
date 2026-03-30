@@ -68,6 +68,7 @@ import javax.swing.table.TableRowSorter;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.gui.GUIPreferences;
+import org.searlelab.msrawjava.gui.utils.PathDisplayNames;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -798,7 +799,7 @@ public class DirectorySummaryPanel extends JPanel {
 
 		private DirRow(Path p, VendorFile v, long size, Date lastModified) {
 			this.path=p;
-			this.fileName=p.getFileName().toString();
+			this.fileName=PathDisplayNames.displayNameFor(p);
 			this.fileNameLower=fileName.toLowerCase(Locale.ROOT);
 			this.vendor=v;
 			this.sizeBytes=Math.max(0L, size);

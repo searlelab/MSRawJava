@@ -44,6 +44,7 @@ import javax.swing.table.JTableHeader;
 
 import org.searlelab.msrawjava.COREPreferences;
 import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
+import org.searlelab.msrawjava.gui.utils.PathDisplayNames;
 import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
@@ -461,7 +462,7 @@ public class ConversionPane extends JPanel {
 		@Override
 		public Object getValueAt(int r, int c) {
 			ConversionJob j=jobs.get(r);
-			return (c==0)?j.input.getFileName().toString():j.progress;
+			return (c==0)?PathDisplayNames.displayNameFor(j.input):j.progress;
 		}
 
 		void enqueue(ConversionJob j) {
@@ -726,7 +727,7 @@ public class ConversionPane extends JPanel {
 		}
 
 		private java.nio.file.Path resolveOutputOverride(VendorFile source, Path input, Path outputDir, OutputType outType, boolean demultiplex) {
-			String name=input.getFileName().toString();
+			String name=PathDisplayNames.displayNameFor(input);
 			boolean isDiaInput=VendorFile.ENCYCLOPEDIA.matchesName(name);
 			boolean isMzmlInput=VendorFile.MZML.matchesName(name);
 			if (demultiplex&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA||source==VendorFile.MZML)) {
