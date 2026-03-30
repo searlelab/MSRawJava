@@ -230,7 +230,10 @@ public class RawFileBrowser extends JFrame {
 					panel.getTable().setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 					return panel;
 				} catch (Throwable t) {
-					return new JLabel("Error scanning directory: "+t.getMessage());
+					String message="Error scanning directory: "+t.getMessage();
+					Logger.errorLine(message);
+					Logger.errorException(t);
+					return new JLabel(message);
 				}
 			}
 
@@ -254,6 +257,8 @@ public class RawFileBrowser extends JFrame {
 						setTopComponent(top!=null?top:new JPanel());
 					}
 				} catch (Exception ex) {
+					Logger.errorLine("Cannot build directory table.");
+					Logger.errorException(ex);
 					setTopComponent(new JLabel("Cannot build directory table."));
 				}
 			}

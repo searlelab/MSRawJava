@@ -18,6 +18,7 @@ import javax.swing.SwingWorker;
 import javax.swing.Timer;
 
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
+import org.searlelab.msrawjava.logging.Logger;
 
 /**
  * Panel showing reader status and progress updates.
@@ -106,6 +107,7 @@ public class ReaderStatusPanel extends JPanel {
 				try {
 					ok=get();
 				} catch (Exception ignored) {
+					Logger.errorException(ignored);
 					ok=false;
 				}
 				brukerLine.setState(ok?StatusState.OK:StatusState.ERROR);
@@ -119,6 +121,7 @@ public class ReaderStatusPanel extends JPanel {
 			Class.forName("org.searlelab.msrawjava.io.tims.TimsNative", true, ReaderStatusPanel.class.getClassLoader());
 			return true;
 		} catch (Throwable t) {
+			Logger.errorException(t);
 			return false;
 		}
 	}

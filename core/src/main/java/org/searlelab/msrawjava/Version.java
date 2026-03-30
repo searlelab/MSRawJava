@@ -77,6 +77,7 @@ public class Version implements Comparable<Version> {
 			if (in==null) return null;
 			return new Manifest(in);
 		} catch (IOException e) {
+			Logger.errorException(e);
 			return null;
 		}
 	}

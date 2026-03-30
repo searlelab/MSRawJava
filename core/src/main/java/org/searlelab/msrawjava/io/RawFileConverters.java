@@ -153,7 +153,7 @@ public class RawFileConverters {
 				try {
 					writer.shutdownNow();
 				} catch (Throwable t) {
-					/* ignore */
+					Logger.errorException(t);
 				}
 			}
 		}
@@ -373,16 +373,19 @@ public class RawFileConverters {
 			try {
 				rawFile.close();
 			} catch (Throwable t) {
-				/* ignore */ }
+				Logger.errorException(t);
+			}
 			try {
 				outFile.close();
 			} catch (Throwable t) {
-				/* ignore */ }
+				Logger.errorException(t);
+			}
 			if (writer!=null) {
 				try {
 					writer.shutdownNow();
 				} catch (Throwable t) {
-					/* ignore */ }
+					Logger.errorException(t);
+				}
 			}
 		}
 	}
@@ -623,7 +626,7 @@ public class RawFileConverters {
 			try {
 				writer.shutdownNow();
 			} catch (Throwable t) {
-				/* ignore */
+				Logger.errorException(t);
 			}
 		}
 	}

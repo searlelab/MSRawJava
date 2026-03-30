@@ -239,6 +239,8 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 					ranges.put(new Range(start, stop), new WindowData(dutyCycle, numWindows, range, rtRange));
 				}
+			} catch (SQLException sqle) {
+				Logger.errorLine("Unexpected error reading ranges from "+getFile()+", suggests potential file corruption!");
 			} finally {
 				s.close();
 			}
@@ -693,16 +695,19 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		Connection c=getConnection();
 		try {
 			Statement s=c.createStatement();
+			HashMap<String, String> map=new HashMap<String, String>();
 			try {
 				ResultSet rs=s.executeQuery("select Key, Value from metadata");
 
-				HashMap<String, String> map=new HashMap<String, String>();
 				while (rs.next()) {
 					String key=rs.getString(1);
 					String value=rs.getString(2);
 					map.put(key, value);
 				}
 
+				return map;
+			} catch (SQLException sqle) {
+				Logger.errorLine("Unexpected error reading metadata from "+getFile()+", suggests potential file corruption!");
 				return map;
 			} finally {
 				s.close();

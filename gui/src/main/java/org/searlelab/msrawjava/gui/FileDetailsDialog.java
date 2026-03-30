@@ -30,6 +30,7 @@ import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
+import org.searlelab.msrawjava.logging.Logger;
 
 /**
  * Dialog for inspecting file metadata and scan details.
@@ -158,6 +159,7 @@ public class FileDetailsDialog {
 						try {
 							stripe.close();
 						} catch (Throwable ignore) {
+							Logger.errorException(ignore);
 						}
 					}
 					throw e;
@@ -174,6 +176,7 @@ public class FileDetailsDialog {
 							try {
 								cancelled.stripe.close();
 							} catch (Throwable ignore) {
+								Logger.errorException(ignore);
 							}
 						}
 						dlg.dispose();
@@ -190,7 +193,7 @@ public class FileDetailsDialog {
 					dlg.revalidate();
 					dlg.repaint();
 				} catch (Exception ex) {
-					org.searlelab.msrawjava.logging.Logger.logException(ex);
+					Logger.logException(ex);
 					dlg.setContentPane(new JLabel("Cannot parse file!"));
 					dlg.revalidate();
 					dlg.repaint();
@@ -212,6 +215,7 @@ public class FileDetailsDialog {
 					try {
 						panelRef[0].close();
 					} catch (Throwable ignore) {
+						Logger.errorException(ignore);
 					}
 				}
 			}

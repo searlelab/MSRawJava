@@ -24,6 +24,7 @@ import java.util.Optional;
 import org.searlelab.msrawjava.Version;
 import org.searlelab.msrawjava.io.mzml.MzmlBinaryUtils;
 import org.searlelab.msrawjava.io.utils.StreamCopy;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -127,6 +128,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 				out.close();
 			}
 		} catch (Exception ignore) {
+			Logger.errorException(ignore);
 		} finally {
 			out=null;
 		}

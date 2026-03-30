@@ -27,6 +27,7 @@ import javax.xml.stream.XMLStreamReader;
 
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -842,7 +843,7 @@ public class MzmlFile implements StripeFileInterface {
 			try {
 				spectrumCursorReader.close();
 			} catch (Exception e) {
-				/* ignore */
+				Logger.errorException(e);
 			}
 			spectrumCursorReader=null;
 		}
@@ -850,7 +851,7 @@ public class MzmlFile implements StripeFileInterface {
 			try {
 				spectrumCursorInput.close();
 			} catch (Exception e) {
-				/* ignore */
+				Logger.errorException(e);
 			}
 			spectrumCursorInput=null;
 		}

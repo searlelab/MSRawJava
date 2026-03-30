@@ -18,6 +18,7 @@ import javax.swing.filechooser.FileFilter;
 import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanelShowcaseDialog;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFiles;
+import org.searlelab.msrawjava.logging.Logger;
 
 /**
  * Builds and wires application menu actions.
@@ -155,6 +156,7 @@ public final class MenuManager {
 		try {
 			Desktop.getDesktop().setAboutHandler(e -> HowToCiteDialog.showDialog(browser));
 		} catch (UnsupportedOperationException ignore) {
+			Logger.errorException(ignore);
 		}
 	}
 

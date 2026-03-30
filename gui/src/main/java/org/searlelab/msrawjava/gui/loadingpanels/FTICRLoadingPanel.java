@@ -30,6 +30,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import org.searlelab.msrawjava.logging.Logger;
 
 /** FT-ICR loader: curved plates with phase difference, ions mid/outer radius (big=slower), FFT with m/z ticks. */
 public class FTICRLoadingPanel extends LoadingPanel {
@@ -478,6 +479,7 @@ public class FTICRLoadingPanel extends LoadingPanel {
 		try {
 			FlatLightLaf.setup();
 		} catch (Throwable ignore) {
+			Logger.errorException(ignore);
 		}
 
 		SwingUtilities.invokeLater(() -> {
@@ -497,6 +499,7 @@ public class FTICRLoadingPanel extends LoadingPanel {
 					try {
 						panel.stop();
 					} catch (Throwable ignore) {
+						Logger.errorException(ignore);
 					}
 				}
 			});

@@ -31,6 +31,7 @@ import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.TicRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.WindowRange;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -277,7 +278,7 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 				stub.withDeadlineAfter(3, TimeUnit.SECONDS).close(CloseRequest.newBuilder().setSessionId(sessionId).build());
 			}
 		} catch (Exception ignored) {
-			// swallow on close
+			Logger.errorException(ignored);
 		} finally {
 			try {
 				if (channel!=null) {
@@ -290,6 +291,7 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 			} catch (InterruptedException ie) {
 				Thread.currentThread().interrupt();
 			} catch (Exception ignored) {
+				Logger.errorException(ignored);
 			}
 		}
 	}

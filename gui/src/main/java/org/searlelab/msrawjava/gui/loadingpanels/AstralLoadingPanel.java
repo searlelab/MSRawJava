@@ -37,6 +37,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import org.searlelab.msrawjava.logging.Logger;
 
 /**
  * Astral educational loading panel:
@@ -703,6 +704,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 		try {
 			FlatLightLaf.setup();
 		} catch (Throwable ignore) {
+			Logger.errorException(ignore);
 		}
 
 		SwingUtilities.invokeLater(() -> {
@@ -721,6 +723,7 @@ public class AstralLoadingPanel extends LoadingPanel {
 					try {
 						panel.stop();
 					} catch (Throwable ignore) {
+						Logger.errorException(ignore);
 					}
 				}
 			});

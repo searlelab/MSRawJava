@@ -16,6 +16,7 @@ import java.util.HashMap;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.xml.sax.Attributes;
@@ -79,17 +80,17 @@ final class MzmlSaxSpectrumStreamer extends DefaultHandler {
 		try {
 			factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
 		} catch (Exception e) {
-			/* best effort */
+			Logger.errorException(e);
 		}
 		try {
 			factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
 		} catch (Exception e) {
-			/* best effort */
+			Logger.errorException(e);
 		}
 		try {
 			factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
 		} catch (Exception e) {
-			/* best effort */
+			Logger.errorException(e);
 		}
 	}
 

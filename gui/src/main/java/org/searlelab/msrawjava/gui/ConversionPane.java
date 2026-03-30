@@ -206,6 +206,7 @@ public class ConversionPane extends JPanel {
 		try {
 			outTypeBox.setSelectedItem(OutputType.valueOf(savedType));
 		} catch (Exception ignore) {
+			Logger.errorException(ignore);
 		}
 		outTypeBox.addActionListener(e -> {
 			OutputType sel=(OutputType)outTypeBox.getSelectedItem();
@@ -715,6 +716,7 @@ public class ConversionPane extends JPanel {
 					update("Failed", 1f);
 				}
 			} catch (Throwable t) {
+				Logger.errorException(t);
 				state=cancelRequested?JobState.CANCELED:JobState.FAILED;
 				success=false;
 				update((cancelRequested?"Canceled":("Failed: "+t.getMessage())), 1f);

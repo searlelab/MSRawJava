@@ -47,10 +47,13 @@ public enum VendorFile {
 
 	public boolean matchesPath(Path path) {
 		if (path==null) return false;
+		Path fileName=path.getFileName();
+		if (fileName==null) return false;
+		String name=fileName.toString();
 		if (directoryBundle) {
-			return Files.isDirectory(path)&&matchesName(path.getFileName().toString());
+			return Files.isDirectory(path)&&matchesName(name);
 		}
-		return Files.isRegularFile(path)&&matchesName(path.getFileName().toString());
+		return Files.isRegularFile(path)&&matchesName(name);
 	}
 
 	public static Optional<VendorFile> fromPath(Path path) {

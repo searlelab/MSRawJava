@@ -123,6 +123,7 @@ public final class ThermoServerPool {
 					try {
 						launcher.close();
 					} catch (Exception ignored) {
+						Logger.errorException(ignored);
 					}
 				}
 			});

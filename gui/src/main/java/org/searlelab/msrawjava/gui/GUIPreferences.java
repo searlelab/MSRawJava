@@ -112,6 +112,7 @@ public final class GUIPreferences {
 				}
 			}
 		} catch (Exception ignore) {
+			Logger.errorException(ignore);
 		}
 	}
 
@@ -129,6 +130,7 @@ public final class GUIPreferences {
 				SortOrder order=SortOrder.valueOf(pieces[1]);
 				keys.add(new RowSorter.SortKey(col, order));
 			} catch (Exception ignore) {
+				Logger.errorException(ignore);
 			}
 		}
 		return keys;
@@ -165,6 +167,7 @@ public final class GUIPreferences {
 			try {
 				order.add(Integer.parseInt(part));
 			} catch (Exception ignore) {
+				Logger.errorException(ignore);
 			}
 		}
 		return order;
@@ -205,6 +208,7 @@ public final class GUIPreferences {
 				int width=Integer.parseInt(pieces[1]);
 				if (width>0) widths.put(col, width);
 			} catch (Exception ignore) {
+				Logger.errorException(ignore);
 			}
 		}
 		return widths;

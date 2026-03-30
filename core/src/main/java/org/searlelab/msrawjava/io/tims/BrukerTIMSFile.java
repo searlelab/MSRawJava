@@ -391,10 +391,12 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		try {
 			reader.close();
 		} catch (Exception ignore) {
+			Logger.errorException(ignore);
 		}
 		try {
 			conn.close();
 		} catch (Exception ignore) {
+			Logger.errorException(ignore);
 		}
 		open=false;
 	}
@@ -438,7 +440,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				}
 			}
 		} catch (SQLException sqle) {
-			// ignore
+			Logger.errorException(sqle);
 		}
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT MIN(t1), AVG(t1), MAX(t1), MIN(t2), AVG(t2), MAX(t2) FROM Frames")) {
@@ -453,7 +455,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				}
 			}
 		} catch (SQLException sqle) {
-			// ignore
+			Logger.errorException(sqle);
 		}
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT AVG(CASE WHEN MsMsType=0 THEN AccumulationTime END), "
@@ -466,7 +468,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 				}
 			}
 		} catch (SQLException sqle) {
-			// ignore
+			Logger.errorException(sqle);
 		}
 
 		if (tableExists("DiaFrameMsMsWindows")) {
@@ -477,12 +479,12 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			try (PreparedStatement ps1=conn.prepareStatement(cntSql); ResultSet r1=ps1.executeQuery()) {
 				if (r1.next()) out.put("dia.windows.count", Integer.toString(r1.getInt(1)));
 			} catch (SQLException sqle) {
-				// ignore
+				Logger.errorException(sqle);
 			}
 			try (PreparedStatement ps2=conn.prepareStatement(wgSql); ResultSet r2=ps2.executeQuery()) {
 				if (r2.next()) out.put("dia.windowGroups.count", Integer.toString(r2.getInt(1)));
 			} catch (SQLException sqle) {
-				// ignore
+				Logger.errorException(sqle);
 			}
 			try (PreparedStatement ps3=conn.prepareStatement(spanSql); ResultSet r3=ps3.executeQuery()) {
 				if (r3.next()) {
@@ -491,7 +493,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					out.put("dia.window.avgWidth", Double.toString(r3.getDouble(3)));
 				}
 			} catch (SQLException sqle) {
-				// ignore
+				Logger.errorException(sqle);
 			}
 		}
 
@@ -505,7 +507,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					out.put("dda.window.avgWidth", Double.toString(rs.getDouble(4)));
 				}
 			} catch (SQLException sqle) {
-				// ignore
+				Logger.errorException(sqle);
 			}
 		}
 
@@ -520,7 +522,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 					}
 				}
 			} catch (SQLException sqle) {
-				// ignore
+				Logger.errorException(sqle);
 			}
 		}
 		metadata=out;
@@ -545,6 +547,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			scanWindowLower=Double.parseDouble(meta.get("meta.MzAcqRangeLower"));
 			scanWindowUpper=Double.parseDouble(meta.get("meta.MzAcqRangeUpper"));
 		} catch (Exception e) {
+			Logger.errorException(e);
 			scanWindowLower=0.0;
 			scanWindowUpper=2000.0;
 		}
@@ -596,6 +599,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			scanWindowLower=Double.parseDouble(meta.get("meta.MzAcqRangeLower"));
 			scanWindowUpper=Double.parseDouble(meta.get("meta.MzAcqRangeUpper"));
 		} catch (Exception e) {
+			Logger.errorException(e);
 			scanWindowLower=0.0;
 			scanWindowUpper=2000.0;
 		}
@@ -757,6 +761,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			scanWindowLower=Double.parseDouble(meta.get("meta.MzAcqRangeLower"));
 			scanWindowUpper=Double.parseDouble(meta.get("meta.MzAcqRangeUpper"));
 		} catch (Exception e) {
+			Logger.errorException(e);
 			scanWindowLower=0.0;
 			scanWindowUpper=2000.0;
 		}
@@ -895,6 +900,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			scanWindowLower=Double.parseDouble(meta.get("meta.MzAcqRangeLower"));
 			scanWindowUpper=Double.parseDouble(meta.get("meta.MzAcqRangeUpper"));
 		} catch (Exception e) {
+			Logger.errorException(e);
 			scanWindowLower=0.0;
 			scanWindowUpper=2000.0;
 		}

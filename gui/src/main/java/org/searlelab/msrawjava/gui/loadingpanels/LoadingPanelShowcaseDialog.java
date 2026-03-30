@@ -18,6 +18,8 @@ import javax.swing.SwingUtilities;
 
 import javax.swing.JFrame;
 
+import org.searlelab.msrawjava.logging.Logger;
+
 public class LoadingPanelShowcaseDialog extends JDialog {
 	private static final long serialVersionUID=1L;
 
@@ -73,6 +75,7 @@ public class LoadingPanelShowcaseDialog extends JDialog {
 		try {
 			com.formdev.flatlaf.FlatLightLaf.setup();
 		} catch (Throwable ignore) {
+			Logger.errorException(ignore);
 		}
 		SwingUtilities.invokeLater(() -> {
 			LoadingPanelShowcaseDialog dialog=new LoadingPanelShowcaseDialog(null);

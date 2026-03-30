@@ -20,6 +20,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import org.searlelab.msrawjava.logging.Logger;
+
 /**
  * ResourceTreeExtractor copies a packaged resource directory (on the classpath) to a writable filesystem location,
  * preserving the tree structure and basic metadata. It exists to stage bundled assets—such as native libraries or the
@@ -118,6 +120,7 @@ public final class ResourceTreeExtractor {
 				Files.setPosixFilePermissions(file, perms);
 			}
 		} catch (Exception ignored) {
+			Logger.errorException(ignored);
 		}
 	}
 }

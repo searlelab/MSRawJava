@@ -31,6 +31,8 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 
+import org.searlelab.msrawjava.logging.Logger;
+
 /** Quadrupole mass filter loader: wide, short analyzer; very wide passband; 10 peptide-like ions (m/z 400–1000). */
 public class QuadrupoleLoadingPanel extends LoadingPanel {
 	private static final long serialVersionUID=1L;
@@ -87,6 +89,7 @@ public class QuadrupoleLoadingPanel extends LoadingPanel {
 		try {
 			com.formdev.flatlaf.FlatLightLaf.setup();
 		} catch (Throwable ignore) {
+			Logger.errorException(ignore);
 		}
 		SwingUtilities.invokeLater(() -> {
 			JFrame f=new JFrame("Quadrupole Mass Filter — peptides 400–1000 m/z");

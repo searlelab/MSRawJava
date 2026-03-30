@@ -162,6 +162,7 @@ final class GrpcServerLauncher implements AutoCloseable {
 					output.flush();
 				}
 			} catch (IOException ignored) {
+				Logger.errorException(ignored);
 			}
 		}, name);
 		t.setDaemon(true);
@@ -189,6 +190,7 @@ final class GrpcServerLauncher implements AutoCloseable {
 		try {
 			if (proc!=null) proc.destroy();
 		} catch (Exception ignored) {
+			Logger.errorException(ignored);
 		}
 		// Clean up temp directory tree
 		if (workDir!=null) {
@@ -197,9 +199,11 @@ final class GrpcServerLauncher implements AutoCloseable {
 					try {
 						Files.deleteIfExists(p);
 					} catch (Exception ignored) {
+						Logger.errorException(ignored);
 					}
 				});
 			} catch (Exception ignored) {
+				Logger.errorException(ignored);
 			}
 		}
 	}

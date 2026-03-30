@@ -34,6 +34,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import org.searlelab.msrawjava.logging.Logger;
 
 /**
  * Teaching panel for TOF-MS with a reflectron and scan-averaged spectrum.
@@ -606,6 +607,7 @@ public class TOFLoadingPanel extends LoadingPanel {
 		try {
 			FlatLightLaf.setup();
 		} catch (Throwable ignore) {
+			Logger.errorException(ignore);
 		}
 
 		SwingUtilities.invokeLater(() -> {
@@ -625,6 +627,7 @@ public class TOFLoadingPanel extends LoadingPanel {
 					try {
 						panel.stop();
 					} catch (Throwable ignore) {
+						Logger.errorException(ignore);
 					}
 				}
 			});

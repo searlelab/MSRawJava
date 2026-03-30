@@ -361,6 +361,7 @@ public class DirectorySummaryPanel extends JPanel {
 					VendorFile vendor=VendorFile.valueOf(saved);
 					vendorFilter.setSelectedItem(vendor);
 				} catch (IllegalArgumentException ignore) {
+					Logger.errorException(ignore);
 					vendorFilter.setSelectedItem(VENDOR_ALL);
 				}
 			}
@@ -491,6 +492,7 @@ public class DirectorySummaryPanel extends JPanel {
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
+				Logger.errorException(ignore);
 				row.spark=FAILED;
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
@@ -498,6 +500,7 @@ public class DirectorySummaryPanel extends JPanel {
 				try {
 					if (dia!=null) dia.close();
 				} catch (Throwable t) {
+					Logger.errorException(t);
 				}
 			}
 		} else if (row.vendor==VendorFile.MZML) {
@@ -512,6 +515,7 @@ public class DirectorySummaryPanel extends JPanel {
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
+				Logger.errorException(ignore);
 				row.spark=FAILED;
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
@@ -519,6 +523,7 @@ public class DirectorySummaryPanel extends JPanel {
 				try {
 					mzml.close();
 				} catch (Throwable t) {
+					Logger.errorException(t);
 				}
 			}
 		} else if (row.vendor==VendorFile.THERMO) {
@@ -533,6 +538,7 @@ public class DirectorySummaryPanel extends JPanel {
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
+				Logger.errorException(ignore);
 				row.spark=FAILED;
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
@@ -540,6 +546,7 @@ public class DirectorySummaryPanel extends JPanel {
 				try {
 					raw.close();
 				} catch (Throwable t) {
+					Logger.errorException(t);
 				}
 			}
 		} else {
@@ -554,6 +561,7 @@ public class DirectorySummaryPanel extends JPanel {
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
 			} catch (Throwable ignore) {
+				Logger.errorException(ignore);
 				row.spark=FAILED;
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
@@ -561,6 +569,7 @@ public class DirectorySummaryPanel extends JPanel {
 				try {
 					raw.close();
 				} catch (Throwable t) {
+					Logger.errorException(t);
 				}
 			}
 		}

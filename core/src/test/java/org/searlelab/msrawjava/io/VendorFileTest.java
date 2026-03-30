@@ -56,4 +56,9 @@ class VendorFileTest {
 
 		assertEquals(4, VendorFile.list().size());
 	}
+
+	@Test
+	void matchesPath_returnsFalseWhenPathHasNoFileName() {
+		assertFalse(VendorFile.BRUKER.matchesPath(Path.of("/")));
+	}
 }
