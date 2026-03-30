@@ -19,6 +19,5 @@ class DirectorySummaryPanelTest {
 
 		assertEquals(1, panel.getTable().getRowCount());
 		assertEquals(root.toString(), panel.getTable().getValueAt(0, 1));
-		panel.close();
 	}
 }
