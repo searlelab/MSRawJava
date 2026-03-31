@@ -81,6 +81,10 @@ import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.Logger;
 
+import io.grpc.Status;
+import io.grpc.StatusException;
+import io.grpc.StatusRuntimeException;
+
 /** Small, streaming table that summarizes raw files in a directory. */
 public class DirectorySummaryPanel extends JPanel {
 	private static final long serialVersionUID=1L;
@@ -93,6 +97,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final java.util.Set<String> EXPECTED_SLOW_BITS_FAILURES_LOGGED=ConcurrentHashMap.newKeySet();
 	private static final String VENDOR_ALL="All";
 	private static final String VENDOR_ALL_RAW_INSTRUMENT_FILES="All raw instrument files";
+	private static final String SLOW_BITS_CANCELLED_BY_USER_SUMMARY="previous request was cancelled by user";
 	private static final long SLOW_BITS_STALL_THRESHOLD_NANOS=1_000_000_000L;
 	private static final long SLOW_BITS_READER_RETRY_NANOS=750_000_000L;
 	private static final AtomicInteger SLOW_BITS_THREAD_ID=new AtomicInteger(1);
@@ -546,7 +551,7 @@ public class DirectorySummaryPanel extends JPanel {
 			DirRow row=rows.get(modelIndex);
 			if (row==null) continue;
 			rowsByModelIndex.put(Integer.valueOf(modelIndex), row);
-			int viewIndex=table.convertRowIndexToView(modelIndex);
+			int viewIndex=safeConvertRowIndexToView(table, modelIndex);
 			boolean hidden=(viewIndex<0);
 			boolean inViewport=!hidden&&firstVisible>=0&&lastVisible>=0&&viewIndex>=firstVisible&&viewIndex<=lastVisible;
 			int distanceFromViewport=hidden?Integer.MAX_VALUE:distanceFromViewport(viewIndex, firstVisible, lastVisible);
@@ -625,6 +630,18 @@ public class DirectorySummaryPanel extends JPanel {
 		return 0;
 	}
 
+	static int safeConvertRowIndexToView(JTable table, int modelIndex) {
+		if (table==null) return -1;
+		if (modelIndex<0) return -1;
+		try {
+			return table.convertRowIndexToView(modelIndex);
+		} catch (IndexOutOfBoundsException ignore) {
+			return -1;
+		} catch (IllegalArgumentException ignore) {
+			return -1;
+		}
+	}
+
 	private boolean isReaderReadyForSlowBits(VendorFile vendor) {
 		if (vendor==VendorFile.THERMO) {
 			if (ThermoServerPool.isReady()) return true;
@@ -674,7 +691,7 @@ public class DirectorySummaryPanel extends JPanel {
 				try {
 					if (dia!=null) dia.close();
 				} catch (Throwable t) {
-					Logger.errorException(t);
+					logSlowBitsFailure(row, t);
 				}
 			}
 		} else if (row.vendor==VendorFile.MZML) {
@@ -697,11 +714,12 @@ public class DirectorySummaryPanel extends JPanel {
 				try {
 					mzml.close();
 				} catch (Throwable t) {
-					Logger.errorException(t);
+					logSlowBitsFailure(row, t);
 				}
 			}
 		} else if (row.vendor==VendorFile.THERMO) {
 			ThermoRawFile raw=new ThermoRawFile();
+			boolean skipClose=false;
 			try {
 				raw.openFile(row.path);
 				Pair<float[], float[]> tic=raw.getTICTrace();
@@ -712,17 +730,27 @@ public class DirectorySummaryPanel extends JPanel {
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
 				} catch (Throwable ignore) {
+					if (isThermoReaderUnavailable(ignore)) {
+						if (shouldSkipThermoRetryOnClose(closed)) {
+							skipClose=true;
+							return;
+						}
+						ThermoServerPool.startAsync();
+						deferSlowBitsForReaderNotReady(row);
+						safeRowUpdate(row);
+						return;
+					}
 					logSlowBitsFailure(row, ignore);
 					row.spark=FAILED;
 					markSlowBitsDone(row);
 					safeRowUpdate(row);
-			} finally {
-				try {
-					raw.close();
-				} catch (Throwable t) {
-					Logger.errorException(t);
+				} finally {
+					try {
+						if (!skipClose) raw.close();
+					} catch (Throwable t) {
+						logSlowBitsFailure(row, t);
+					}
 				}
-			}
 		} else {
 			BrukerTIMSFile raw=new BrukerTIMSFile();
 			try {
@@ -743,7 +771,7 @@ public class DirectorySummaryPanel extends JPanel {
 				try {
 					raw.close();
 				} catch (Throwable t) {
-					Logger.errorException(t);
+					logSlowBitsFailure(row, t);
 				}
 			}
 		}
@@ -751,47 +779,138 @@ public class DirectorySummaryPanel extends JPanel {
 
 	private void logSlowBitsFailure(DirRow row, Throwable failure) {
 		if (failure==null) return;
-		Throwable root=unwrapRootCause(failure);
-		String lower=exceptionMessage(root);
-		String summary=expectedSlowBitsFailureSummary(lower);
+		String file=(row!=null&&row.path!=null)?row.path.toString():"<unknown>";
+		String summary=expectedSlowBitsFailureSummary(failure);
 		if (summary==null) {
+			Logger.errorLine("Unclassified slow-bits failure for "+file+": "+String.valueOf(failure));
 			Logger.errorException(failure);
 			return;
 		}
-		String file=(row!=null&&row.path!=null)?row.path.toString():"<unknown>";
 		String dedupeKey=summary+"|"+file;
 		if (EXPECTED_SLOW_BITS_FAILURES_LOGGED.add(dedupeKey)) {
-			Logger.logLine("Preview unavailable for "+file+": "+summary);
+			if (SLOW_BITS_CANCELLED_BY_USER_SUMMARY.equals(summary)) {
+				Logger.logLine("Previous request cancelled by user for "+file);
+			} else {
+				Logger.logLine("Preview unavailable for "+file+": "+summary);
+			}
 		}
 	}
 
-	private static Throwable unwrapRootCause(Throwable t) {
-		Throwable cur=t;
-		while (cur.getCause()!=null&&cur.getCause()!=cur) {
-			cur=cur.getCause();
+	static String expectedSlowBitsFailureSummary(Throwable failure) {
+		if (failure==null) return null;
+		if (Thread.currentThread().isInterrupted()) {
+			return SLOW_BITS_CANCELLED_BY_USER_SUMMARY;
 		}
-		return cur;
-	}
-
-	private static String exceptionMessage(Throwable t) {
-		String msg=t.getMessage();
-		return msg==null?"":msg.toLowerCase(Locale.ROOT);
-	}
-
-	private static String expectedSlowBitsFailureSummary(String lowerMessage) {
-		if (lowerMessage.contains("no valid type found for")) {
+		if (hasCancelledGrpcStatus(failure)) {
+			return SLOW_BITS_CANCELLED_BY_USER_SUMMARY;
+		}
+		String lower=exceptionChainMessage(failure);
+		if (lower.contains("cancelled: thread interrupted")||lower.contains("statusruntimeexception:cancelled")
+				||lower.contains("statusruntimeexception: cancelled")||hasInterruptedCause(failure)) {
+			return SLOW_BITS_CANCELLED_BY_USER_SUMMARY;
+		}
+		if (lower.contains("no valid type found for")) {
 			return "input is not a supported TIMS .d dataset";
 		}
-		if (lowerMessage.contains("instrument index")) {
+		if (lower.contains("instrument index")) {
 			return "Thermo RAW has no usable MS instrument index";
 		}
-		if (lowerMessage.contains("no such table: precursor")) {
+		if (lower.contains("no such table: precursor")) {
 			return "older DIA schema is missing precursor table";
 		}
-		if (lowerMessage.contains("no such table: fractions")) {
+		if (lower.contains("no such table: fractions")) {
 			return "older DIA schema is missing fractions table";
 		}
 		return null;
+	}
+
+	private static String exceptionChainMessage(Throwable throwable) {
+		StringBuilder sb=new StringBuilder();
+		Throwable cur=throwable;
+		while (cur!=null) {
+			sb.append(cur.getClass().getName()).append(':');
+			String msg=cur.getMessage();
+			if (msg!=null) {
+				sb.append(msg);
+			}
+			sb.append('\n');
+			Throwable next=cur.getCause();
+			if (next==cur) {
+				break;
+			}
+			cur=next;
+		}
+		return sb.toString().toLowerCase(Locale.ROOT);
+	}
+
+	private static boolean hasInterruptedCause(Throwable throwable) {
+		Throwable cur=throwable;
+		while (cur!=null) {
+			if (cur instanceof InterruptedException) {
+				return true;
+			}
+			Throwable next=cur.getCause();
+			if (next==cur) {
+				break;
+			}
+			cur=next;
+		}
+		return false;
+	}
+
+	private static boolean hasCancelledGrpcStatus(Throwable throwable) {
+		Throwable cur=throwable;
+		while (cur!=null) {
+			if (cur instanceof StatusRuntimeException sre) {
+				Status status=sre.getStatus();
+				if (status!=null&&status.getCode()==Status.Code.CANCELLED) {
+					return true;
+				}
+			}
+			if (cur instanceof StatusException se) {
+				Status status=se.getStatus();
+				if (status!=null&&status.getCode()==Status.Code.CANCELLED) {
+					return true;
+				}
+			}
+			Throwable next=cur.getCause();
+			if (next==cur) {
+				break;
+			}
+			cur=next;
+		}
+		return false;
+	}
+
+	static boolean isThermoReaderUnavailable(Throwable throwable) {
+		Throwable cur=throwable;
+		while (cur!=null) {
+			if (cur instanceof StatusRuntimeException sre) {
+				Status status=sre.getStatus();
+				if (status!=null&&status.getCode()==Status.Code.UNAVAILABLE) {
+					return true;
+				}
+			}
+			if (cur instanceof StatusException se) {
+				Status status=se.getStatus();
+				if (status!=null&&status.getCode()==Status.Code.UNAVAILABLE) {
+					return true;
+				}
+			}
+			String msg=cur.getMessage();
+			if (msg!=null) {
+				String lower=msg.toLowerCase(Locale.ROOT);
+				if (lower.contains("connection refused")||lower.contains("failed to connect")) {
+					return true;
+				}
+			}
+			Throwable next=cur.getCause();
+			if (next==cur) {
+				break;
+			}
+			cur=next;
+		}
+		return false;
 	}
 
 	private void safeRowUpdate(DirRow row) {
@@ -925,16 +1044,26 @@ public class DirectorySummaryPanel extends JPanel {
 
 	@Override
 	public void removeNotify() {
+		closed=true;
 		if (loadingTimer!=null) loadingTimer.stop();
 		super.removeNotify();
-		closed=true;
 		slowBitsRunning.clear();
 		slowBitsRunningLane.clear();
 		slowBitsRunningStartNanos.clear();
 		slowBitsRetryAfterNanos.clear();
 		slowBitsDeprioritized.clear();
 		slowBitsReaderNotReadyWarned.clear();
-		pool.shutdownNow();
+		shutdownSlowBitsPool(pool);
+	}
+
+	static void shutdownSlowBitsPool(ExecutorService pool) {
+		if (pool==null) return;
+		// Let in-flight readers finish so panel teardown does not interrupt gRPC calls mid-request.
+		pool.shutdown();
+	}
+
+	static boolean shouldSkipThermoRetryOnClose(boolean closed) {
+		return closed;
 	}
 
 	/** Table model: File | Vendor | Date Modified | Size | Gradient (min) | TIC spark */

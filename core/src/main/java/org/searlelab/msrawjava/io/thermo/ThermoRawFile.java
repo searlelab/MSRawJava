@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.thermo.rpc.CloseReply;
 import org.searlelab.msrawjava.io.thermo.rpc.CloseRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.MetadataReply;
 import org.searlelab.msrawjava.io.thermo.rpc.OpenRequest;
@@ -41,6 +42,7 @@ import org.searlelab.msrawjava.model.WindowData;
 
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
 
 /**
@@ -273,26 +275,61 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 
 	@Override
 	public void close() {
+		ManagedChannel channelToClose=channel;
+		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stubToClose=stub;
+		String sessionIdToClose=sessionId;
+		String file=(rawPath!=null)?rawPath.toString():"<unknown>";
+		boolean interruptedAtEntry=Thread.currentThread().isInterrupted();
+		stub=null;
+		sessionId=null;
+		channel=null;
 		try {
-			if (stub!=null&&sessionId!=null) {
-				stub.withDeadlineAfter(3, TimeUnit.SECONDS).close(CloseRequest.newBuilder().setSessionId(sessionId).build());
+			if (stubToClose!=null&&sessionIdToClose!=null&&channelToClose!=null) {
+				if (interruptedAtEntry) {
+					Logger.logLine("Previous request cancelled by user for "+file);
+				} else {
+					sendCloseBestEffort(channelToClose, sessionIdToClose);
+				}
+			} else if (stubToClose!=null&&sessionIdToClose!=null&&interruptedAtEntry) {
+				Logger.logLine("Previous request cancelled by user for "+file);
 			}
+		} catch (RuntimeException e) {
+			Logger.errorLine("Unexpected Thermo close setup failure for "+file+": "+String.valueOf(e));
+		} finally {
+			shutdownChannel(channelToClose);
+		}
+	}
+
+	private static void sendCloseBestEffort(ManagedChannel channel, String sessionId) {
+		CloseRequest request=CloseRequest.newBuilder().setSessionId(sessionId).build();
+		ThermoRawServiceGrpc.newStub(channel).withDeadlineAfter(3, TimeUnit.SECONDS).close(request, new StreamObserver<CloseReply>() {
+			@Override
+			public void onNext(CloseReply value) {
+			}
+
+			@Override
+			public void onError(Throwable t) {
+				// Close is best-effort cleanup; suppress transport noise during teardown races and deadlines.
+			}
+
+			@Override
+			public void onCompleted() {
+			}
+		});
+	}
+
+	private static void shutdownChannel(ManagedChannel channel) {
+		if (channel==null) return;
+		try {
+			channel.shutdown();
+			if (!channel.awaitTermination(2, TimeUnit.SECONDS)) {
+				channel.shutdownNow();
+				channel.awaitTermination(2, TimeUnit.SECONDS);
+			}
+		} catch (InterruptedException ie) {
+			Thread.currentThread().interrupt();
 		} catch (Exception ignored) {
 			Logger.errorException(ignored);
-		} finally {
-			try {
-				if (channel!=null) {
-					channel.shutdown();
-					if (!channel.awaitTermination(2, TimeUnit.SECONDS)) {
-						channel.shutdownNow();
-						channel.awaitTermination(2, TimeUnit.SECONDS);
-					}
-				}
-			} catch (InterruptedException ie) {
-				Thread.currentThread().interrupt();
-			} catch (Exception ignored) {
-				Logger.errorException(ignored);
-			}
 		}
 	}
 

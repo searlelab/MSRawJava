@@ -97,6 +97,7 @@ class ThermoRawFileStubTest {
 
 		rawFile.close();
 		assertTrue(channel.shutdownCalled);
+		assertEquals(1, channel.delegate.closeCalls);
 	}
 
 	@Test
@@ -114,6 +115,45 @@ class ThermoRawFileStubTest {
 
 		assertTrue(channel.shutdownCalled);
 		assertTrue(channel.shutdownNowCalled);
+	}
+
+	@Test
+	void closeSkipsRpcWhenThreadAlreadyInterrupted() throws Exception {
+		FakeManagedChannel channel=new FakeManagedChannel(false);
+		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=newBlockingStub(channel);
+
+		ThermoRawFile rawFile=new ThermoRawFile();
+		setField(rawFile, "rawPath", tmp.resolve("file.raw"));
+		setField(rawFile, "channel", channel);
+		setField(rawFile, "stub", stub);
+		setField(rawFile, "sessionId", "session-1");
+
+		try {
+			Thread.currentThread().interrupt();
+			rawFile.close();
+		} finally {
+			Thread.interrupted();
+		}
+
+		assertTrue(channel.shutdownCalled);
+		assertEquals(0, channel.delegate.closeCalls);
+	}
+
+	@Test
+	void closeSuppressesBestEffortCloseRpcFailures() throws Exception {
+		FakeManagedChannel channel=new FakeManagedChannel(false, Status.DEADLINE_EXCEEDED.withDescription("close timed out"));
+		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=newBlockingStub(channel);
+
+		ThermoRawFile rawFile=new ThermoRawFile();
+		setField(rawFile, "rawPath", tmp.resolve("file.raw"));
+		setField(rawFile, "channel", channel);
+		setField(rawFile, "stub", stub);
+		setField(rawFile, "sessionId", "session-1");
+
+		rawFile.close();
+
+		assertTrue(channel.shutdownCalled);
+		assertEquals(1, channel.delegate.closeCalls);
 	}
 
 	@Test
@@ -180,6 +220,11 @@ class ThermoRawFileStubTest {
 			this.firstAwaitReturnsFalse=firstAwaitReturnsFalse;
 		}
 
+		private FakeManagedChannel(boolean firstAwaitReturnsFalse, Status closeStatus) {
+			this.firstAwaitReturnsFalse=firstAwaitReturnsFalse;
+			this.delegate.closeStatus=closeStatus;
+		}
+
 		@Override
 		public ManagedChannel shutdown() {
 			shutdown=true;
@@ -227,6 +272,9 @@ class ThermoRawFileStubTest {
 	}
 
 	private static final class FakeChannel extends Channel {
+		private int closeCalls;
+		private Status closeStatus=Status.OK;
+
 		@Override
 		public <ReqT, RespT> ClientCall<ReqT, RespT> newCall(MethodDescriptor<ReqT, RespT> method, CallOptions callOptions) {
 			String name=method.getFullMethodName();
@@ -235,6 +283,10 @@ class ThermoRawFileStubTest {
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/Close")) {
+				closeCalls++;
+				if (!closeStatus.isOk()) {
+					return FakeClientCall.failed(closeStatus);
+				}
 				CloseReply reply=CloseReply.newBuilder().setOk(true).build();
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
@@ -286,13 +338,23 @@ class ThermoRawFileStubTest {
 
 	private static final class FakeClientCall<ReqT, RespT> extends ClientCall<ReqT, RespT> {
 		private final List<RespT> responses;
+		private final Status terminalStatus;
 		private Listener<RespT> listener;
 		private int requested;
 		private int index;
 		private boolean closed;
 
 		private FakeClientCall(List<RespT> responses) {
+			this(responses, Status.OK);
+		}
+
+		private FakeClientCall(List<RespT> responses, Status terminalStatus) {
 			this.responses=responses;
+			this.terminalStatus=terminalStatus;
+		}
+
+		private static <ReqT, RespT> FakeClientCall<ReqT, RespT> failed(Status status) {
+			return new FakeClientCall<>(List.of(), status);
 		}
 
 		@Override
@@ -331,6 +393,11 @@ class ThermoRawFileStubTest {
 
 		private void deliverIfRequested() {
 			if (listener==null||closed) return;
+			if (!terminalStatus.isOk()) {
+				closed=true;
+				listener.onClose(terminalStatus, new Metadata());
+				return;
+			}
 			while (requested>0&&index<responses.size()) {
 				listener.onMessage(responses.get(index++));
 				requested--;
