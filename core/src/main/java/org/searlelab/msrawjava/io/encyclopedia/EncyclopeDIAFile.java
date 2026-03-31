@@ -56,6 +56,9 @@ import gnu.trove.procedure.TIntObjectProcedure;
 public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, StripeFileInterface {
 	public static final DateFormat m_ISO8601Local=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 	private static final Version MOST_RECENT_VERSION=new Version(0, 8, 0, false);
+	private static final java.util.Set<String> RANGES_WARNING_LOGGED=java.util.concurrent.ConcurrentHashMap.newKeySet();
+	private static final java.util.Set<String> FRACTIONS_WARNING_LOGGED=java.util.concurrent.ConcurrentHashMap.newKeySet();
+	private static final java.util.Set<String> METADATA_WARNING_LOGGED=java.util.concurrent.ConcurrentHashMap.newKeySet();
 
 	private static final String UNKNOWN_VALUE="unknown";
 	public static final String FILELOCATION_ATTRIBUTE="filelocation";
@@ -239,11 +242,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 					ranges.put(new Range(start, stop), new WindowData(dutyCycle, numWindows, range, rtRange));
 				}
-			} catch (SQLException sqle) {
-				Logger.errorLine("Unexpected error reading ranges from "+getFile()+", suggests potential file corruption!");
-			} finally {
-				s.close();
-			}
+				} catch (SQLException sqle) {
+					String key=String.valueOf(getFile());
+					if (RANGES_WARNING_LOGGED.add(key)) {
+						Logger.errorLine("Unexpected error reading ranges from "+getFile()+", suggests potential file corruption!");
+					}
+				} finally {
+					s.close();
+				}
 		} finally {
 			c.close();
 		}
@@ -263,11 +269,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 					fractionNames.put(fraction, name);
 				}
-			} catch (SQLiteException e) {
-				Logger.errorLine("Error getting fractions, likely caused from reading an older file: "+e.getMessage());
-			} finally {
-				s.close();
-			}
+					} catch (SQLiteException e) {
+						String key=String.valueOf(getFile());
+						if (FRACTIONS_WARNING_LOGGED.add(key)) {
+							Logger.errorLine("Error getting fractions from "+getFile()+", likely caused from reading an older file: "+e.getMessage());
+						}
+				} finally {
+					s.close();
+				}
 		} finally {
 			c.close();
 		}
@@ -706,11 +715,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 				}
 
 				return map;
-			} catch (SQLException sqle) {
-				Logger.errorLine("Unexpected error reading metadata from "+getFile()+", suggests potential file corruption!");
-				return map;
-			} finally {
-				s.close();
+				} catch (SQLException sqle) {
+					String key=String.valueOf(getFile());
+					if (METADATA_WARNING_LOGGED.add(key)) {
+						Logger.errorLine("Unexpected error reading metadata from "+getFile()+", suggests potential file corruption!");
+					}
+					return map;
+				} finally {
+					s.close();
 			}
 		} finally {
 			c.close();

@@ -192,13 +192,17 @@ public class FileDetailsDialog {
 					}
 					dlg.revalidate();
 					dlg.repaint();
-				} catch (Exception ex) {
-					Logger.logException(ex);
-					dlg.setContentPane(new JLabel("Cannot parse file!"));
-					dlg.revalidate();
-					dlg.repaint();
+					} catch (Exception ex) {
+						if (isExpectedPreviewFailure(ex)) {
+							Logger.logLine("Cannot parse file preview: "+f.getAbsolutePath());
+						} else {
+							Logger.logException(ex);
+						}
+						dlg.setContentPane(new JLabel("Cannot parse file!"));
+						dlg.revalidate();
+						dlg.repaint();
+					}
 				}
-			}
 		};
 
 		// Cancel load if dialog closes
@@ -233,6 +237,22 @@ public class FileDetailsDialog {
 		});
 
 		worker.execute();
+	}
+
+	private static boolean isExpectedPreviewFailure(Throwable failure) {
+		Throwable root=unwrapRootCause(failure);
+		String msg=root.getMessage();
+		if (msg==null) return false;
+		String lower=msg.toLowerCase(java.util.Locale.ROOT);
+		return lower.contains("no valid type found for")||lower.contains("instrument index");
+	}
+
+	private static Throwable unwrapRootCause(Throwable failure) {
+		Throwable cur=failure;
+		while (cur.getCause()!=null&&cur.getCause()!=cur) {
+			cur=cur.getCause();
+		}
+		return cur;
 	}
 
 	private static JDialog createUpgradeWaitDialog(JDialog owner, String message) {

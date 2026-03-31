@@ -92,10 +92,10 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 	}
 
 	public void openFile(Path dPath) throws IOException, SQLException {
-		if (conn!=null) {
+		if (conn!=null||reader!=null||open) {
 			close();
 		}
-		open=true;
+		open=false;
 
 		Objects.requireNonNull(dPath, "dPath");
 		this.dPath=dPath;
@@ -211,6 +211,7 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 			OneOverK0AcqRangeUpper=rs.getFloat(1);
 		}
 
+		open=true;
 	}
 
 	public Optional<MzCalibrationParams> readCalibrationParams() {
@@ -387,16 +388,23 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 
 	@Override
 	public void close() {
-		if (!open) return;
 		try {
-			reader.close();
+			if (reader!=null) {
+				reader.close();
+			}
 		} catch (Exception ignore) {
 			Logger.errorException(ignore);
+		} finally {
+			reader=null;
 		}
 		try {
-			conn.close();
+			if (conn!=null) {
+				conn.close();
+			}
 		} catch (Exception ignore) {
 			Logger.errorException(ignore);
+		} finally {
+			conn=null;
 		}
 		open=false;
 	}

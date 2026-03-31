@@ -3,12 +3,15 @@ package org.searlelab.msrawjava.io.tims;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -147,5 +150,28 @@ class BrukerTIMSFileSummaryTest {
 		assertEquals(2000.0, first.getScanWindowUpper(), 1e-6);
 
 		file.close();
+	}
+
+	@Test
+	void close_handlesPartiallyInitializedState() throws Exception {
+		BrukerTIMSFile file=new BrukerTIMSFile();
+
+		Field connField=BrukerTIMSFile.class.getDeclaredField("conn");
+		connField.setAccessible(true);
+		Field openField=BrukerTIMSFile.class.getDeclaredField("open");
+		openField.setAccessible(true);
+		Field readerField=BrukerTIMSFile.class.getDeclaredField("reader");
+		readerField.setAccessible(true);
+
+		Connection connection=DriverManager.getConnection("jdbc:sqlite::memory:");
+		connField.set(file, connection);
+		openField.setBoolean(file, false);
+		readerField.set(file, null);
+
+		assertDoesNotThrow(file::close);
+		assertTrue(connection.isClosed(), "Expected partial connection to be closed");
+		assertNull(connField.get(file), "Connection field should be cleared after close");
+		assertNull(readerField.get(file), "Reader field should be cleared after close");
+		assertTrue(!openField.getBoolean(file), "Open flag should be false after close");
 	}
 }

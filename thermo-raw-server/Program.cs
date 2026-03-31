@@ -94,7 +94,7 @@ internal sealed class GrpcCallHandlerLoggerProvider : ILoggerProvider
 
                 if (IsThermoInstrumentIndexError(message))
                 {
-                    Console.WriteLine($"warn: {_categoryName}[{eventId.Id}] Open failed: instrument index not available for requested device.");
+                    // Expected for unsupported/metadata-only RAWs in large directory scans; Java layer reports this per-file.
                     return;
                 }
             }
@@ -130,8 +130,8 @@ internal sealed class GrpcCallHandlerLoggerProvider : ILoggerProvider
 
         private static bool IsThermoInstrumentIndexError(string message)
         {
-            return message.Contains("Error status code 'Internal' with detail 'Open failed: System.ArgumentOutOfRangeException", StringComparison.Ordinal) &&
-                   message.Contains("Instrument index not available for requested device", StringComparison.Ordinal);
+            return message.Contains("Open failed:", StringComparison.Ordinal) &&
+                   message.Contains("instrument index", StringComparison.OrdinalIgnoreCase);
         }
 
         private sealed class NullScope : IDisposable
@@ -145,16 +145,19 @@ internal sealed class GrpcCallHandlerLoggerProvider : ILoggerProvider
 public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 {
     private static readonly ConcurrentDictionary<string, IRawDataPlus> Sessions = new();
+    private static readonly int[] MsInstrumentIndices = { 1, 2, 3, 4 };
 
     public override Task<OpenReply> Open(OpenRequest request, ServerCallContext context)
     {
+		IRawDataPlus? raw = null;
+		bool sessionRegistered = false;
 		try
     	{
-	        var raw = RawFileReaderFactory.ReadFile(request.Path);
+	        raw = RawFileReaderFactory.ReadFile(request.Path);
 	        if (!raw.IsOpen)
 	            throw new RpcException(new Status(StatusCode.Internal, $"Failed to open RAW: {request.Path}"));
-	
-	        raw.SelectInstrument(Device.MS, 1);
+
+	        SelectMsInstrument(raw);
 	
 	        string model = raw.GetInstrumentData().Model ?? string.Empty;
 	        int first = raw.RunHeaderEx.FirstSpectrum;
@@ -164,6 +167,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	
 	        string sid = Guid.NewGuid().ToString("N");
 	        Sessions[sid] = raw;
+	        sessionRegistered = true;
 	
 	        return Task.FromResult(new OpenReply {
 	            SessionId = sid, InstrumentModel = model, StartTime = rtFirst, EndTime = rtLast
@@ -175,7 +179,30 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    {
 	        throw new RpcException(new Status(StatusCode.Internal, "Open failed: " + ex));
 	    }
+		finally
+		{
+			if (!sessionRegistered && raw != null)
+				raw.Dispose();
+		}
     }
+
+	private static void SelectMsInstrument(IRawDataPlus raw)
+	{
+		ArgumentOutOfRangeException? last = null;
+		foreach (int index in MsInstrumentIndices)
+		{
+			try
+			{
+				raw.SelectInstrument(Device.MS, index);
+				return;
+			}
+			catch (ArgumentOutOfRangeException ex)
+			{
+				last = ex;
+			}
+		}
+		if (last != null) throw last;
+	}
 
     public override Task<CloseReply> Close(CloseRequest request, ServerCallContext context)
     {

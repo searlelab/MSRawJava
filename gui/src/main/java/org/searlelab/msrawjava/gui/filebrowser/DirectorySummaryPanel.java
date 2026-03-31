@@ -87,6 +87,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final Color SPINNER_BG=new Color(0xE0E0E0);
 	private static final SparkData FAILED=new SparkData(new float[0]);
 	private static final ConcurrentHashMap<Path, SlowBits> SLOW_BITS_CACHE=new ConcurrentHashMap<>();
+	private static final java.util.Set<String> EXPECTED_SLOW_BITS_FAILURES_LOGGED=ConcurrentHashMap.newKeySet();
 	private static final String VENDOR_ALL="All";
 	private static final AtomicInteger SLOW_BITS_THREAD_ID=new AtomicInteger(1);
 
@@ -492,11 +493,11 @@ public class DirectorySummaryPanel extends JPanel {
 				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-			} catch (Throwable ignore) {
-				Logger.errorException(ignore);
-				row.spark=FAILED;
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
+				} catch (Throwable ignore) {
+					logSlowBitsFailure(row, ignore);
+					row.spark=FAILED;
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
 			} finally {
 				try {
 					if (dia!=null) dia.close();
@@ -515,11 +516,11 @@ public class DirectorySummaryPanel extends JPanel {
 				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-			} catch (Throwable ignore) {
-				Logger.errorException(ignore);
-				row.spark=FAILED;
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
+				} catch (Throwable ignore) {
+					logSlowBitsFailure(row, ignore);
+					row.spark=FAILED;
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
 			} finally {
 				try {
 					mzml.close();
@@ -538,11 +539,11 @@ public class DirectorySummaryPanel extends JPanel {
 				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-			} catch (Throwable ignore) {
-				Logger.errorException(ignore);
-				row.spark=FAILED;
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
+				} catch (Throwable ignore) {
+					logSlowBitsFailure(row, ignore);
+					row.spark=FAILED;
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
 			} finally {
 				try {
 					raw.close();
@@ -561,11 +562,11 @@ public class DirectorySummaryPanel extends JPanel {
 				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-			} catch (Throwable ignore) {
-				Logger.errorException(ignore);
-				row.spark=FAILED;
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
+				} catch (Throwable ignore) {
+					logSlowBitsFailure(row, ignore);
+					row.spark=FAILED;
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
 			} finally {
 				try {
 					raw.close();
@@ -574,6 +575,51 @@ public class DirectorySummaryPanel extends JPanel {
 				}
 			}
 		}
+	}
+
+	private void logSlowBitsFailure(DirRow row, Throwable failure) {
+		if (failure==null) return;
+		Throwable root=unwrapRootCause(failure);
+		String lower=exceptionMessage(root);
+		String summary=expectedSlowBitsFailureSummary(lower);
+		if (summary==null) {
+			Logger.errorException(failure);
+			return;
+		}
+		String file=(row!=null&&row.path!=null)?row.path.toString():"<unknown>";
+		String dedupeKey=summary+"|"+file;
+		if (EXPECTED_SLOW_BITS_FAILURES_LOGGED.add(dedupeKey)) {
+			Logger.logLine("Preview unavailable for "+file+": "+summary);
+		}
+	}
+
+	private static Throwable unwrapRootCause(Throwable t) {
+		Throwable cur=t;
+		while (cur.getCause()!=null&&cur.getCause()!=cur) {
+			cur=cur.getCause();
+		}
+		return cur;
+	}
+
+	private static String exceptionMessage(Throwable t) {
+		String msg=t.getMessage();
+		return msg==null?"":msg.toLowerCase(Locale.ROOT);
+	}
+
+	private static String expectedSlowBitsFailureSummary(String lowerMessage) {
+		if (lowerMessage.contains("no valid type found for")) {
+			return "input is not a supported TIMS .d dataset";
+		}
+		if (lowerMessage.contains("instrument index")) {
+			return "Thermo RAW has no usable MS instrument index";
+		}
+		if (lowerMessage.contains("no such table: precursor")) {
+			return "older DIA schema is missing precursor table";
+		}
+		if (lowerMessage.contains("no such table: fractions")) {
+			return "older DIA schema is missing fractions table";
+		}
+		return null;
 	}
 
 	private void safeRowUpdate(DirRow row) {

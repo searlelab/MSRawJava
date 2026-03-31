@@ -50,7 +50,7 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
  * MS1/MS2 content as PrecursorScan and FragmentScan objects.
  */
 public final class ThermoRawFile implements StripeFileInterface, Closeable {
-	private static final String INVALID_INSTRUMENT_INDEX_TEXT="instrument index not available for requested device";
+	private static final String INVALID_INSTRUMENT_INDEX_TEXT="instrument index";
 	private Path rawPath=null;
 	private ManagedChannel channel=null;
 	private ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=null;
