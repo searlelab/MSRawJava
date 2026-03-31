@@ -71,6 +71,7 @@ public class RawFileBrowser extends JFrame {
 	private final DirectoryTreeModel treeModel;
 
 	private final ConversionPane conversionPane;
+	private final WindowMenuController windowMenuController;
 	private final JComponent directorySelectionHintPanel=new DirectorySelectionHintPanel();
 	private DirectorySummaryPanel currentSummaryPanel;
 	private Path pendingSelectionPath;
@@ -84,6 +85,7 @@ public class RawFileBrowser extends JFrame {
 
 	public RawFileBrowser(ProcessingThreadPool pool) {
 		super("Raw File Browser");
+		windowMenuController=new WindowMenuController(this);
 
 		treeModel=new DirectoryTreeModel(fsv);
 		dirTree=new JTree(treeModel) {
@@ -173,6 +175,10 @@ public class RawFileBrowser extends JFrame {
 				conversionPane.shutdown();
 			}
 		});
+	}
+
+	WindowMenuController getWindowMenuController() {
+		return windowMenuController;
 	}
 
 	private void onTreeSelectionChanged(TreeSelectionEvent e) {

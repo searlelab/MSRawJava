@@ -3,12 +3,15 @@ package org.searlelab.msrawjava.gui;
 import java.awt.Desktop;
 import java.awt.Frame;
 import java.awt.Toolkit;
+import java.awt.Window;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.util.List;
 
 import javax.swing.JDialog;
 import javax.swing.JFileChooser;
+import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -27,38 +30,65 @@ public final class MenuManager {
 	private MenuManager() {
 	}
 
+	static List<String> defaultMenuOrder() {
+		return List.of("File", "View", "Window", "Help");
+	}
+
 	public static void install(RawFileBrowser browser) {
-		if (isMac()) {
-			System.setProperty("apple.laf.useScreenMenuBar", "true");
+		installMainMenu(browser, browser);
+	}
+
+	static void installMainMenu(RawFileBrowser browser, Window activeContext) {
+		installScreenMenuBar();
+		Window contextWindow=activeContext!=null?activeContext:browser;
+		WindowMenuModel windowMenuModel=browser.getWindowMenuController().createMenuModel(contextWindow);
+		WindowMenuActionHandler windowActions=browser.getWindowMenuController().createActionHandler(contextWindow);
+		JMenuBar existingBar=browser.getJMenuBar();
+		if (hasExpectedMenuOrder(existingBar)) {
+			refreshWindowMenu(existingBar, windowMenuModel, windowActions);
+		} else {
+			browser.setJMenuBar(createMenuBar(browser, browser, windowMenuModel, windowActions));
 		}
-		browser.setJMenuBar(createMenuBar(browser));
+		installAboutHandler(browser);
+	}
+
+	static void install(Window menuHost, RawFileBrowser browser) {
+		if (menuHost instanceof RawFileBrowser rawFileBrowser) {
+			installMainMenu(rawFileBrowser, rawFileBrowser);
+			return;
+		}
+		Window contextWindow=menuHost!=null?menuHost:browser;
+		WindowMenuModel windowMenuModel=browser.getWindowMenuController().createMenuModel(contextWindow);
+		WindowMenuActionHandler windowActions=browser.getWindowMenuController().createActionHandler(contextWindow);
+		JMenuBar existingBar=getMenuBar(menuHost);
+		if (hasExpectedMenuOrder(existingBar)) {
+			refreshWindowMenu(existingBar, windowMenuModel, windowActions);
+		} else {
+			setMenuBar(menuHost, createMenuBar(contextWindow, browser, windowMenuModel, windowActions));
+		}
 		installAboutHandler(browser);
 	}
 
 	public static void install(JDialog dialog, RawFileBrowser browser) {
 		if (dialog==null||browser==null) return;
-		if (isMac()) {
-			System.setProperty("apple.laf.useScreenMenuBar", "true");
-			installAboutHandler(browser);
-			return;
-		}
-		dialog.setJMenuBar(createMenuBar(browser));
-		installAboutHandler(browser);
+		if (isMac()) return;
+		install((Window)dialog, browser);
 	}
 
-	private static JMenuBar createMenuBar(RawFileBrowser browser) {
+	static JMenuBar createMenuBar(Window menuHost, RawFileBrowser browser, WindowMenuModel windowMenuModel, WindowMenuActionHandler windowActions) {
 		JMenuBar bar=new JMenuBar();
+		Frame ownerFrame=resolveOwnerFrame(menuHost, browser);
 
 		JMenu file=new JMenu("File");
 		file.setToolTipText("File actions for opening data, preferences, and exiting the application.");
 		JMenuItem open=new JMenuItem("Open");
 		open.setToolTipText("Open a vendor raw file and select it in the browser.");
 		open.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
-		open.addActionListener(e -> onOpen(browser, false));
+		open.addActionListener(e -> onOpen(ownerFrame, browser, false));
 		JMenuItem preferences=new JMenuItem("Preferences");
 		preferences.setToolTipText("Open application preferences.");
 		preferences.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_P, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
-		preferences.addActionListener(e -> PreferencesDialog.showDialog(browser));
+		preferences.addActionListener(e -> PreferencesDialog.showDialog(ownerFrame));
 		JMenuItem quit=new JMenuItem("Quit");
 		quit.setToolTipText("Close the application.");
 		quit.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Q, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
@@ -77,34 +107,110 @@ public final class MenuManager {
 		JMenuItem visualize=new JMenuItem("Visualize Raw File");
 		visualize.setToolTipText("Open a raw file directly in the visualization dialog.");
 		visualize.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
-		visualize.addActionListener(e -> onOpen(browser, true));
+		visualize.addActionListener(e -> onOpen(ownerFrame, browser, true));
 		view.add(visualize);
+
+		JMenu window=createWindowMenu(windowMenuModel, windowActions);
 
 		JMenu help=new JMenu("Help");
 		help.setToolTipText("Help, citation, and educational resources.");
 		JMenuItem cite=new JMenuItem("How to Cite");
 		cite.setToolTipText("Show citation information for MSRawJava.");
-		cite.addActionListener(e -> HowToCiteDialog.showDialog(browser));
+		cite.addActionListener(e -> HowToCiteDialog.showDialog(ownerFrame));
 		JMenuItem demos=new JMenuItem("Educational Demos");
 		demos.setToolTipText("Open interactive educational loading-panel demos.");
 		demos.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
-		demos.addActionListener(e -> LoadingPanelShowcaseDialog.showDialog(browser));
+		demos.addActionListener(e -> LoadingPanelShowcaseDialog.showDialog(ownerFrame));
 		JMenuItem console=new JMenuItem("Logging Console");
 		console.setToolTipText("Show captured standard output and error messages.");
 		console.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
-		console.addActionListener(e -> LoggingConsoleDialog.showDialog(browser));
+		console.addActionListener(e -> LoggingConsoleDialog.showDialog(ownerFrame));
 		help.add(cite);
 		help.add(demos);
 		help.add(console);
 
 		bar.add(file);
 		bar.add(view);
+		bar.add(window);
 		bar.add(help);
 		return bar;
 	}
 
-	private static void onOpen(RawFileBrowser browser, boolean visualize) {
-		File f=chooseRawFile(browser);
+	private static boolean hasExpectedMenuOrder(JMenuBar menuBar) {
+		if (menuBar==null||menuBar.getMenuCount()!=defaultMenuOrder().size()) return false;
+		for (int i=0; i<defaultMenuOrder().size(); i++) {
+			JMenu menu=menuBar.getMenu(i);
+			if (menu==null||!defaultMenuOrder().get(i).equals(menu.getText())) return false;
+		}
+		return true;
+	}
+
+	private static void refreshWindowMenu(JMenuBar menuBar, WindowMenuModel windowMenuModel, WindowMenuActionHandler windowActions) {
+		if (menuBar==null) return;
+		JMenu windowMenu=menuBar.getMenu(2);
+		if (windowMenu==null) return;
+		populateWindowMenu(windowMenu, windowMenuModel, windowActions);
+		menuBar.revalidate();
+		menuBar.repaint();
+	}
+
+	static JMenu createWindowMenu(WindowMenuModel windowMenuModel, WindowMenuActionHandler windowActions) {
+		JMenu window=new JMenu("Window");
+		populateWindowMenu(window, windowMenuModel, windowActions);
+		return window;
+	}
+
+	private static void populateWindowMenu(JMenu window, WindowMenuModel windowMenuModel, WindowMenuActionHandler windowActions) {
+		window.removeAll();
+		window.setText("Window");
+		window.setToolTipText("Switch between the main browser and open raw-file visualization windows.");
+
+		JMenuItem browserItem=new JMenuItem("Bring Raw File Browser to Front");
+		browserItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+		browserItem.setEnabled(windowMenuModel==null||!windowMenuModel.isBrowserActive());
+		browserItem.addActionListener(e -> {
+			if (windowActions!=null) windowActions.bringRawFileBrowserToFront();
+		});
+		window.add(browserItem);
+		window.addSeparator();
+
+		if (windowMenuModel!=null) {
+			int index=0;
+			for (WindowMenuModel.VisualizationItem item : windowMenuModel.getVisualizationItems()) {
+				JMenuItem visualizationItem=new JMenuItem(item.getLabel());
+				Integer acceleratorDigit=item.getAcceleratorDigit();
+				if (acceleratorDigit!=null) {
+					visualizationItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0+acceleratorDigit.intValue(), Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+				}
+				visualizationItem.setEnabled(!item.isActive());
+				final int visualizationIndex=index;
+				visualizationItem.addActionListener(e -> {
+					if (windowActions!=null) windowActions.activateVisualization(visualizationIndex);
+				});
+				window.add(visualizationItem);
+				index++;
+			}
+		}
+
+		window.addSeparator();
+
+		JMenuItem previousWindow=new JMenuItem("Previous Window");
+		previousWindow.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+		previousWindow.addActionListener(e -> {
+			if (windowActions!=null) windowActions.activatePreviousWindow();
+		});
+		window.add(previousWindow);
+
+		JMenuItem nextWindow=new JMenuItem("Next Window");
+		nextWindow.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
+		nextWindow.addActionListener(e -> {
+			if (windowActions!=null) windowActions.activateNextWindow();
+		});
+		window.add(nextWindow);
+	}
+
+	private static void onOpen(Frame ownerFrame, RawFileBrowser browser, boolean visualize) {
+		File f=chooseRawFile(ownerFrame);
 		if (f==null) return;
 		File parent=f.isDirectory()?f.getParentFile():f.getParentFile();
 		if (parent!=null) {
@@ -157,6 +263,33 @@ public final class MenuManager {
 			Desktop.getDesktop().setAboutHandler(e -> HowToCiteDialog.showDialog(browser));
 		} catch (UnsupportedOperationException ignore) {
 			Logger.errorException(ignore);
+		}
+	}
+
+	private static JMenuBar getMenuBar(Window menuHost) {
+		if (menuHost instanceof JFrame frame) return frame.getJMenuBar();
+		if (menuHost instanceof JDialog dialog) return dialog.getJMenuBar();
+		return null;
+	}
+
+	private static void setMenuBar(Window menuHost, JMenuBar menuBar) {
+		if (menuHost instanceof JFrame frame) {
+			frame.setJMenuBar(menuBar);
+			return;
+		}
+		if (menuHost instanceof JDialog dialog) {
+			dialog.setJMenuBar(menuBar);
+		}
+	}
+
+	private static Frame resolveOwnerFrame(Window menuHost, RawFileBrowser browser) {
+		if (menuHost instanceof Frame frame) return frame;
+		return browser;
+	}
+
+	private static void installScreenMenuBar() {
+		if (isMac()) {
+			System.setProperty("apple.laf.useScreenMenuBar", "true");
 		}
 	}
 
