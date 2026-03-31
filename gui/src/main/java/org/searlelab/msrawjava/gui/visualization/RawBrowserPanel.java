@@ -1,10 +1,13 @@
 package org.searlelab.msrawjava.gui.visualization;
 
+import java.awt.event.ActionEvent;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
@@ -15,9 +18,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
 
+import javax.swing.AbstractAction;
+import javax.swing.Action;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.InputMap;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -25,6 +32,7 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.RowFilter;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
@@ -92,6 +100,10 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final String SPECTRUM_TOOLTIP="Mass spectrum for the currently selected scan or merged scan selection.";
 	private static final String IMS_TOOLTIP="Ion mobility versus m/z view for the selected spectrum.";
 	private static final String HISTOGRAM_TOOLTIP="Log10 fragment intensity distribution for the selected spectrum.";
+	private static final String CHART_ACTION_PREVIOUS_ROW="rawBrowser.chartSelectPreviousRow";
+	private static final String CHART_ACTION_NEXT_ROW="rawBrowser.chartSelectNextRow";
+	private static final String CHART_ACTION_PREVIOUS_ROW_EXTEND="rawBrowser.chartSelectPreviousRowExtend";
+	private static final String CHART_ACTION_NEXT_ROW_EXTEND="rawBrowser.chartSelectNextRowExtend";
 	private static final Color[] XIC_COLORS=new Color[] {
 			new Color(0xE6, 0x4A, 0x19), new Color(0x00, 0x79, 0x6B), new Color(0x1E, 0x88, 0xE5), new Color(0x8E, 0x24, 0xAA), new Color(0x6D, 0x4C, 0x41),
 			new Color(0x43, 0xA0, 0x47), new Color(0xFB, 0x8C, 0x00), new Color(0x39, 0x49, 0xAB)};
@@ -143,6 +155,19 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private long xicProgressTimerToken=-1L;
 	private ExtendedChartPanel topChromatogramChart;
 	private final ArrayList<XYAnnotation> chromatogramSelectionAnnotations=new ArrayList<>();
+	private ChartFocusTarget focusedChartTarget=ChartFocusTarget.TOP_CHROMATOGRAM;
+	private boolean pendingChartFocusRestore=false;
+
+	private enum ChartFocusTarget {
+		TOP_CHROMATOGRAM,
+		BOXPLOT_TOP,
+		BOXPLOT_BOTTOM,
+		STRUCTURE,
+		GLOBAL,
+		SPECTRUM,
+		IMS,
+		HISTOGRAM
+	}
 
 	private static final class SelectionResult {
 		private final List<AcquiredSpectrum> entries;
@@ -339,6 +364,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		model=new RawScanTableModel();
 		table=new JTable(model);
 		table.setToolTipText("Lists scans from the opened file. Select one or more rows to update the charts.");
+		installHorizontalRowNavigation(table);
 		rowSorter=new TableRowSorter<>(table.getModel());
 		table.setRowSorter(rowSorter);
 		installScanHeaderTooltips();
@@ -690,16 +716,20 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		ExtendedChartPanel iitByRangeChart=BoxPlotGenerator.getBoxplotChart(null, "Precursor Isolation Window", "Ion Injection Time (ms)", data.getIitByRange());
 		iitByRangeChart.setToolTipText("Distribution of ion injection times grouped by precursor isolation window.");
+		installChartArrowNavigation(iitByRangeChart, ChartFocusTarget.BOXPLOT_TOP);
 		boxplotSplit.setTopComponent(iitByRangeChart);
 		ExtendedChartPanel iitByRtChart=BoxPlotGenerator.getBoxplotChart(null, "Retention Time Bin (min)", "Ion Injection Time (ms)", data.getIitByRt());
 		iitByRtChart.setToolTipText("Distribution of ion injection times grouped by retention-time bin.");
+		installChartArrowNavigation(iitByRtChart, ChartFocusTarget.BOXPLOT_BOTTOM);
 		boxplotSplit.setBottomComponent(iitByRtChart);
 
 		if (structureChart!=null) {
 			structureChart.setToolTipText("Structure chart showing DIA isolation-window layout over time.");
+			installChartArrowNavigation(structureChart, ChartFocusTarget.STRUCTURE);
 		}
 		if (globalChart!=null) {
 			globalChart.setToolTipText("Global chart summarizing signal and acquisition trends across the run.");
+			installChartArrowNavigation(globalChart, ChartFocusTarget.GLOBAL);
 		}
 
 		primaryTabs.setComponentAt(primaryTabs.indexOfTab(STRUCTURE_TITLE), structureChart);
@@ -977,6 +1007,129 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		return bestIndex;
 	}
 
+	static void installHorizontalRowNavigation(JTable table) {
+		if (table==null) return;
+		mapHorizontalNavigationToRows(table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT));
+		mapHorizontalNavigationToRows(table.getInputMap(JComponent.WHEN_FOCUSED));
+	}
+
+	static void mapHorizontalNavigationToRows(InputMap inputMap) {
+		if (inputMap==null) return;
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0), "selectPreviousRow");
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), "selectNextRow");
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_LEFT, 0), "selectPreviousRow");
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_RIGHT, 0), "selectNextRow");
+
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, KeyEvent.SHIFT_DOWN_MASK), "selectPreviousRowExtendSelection");
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, KeyEvent.SHIFT_DOWN_MASK), "selectNextRowExtendSelection");
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_LEFT, KeyEvent.SHIFT_DOWN_MASK), "selectPreviousRowExtendSelection");
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_RIGHT, KeyEvent.SHIFT_DOWN_MASK), "selectNextRowExtendSelection");
+	}
+
+	static void mapChartNavigationToRows(InputMap inputMap) {
+		if (inputMap==null) return;
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), CHART_ACTION_PREVIOUS_ROW);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), CHART_ACTION_NEXT_ROW);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0), CHART_ACTION_PREVIOUS_ROW);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0), CHART_ACTION_NEXT_ROW);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_UP, 0), CHART_ACTION_PREVIOUS_ROW);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_DOWN, 0), CHART_ACTION_NEXT_ROW);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_LEFT, 0), CHART_ACTION_PREVIOUS_ROW);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_RIGHT, 0), CHART_ACTION_NEXT_ROW);
+
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, KeyEvent.SHIFT_DOWN_MASK), CHART_ACTION_PREVIOUS_ROW_EXTEND);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, KeyEvent.SHIFT_DOWN_MASK), CHART_ACTION_NEXT_ROW_EXTEND);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, KeyEvent.SHIFT_DOWN_MASK), CHART_ACTION_PREVIOUS_ROW_EXTEND);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, KeyEvent.SHIFT_DOWN_MASK), CHART_ACTION_NEXT_ROW_EXTEND);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_UP, KeyEvent.SHIFT_DOWN_MASK), CHART_ACTION_PREVIOUS_ROW_EXTEND);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_DOWN, KeyEvent.SHIFT_DOWN_MASK), CHART_ACTION_NEXT_ROW_EXTEND);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_LEFT, KeyEvent.SHIFT_DOWN_MASK), CHART_ACTION_PREVIOUS_ROW_EXTEND);
+		inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_KP_RIGHT, KeyEvent.SHIFT_DOWN_MASK), CHART_ACTION_NEXT_ROW_EXTEND);
+	}
+
+	private void installChartArrowNavigation(ExtendedChartPanel chart, ChartFocusTarget focusTarget) {
+		if (chart==null) return;
+		if (Boolean.TRUE.equals(chart.getClientProperty("rawBrowser.chartArrowNavInstalled"))) return;
+		chart.putClientProperty("rawBrowser.chartArrowNavInstalled", Boolean.TRUE);
+		chart.setFocusable(true);
+		mapChartNavigationToRows(chart.getInputMap(JComponent.WHEN_FOCUSED));
+		chart.getActionMap().put(CHART_ACTION_PREVIOUS_ROW, new AbstractAction() {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				performTableSelectionAction("selectPreviousRow");
+			}
+		});
+		chart.getActionMap().put(CHART_ACTION_NEXT_ROW, new AbstractAction() {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				performTableSelectionAction("selectNextRow");
+			}
+		});
+		chart.getActionMap().put(CHART_ACTION_PREVIOUS_ROW_EXTEND, new AbstractAction() {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				performTableSelectionAction("selectPreviousRowExtendSelection");
+			}
+		});
+		chart.getActionMap().put(CHART_ACTION_NEXT_ROW_EXTEND, new AbstractAction() {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				performTableSelectionAction("selectNextRowExtendSelection");
+			}
+		});
+		chart.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent e) {
+				focusedChartTarget=focusTarget;
+				chart.requestFocusInWindow();
+			}
+		});
+	}
+
+	private void performTableSelectionAction(String tableActionKey) {
+		if (table==null||table.getRowCount()<=0||tableActionKey==null) return;
+		if (table.getSelectedRow()<0) {
+			table.setRowSelectionInterval(0, 0);
+		}
+		Action action=table.getActionMap().get(tableActionKey);
+		if (action==null) return;
+		pendingChartFocusRestore=true;
+		action.actionPerformed(new ActionEvent(table, ActionEvent.ACTION_PERFORMED, tableActionKey));
+		int selectedRow=table.getSelectedRow();
+		if (selectedRow>=0&&selectedRow<table.getRowCount()) {
+			table.scrollRectToVisible(table.getCellRect(selectedRow, 0, true));
+		}
+	}
+
+	private void restoreSpectrumFocusIfNeeded(ExtendedChartPanel spectrumChart, ExtendedChartPanel imsChart, ExtendedChartPanel histogramChart) {
+		ExtendedChartPanel target=null;
+		switch (focusedChartTarget) {
+			case SPECTRUM:
+				target=spectrumChart;
+				break;
+			case IMS:
+				target=(imsChart!=null)?imsChart:spectrumChart;
+				break;
+			case HISTOGRAM:
+				target=histogramChart;
+				break;
+			default:
+				break;
+		}
+		if (target!=null) {
+			ExtendedChartPanel focusTarget=target;
+			SwingUtilities.invokeLater(focusTarget::requestFocusInWindow);
+		}
+	}
+
 	private void setTopChart(ExtendedChartPanel chart) {
 		if (topChartContent==null) return;
 		if (topChromatogramChart!=null&&topChromatogramChart!=chart) {
@@ -986,6 +1139,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		topChartContent.add(chart, BorderLayout.CENTER);
 		topChromatogramChart=chart;
 		chromatogramSelectionAnnotations.clear();
+		installChartArrowNavigation(chart, ChartFocusTarget.TOP_CHROMATOGRAM);
 		installTopChartClickSelection(chart);
 		topChartContent.revalidate();
 		topChartContent.repaint();
@@ -1256,6 +1410,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 	private void resetScan(SelectionResult result) {
 		currentSelection=result;
+		boolean shouldRestoreChartFocus=pendingChartFocusRestore;
+		pendingChartFocusRestore=false;
 		if (result==null||result.entries==null||result.entries.isEmpty()) {
 			updateTopChartSelectionMarkers(Float.NaN, Float.NaN);
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
@@ -1271,11 +1427,14 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			return;
 		}
 		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new XYTrace(displaySpectrum));
+		installChartArrowNavigation(spectrumChart, ChartFocusTarget.SPECTRUM);
 		applySpectrumXicOverlays(spectrumChart, displaySpectrum);
 		spectrumChart.setToolTipText(SPECTRUM_TOOLTIP);
+		ExtendedChartPanel imsChart=null;
 		boolean hasIms=displaySpectrum.getIonMobilityArray().isPresent()&&MatrixMath.max(displaySpectrum.getIntensityArray())>0.0f;
 		if (hasIms) {
-			ExtendedChartPanel imsChart=BasicChartGenerator.getChart("Ion Mobility", "m/z", false, new ImsSpectrumWrapper(displaySpectrum));
+			imsChart=BasicChartGenerator.getChart("Ion Mobility", "m/z", false, new ImsSpectrumWrapper(displaySpectrum));
+			installChartArrowNavigation(imsChart, ChartFocusTarget.IMS);
 			imsChart.setToolTipText(IMS_TOOLTIP);
 			imsSpectrumSplit.setLeftComponent(spectrumChart);
 			imsSpectrumSplit.setRightComponent(imsChart);
@@ -1288,8 +1447,12 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		XYTrace intensityHistogram=HistogramUtils.histogramFromLog10(displaySpectrum.getIntensityArray(), "Log10 Fragment Intensity Distribution");
 		ExtendedChartPanel spectrumHistogram=BasicChartGenerator.getChart("Log10 Intensity", "Count (N="+displaySpectrum.getIntensityArray().length+")", false,
 				intensityHistogram);
+		installChartArrowNavigation(spectrumHistogram, ChartFocusTarget.HISTOGRAM);
 		spectrumHistogram.setToolTipText(HISTOGRAM_TOOLTIP);
 		spectrumSplit.setRightComponent(spectrumHistogram);
+		if (shouldRestoreChartFocus) {
+			restoreSpectrumFocusIfNeeded(spectrumChart, imsChart, spectrumHistogram);
+		}
 
 		updateTopChartSelectionMarkers(result.minRT, result.maxRT);
 

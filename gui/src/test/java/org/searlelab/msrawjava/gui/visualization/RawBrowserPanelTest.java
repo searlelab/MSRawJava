@@ -2,6 +2,11 @@ package org.searlelab.msrawjava.gui.visualization;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.awt.event.KeyEvent;
+
+import javax.swing.InputMap;
+import javax.swing.KeyStroke;
+
 import org.junit.jupiter.api.Test;
 
 class RawBrowserPanelTest {
@@ -20,5 +25,27 @@ class RawBrowserPanelTest {
 		assertEquals(2, RawBrowserPanel.findNearestValueIndex(4.8, values));
 		assertEquals(-1, RawBrowserPanel.findNearestValueIndex(4.8, new double[] {Double.NaN}));
 		assertEquals(-1, RawBrowserPanel.findNearestValueIndex(Double.NaN, values));
+	}
+
+	@Test
+	void installHorizontalRowNavigation_mapsLeftRightToRowActions() {
+		InputMap inputMap=new InputMap();
+		RawBrowserPanel.mapHorizontalNavigationToRows(inputMap);
+		assertEquals("selectPreviousRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0)));
+		assertEquals("selectNextRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0)));
+		assertEquals("selectPreviousRowExtendSelection", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, KeyEvent.SHIFT_DOWN_MASK)));
+		assertEquals("selectNextRowExtendSelection", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, KeyEvent.SHIFT_DOWN_MASK)));
+	}
+
+	@Test
+	void mapChartNavigationToRows_mapsArrowKeysToChartRowActions() {
+		InputMap inputMap=new InputMap();
+		RawBrowserPanel.mapChartNavigationToRows(inputMap);
+		assertEquals("rawBrowser.chartSelectPreviousRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0)));
+		assertEquals("rawBrowser.chartSelectNextRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0)));
+		assertEquals("rawBrowser.chartSelectPreviousRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0)));
+		assertEquals("rawBrowser.chartSelectNextRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0)));
+		assertEquals("rawBrowser.chartSelectPreviousRowExtend", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, KeyEvent.SHIFT_DOWN_MASK)));
+		assertEquals("rawBrowser.chartSelectNextRowExtend", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, KeyEvent.SHIFT_DOWN_MASK)));
 	}
 }
