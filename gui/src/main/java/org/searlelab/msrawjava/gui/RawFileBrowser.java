@@ -44,6 +44,7 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
 import org.searlelab.msrawjava.gui.filebrowser.DirectoryNode;
+import org.searlelab.msrawjava.gui.filebrowser.DirectorySelectionHintPanel;
 import org.searlelab.msrawjava.gui.filebrowser.DirectorySummaryPanel;
 import org.searlelab.msrawjava.gui.filebrowser.DirectoryTreeModel;
 import org.searlelab.msrawjava.gui.filebrowser.FileTreeCellRenderer;
@@ -70,6 +71,7 @@ public class RawFileBrowser extends JFrame {
 	private final DirectoryTreeModel treeModel;
 
 	private final ConversionPane conversionPane;
+	private final JComponent directorySelectionHintPanel=new DirectorySelectionHintPanel();
 	private DirectorySummaryPanel currentSummaryPanel;
 	private Path pendingSelectionPath;
 
@@ -110,7 +112,7 @@ public class RawFileBrowser extends JFrame {
 
 		// ---- Top is the directory table (set later); Bottom is the lowerSplit
 		conversionPane=new ConversionPane(GUIPreferences.getPreferences(), pool);
-		fileSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JPanel(), conversionPane);
+		fileSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT, directorySelectionHintPanel, conversionPane);
 		fileSplit.setResizeWeight(GUIPreferences.getRawFileBrowserFileSplitRatio());
 		fileSplit.setContinuousLayout(true);
 		fileSplit.setOneTouchExpandable(true);
@@ -182,7 +184,15 @@ public class RawFileBrowser extends JFrame {
 		if (node==null) return;
 
 		File dir=node.getFile();
-		if (dir==null||!dir.isDirectory()) return;
+		if (dir==null) {
+			showDirectorySelectionHint();
+			return;
+		}
+		if (!dir.isDirectory()) return;
+		if (isFileSystemRoot(dir)) {
+			showDirectorySelectionHint();
+			return;
+		}
 
 		Object event=EventQueue.getCurrentEvent();
 		boolean userEvent=isUserEvent(event);
@@ -196,6 +206,22 @@ public class RawFileBrowser extends JFrame {
 			GUIPreferences.rememberLastDirectory(dir);
 		}
 		updateDirectory(dir);
+	}
+
+	private void showDirectorySelectionHint() {
+		conversionPane.setSelectedPathsSupplier(java.util.List::of);
+		conversionPane.updateDemuxAvailability(java.util.List.of());
+		setTopComponent(directorySelectionHintPanel);
+	}
+
+	private static boolean isFileSystemRoot(File directory) {
+		if (directory==null) return false;
+		try {
+			Path normalizedPath=directory.toPath().toAbsolutePath().normalize();
+			return normalizedPath.getParent()==null;
+		} catch (RuntimeException ignored) {
+			return false;
+		}
 	}
 
 	private void updateDirectory(File dir) {
