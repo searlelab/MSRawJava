@@ -76,6 +76,7 @@ import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
+import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.Logger;
@@ -92,6 +93,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final java.util.Set<String> EXPECTED_SLOW_BITS_FAILURES_LOGGED=ConcurrentHashMap.newKeySet();
 	private static final String VENDOR_ALL="All";
 	private static final long SLOW_BITS_STALL_THRESHOLD_NANOS=1_000_000_000L;
+	private static final long SLOW_BITS_READER_RETRY_NANOS=750_000_000L;
 	private static final AtomicInteger SLOW_BITS_THREAD_ID=new AtomicInteger(1);
 
 	private final int slowBitsWorkerCount=Math.max(1, Runtime.getRuntime().availableProcessors()-2);
@@ -119,8 +121,10 @@ public class DirectorySummaryPanel extends JPanel {
 	private final java.util.Set<DirRow> slowBitsRunning=ConcurrentHashMap.newKeySet();
 	private final ConcurrentHashMap<DirRow, SlowBitsLaunchPlanner.Lane> slowBitsRunningLane=new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<DirRow, Long> slowBitsRunningStartNanos=new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<Path, Long> slowBitsRetryAfterNanos=new ConcurrentHashMap<>();
 	private final java.util.Set<Path> slowBitsDeprioritized=ConcurrentHashMap.newKeySet();
 	private final java.util.Set<Path> slowBitsStallWarned=ConcurrentHashMap.newKeySet();
+	private final java.util.Set<Path> slowBitsReaderNotReadyWarned=ConcurrentHashMap.newKeySet();
 	private final AtomicBoolean slowBitsDispatchPending=new AtomicBoolean(false);
 
 	public DirectorySummaryPanel(VendorFiles files) {
@@ -183,6 +187,7 @@ public class DirectorySummaryPanel extends JPanel {
 		loadingTimer=new Timer(500, e -> {
 			SparkRenderer.advanceLoadingPhase();
 			table.repaint();
+			requestSlowBitsDispatch();
 		});
 		SwingUtilities.invokeLater(this::applySavedColumnLayout);
 		installColumnPreferenceListeners();
@@ -420,7 +425,11 @@ public class DirectorySummaryPanel extends JPanel {
 
 	private void markSlowBitsDone(DirRow row) {
 		if (row==null||!row.markSlowBitsReady()) return;
-		if (row.path!=null) slowBitsDeprioritized.remove(row.path);
+		if (row.path!=null) {
+			slowBitsDeprioritized.remove(row.path);
+			slowBitsRetryAfterNanos.remove(row.path);
+			slowBitsReaderNotReadyWarned.remove(row.path);
+		}
 		slowBitsDone.incrementAndGet();
 		SwingUtilities.invokeLater(spinner::repaint);
 	}
@@ -499,22 +508,24 @@ public class DirectorySummaryPanel extends JPanel {
 
 		ArrayList<SlowBitsLaunchPlanner.RowState> states=new ArrayList<>(rows.size());
 		HashMap<Integer, DirRow> rowsByModelIndex=new HashMap<>(rows.size());
-			for (int modelIndex=0; modelIndex<rows.size(); modelIndex++) {
-				DirRow row=rows.get(modelIndex);
-				if (row==null) continue;
+		for (int modelIndex=0; modelIndex<rows.size(); modelIndex++) {
+			DirRow row=rows.get(modelIndex);
+			if (row==null) continue;
 			rowsByModelIndex.put(Integer.valueOf(modelIndex), row);
 			int viewIndex=table.convertRowIndexToView(modelIndex);
 			boolean hidden=(viewIndex<0);
 			boolean inViewport=!hidden&&firstVisible>=0&&lastVisible>=0&&viewIndex>=firstVisible&&viewIndex<=lastVisible;
 			int distanceFromViewport=hidden?Integer.MAX_VALUE:distanceFromViewport(viewIndex, firstVisible, lastVisible);
-				boolean running=slowBitsRunning.contains(row);
-				SlowBitsLaunchPlanner.Lane runningLane=running?slowBitsRunningLane.get(row):null;
-				Long startNanos=slowBitsRunningStartNanos.get(row);
-				long runningNanos=(running&&startNanos!=null)?Math.max(0L, nowNanos-startNanos.longValue()):0L;
-				boolean deprioritized=row.path!=null&&slowBitsDeprioritized.contains(row.path);
-				states.add(new SlowBitsLaunchPlanner.RowState(modelIndex, row.vendor, hidden, inViewport, row.isSlowBitsReady(), running, runningLane, distanceFromViewport,
-						runningNanos, deprioritized));
-			}
+			boolean running=slowBitsRunning.contains(row);
+			SlowBitsLaunchPlanner.Lane runningLane=running?slowBitsRunningLane.get(row):null;
+			Long startNanos=slowBitsRunningStartNanos.get(row);
+			long runningNanos=(running&&startNanos!=null)?Math.max(0L, nowNanos-startNanos.longValue()):0L;
+			boolean deprioritized=row.path!=null&&slowBitsDeprioritized.contains(row.path);
+			long retryAfterNanos=(row.path==null)?0L:slowBitsRetryAfterNanos.getOrDefault(row.path, 0L).longValue();
+			boolean launchEligible=!row.isSlowBitsReady()&&nowNanos>=retryAfterNanos;
+			states.add(new SlowBitsLaunchPlanner.RowState(modelIndex, row.vendor, hidden, inViewport, row.isSlowBitsReady(), running, runningLane, distanceFromViewport,
+					runningNanos, deprioritized, launchEligible));
+		}
 
 		SlowBitsLaunchPlanner.Plan plan=SlowBitsLaunchPlanner.plan(states, slowBitsWorkerCount, SLOW_BITS_STALL_THRESHOLD_NANOS);
 		for (Integer stalledModelIndex : plan.stalledVisibleModelRows()) {
@@ -529,9 +540,14 @@ public class DirectorySummaryPanel extends JPanel {
 		for (SlowBitsLaunchPlanner.Launch launch : plan.launches()) {
 			DirRow row=rowsByModelIndex.get(Integer.valueOf(launch.modelIndex()));
 			if (row==null||row.isSlowBitsReady()) continue;
+			if (!isReaderReadyForSlowBits(row.vendor)) {
+				deferSlowBitsForReaderNotReady(row);
+				continue;
+			}
 			if (!slowBitsRunning.add(row)) continue;
 			slowBitsRunningLane.put(row, launch.lane());
 			slowBitsRunningStartNanos.put(row, Long.valueOf(System.nanoTime()));
+			if (row.path!=null) slowBitsRetryAfterNanos.remove(row.path);
 			try {
 				pool.submit(() -> {
 					try {
@@ -573,6 +589,24 @@ public class DirectorySummaryPanel extends JPanel {
 		if (viewIndex<firstVisible) return firstVisible-viewIndex;
 		if (viewIndex>lastVisible) return viewIndex-lastVisible;
 		return 0;
+	}
+
+	private boolean isReaderReadyForSlowBits(VendorFile vendor) {
+		if (vendor==VendorFile.THERMO) {
+			if (ThermoServerPool.isReady()) return true;
+			ThermoServerPool.startAsync();
+			return false;
+		}
+		return true;
+	}
+
+	private void deferSlowBitsForReaderNotReady(DirRow row) {
+		if (row==null||row.path==null) return;
+		slowBitsDeprioritized.add(row.path);
+		slowBitsRetryAfterNanos.put(row.path, Long.valueOf(System.nanoTime()+SLOW_BITS_READER_RETRY_NANOS));
+		if (slowBitsReaderNotReadyWarned.add(row.path)) {
+			Logger.logLine("Deferring slow bits until reader is ready: "+row.path);
+		}
 	}
 
 	private void computeSlowBits(DirRow row) {
@@ -863,7 +897,9 @@ public class DirectorySummaryPanel extends JPanel {
 		slowBitsRunning.clear();
 		slowBitsRunningLane.clear();
 		slowBitsRunningStartNanos.clear();
+		slowBitsRetryAfterNanos.clear();
 		slowBitsDeprioritized.clear();
+		slowBitsReaderNotReadyWarned.clear();
 		pool.shutdownNow();
 	}
 

@@ -114,19 +114,33 @@ class SlowBitsLaunchPlannerTest {
 		assertEquals(1, plan.launches().get(0).modelIndex());
 	}
 
+	@Test
+	void launchIneligibleRowsAreSkippedButStillBlockHiddenRows() {
+		List<RowState> rows=List.of(pending(0, VendorFile.THERMO, false, true, 0, false, false), pending(1, VendorFile.MZML, true, false, Integer.MAX_VALUE));
+
+		Plan plan=SlowBitsLaunchPlanner.plan(rows, 2, FIVE_SECONDS_NANOS);
+
+		assertTrue(plan.launches().isEmpty());
+	}
+
 	private static RowState pending(int modelIndex, VendorFile vendor, boolean hidden, boolean inViewport, int distance) {
-		return pending(modelIndex, vendor, hidden, inViewport, distance, false);
+		return pending(modelIndex, vendor, hidden, inViewport, distance, false, true);
 	}
 
 	private static RowState pending(int modelIndex, VendorFile vendor, boolean hidden, boolean inViewport, int distance, boolean deprioritizedInBucket) {
-		return new RowState(modelIndex, vendor, hidden, inViewport, false, false, null, distance, 0L, deprioritizedInBucket);
+		return pending(modelIndex, vendor, hidden, inViewport, distance, deprioritizedInBucket, true);
+	}
+
+	private static RowState pending(int modelIndex, VendorFile vendor, boolean hidden, boolean inViewport, int distance, boolean deprioritizedInBucket,
+			boolean launchEligible) {
+		return new RowState(modelIndex, vendor, hidden, inViewport, false, false, null, distance, 0L, deprioritizedInBucket, launchEligible);
 	}
 
 	private static RowState ready(int modelIndex, VendorFile vendor, boolean hidden, boolean inViewport, int distance) {
-		return new RowState(modelIndex, vendor, hidden, inViewport, true, false, null, distance, 0L, false);
+		return new RowState(modelIndex, vendor, hidden, inViewport, true, false, null, distance, 0L, false, true);
 	}
 
 	private static RowState running(int modelIndex, VendorFile vendor, boolean hidden, boolean inViewport, int distance, Lane runningLane, long runningNanos) {
-		return new RowState(modelIndex, vendor, hidden, inViewport, false, true, runningLane, distance, runningNanos, false);
+		return new RowState(modelIndex, vendor, hidden, inViewport, false, true, runningLane, distance, runningNanos, false, false);
 	}
 }

@@ -13,7 +13,7 @@ final class SlowBitsLaunchPlanner {
 	}
 
 	record RowState(int modelIndex, VendorFile vendor, boolean hidden, boolean inViewport, boolean ready, boolean running, Lane runningLane, int distanceFromViewport,
-			long runningNanos, boolean deprioritizedInBucket) {
+			long runningNanos, boolean deprioritizedInBucket, boolean launchEligible) {
 	}
 
 	record Launch(int modelIndex, Lane lane) {
@@ -62,6 +62,7 @@ final class SlowBitsLaunchPlanner {
 				continue;
 			}
 			if (row.ready()) continue;
+			if (!row.launchEligible()) continue;
 
 			if (row.inViewport()) {
 				bucketVisible.add(row);
