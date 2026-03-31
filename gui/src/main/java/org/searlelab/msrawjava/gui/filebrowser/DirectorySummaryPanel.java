@@ -92,6 +92,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final ConcurrentHashMap<Path, SlowBits> SLOW_BITS_CACHE=new ConcurrentHashMap<>();
 	private static final java.util.Set<String> EXPECTED_SLOW_BITS_FAILURES_LOGGED=ConcurrentHashMap.newKeySet();
 	private static final String VENDOR_ALL="All";
+	private static final String VENDOR_ALL_RAW_INSTRUMENT_FILES="All raw instrument files";
 	private static final long SLOW_BITS_STALL_THRESHOLD_NANOS=1_000_000_000L;
 	private static final long SLOW_BITS_READER_RETRY_NANOS=750_000_000L;
 	private static final AtomicInteger SLOW_BITS_THREAD_ID=new AtomicInteger(1);
@@ -322,8 +323,9 @@ public class DirectorySummaryPanel extends JPanel {
 		String raw=searchField.getText();
 		String text=(raw==null)?"":raw.trim();
 		String needle=text.isEmpty()?null:text.toLowerCase(Locale.ROOT);
-		VendorFile vendorSelection=getSelectedVendor();
-		if (needle==null&&vendorSelection==null) {
+		String vendorFilterValue=getVendorFilterValueForSelection(vendorFilter.getSelectedItem());
+		VendorFile specificVendorFilter=parseSpecificVendorFilter(vendorFilterValue);
+		if (needle==null&&VENDOR_ALL.equals(vendorFilterValue)) {
 			sorter.setRowFilter(null);
 			requestSlowBitsDispatch();
 			return;
@@ -334,7 +336,7 @@ public class DirectorySummaryPanel extends JPanel {
 				DirSummaryModel m=entry.getModel();
 				DirRow row=m.getAt(entry.getIdentifier());
 				if (row==null) return false;
-				if (vendorSelection!=null&&row.vendor!=vendorSelection) return false;
+				if (!matchesVendorFilterValue(row.vendor, vendorFilterValue, specificVendorFilter)) return false;
 				if (needle==null) return true;
 				return row.fileNameLower!=null&&row.fileNameLower.contains(needle);
 			}
@@ -345,6 +347,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private void initializeVendorFilter() {
 		DefaultComboBoxModel<Object> model=new DefaultComboBoxModel<>();
 		model.addElement(VENDOR_ALL);
+		model.addElement(VENDOR_ALL_RAW_INSTRUMENT_FILES);
 		for (VendorFile vendor : VendorFile.values()) {
 			model.addElement(vendor);
 		}
@@ -362,35 +365,66 @@ public class DirectorySummaryPanel extends JPanel {
 			}
 		});
 		String saved=GUIPreferences.getDirectorySummaryVendorFilter();
-		if (saved!=null&&!saved.isBlank()) {
-			if (VENDOR_ALL.equals(saved)) {
-				vendorFilter.setSelectedItem(VENDOR_ALL);
-			} else {
-				try {
-					VendorFile vendor=VendorFile.valueOf(saved);
-					vendorFilter.setSelectedItem(vendor);
-				} catch (IllegalArgumentException ignore) {
-					Logger.errorException(ignore);
-					vendorFilter.setSelectedItem(VENDOR_ALL);
-				}
-			}
+		String vendorFilterValue=normalizeSavedVendorFilter(saved);
+		VendorFile specificVendorFilter=parseSpecificVendorFilter(vendorFilterValue);
+		if (specificVendorFilter!=null) {
+			vendorFilter.setSelectedItem(specificVendorFilter);
 		} else {
-			vendorFilter.setSelectedItem(VENDOR_ALL);
+			vendorFilter.setSelectedItem(vendorFilterValue);
 		}
 	}
 
-	private VendorFile getSelectedVendor() {
-		Object selection=vendorFilter.getSelectedItem();
-		if (selection instanceof VendorFile vendor) return vendor;
-		return null;
+	private void persistVendorFilter() {
+		GUIPreferences.setDirectorySummaryVendorFilter(getVendorFilterValueForSelection(vendorFilter.getSelectedItem()));
 	}
 
-	private void persistVendorFilter() {
-		Object selection=vendorFilter.getSelectedItem();
+	static String normalizeSavedVendorFilter(String saved) {
+		if (saved==null||saved.isBlank()) {
+			return VENDOR_ALL_RAW_INSTRUMENT_FILES;
+		}
+		if (VENDOR_ALL.equals(saved)||VENDOR_ALL_RAW_INSTRUMENT_FILES.equals(saved)) {
+			return saved;
+		}
+		try {
+			return VendorFile.valueOf(saved).name();
+		} catch (IllegalArgumentException ignore) {
+			Logger.errorException(ignore);
+			return VENDOR_ALL_RAW_INSTRUMENT_FILES;
+		}
+	}
+
+	static String getVendorFilterValueForSelection(Object selection) {
 		if (selection instanceof VendorFile vendor) {
-			GUIPreferences.setDirectorySummaryVendorFilter(vendor.name());
-		} else {
-			GUIPreferences.setDirectorySummaryVendorFilter(VENDOR_ALL);
+			return vendor.name();
+		}
+		if (selection instanceof String value) {
+			return normalizeSavedVendorFilter(value);
+		}
+		return VENDOR_ALL_RAW_INSTRUMENT_FILES;
+	}
+
+	static boolean matchesVendorFilterValue(VendorFile vendor, String vendorFilterValue) {
+		return matchesVendorFilterValue(vendor, vendorFilterValue, parseSpecificVendorFilter(vendorFilterValue));
+	}
+
+	private static boolean matchesVendorFilterValue(VendorFile vendor, String vendorFilterValue, VendorFile specificVendorFilter) {
+		if (vendor==null) return false;
+		if (VENDOR_ALL.equals(vendorFilterValue)) return true;
+		if (VENDOR_ALL_RAW_INSTRUMENT_FILES.equals(vendorFilterValue)) {
+			return vendor==VendorFile.BRUKER||vendor==VendorFile.THERMO;
+		}
+		if (specificVendorFilter==null) return true;
+		return vendor==specificVendorFilter;
+	}
+
+	private static VendorFile parseSpecificVendorFilter(String vendorFilterValue) {
+		if (vendorFilterValue==null||vendorFilterValue.isBlank()) return null;
+		if (VENDOR_ALL.equals(vendorFilterValue)||VENDOR_ALL_RAW_INSTRUMENT_FILES.equals(vendorFilterValue)) return null;
+		try {
+			return VendorFile.valueOf(vendorFilterValue);
+		} catch (IllegalArgumentException ignore) {
+			Logger.errorException(ignore);
+			return null;
 		}
 	}
 
