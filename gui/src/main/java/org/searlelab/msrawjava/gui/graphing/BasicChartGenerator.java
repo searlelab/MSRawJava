@@ -41,6 +41,7 @@ import org.jfree.chart.renderer.xy.XYAreaRenderer;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.chart.ui.RectangleInsets;
 import org.jfree.chart.ui.TextAnchor;
+import org.jfree.data.RangeType;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.jfree.graphics2d.svg.SVGGraphics2D;
@@ -105,7 +106,9 @@ public class BasicChartGenerator {
 			numberaxis1=new NumberAxis();
 			numberaxis1.setAttributedLabel(yAxisLabel);
 		}
-		//numberaxis1.setAutoRangeIncludesZero(false);
+		numberaxis1.setAutoRangeIncludesZero(true);
+		numberaxis1.setRangeType(RangeType.POSITIVE);
+		
 		plot.setDomainAxis(numberaxis);
 		plot.setRangeAxis(numberaxis1);
 
@@ -135,12 +138,14 @@ public class BasicChartGenerator {
 		chart.setPadding(new RectangleInsets(10, 10, 10, 10));
 
 		NumberAxis rangeAxis=(NumberAxis)((XYPlot)plot).getRangeAxis();
-		rangeAxis.setLabelFont(font2);
-		rangeAxis.setTickLabelFont(font);
-		rangeAxis.setLabelPaint(chartForeground);
-		rangeAxis.setTickLabelPaint(chartForeground);
-		rangeAxis.setAxisLinePaint(chartForeground);
-		rangeAxis.setTickMarkPaint(chartForeground);
+		if (rangeAxis!=null) {
+			rangeAxis.setLabelFont(font2);
+			rangeAxis.setTickLabelFont(font);
+			rangeAxis.setLabelPaint(chartForeground);
+			rangeAxis.setTickLabelPaint(chartForeground);
+			rangeAxis.setAxisLinePaint(chartForeground);
+			rangeAxis.setTickMarkPaint(chartForeground);
+		}
 
 		NumberAxis domainAxis=(NumberAxis)((XYPlot)plot).getDomainAxis();
 		if (domainAxis!=null) {

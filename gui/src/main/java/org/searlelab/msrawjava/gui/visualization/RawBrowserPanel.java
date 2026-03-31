@@ -67,10 +67,11 @@ import org.searlelab.msrawjava.algorithms.RawSpectrumMergeUtils;
 import org.searlelab.msrawjava.gui.GUIPreferences;
 import org.searlelab.msrawjava.gui.graphing.BasicChartGenerator;
 import org.searlelab.msrawjava.gui.graphing.BoxPlotGenerator;
+import org.searlelab.msrawjava.gui.graphing.ChartStyleTransfer;
 import org.searlelab.msrawjava.gui.graphing.ExtendedChartPanel;
 import org.searlelab.msrawjava.gui.graphing.GraphType;
-import org.searlelab.msrawjava.gui.graphing.LegendMode;
 import org.searlelab.msrawjava.gui.graphing.HistogramUtils;
+import org.searlelab.msrawjava.gui.graphing.LegendMode;
 import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.gui.graphing.XYTraceInterface;
 import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
@@ -209,18 +210,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			this.extractedCount=0;
 			this.flushedCount=0;
 			this.maxIntensity=0.0f;
-		}
-	}
-
-	private static final class ChartAxisView {
-		private final boolean hasDomainRange;
-		private final double domainLower;
-		private final double domainUpper;
-
-		private ChartAxisView(boolean hasDomainRange, double domainLower, double domainUpper) {
-			this.hasDomainRange=hasDomainRange;
-			this.domainLower=domainLower;
-			this.domainUpper=domainUpper;
 		}
 	}
 
@@ -1205,33 +1194,11 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private void refreshChromatogramChart(boolean preserveAxisView) {
-		ChartAxisView axisView=preserveAxisView?captureTopChartAxisView():null;
+		ExtendedChartPanel previousChart=preserveAxisView?topChromatogramChart:null;
 		ExtendedChartPanel chart=buildChromatogramChart();
+		ChartStyleTransfer.apply(previousChart, chart);
 		setTopChart(chart);
-		applyTopChartAxisView(axisView, chart);
 		refreshTopChartForCurrentSelection();
-	}
-
-	private ChartAxisView captureTopChartAxisView() {
-		if (topChromatogramChart==null||topChromatogramChart.getChart()==null) return null;
-		XYPlot plot=topChromatogramChart.getChart().getXYPlot();
-		if (plot==null||plot.getDomainAxis()==null||plot.getRangeAxis()==null) return null;
-		double domainLower=plot.getDomainAxis().getLowerBound();
-		double domainUpper=plot.getDomainAxis().getUpperBound();
-		boolean hasDomainRange=Double.isFinite(domainLower)&&Double.isFinite(domainUpper)&&domainUpper>domainLower;
-		return new ChartAxisView(hasDomainRange, domainLower, domainUpper);
-	}
-
-	private void applyTopChartAxisView(ChartAxisView axisView, ExtendedChartPanel chart) {
-		if (axisView==null||chart==null||chart.getChart()==null) return;
-		XYPlot plot=chart.getChart().getXYPlot();
-		if (plot==null||plot.getDomainAxis()==null||plot.getRangeAxis()==null) return;
-		if (axisView.hasDomainRange) {
-			plot.getDomainAxis().setRange(axisView.domainLower, axisView.domainUpper);
-		} else {
-			plot.getDomainAxis().setAutoRange(true);
-		}
-		plot.getRangeAxis().setAutoRange(true);
 	}
 
 	private void clearTopChartSelectionMarkers() {
@@ -1412,6 +1379,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		currentSelection=result;
 		boolean shouldRestoreChartFocus=pendingChartFocusRestore;
 		pendingChartFocusRestore=false;
+		ExtendedChartPanel previousSpectrumChart=currentSpectrumChartPanel();
+		ExtendedChartPanel previousImsChart=componentAsChartPanel(imsSpectrumSplit.getRightComponent());
+		ExtendedChartPanel previousHistogramChart=componentAsChartPanel(spectrumSplit.getRightComponent());
 		if (result==null||result.entries==null||result.entries.isEmpty()) {
 			updateTopChartSelectionMarkers(Float.NaN, Float.NaN);
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
@@ -1427,6 +1397,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			return;
 		}
 		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new XYTrace(displaySpectrum));
+		ChartStyleTransfer.apply(previousSpectrumChart, spectrumChart);
 		installChartArrowNavigation(spectrumChart, ChartFocusTarget.SPECTRUM);
 		applySpectrumXicOverlays(spectrumChart, displaySpectrum);
 		spectrumChart.setToolTipText(SPECTRUM_TOOLTIP);
@@ -1434,6 +1405,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		boolean hasIms=displaySpectrum.getIonMobilityArray().isPresent()&&MatrixMath.max(displaySpectrum.getIntensityArray())>0.0f;
 		if (hasIms) {
 			imsChart=BasicChartGenerator.getChart("Ion Mobility", "m/z", false, new ImsSpectrumWrapper(displaySpectrum));
+			ChartStyleTransfer.apply(previousImsChart, imsChart);
 			installChartArrowNavigation(imsChart, ChartFocusTarget.IMS);
 			imsChart.setToolTipText(IMS_TOOLTIP);
 			imsSpectrumSplit.setLeftComponent(spectrumChart);
@@ -1447,6 +1419,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		XYTrace intensityHistogram=HistogramUtils.histogramFromLog10(displaySpectrum.getIntensityArray(), "Log10 Fragment Intensity Distribution");
 		ExtendedChartPanel spectrumHistogram=BasicChartGenerator.getChart("Log10 Intensity", "Count (N="+displaySpectrum.getIntensityArray().length+")", false,
 				intensityHistogram);
+		ChartStyleTransfer.apply(previousHistogramChart, spectrumHistogram);
 		installChartArrowNavigation(spectrumHistogram, ChartFocusTarget.HISTOGRAM);
 		spectrumHistogram.setToolTipText(HISTOGRAM_TOOLTIP);
 		spectrumSplit.setRightComponent(spectrumHistogram);
@@ -1457,6 +1430,16 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		updateTopChartSelectionMarkers(result.minRT, result.maxRT);
 
 		applySplitPreferences();
+	}
+
+	private ExtendedChartPanel componentAsChartPanel(Component component) {
+		return component instanceof ExtendedChartPanel?(ExtendedChartPanel)component:null;
+	}
+
+	private ExtendedChartPanel currentSpectrumChartPanel() {
+		ExtendedChartPanel direct=componentAsChartPanel(spectrumSplit.getLeftComponent());
+		if (direct!=null) return direct;
+		return componentAsChartPanel(imsSpectrumSplit.getLeftComponent());
 	}
 
 	private void applySplitPreferences() {
