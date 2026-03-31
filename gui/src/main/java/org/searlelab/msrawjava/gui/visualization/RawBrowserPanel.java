@@ -6,6 +6,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -44,6 +45,8 @@ import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DocumentFilter;
 
+import org.jfree.chart.ChartMouseEvent;
+import org.jfree.chart.ChartMouseListener;
 import org.jfree.chart.annotations.XYAnnotation;
 import org.jfree.chart.annotations.XYBoxAnnotation;
 import org.jfree.chart.annotations.XYLineAnnotation;
@@ -958,6 +961,22 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		return isXicModeActive()?activeXicMax:activeMaxTic;
 	}
 
+	static int findNearestValueIndex(double target, double[] values) {
+		if (!Double.isFinite(target)||values==null||values.length==0) return -1;
+		double bestDistance=Double.POSITIVE_INFINITY;
+		int bestIndex=-1;
+		for (int i=0; i<values.length; i++) {
+			double value=values[i];
+			if (!Double.isFinite(value)) continue;
+			double distance=Math.abs(value-target);
+			if (distance<bestDistance) {
+				bestDistance=distance;
+				bestIndex=i;
+			}
+		}
+		return bestIndex;
+	}
+
 	private void setTopChart(ExtendedChartPanel chart) {
 		if (topChartContent==null) return;
 		if (topChromatogramChart!=null&&topChromatogramChart!=chart) {
@@ -967,8 +986,64 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		topChartContent.add(chart, BorderLayout.CENTER);
 		topChromatogramChart=chart;
 		chromatogramSelectionAnnotations.clear();
+		installTopChartClickSelection(chart);
 		topChartContent.revalidate();
 		topChartContent.repaint();
+	}
+
+	private void installTopChartClickSelection(ExtendedChartPanel chart) {
+		if (chart==null) return;
+		if (Boolean.TRUE.equals(chart.getClientProperty("rawBrowser.chartSelectionInstalled"))) return;
+		chart.putClientProperty("rawBrowser.chartSelectionInstalled", Boolean.TRUE);
+		ChartMouseListener listener=new ChartMouseListener() {
+			@Override
+			public void chartMouseClicked(ChartMouseEvent event) {
+				if (event==null||event.getTrigger()==null) return;
+				MouseEvent trigger=event.getTrigger();
+				if (!SwingUtilities.isLeftMouseButton(trigger)) return;
+				double clickedMinutes=resolveChartClickDomainValue(chart, trigger);
+				if (!Double.isFinite(clickedMinutes)) return;
+				selectNearestVisibleScanRow(clickedMinutes);
+			}
+
+			@Override
+			public void chartMouseMoved(ChartMouseEvent event) {
+				// no-op
+			}
+
+		};
+		chart.addChartMouseListener(listener);
+	}
+
+	private double resolveChartClickDomainValue(ExtendedChartPanel chart, MouseEvent trigger) {
+		if (chart==null||chart.getChart()==null||chart.getChart().getXYPlot()==null) return Double.NaN;
+		XYPlot plot=chart.getChart().getXYPlot();
+		if (plot.getDomainAxis()==null) return Double.NaN;
+		int mouseX=trigger.getX();
+		int mouseY=trigger.getY();
+		Rectangle2D dataArea=chart.getScreenDataArea(mouseX, mouseY);
+		if (dataArea==null||!dataArea.contains(mouseX, mouseY)) return Double.NaN;
+		return plot.getDomainAxis().java2DToValue(mouseX, dataArea, plot.getDomainAxisEdge());
+	}
+
+	private void selectNearestVisibleScanRow(double clickedMinutes) {
+		if (table==null||table.getRowCount()<=0) return;
+		int nearestViewRow=findNearestVisibleScanRow(clickedMinutes);
+		if (nearestViewRow<0) return;
+		table.setRowSelectionInterval(nearestViewRow, nearestViewRow);
+		table.scrollRectToVisible(table.getCellRect(nearestViewRow, 0, true));
+	}
+
+	private int findNearestVisibleScanRow(double clickedMinutes) {
+		int rowCount=table.getRowCount();
+		if (rowCount<=0) return -1;
+		double[] rowMinutes=new double[rowCount];
+		for (int viewRow=0; viewRow<rowCount; viewRow++) {
+			int modelRow=table.convertRowIndexToModel(viewRow);
+			ScanSummary summary=model.getSelectedRow(modelRow);
+			rowMinutes[viewRow]=summary.getScanStartTime()/60.0;
+		}
+		return findNearestValueIndex(clickedMinutes, rowMinutes);
 	}
 
 	private void refreshChromatogramChart() {
