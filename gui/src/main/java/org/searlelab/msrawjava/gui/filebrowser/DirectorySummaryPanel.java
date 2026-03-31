@@ -4,6 +4,7 @@ import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Point;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
@@ -28,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -89,13 +91,16 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final ConcurrentHashMap<Path, SlowBits> SLOW_BITS_CACHE=new ConcurrentHashMap<>();
 	private static final java.util.Set<String> EXPECTED_SLOW_BITS_FAILURES_LOGGED=ConcurrentHashMap.newKeySet();
 	private static final String VENDOR_ALL="All";
+	private static final long SLOW_BITS_STALL_THRESHOLD_NANOS=1_000_000_000L;
 	private static final AtomicInteger SLOW_BITS_THREAD_ID=new AtomicInteger(1);
 
+	private final int slowBitsWorkerCount=Math.max(1, Runtime.getRuntime().availableProcessors()-2);
 	private final JTable table;
+	private final JScrollPane tableScrollPane;
 	private final DirSummaryModel model=new DirSummaryModel();
 	private final TableRowSorter<DirSummaryModel> sorter;
 	// Use a wider pool to speed up slow-bit extraction on large directories.
-	private final ExecutorService pool=Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors()-2), r -> {
+	private final ExecutorService pool=Executors.newFixedThreadPool(slowBitsWorkerCount, r -> {
 		Thread t=new Thread(r, "dir-summary-slow-bits-"+SLOW_BITS_THREAD_ID.getAndIncrement());
 		t.setDaemon(true);
 		t.setPriority(Thread.MIN_PRIORITY);
@@ -111,6 +116,12 @@ public class DirectorySummaryPanel extends JPanel {
 	private final ProgressSpinner spinner=new ProgressSpinner();
 	private final AtomicInteger slowBitsTotal=new AtomicInteger(0);
 	private final AtomicInteger slowBitsDone=new AtomicInteger(0);
+	private final java.util.Set<DirRow> slowBitsRunning=ConcurrentHashMap.newKeySet();
+	private final ConcurrentHashMap<DirRow, SlowBitsLaunchPlanner.Lane> slowBitsRunningLane=new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<DirRow, Long> slowBitsRunningStartNanos=new ConcurrentHashMap<>();
+	private final java.util.Set<Path> slowBitsDeprioritized=ConcurrentHashMap.newKeySet();
+	private final java.util.Set<Path> slowBitsStallWarned=ConcurrentHashMap.newKeySet();
+	private final AtomicBoolean slowBitsDispatchPending=new AtomicBoolean(false);
 
 	public DirectorySummaryPanel(VendorFiles files) {
 		super(new BorderLayout());
@@ -139,6 +150,7 @@ public class DirectorySummaryPanel extends JPanel {
 		sorter.addRowSorterListener(e -> {
 			RowSorter<?> src=(RowSorter<?>)e.getSource();
 			GUIPreferences.setDirectorySummarySortKeys(src.getSortKeys());
+			requestSlowBitsDispatch();
 		});
 
 		table.setRowSorter(sorter);
@@ -165,8 +177,9 @@ public class DirectorySummaryPanel extends JPanel {
 		table.getColumnModel().getColumn(7).setCellRenderer(new SparkRenderer());
 
 		add(buildSearchBar(), BorderLayout.NORTH);
-		JScrollPane sp=new JScrollPane(table);
-		add(sp, BorderLayout.CENTER);
+		tableScrollPane=new JScrollPane(table);
+		tableScrollPane.getViewport().addChangeListener(e -> requestSlowBitsDispatch());
+		add(tableScrollPane, BorderLayout.CENTER);
 		loadingTimer=new Timer(500, e -> {
 			SparkRenderer.advanceLoadingPhase();
 			table.repaint();
@@ -205,20 +218,7 @@ public class DirectorySummaryPanel extends JPanel {
 
 		model.addRows(allRows);
 		initializeSlowBitsProgress(allRows);
-
-		// Stream slow info (gradient + TIC spark) in the background per row, do Bruker first because they are faster
-		for (DirRow row : brukerRows) {
-			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
-		}
-		for (DirRow row : diaRows) {
-			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
-		}
-		for (DirRow row : mzmlRows) {
-			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
-		}
-		for (DirRow row : thermoRows) {
-			if (!row.isSlowBitsReady()) pool.submit(() -> computeSlowBits(row));
-		}
+		requestSlowBitsDispatch();
 	}
 
 	private JPanel buildSearchBar() {
@@ -320,6 +320,7 @@ public class DirectorySummaryPanel extends JPanel {
 		VendorFile vendorSelection=getSelectedVendor();
 		if (needle==null&&vendorSelection==null) {
 			sorter.setRowFilter(null);
+			requestSlowBitsDispatch();
 			return;
 		}
 		sorter.setRowFilter(new RowFilter<DirSummaryModel, Integer>() {
@@ -333,6 +334,7 @@ public class DirectorySummaryPanel extends JPanel {
 				return row.fileNameLower!=null&&row.fileNameLower.contains(needle);
 			}
 		});
+		requestSlowBitsDispatch();
 	}
 
 	private void initializeVendorFilter() {
@@ -418,6 +420,7 @@ public class DirectorySummaryPanel extends JPanel {
 
 	private void markSlowBitsDone(DirRow row) {
 		if (row==null||!row.markSlowBitsReady()) return;
+		if (row.path!=null) slowBitsDeprioritized.remove(row.path);
 		slowBitsDone.incrementAndGet();
 		SwingUtilities.invokeLater(spinner::repaint);
 	}
@@ -469,6 +472,107 @@ public class DirectorySummaryPanel extends JPanel {
 		int mr=table.convertRowIndexToModel(vr);
 		DirRow r=model.getAt(mr);
 		return (r==null)?null:r.path;
+	}
+
+	private void requestSlowBitsDispatch() {
+		if (closed) return;
+		if (!slowBitsDispatchPending.compareAndSet(false, true)) return;
+		SwingUtilities.invokeLater(() -> {
+			slowBitsDispatchPending.set(false);
+			dispatchSlowBitsNow();
+		});
+	}
+
+	private void dispatchSlowBitsNow() {
+		if (closed) return;
+		if (!SwingUtilities.isEventDispatchThread()) {
+			requestSlowBitsDispatch();
+			return;
+		}
+		List<DirRow> rows=model.snapshotRows();
+		if (rows.isEmpty()) return;
+
+		long nowNanos=System.nanoTime();
+		int[] visibleRange=currentVisibleViewRange();
+		int firstVisible=visibleRange[0];
+		int lastVisible=visibleRange[1];
+
+		ArrayList<SlowBitsLaunchPlanner.RowState> states=new ArrayList<>(rows.size());
+		HashMap<Integer, DirRow> rowsByModelIndex=new HashMap<>(rows.size());
+			for (int modelIndex=0; modelIndex<rows.size(); modelIndex++) {
+				DirRow row=rows.get(modelIndex);
+				if (row==null) continue;
+			rowsByModelIndex.put(Integer.valueOf(modelIndex), row);
+			int viewIndex=table.convertRowIndexToView(modelIndex);
+			boolean hidden=(viewIndex<0);
+			boolean inViewport=!hidden&&firstVisible>=0&&lastVisible>=0&&viewIndex>=firstVisible&&viewIndex<=lastVisible;
+			int distanceFromViewport=hidden?Integer.MAX_VALUE:distanceFromViewport(viewIndex, firstVisible, lastVisible);
+				boolean running=slowBitsRunning.contains(row);
+				SlowBitsLaunchPlanner.Lane runningLane=running?slowBitsRunningLane.get(row):null;
+				Long startNanos=slowBitsRunningStartNanos.get(row);
+				long runningNanos=(running&&startNanos!=null)?Math.max(0L, nowNanos-startNanos.longValue()):0L;
+				boolean deprioritized=row.path!=null&&slowBitsDeprioritized.contains(row.path);
+				states.add(new SlowBitsLaunchPlanner.RowState(modelIndex, row.vendor, hidden, inViewport, row.isSlowBitsReady(), running, runningLane, distanceFromViewport,
+						runningNanos, deprioritized));
+			}
+
+		SlowBitsLaunchPlanner.Plan plan=SlowBitsLaunchPlanner.plan(states, slowBitsWorkerCount, SLOW_BITS_STALL_THRESHOLD_NANOS);
+		for (Integer stalledModelIndex : plan.stalledVisibleModelRows()) {
+			DirRow stalledRow=rowsByModelIndex.get(stalledModelIndex);
+			if (stalledRow==null||stalledRow.path==null) continue;
+			slowBitsDeprioritized.add(stalledRow.path);
+			if (slowBitsStallWarned.add(stalledRow.path)) {
+				Logger.logLine("Slow bits still loading after 1s for visible row: "+stalledRow.path);
+			}
+		}
+
+		for (SlowBitsLaunchPlanner.Launch launch : plan.launches()) {
+			DirRow row=rowsByModelIndex.get(Integer.valueOf(launch.modelIndex()));
+			if (row==null||row.isSlowBitsReady()) continue;
+			if (!slowBitsRunning.add(row)) continue;
+			slowBitsRunningLane.put(row, launch.lane());
+			slowBitsRunningStartNanos.put(row, Long.valueOf(System.nanoTime()));
+			try {
+				pool.submit(() -> {
+					try {
+						computeSlowBits(row);
+					} finally {
+						slowBitsRunning.remove(row);
+						slowBitsRunningLane.remove(row);
+						slowBitsRunningStartNanos.remove(row);
+						requestSlowBitsDispatch();
+					}
+				});
+			} catch (RejectedExecutionException ignore) {
+				slowBitsRunning.remove(row);
+				slowBitsRunningLane.remove(row);
+				slowBitsRunningStartNanos.remove(row);
+			}
+		}
+	}
+
+	private int[] currentVisibleViewRange() {
+		int rowCount=table.getRowCount();
+		if (rowCount<=0) return new int[] {-1, -1};
+		Rectangle vr=tableScrollPane.getViewport().getViewRect();
+		int first=table.rowAtPoint(new Point(0, vr.y));
+		int last=table.rowAtPoint(new Point(0, vr.y+Math.max(0, vr.height-1)));
+		if (first<0) first=0;
+		if (last<0) last=rowCount-1;
+		if (first>last) {
+			int tmp=first;
+			first=last;
+			last=tmp;
+		}
+		return new int[] {first, last};
+	}
+
+	private static int distanceFromViewport(int viewIndex, int firstVisible, int lastVisible) {
+		if (viewIndex<0) return Integer.MAX_VALUE;
+		if (firstVisible<0||lastVisible<0) return 0;
+		if (viewIndex<firstVisible) return firstVisible-viewIndex;
+		if (viewIndex>lastVisible) return viewIndex-lastVisible;
+		return 0;
 	}
 
 	private void computeSlowBits(DirRow row) {
@@ -748,6 +852,7 @@ public class DirectorySummaryPanel extends JPanel {
 		super.addNotify();
 		closed=false;
 		if (loadingTimer!=null) loadingTimer.start();
+		requestSlowBitsDispatch();
 	}
 
 	@Override
@@ -755,6 +860,10 @@ public class DirectorySummaryPanel extends JPanel {
 		if (loadingTimer!=null) loadingTimer.stop();
 		super.removeNotify();
 		closed=true;
+		slowBitsRunning.clear();
+		slowBitsRunningLane.clear();
+		slowBitsRunningStartNanos.clear();
+		slowBitsDeprioritized.clear();
 		pool.shutdownNow();
 	}
 
@@ -777,6 +886,10 @@ public class DirectorySummaryPanel extends JPanel {
 		DirRow getAt(int modelRow) {
 			if (modelRow<0||modelRow>=rows.size()) return null;
 			return rows.get(modelRow);
+		}
+
+		List<DirRow> snapshotRows() {
+			return new ArrayList<>(rows);
 		}
 
 		void rowUpdated(DirRow r) {
