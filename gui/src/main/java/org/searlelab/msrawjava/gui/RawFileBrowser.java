@@ -220,9 +220,10 @@ public class RawFileBrowser extends JFrame {
 		setTopComponent(directorySelectionHintPanel);
 	}
 
-	private static boolean isFileSystemRoot(File directory) {
+	private boolean isFileSystemRoot(File directory) {
 		if (directory==null) return false;
 		try {
+			if (fsv.isFileSystemRoot(directory)) return true;
 			Path normalizedPath=directory.toPath().toAbsolutePath().normalize();
 			return normalizedPath.getParent()==null;
 		} catch (RuntimeException ignored) {
