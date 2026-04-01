@@ -71,7 +71,7 @@ public final class MenuManager {
 
 	public static void install(JDialog dialog, RawFileBrowser browser) {
 		if (dialog==null||browser==null) return;
-		if (isMac()) return;
+		if (isMac()) return; //FIXME this is kind of a hack. Really the dialogs should get this menubar as well
 		install((Window)dialog, browser);
 	}
 

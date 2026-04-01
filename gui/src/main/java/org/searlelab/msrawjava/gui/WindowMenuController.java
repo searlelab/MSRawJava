@@ -87,10 +87,8 @@ final class WindowMenuController {
 			} else {
 				MenuManager.install(activeWindow, browser);
 			}
-			if (!isMac()) {
-				for (JDialog dialog : List.copyOf(visualizationWindows)) {
-					MenuManager.install(dialog, browser);
-				}
+			for (JDialog dialog : List.copyOf(visualizationWindows)) {
+				MenuManager.install(dialog, browser);
 			}
 		});
 	}
