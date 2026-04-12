@@ -911,6 +911,17 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        Add("run.start_scan",     firstScan);
 	        Add("run.end_scan",       lastScan);
 	        Add("run.total_scans",    (lastScan >= firstScan) ? (lastScan - firstScan + 1) : 0);
+	        try
+	        {
+	            var startDateProp = raw.GetType().GetProperty("CreationDate")
+	                ?? raw.GetType().GetProperty("DateCreated")
+	                ?? raw.GetType().GetProperty("AcquisitionDate")
+	                ?? raw.GetType().GetProperty("StartDate");
+	            var startDateValue = startDateProp?.GetValue(raw);
+	            if (startDateValue is DateTime dt) Add("run.start_time_iso8601", dt.ToUniversalTime().ToString("O"));
+	            else if (startDateValue is DateTimeOffset dto) Add("run.start_time_iso8601", dto.ToUniversalTime().ToString("O"));
+	        }
+	        catch { }
 	
 	        // If you already compute these elsewhere, reuse them; otherwise:
 	        var gradientSeconds = Math.Max(0.0, (endMin - startMin) * 60.0);

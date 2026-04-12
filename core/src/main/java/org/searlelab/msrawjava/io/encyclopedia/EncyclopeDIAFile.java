@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.TimeZone;
 import java.util.Vector;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -86,6 +87,10 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	private final HashMap<Range, WindowData> ranges=new HashMap<Range, WindowData>();
 
 	private final TIntObjectHashMap<String> fractionNames=new TIntObjectHashMap<String>();
+
+	static {
+		m_ISO8601Local.setTimeZone(TimeZone.getTimeZone("UTC"));
+	}
 
 	public EncyclopeDIAFile() throws IOException {
 	}
