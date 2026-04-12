@@ -348,7 +348,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("          <scan instrumentConfigurationRef=\"IC1\">\n");
 		out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_SCAN_START_TIME+"\" name=\"scan start time\" value=\""+fmtTimeInSec(scan.getScanStartTime())
 				+"\" unitCvRef=\"UO\" unitAccession=\""+UO_SECOND+"\" unitName=\"second\"/>\n");
-		if (scan.getIonInjectionTime()!=null) {
+		if (scan.getIonInjectionTime()>0) {
 			double iitMs=scan.getIonInjectionTime()*1000.0;
 			out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_ION_INJECTION_TIME+"\" name=\"ion injection time\" value=\""+fmtTimeInMs(iitMs)
 					+"\" unitCvRef=\"UO\" unitAccession=\""+UO_MILLISECOND+"\" unitName=\"millisecond\"/>\n");
@@ -383,7 +383,7 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_SCAN_START_TIME+"\" name=\"scan start time\" value=\""+fmtTimeInSec(scan.getScanStartTime())
 				+"\" unitCvRef=\"UO\" unitAccession=\""+UO_SECOND+"\" unitName=\"second\"/>\n");
 
-		if (scan.getIonInjectionTime()!=null) {
+		if (scan.getIonInjectionTime()>0) {
 			double iitMs=scan.getIonInjectionTime()*1000.0;
 			out.write("            <cvParam cvRef=\"MS\" accession=\""+CV_ION_INJECTION_TIME+"\" name=\"ion injection time\" value=\""+fmtTimeInMs(iitMs)
 					+"\" unitCvRef=\"UO\" unitAccession=\""+UO_MILLISECOND+"\" unitName=\"millisecond\"/>\n");

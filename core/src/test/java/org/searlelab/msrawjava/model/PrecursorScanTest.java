@@ -2,7 +2,6 @@ package org.searlelab.msrawjava.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -102,7 +101,7 @@ class PrecursorScanTest {
 
 	@Test
 	void nullIonInjectionTimeIsHandled() {
-		assertNull(scanWithNullIms.getIonInjectionTime());
+		assertEquals(-1.0f, scanWithNullIms.getIonInjectionTime(), 1e-6f);
 	}
 
 	@Test
@@ -246,5 +245,31 @@ class PrecursorScanTest {
 		// Order should match sorted m/z order
 		assertEquals(0.55f, imsArray.get()[0], 1e-6);
 		assertEquals(0.65f, imsArray.get()[1], 1e-6);
+	}
+
+	@Test
+	void shallowCloneUpdatesIndexAndFraction() {
+		PrecursorScan clone=scan.shallowClone(4, 99);
+		assertEquals(4, clone.getFraction());
+		assertEquals(99, clone.getSpectrumIndex());
+		assertEquals(scan.getScanWindowLower(), clone.getScanWindowLower(), 1e-9);
+	}
+
+	@Test
+	void shallowCloneWithRangeClampsWindow() {
+		PrecursorScan clone=scan.shallowClone(2, 5, new Range(150.0f, 2000.0f));
+		assertEquals(150.0, clone.getIsolationWindowLower(), 1e-9);
+		assertEquals(1000.0, clone.getIsolationWindowUpper(), 1e-9);
+	}
+
+	@Test
+	void integrateSumsPeaksWithinMzRange() {
+		assertEquals(2000.0f, scan.integrate(new Range(150.0f, 250.0f)), 1e-6f);
+	}
+
+	@Test
+	void explicitTicConstructorPreservesProvidedValue() {
+		PrecursorScan explicit=new PrecursorScan("explicit", 3, 10.0f, 0, 100.0, 500.0, null, new double[] {100.0}, new float[] {1.0f}, null, 42.0f);
+		assertEquals(42.0f, explicit.getTIC(), 1e-6f);
 	}
 }

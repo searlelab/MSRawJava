@@ -8,7 +8,7 @@ import java.util.Optional;
  * applicable, ion-mobility). It serves as the base contract implemented by concrete spectrum types so readers and
  * writers can operate uniformly over MS1 and MS2 content.
  */
-public interface AcquiredSpectrum {
+public interface AcquiredSpectrum extends Spectrum {
 
 	/** Human-readable spectrum label (may not be unique). */
 	String getSpectrumName();
@@ -34,8 +34,8 @@ public interface AcquiredSpectrum {
 	/** Upper m/z bound of the precursor isolation window (for PRM/DIA/DDA). */
 	double getIsolationWindowUpper();
 
-	/** Ion injection time in seconds, or null if unavailable. */
-	Float getIonInjectionTime();
+	/** Ion injection time in seconds, or -1 if unavailable. */
+	float getIonInjectionTime();
 
 	/** Calibrated m/z values, index-aligned with intensities. */
 	double[] getMassArray();

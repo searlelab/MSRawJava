@@ -59,8 +59,8 @@ public final class RawSpectrumMergeUtils {
 
 		for (AcquiredSpectrum spectrum : spectra) {
 			minRT=Math.min(minRT, spectrum.getScanStartTime());
-			Float iit=spectrum.getIonInjectionTime();
-			if (iit!=null&&iit>0) totalIIT+=iit;
+			float iit=spectrum.getIonInjectionTime();
+			if (iit>0) totalIIT+=iit;
 			minFraction=Math.min(minFraction, spectrum.getFraction());
 			isolationWindowLower=Math.min(isolationWindowLower, spectrum.getIsolationWindowLower());
 			isolationWindowUpper=Math.max(isolationWindowUpper, spectrum.getIsolationWindowUpper());
@@ -117,8 +117,8 @@ public final class RawSpectrumMergeUtils {
 
 		for (AcquiredSpectrum spectrum : spectra) {
 			averageRT+=spectrum.getScanStartTime();
-			Float iit=spectrum.getIonInjectionTime();
-			if (iit!=null&&iit>0) totalIIT+=iit;
+			float iit=spectrum.getIonInjectionTime();
+			if (iit>0) totalIIT+=iit;
 			minFraction=Math.min(minFraction, spectrum.getFraction());
 			isolationWindowLower=Math.min(isolationWindowLower, spectrum.getIsolationWindowLower());
 			isolationWindowUpper=Math.max(isolationWindowUpper, spectrum.getIsolationWindowUpper());

@@ -14,6 +14,7 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,11 +42,17 @@ import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 import org.sqlite.SQLiteException;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import gnu.trove.list.array.TFloatArrayList;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import gnu.trove.procedure.TIntObjectProcedure;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
+import org.searlelab.msrawjava.io.mzml.InstrumentMapTranscoder;
 
 /**
  * EncyclopeDIAFile implements a streamed writer for EncyclopeDIA .DIA outputs, organizing run metadata and spectra into
@@ -97,6 +104,10 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	public void setFractionNames(TIntObjectHashMap<String> fractionNames) {
 		this.fractionNames.clear();
 		this.fractionNames.putAll(fractionNames);
+	}
+
+	public TIntObjectHashMap<String> getFractionNames() {
+		return new TIntObjectHashMap<String>(fractionNames);
 	}
 
 	public void writeRanges() throws IOException, SQLException {
@@ -320,9 +331,9 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					String spectrumName=rs.getString(1);
 					int spectrumIndex=rs.getInt(2);
 					float scanStartTime=rs.getFloat(3);
-					Float ionInjectionTime=rs.getFloat(4);
+					float ionInjectionTime=rs.getFloat(4);
 					if (rs.wasNull()) {
-						ionInjectionTime=null;
+						ionInjectionTime=-1f;
 					}
 					int massEncodedLength=rs.getInt(5);
 					double[] massArray=ByteConverter.toDoubleArray(CompressionUtils.decompress(rs.getBytes(6), massEncodedLength));
@@ -400,17 +411,17 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					} else {
 						ionMobilityBytes=rs.getBytes(13);
 					}
-					Float nullableIonInjectionTime=rs.getFloat(14);
+					float ionInjectionTime=rs.getFloat(14);
 					if (rs.wasNull()) {
-						nullableIonInjectionTime=null;
+						ionInjectionTime=-1f;
 					}
-					final Float ionInjectionTime=nullableIonInjectionTime;
+					final float finalIonInjectionTime=ionInjectionTime;
 					final int fraction=rs.getInt(15);
 					executor.submit(new Runnable() {
 						@Override
 						public void run() {
 							try {
-								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, ionInjectionTime,
+								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, finalIonInjectionTime,
 										isolationWindowLower, isolationWindowUpper, precursorCharge, massEncodedLength, massBytes, intensityEncodedLength,
 										intensityBytes, ionMobilityEncodedLength, ionMobilityBytes));
 							} catch (DataFormatException dfe) {
@@ -443,7 +454,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	}
 
 	private FragmentScan getStripe(boolean sqrt, String spectrumName, String precursorName, int spectrumIndex, Float scanStartTime, int fraction,
-			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, int precursorCharge, int massEncodedLength, byte[] massBytes,
+			float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, int precursorCharge, int massEncodedLength, byte[] massBytes,
 			int intensityEncodedLength, byte[] intensityBytes, Integer nullableIonMobilityEncodedLength, byte[] ionMobilityArrayBytes)
 			throws IOException, DataFormatException {
 		double[] massArray=ByteConverter.toDoubleArray(CompressionUtils.decompress(massBytes, massEncodedLength));
@@ -514,18 +525,18 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					} else {
 						ionMobilityBytes=rs.getBytes(13);
 					}
-					Float nullableIonInjectionTime=rs.getFloat(14);
+					float ionInjectionTime=rs.getFloat(14);
 					if (rs.wasNull()) {
-						nullableIonInjectionTime=null;
+						ionInjectionTime=-1f;
 					}
-					final Float ionInjectionTime=nullableIonInjectionTime;
+					final float finalIonInjectionTime=ionInjectionTime;
 					final int fraction=rs.getInt(15);
 
 					executor.submit(new Runnable() {
 						@Override
 						public void run() {
 							try {
-								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, ionInjectionTime,
+								stripes.add(getStripe(sqrt, spectrumName, precursorName, spectrumIndex, scanStartTime, fraction, finalIonInjectionTime,
 										isolationWindowLower, isolationWindowUpper, precursorCharge, massEncodedLength, massBytes, intensityEncodedLength,
 										intensityBytes, ionMobilityEncodedLength, ionMobilityBytes));
 							} catch (DataFormatException dfe) {
@@ -687,11 +698,34 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	}
 
 	@Override
-	public void setFileName(String sourceName, String fileLocation) throws IOException, SQLException {
+	public void setFileName(String fileName, String fileLocation) throws IOException, SQLException {
+		setFileName(fileName, fileName, fileLocation);
+	}
+
+	public void setFileName(String fileName, String sourceName, String fileLocation) throws IOException, SQLException {
 		HashMap<String, String> map=new HashMap<String, String>();
+		map.put(FILENAME_ATTRIBUTE, fileName==null?UNKNOWN_VALUE:fileName);
 		map.put(SOURCENAME_ATTRIBUTE, sourceName==null?UNKNOWN_VALUE:sourceName);
 		map.put(FILELOCATION_ATTRIBUTE, fileLocation==null?UNKNOWN_VALUE:fileLocation);
 		addMetadata(map);
+	}
+
+	public void setStartTime(Date startTime) throws IOException, SQLException {
+		addMetadata(RUN_START_TIME, startTime==null?null:m_ISO8601Local.format(startTime));
+	}
+
+	public void setSoftwareVersions(final Multimap<String, String> softwareAccessionIdToVersion) throws IOException, SQLException {
+		if (softwareAccessionIdToVersion==null||softwareAccessionIdToVersion.isEmpty()) return;
+		HashMap<String, String> data=new HashMap<String, String>();
+		softwareAccessionIdToVersion.asMap().forEach((key, value) -> {
+			data.put(SOFTWARE_VERSION_PREFIX+key, Joiner.on(SOFTWARE_VERSIONS_DELIMITER).join(value));
+		});
+		addMetadata(data);
+	}
+
+	public void setInstrumentConfiguration(ImmutableMultimap<InstrumentId, InstrumentComponent> instrumentConfigurations) throws IOException, SQLException {
+		if (instrumentConfigurations==null||instrumentConfigurations.isEmpty()) return;
+		addMetadata(INSTRUMENT_CONFIGURATIONS, InstrumentMapTranscoder.encode(instrumentConfigurations));
 	}
 
 	public void addMetadata(String key, String value) throws IOException, SQLException {
@@ -760,6 +794,19 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		addStripe(stripes);
 	}
 
+	public void saveFile() throws IOException, SQLException {
+		ensureWritableTempFile();
+		writeRanges();
+		writeFractionNames();
+		createIndices();
+		if (userFile!=null) {
+			setFileVersion();
+			if (tempFile!=null&&!tempFile.toPath().equals(userFile.toPath())) {
+				Files.move(tempFile.toPath(), userFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+			}
+		}
+	}
+
 	/**
 	 * Add the given block of precursor scans to the file using a single prepared statement and commit.
 	 */
@@ -774,7 +821,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					prep.setInt(2, precursor.getSpectrumIndex());
 					prep.setFloat(3, precursor.getScanStartTime());
 
-					if (precursor.getIonInjectionTime()!=null) {
+					if (precursor.getIonInjectionTime()>0) {
 						prep.setFloat(4, precursor.getIonInjectionTime());
 					} else {
 						prep.setNull(4, Types.FLOAT);
@@ -844,7 +891,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 			prep.setFloat(index++, stripe.getScanStartTime());
 			prep.setInt(index++, stripe.getFraction());
 
-			if (stripe.getIonInjectionTime()!=null) {
+			if (stripe.getIonInjectionTime()>0) {
 				prep.setFloat(index++, stripe.getIonInjectionTime());
 			} else {
 				prep.setNull(index++, Types.FLOAT);
