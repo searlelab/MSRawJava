@@ -491,7 +491,7 @@ class EncyclopeDIAFileTest {
 		assertEquals(2, summaries.size(), "Expected one precursor and one fragment summary");
 		var fragmentSummary=summaries.stream().filter(s -> !s.isPrecursor()).findFirst().orElseThrow();
 		assertEquals(0, fragmentSummary.getCharge(), "Legacy files should default missing fragment charge to zero");
-		assertTrue(Float.isNaN(fragmentSummary.getTic()), "Legacy spectra without TIC should expose NaN summary TIC");
+		assertEquals(300.0f, fragmentSummary.getTic(), "Legacy spectra without TIC should compute summary TIC from the intensity array");
 
 		ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 0.0f, 10.0f, false);
 		assertEquals(1, stripes.size());

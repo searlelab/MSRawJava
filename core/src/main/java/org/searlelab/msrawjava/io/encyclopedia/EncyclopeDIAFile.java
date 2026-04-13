@@ -1084,12 +1084,19 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 						:", (IsolationWindowLower+IsolationWindowUpper)/2.0 as IsolationWindowCenter";
 				String precursorChargeSelect=hasPrecursorCharge?", PrecursorCharge":", 0 as PrecursorCharge";
 				String spectraIonInjectionTimeSelect=hasSpectraIonInjectionTime?", IonInjectionTime":", NULL as IonInjectionTime";
-				String spectraTicSelect=hasSpectraTic?", TIC":", NULL as TIC";
+				String spectraSql;
+				if (hasSpectraTic) {
+					spectraSql="select SpectrumName, SpectrumIndex, ScanStartTime"+spectraIonInjectionTimeSelect
+							+", IsolationWindowLower, IsolationWindowUpper"+isolationCenterSelect+precursorChargeSelect+scanWindowSelect+", TIC from spectra "
+							+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime";
+				} else {
+					spectraSql="select SpectrumName, SpectrumIndex, ScanStartTime"+spectraIonInjectionTimeSelect
+							+", IsolationWindowLower, IsolationWindowUpper"+isolationCenterSelect+precursorChargeSelect+scanWindowSelect
+							+", IntensityEncodedLength, IntensityArray from spectra "
+							+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime";
+				}
 
-				rs=s.executeQuery("select SpectrumName, SpectrumIndex, ScanStartTime"+spectraIonInjectionTimeSelect
-						+", IsolationWindowLower, IsolationWindowUpper"+isolationCenterSelect+precursorChargeSelect+scanWindowSelect+spectraTicSelect
-						+" from spectra "
-						+"where ScanStartTime>="+minRT+" and ScanStartTime<="+maxRT+" order by ScanStartTime");
+				rs=s.executeQuery(spectraSql);
 				while (rs.next()) {
 					String name=rs.getString(1);
 					int index=rs.getInt(2);
@@ -1102,8 +1109,23 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					byte charge=(byte)rs.getInt(8);
 					double scanLo=rs.getDouble(9);
 					double scanHi=rs.getDouble(10);
-					float tic=rs.getFloat(11);
-					if (rs.wasNull()) tic=Float.NaN;
+					float tic;
+					if (hasSpectraTic) {
+						tic=rs.getFloat(11);
+						if (rs.wasNull()) tic=Float.NaN;
+					} else {
+						int encodedLength=rs.getInt(11);
+						byte[] intensityBytes=rs.getBytes(12);
+						tic=Float.NaN;
+						if (intensityBytes!=null&&encodedLength>0) {
+							try {
+								float[] intensities=ByteConverter.toFloatArray(CompressionUtils.decompress(intensityBytes, encodedLength));
+								tic=MatrixMath.sum(intensities);
+							} catch (DataFormatException e) {
+								throw new IOException("Failed to decode fragment intensity array for legacy DIA scan summary TIC", e);
+							}
+						}
+					}
 					out.add(new ScanSummary(name, index, rt, 0, tic, center, false, iit, isoLo, isoHi, scanLo, scanHi, charge));
 				}
 				rs.close();
