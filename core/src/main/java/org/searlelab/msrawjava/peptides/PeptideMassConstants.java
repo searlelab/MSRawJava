@@ -10,7 +10,7 @@ import java.util.Map;
 public final class PeptideMassConstants {
 	public static final double PROTON_MASS=1.007276466812;
 	public static final double WATER_MASS=18.0105646837;
-	public static final double ISOTOPE_DELTA=1.003354835336;
+	public static final double ISOTOPE_DELTA=1.0033548378;
 
 	private static final Map<Character, Double> RESIDUE_MONOISOTOPIC_MASS;
 	static {
