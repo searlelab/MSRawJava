@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <install4j version="12.0.2" transformSequenceNumber="12">
-  <directoryPresets config="/Users/searleb/Documents/java/MSRawJava/gui" />
-  <application name="MSRawJava" applicationId="7985-7208-6179-2855" mediaDir="target/install4j" shortName="MSRawJava" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="26.3.20" macVolumeId="c048ca009eaf9ba9">
+  <directoryPresets config="./target/msrawjava-26.4.24.jar" />
+  <application name="MSRawJava" applicationId="7985-7208-6179-2855" mediaDir="target/install4j" shortName="MSRawJava" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="26.4.24" macVolumeId="c048ca009eaf9ba9">
     <jreBundles jdkProviderId="Adoptium" release="21/latest" />
   </application>
   <files>
@@ -10,7 +10,7 @@
     </mountPoints>
     <entries>
       <dirEntry mountPoint="34" file="./target/lib" entryMode="subdir" subDirectory="lib" />
-      <fileEntry mountPoint="34" file="./target/msrawjava-26.3.20.jar" />
+      <fileEntry mountPoint="34" file="./target/msrawjava-26.4.24.jar" />
     </entries>
   </files>
   <launchers>
@@ -23,7 +23,7 @@
       </splashScreen>
       <java mainClass="org.searlelab.msrawjava.gui.GuiMain" vmParameters="-Xms2g">
         <classPath>
-          <archive location="msrawjava-26.3.20.jar" failOnError="false" />
+          <archive location="msrawjava-26.4.24.jar" failOnError="false" />
           <directory location="lib" failOnError="false" />
         </classPath>
       </java>
