@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import org.searlelab.msrawjava.peptides.ParsedQueryToken;
+import org.searlelab.msrawjava.peptides.ChargeParsingUtils;
 import org.searlelab.msrawjava.peptides.PeptideIonGenerator;
 import org.searlelab.msrawjava.peptides.PeptideIonTarget;
 import org.searlelab.msrawjava.peptides.PeptideQueryParser;
@@ -104,7 +105,7 @@ final class RawBrowserXicUtils {
 
 	static boolean isAllowedXicChar(char c) {
 		if (Character.isLetterOrDigit(c)||Character.isWhitespace(c)) return true;
-		return c=='.'||c==','||c=='+'||c=='-'||c=='['||c==']'||c=='_'||c=='('||c==')';
+		return c=='.'||c==','||c=='+'||c=='-'||c=='['||c==']'||c=='_'||c=='('||c==')'||c=='{'||c=='}';
 	}
 
 	static List<String> tokenizeQueryTokens(String text) {
@@ -156,6 +157,12 @@ final class RawBrowserXicUtils {
 					XicTarget target=new XicTarget(mz, String.format(Locale.ROOT, "XIC %.4f", mz), token);
 					addUniqueTarget(precursorTargets, target);
 					addUniqueTarget(fragmentTargets, target);
+					return;
+				}
+				if (parsed.isMolecularFormula()) {
+					String label=parsed.getMolecularFormula().toCanonicalFormulaString()+ChargeParsingUtils.formatChargeShorthand(parsed.getMolecularFormula().getCharge());
+					XicTarget target=new XicTarget(parsed.getMolecularFormula().getMz(), label, parsed.getOriginalToken());
+					addUniqueTarget(precursorTargets, target);
 					return;
 				}
 				addPeptideTargets(parsed, precursorTargets, fragmentTargets);

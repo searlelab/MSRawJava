@@ -385,7 +385,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		xicLabel=new JLabel("XIC m/zs: ");
 		xicField=new JTextField();
-		xicField.setToolTipText("Enter one or more m/z targets (comma or whitespace separated).");
+		xicField.setToolTipText("Enter one or more m/z, peptide, or formula targets with optional signed charges (comma or whitespace separated).");
 		((AbstractDocument)xicField.getDocument()).setDocumentFilter(new XicInputFilter());
 
 		xicToleranceFilter=new JComboBox<>(XicToleranceOption.valuesForUi());
@@ -393,7 +393,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		xicToleranceFilter.setToolTipText("Mass tolerance used for XIC extraction.");
 
 		extractXicButton=new JButton("Extract XICs");
-		extractXicButton.setToolTipText("Extract and plot XIC traces for entered m/z values.");
+		extractXicButton.setToolTipText("Extract and plot XIC traces for entered m/z, peptide, or formula targets.");
 		extractXicButton.addActionListener(e -> onExtractXicClicked());
 
 		JPanel xicEastPanel=new JPanel(new BorderLayout(6, 0));

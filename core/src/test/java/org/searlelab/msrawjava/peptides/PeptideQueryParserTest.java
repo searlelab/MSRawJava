@@ -19,6 +19,10 @@ class PeptideQueryParserTest {
 		assertCharge("PEPTIDE++", 2);
 		assertCharge("PEPTIDE+3", 3);
 		assertCharge("PEPTIDE+++", 3);
+		assertCharge("PEPTIDE-", -1);
+		assertCharge("PEPTIDE--", -2);
+		assertCharge("PEPTIDE---", -3);
+		assertCharge("PEPTIDE-2", -2);
 	}
 
 	@Test
@@ -60,6 +64,13 @@ class PeptideQueryParserTest {
 	}
 
 	@Test
+	void parsePeptide_acceptsNegativeChargeSuffixesOnModifiedPeptides() {
+		Optional<ParsedPeptideQuery> parsed=parser.parsePeptide("PEP[+79.966331]TIDE--");
+		assertTrue(parsed.isPresent());
+		assertEquals(-2, parsed.get().getPrecursorCharge());
+	}
+
+	@Test
 	void parseToken_supportsNumericAndPeptideTokens() {
 		Optional<ParsedQueryToken> numeric=parser.parseToken("445.34");
 		assertTrue(numeric.isPresent());
@@ -70,6 +81,22 @@ class PeptideQueryParserTest {
 		assertTrue(peptide.isPresent());
 		assertTrue(peptide.get().isPeptide());
 		assertEquals(2, peptide.get().getPeptideQuery().getPrecursorCharge());
+	}
+
+	@Test
+	void parseToken_supportsMolecularFormulaTokens() {
+		Optional<ParsedQueryToken> formula=parser.parseToken("[C2H6SiO]6--");
+		assertTrue(formula.isPresent());
+		assertTrue(formula.get().isMolecularFormula());
+		assertEquals(-2, formula.get().getMolecularFormula().getCharge());
+		assertEquals("C12H36O6Si6", formula.get().getMolecularFormula().toCanonicalFormulaString());
+	}
+
+	@Test
+	void parsePeptide_rejectsMalformedChargeSuffixes() {
+		assertFalse(parser.parsePeptide("PEPTIDE+-").isPresent());
+		assertFalse(parser.parsePeptide("PEPTIDE-+").isPresent());
+		assertFalse(parser.parsePeptide("PEPTIDE++2").isPresent());
 	}
 
 	private void assertCharge(String token, int expectedCharge) {

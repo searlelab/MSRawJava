@@ -25,7 +25,7 @@ class RawBrowserXicUtilsTest {
 
 		assertEquals("XIC 445.3400", parsed.precursorTargets().get(0).label());
 		assertEquals("XIC 445.3400", parsed.fragmentTargets().get(0).label());
-		assertTrue(parsed.precursorTargets().stream().anyMatch(t -> t.label().equals("PEPTIDE+2 [M]")));
+		assertTrue(parsed.precursorTargets().stream().anyMatch(t -> t.label().equals("PEPTIDE++ [M]")));
 		assertTrue(parsed.fragmentTargets().stream().anyMatch(t -> t.label().contains(" b1+")));
 	}
 
@@ -33,14 +33,23 @@ class RawBrowserXicUtilsTest {
 	void parseXicTargets_ordersFragmentIonsForLegend() {
 		RawBrowserXicUtils.ParsedXicTargets parsed=RawBrowserXicUtils.parseXicTargets("PEPTIDE+3");
 		assertEquals(24, parsed.fragmentTargets().size());
-		assertEquals("PEPTIDE+3 b1+", parsed.fragmentTargets().get(0).label());
-		assertEquals("PEPTIDE+3 b6+", parsed.fragmentTargets().get(5).label());
-		assertEquals("PEPTIDE+3 y1+", parsed.fragmentTargets().get(6).label());
-		assertEquals("PEPTIDE+3 y6+", parsed.fragmentTargets().get(11).label());
-		assertEquals("PEPTIDE+3 b1++", parsed.fragmentTargets().get(12).label());
-		assertEquals("PEPTIDE+3 b6++", parsed.fragmentTargets().get(17).label());
-		assertEquals("PEPTIDE+3 y1++", parsed.fragmentTargets().get(18).label());
-		assertEquals("PEPTIDE+3 y6++", parsed.fragmentTargets().get(23).label());
+		assertEquals("PEPTIDE+++ b1+", parsed.fragmentTargets().get(0).label());
+		assertEquals("PEPTIDE+++ b6+", parsed.fragmentTargets().get(5).label());
+		assertEquals("PEPTIDE+++ y1+", parsed.fragmentTargets().get(6).label());
+		assertEquals("PEPTIDE+++ y6+", parsed.fragmentTargets().get(11).label());
+		assertEquals("PEPTIDE+++ b1++", parsed.fragmentTargets().get(12).label());
+		assertEquals("PEPTIDE+++ b6++", parsed.fragmentTargets().get(17).label());
+		assertEquals("PEPTIDE+++ y1++", parsed.fragmentTargets().get(18).label());
+		assertEquals("PEPTIDE+++ y6++", parsed.fragmentTargets().get(23).label());
+	}
+
+	@Test
+	void parseXicTargets_supportsFormulaAndNegativePeptideTokens() {
+		RawBrowserXicUtils.ParsedXicTargets parsed=RawBrowserXicUtils.parseXicTargets("[C2H6SiO]6--, PEPTIDE--");
+		assertTrue(parsed.precursorTargets().stream().anyMatch(t -> t.label().equals("C12H36O6Si6--")));
+		assertTrue(parsed.precursorTargets().stream().anyMatch(t -> t.label().equals("PEPTIDE-- [M]")));
+		assertFalse(parsed.fragmentTargets().stream().anyMatch(t -> t.label().equals("C12H36O6Si6--")));
+		assertTrue(parsed.fragmentTargets().stream().anyMatch(t -> t.label().equals("PEPTIDE-- b1-")));
 	}
 
 	@Test
@@ -55,6 +64,12 @@ class RawBrowserXicUtilsTest {
 		String input="_PEPTIDER++_, 500.2\nRLSISS[+79.966331]";
 		String sanitized=RawBrowserXicUtils.sanitizeXicText(input);
 		assertEquals("_PEPTIDER++_, 500.2 RLSISS[+79.966331]", sanitized);
+	}
+
+	@Test
+	void sanitizeXicText_retainsFormulaGroupingCharacters() {
+		String sanitized=RawBrowserXicUtils.sanitizeXicText("{CH3}2, [C2H6SiO]6--");
+		assertEquals("{CH3}2, [C2H6SiO]6--", sanitized);
 	}
 
 	@Test
