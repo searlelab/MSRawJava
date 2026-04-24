@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui.visualization;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -70,5 +71,14 @@ class RawBrowserXicUtilsTest {
 		float[] intensity=new float[] {100.0f, 40.0f, 25.0f, 10.0f};
 		double sum=RawBrowserXicUtils.sumIntensityWithinTolerance(mz, intensity, 500.0, 0.4);
 		assertEquals(140.0, sum, 1e-8);
+	}
+
+	@Test
+	void isTargetInScanWindow_requiresMzWithinFiniteWindowButDefaultsOpenForMissingBounds() {
+		assertTrue(RawBrowserXicUtils.isTargetInScanWindow(500.0, 400.0, 600.0));
+		assertTrue(RawBrowserXicUtils.isTargetInScanWindow(500.0, Double.NaN, 600.0));
+		assertTrue(RawBrowserXicUtils.isTargetInScanWindow(500.0, 600.0, 400.0));
+		assertFalse(RawBrowserXicUtils.isTargetInScanWindow(399.9, 400.0, 600.0));
+		assertFalse(RawBrowserXicUtils.isTargetInScanWindow(600.1, 400.0, 600.0));
 	}
 }

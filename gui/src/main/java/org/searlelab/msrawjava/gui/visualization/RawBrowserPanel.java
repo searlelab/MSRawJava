@@ -800,7 +800,19 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			XicToleranceOption toleranceOption) {
 		ArrayList<ScanSummary> sourceScans=new ArrayList<>();
 		for (ScanSummary summary : allScans) {
-			if (scanType.includes(summary)) sourceScans.add(summary);
+			if (scanType.includes(summary)) {
+				boolean keep=false;
+				targetLoop: for (int t=0; t<targets.size(); t++) {
+					double target=targets.get(t).mz();
+					if (RawBrowserXicUtils.isTargetInScanWindow(target, summary.getScanWindowLower(), summary.getScanWindowUpper())) {
+						keep=true;
+						break targetLoop;
+					}
+				}
+				if (keep) {
+					sourceScans.add(summary);
+				}
+			}
 		}
 		sourceScans.sort((a, b) -> Float.compare(a.getScanStartTime(), b.getScanStartTime()));
 
@@ -825,6 +837,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 				float[] intensity=spectrum.getIntensityArray();
 				for (int t=0; t<targets.size(); t++) {
 					double target=targets.get(t).mz();
+					if (!RawBrowserXicUtils.isTargetInScanWindow(target, spectrum.getScanWindowLower(), spectrum.getScanWindowUpper())) {
+						continue;
+					}
 					double tol=toleranceOption.toleranceMz(target);
 					double sum=RawBrowserXicUtils.sumIntensityWithinTolerance(mz, intensity, target, tol);
 					traces[t][i]=sum;

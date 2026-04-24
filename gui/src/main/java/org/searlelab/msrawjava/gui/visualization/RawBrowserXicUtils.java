@@ -198,4 +198,11 @@ final class RawBrowserXicUtils {
 		}
 		return sum;
 	}
+
+	static boolean isTargetInScanWindow(double targetMz, double scanWindowLower, double scanWindowUpper) {
+		if (!Double.isFinite(targetMz)||targetMz<=0.0) return false;
+		if (!Double.isFinite(scanWindowLower)||!Double.isFinite(scanWindowUpper)) return true;
+		if (scanWindowUpper<scanWindowLower) return true;
+		return targetMz>=scanWindowLower&&targetMz<=scanWindowUpper;
+	}
 }
