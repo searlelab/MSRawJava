@@ -8,9 +8,14 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,7 +25,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.logging.Logger;
@@ -29,6 +37,10 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
+
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Multimap;
 
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.list.array.TFloatArrayList;
@@ -40,7 +52,7 @@ import gnu.trove.list.array.TFloatArrayList;
  * FragmentScan) along with DIA window summaries (Range/WindowData). The class isolates vendor specifics so call-sites
  * can treat Bruker data uniformly alongside other vendors.
  */
-public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
+public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataProvider, AutoCloseable {
 
 	private Path dPath=null;
 	private File fileObj=null;
@@ -538,9 +550,59 @@ public class BrukerTIMSFile implements StripeFileInterface, AutoCloseable {
 		return out;
 	}
 
+	@Override
+	public Optional<Date> getRunStartTime() throws IOException, SQLException {
+		Map<String, String> meta=getMetadata();
+		String value=firstNonBlank(meta.get("meta.AcquisitionDateTime"), meta.get("meta.AcquisitionDate"), meta.get("meta.Date"));
+		if (value==null) return Optional.empty();
+		return parseDate(value);
+	}
+
+	@Override
+	public Multimap<String, String> getSoftwareAccessionIdToVersion() throws IOException, SQLException {
+		Map<String, String> meta=getMetadata();
+		LinkedHashMultimap<String, String> out=LinkedHashMultimap.create();
+		String software=firstNonBlank(meta.get("meta.AcquisitionSoftware"), meta.get("meta.AcquisitionProgram"));
+		String version=firstNonBlank(meta.get("meta.AcquisitionSoftwareVersion"), meta.get("meta.AcquisitionProgramVersion"));
+		if (software!=null||version!=null) {
+			out.put(software==null?"bruker.acquisition.software":software, version==null?"":version);
+		}
+		return out;
+	}
+
+	@Override
+	public ImmutableMultimap<InstrumentId, InstrumentComponent> getInstrumentConfigurations() throws IOException, SQLException {
+		Map<String, String> meta=getMetadata();
+		String instrumentName=firstNonBlank(meta.get("meta.InstrumentName"), meta.get("meta.InstrumentFamily"), meta.get("meta.MaldiApplicationType"),
+				meta.get("meta.SchemaType"), "Bruker timsTOF");
+		InstrumentId id=InstrumentId.builder().setInstrumentConfigurationId("IC1").setAccession("").setName(instrumentName).build();
+		return ImmutableMultimap.of(id, InstrumentComponent.builder().setType(InstrumentComponent.Type.ANALYZER).setOrder(1).setCvRef("")
+				.setAccessionId("").setName(instrumentName).build());
+	}
+
 	private static double getNullableDouble(ResultSet rs, int col, double def) throws SQLException {
 		double v=rs.getDouble(col);
 		return rs.wasNull()?def:v;
+	}
+
+	private static String firstNonBlank(String... values) {
+		for (String value : values) {
+			if (value!=null&&!value.isBlank()) return value;
+		}
+		return null;
+	}
+
+	private static Optional<Date> parseDate(String raw) {
+		try {
+			return Optional.of(Date.from(OffsetDateTime.parse(raw).toInstant()));
+		} catch (DateTimeParseException ignored) {
+		}
+		try {
+			return Optional.of(Date.from(LocalDateTime.parse(raw, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).atZone(java.time.ZoneId.systemDefault())
+					.toInstant()));
+		} catch (DateTimeParseException ignored) {
+		}
+		return Optional.empty();
 	}
 
 	/** Read MS1 precursor scans within an RT window. */

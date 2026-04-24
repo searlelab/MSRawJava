@@ -13,13 +13,18 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -28,6 +33,9 @@ import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
+
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.LinkedHashMultimap;
 
 class RawFileConvertersStandardTest {
 
@@ -135,6 +143,36 @@ class RawFileConvertersStandardTest {
 	}
 
 	@Test
+	void writeStandard_dia_persistsStructuredMetadata() throws Exception {
+		Path outputDir=tmp.resolve("out_structured_dia");
+		Files.createDirectories(outputDir);
+
+		FakeStructuredStripeFile raw=new FakeStructuredStripeFile(tmp.resolve("structured.raw").toFile());
+		raw.setGradientLength(1.0f);
+		raw.setRanges(Map.of(new Range(400.0f, 500.0f), new WindowData(0.5f, 1)));
+		raw.setMetadata(Map.of("filename", "structured.raw", "filelocation", "/tmp/structured.raw"));
+		raw.setScans(singleMs1(), singleMs2());
+
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.EncyclopeDIA).build();
+		CapturingProgress progress=new CapturingProgress();
+		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
+		try {
+			assertTrue(RawFileConverters.writeStandard(pool, raw, outputDir, params, progress));
+		} finally {
+			pool.close();
+		}
+
+		Path outFile=outputDir.resolve("structured.dia");
+		assertTrue(Files.exists(outFile));
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+outFile)) {
+			assertEquals("1.2.3", string(c, "select Value from metadata where Key='SoftwareVersion_MS:1000615'"));
+			assertEquals(java.time.Instant.parse("2024-01-02T03:04:05Z"),
+					OffsetDateTime.parse(string(c, "select Value from metadata where Key='runStartTime'")).toInstant());
+			assertTrue(string(c, "select Value from metadata where Key='InstrumentConfigurations'").contains("IC1"));
+		}
+	}
+
+	@Test
 	void sectionQueryStop_usesNextDownExceptLast() throws Exception {
 		Method method=RawFileConverters.class.getDeclaredMethod("sectionQueryStop", float.class, boolean.class);
 		method.setAccessible(true);
@@ -195,7 +233,7 @@ class RawFileConvertersStandardTest {
 		}
 	}
 
-	private static final class FakeStripeFile implements StripeFileInterface {
+	private static class FakeStripeFile implements StripeFileInterface {
 		private final File file;
 		private boolean open=true;
 		private float gradientLength=1.0f;
@@ -330,6 +368,37 @@ class RawFileConvertersStandardTest {
 		@Override
 		public String getOriginalFileName() {
 			return file.getName();
+		}
+	}
+
+	private static final class FakeStructuredStripeFile extends FakeStripeFile implements StructuredMetadataProvider {
+		private FakeStructuredStripeFile(File file) {
+			super(file);
+		}
+
+		@Override
+		public Optional<Date> getRunStartTime() {
+			return Optional.of(Date.from(java.time.Instant.parse("2024-01-02T03:04:05Z")));
+		}
+
+		@Override
+		public com.google.common.collect.Multimap<String, String> getSoftwareAccessionIdToVersion() {
+			LinkedHashMultimap<String, String> versions=LinkedHashMultimap.create();
+			versions.put("MS:1000615", "1.2.3");
+			return versions;
+		}
+
+		@Override
+		public ImmutableMultimap<InstrumentId, InstrumentComponent> getInstrumentConfigurations() {
+			return ImmutableMultimap.of(InstrumentId.builder().setInstrumentConfigurationId("IC1").setAccession("MS:1000031").setName("instrument").build(),
+					InstrumentComponent.builder().setType(InstrumentComponent.Type.ANALYZER).setOrder(1).setCvRef("MS").setAccessionId("MS:1000484")
+							.setName("orbitrap").build());
+		}
+	}
+
+	private static String string(Connection c, String sql) throws SQLException {
+		try (Statement s=c.createStatement(); var rs=s.executeQuery(sql)) {
+			return rs.next()?rs.getString(1):null;
 		}
 	}
 

@@ -17,6 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.DoubleConsumer;
+import java.util.function.Predicate;
 
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -38,6 +39,7 @@ import javax.swing.SwingConstants;
 import javax.swing.Timer;
 import javax.swing.SwingWorker;
 import javax.swing.SwingUtilities;
+import javax.swing.BorderFactory;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
@@ -105,6 +107,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final String CHART_ACTION_NEXT_ROW="rawBrowser.chartSelectNextRow";
 	private static final String CHART_ACTION_PREVIOUS_ROW_EXTEND="rawBrowser.chartSelectPreviousRowExtend";
 	private static final String CHART_ACTION_NEXT_ROW_EXTEND="rawBrowser.chartSelectNextRowExtend";
+	private static final String XIC_EXAMPLE_PEG="371.228, 415.254, 459.280, 503.306, 547.332, 597.359";
+	private static final String XIC_EXAMPLE_POLYSILOXANE="[C2H6SiO]5, [C2H6SiO]6, [C2H6SiO]7, [C2H6SiO]8, [C2H6SiO]9, [C2H6SiO]10, [C2H6SiO]11";
+	private static final String XIC_EXAMPLE_VATVSLPR="VATVSLPR++";
 	private static final Color[] XIC_COLORS=new Color[] {
 			new Color(0xE6, 0x4A, 0x19), new Color(0x00, 0x79, 0x6B), new Color(0x1E, 0x88, 0xE5), new Color(0x8E, 0x24, 0xAA), new Color(0x6D, 0x4C, 0x41),
 			new Color(0x43, 0xA0, 0x47), new Color(0xFB, 0x8C, 0x00), new Color(0x39, 0x49, 0xAB)};
@@ -385,7 +390,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 
 		xicLabel=new JLabel("XIC m/zs: ");
 		xicField=new JTextField();
-		xicField.setToolTipText("Enter one or more m/z targets (comma or whitespace separated).");
+		xicField.setToolTipText("Enter one or more m/z, peptide, or formula targets with optional signed charges (comma or whitespace separated).");
 		((AbstractDocument)xicField.getDocument()).setDocumentFilter(new XicInputFilter());
 
 		xicToleranceFilter=new JComboBox<>(XicToleranceOption.valuesForUi());
@@ -393,7 +398,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		xicToleranceFilter.setToolTipText("Mass tolerance used for XIC extraction.");
 
 		extractXicButton=new JButton("Extract XICs");
-		extractXicButton.setToolTipText("Extract and plot XIC traces for entered m/z values.");
+		extractXicButton.setToolTipText("Extract and plot XIC traces for entered m/z, peptide, or formula targets.");
 		extractXicButton.addActionListener(e -> onExtractXicClicked());
 
 		JPanel xicEastPanel=new JPanel(new BorderLayout(6, 0));
@@ -405,9 +410,24 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		xicBar.add(xicField, BorderLayout.CENTER);
 		xicBar.add(xicEastPanel, BorderLayout.EAST);
 
+		JPanel xicExamplesPanel=new JPanel(new BorderLayout(6, 0));
+		JLabel xicExamplesLabel=new JLabel("Examples: ");
+		JPanel xicExamplesButtons=new JPanel();
+		xicExamplesButtons.setLayout(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 6, 0));
+		xicExamplesButtons.add(buildXicExampleButton("PEG", XIC_EXAMPLE_PEG));
+		xicExamplesButtons.add(buildXicExampleButton("Polysiloxane", XIC_EXAMPLE_POLYSILOXANE));
+		xicExamplesButtons.add(buildXicExampleButton("VATVSLPR", XIC_EXAMPLE_VATVSLPR));
+		xicExamplesPanel.add(xicExamplesLabel, BorderLayout.WEST);
+		xicExamplesPanel.add(xicExamplesButtons, BorderLayout.CENTER);
+
+		JPanel xicControlsPanel=new JPanel(new BorderLayout(0, 6));
+		xicControlsPanel.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
+		xicControlsPanel.add(xicExamplesPanel, BorderLayout.NORTH);
+		xicControlsPanel.add(xicBar, BorderLayout.CENTER);
+
 		topChartContent=new JPanel(new BorderLayout());
 		topChartContainer=new JPanel(new BorderLayout());
-		topChartContainer.add(xicBar, BorderLayout.NORTH);
+		topChartContainer.add(xicControlsPanel, BorderLayout.NORTH);
 		topChartContainer.add(topChartContent, BorderLayout.CENTER);
 
 		JPanel scanTypePanel=new JPanel(new BorderLayout());
@@ -743,6 +763,40 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		extractXicTracesAsync(targets, getSelectedXicTolerance());
 	}
 
+	private JButton buildXicExampleButton(String label, String xicValue) {
+		JButton button=new JButton(label);
+		button.addActionListener(e -> runXicExample(xicValue));
+		return button;
+	}
+
+	private void runXicExample(String xicValue) {
+		selectMs1ScanType();
+		xicField.setText(xicValue);
+		onExtractXicClicked();
+	}
+
+	private void selectMs1ScanType() {
+		selectFirstMatchingItem(scanTypeFilter, option -> option!=null&&option.isMs1());
+	}
+
+	static <T> boolean selectFirstMatchingItem(JComboBox<T> comboBox, Predicate<T> predicate) {
+		ArrayList<T> options=new ArrayList<>(comboBox.getItemCount());
+		for (int i=0; i<comboBox.getItemCount(); i++) {
+			options.add(comboBox.getItemAt(i));
+		}
+		int index=findFirstMatchingIndex(options, predicate);
+		if (index<0) return false;
+		comboBox.setSelectedIndex(index);
+		return true;
+	}
+
+	static <T> int findFirstMatchingIndex(List<T> items, Predicate<T> predicate) {
+		for (int i=0; i<items.size(); i++) {
+			if (predicate.test(items.get(i))) return i;
+		}
+		return -1;
+	}
+
 	private XicToleranceOption getSelectedXicTolerance() {
 		XicToleranceOption selected=(XicToleranceOption)xicToleranceFilter.getSelectedItem();
 		return selected==null?XicToleranceOption.DEFAULT:selected;
@@ -800,7 +854,19 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			XicToleranceOption toleranceOption) {
 		ArrayList<ScanSummary> sourceScans=new ArrayList<>();
 		for (ScanSummary summary : allScans) {
-			if (scanType.includes(summary)) sourceScans.add(summary);
+			if (scanType.includes(summary)) {
+				boolean keep=false;
+				targetLoop: for (int t=0; t<targets.size(); t++) {
+					double target=targets.get(t).mz();
+					if (RawBrowserXicUtils.isTargetInScanWindow(target, summary.getScanWindowLower(), summary.getScanWindowUpper())) {
+						keep=true;
+						break targetLoop;
+					}
+				}
+				if (keep) {
+					sourceScans.add(summary);
+				}
+			}
 		}
 		sourceScans.sort((a, b) -> Float.compare(a.getScanStartTime(), b.getScanStartTime()));
 
@@ -825,6 +891,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 				float[] intensity=spectrum.getIntensityArray();
 				for (int t=0; t<targets.size(); t++) {
 					double target=targets.get(t).mz();
+					if (!RawBrowserXicUtils.isTargetInScanWindow(target, spectrum.getScanWindowLower(), spectrum.getScanWindowUpper())) {
+						continue;
+					}
 					double tol=toleranceOption.toleranceMz(target);
 					double sum=RawBrowserXicUtils.sumIntensityWithinTolerance(mz, intensity, target, tol);
 					traces[t][i]=sum;

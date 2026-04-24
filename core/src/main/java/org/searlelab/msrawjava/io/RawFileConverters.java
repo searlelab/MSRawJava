@@ -20,11 +20,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.Date;
 
 import org.searlelab.msrawjava.algorithms.CycleAssembler;
 import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
@@ -40,6 +43,9 @@ import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
+
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
 
 /**
  * RawFileConverters reads raw files using native readers, normalizes spectra and metadata into the shared model, and
@@ -75,6 +81,7 @@ public class RawFileConverters {
 			outFile.addMetadata(rawFile.getMetadata());
 			outFile.setFileName(originalFileName, rawFile.toString());
 			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
+			applyStructuredMetadata(rawFile, outFile);
 
 			if (rawFile instanceof MzmlFile) {
 				return writeStandardMzmlFastPath((MzmlFile)rawFile, outFile, outputDirPath, params, progress, originalFileName, startTime);
@@ -173,6 +180,7 @@ public class RawFileConverters {
 
 			outFile.addMetadata(rawFile.getMetadata());
 			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
+			applyStructuredMetadata(rawFile, outFile);
 
 			ArrayList<Range> acquiredWindows=new ArrayList<>(ranges.keySet());
 			acquiredWindows.sort(null);
@@ -628,6 +636,24 @@ public class RawFileConverters {
 			} catch (Throwable t) {
 				Logger.errorException(t);
 			}
+		}
+	}
+
+	private static void applyStructuredMetadata(StripeFileInterface rawFile, OutputSpectrumFile outFile) throws Exception {
+		if (!(outFile instanceof EncyclopeDIAFile encyclopediaFile) || !(rawFile instanceof StructuredMetadataProvider provider)) {
+			return;
+		}
+		Optional<Date> runStartTime=provider.getRunStartTime();
+		if (runStartTime.isPresent()) {
+			encyclopediaFile.setStartTime(runStartTime.get());
+		}
+		Multimap<String, String> softwareVersions=provider.getSoftwareAccessionIdToVersion();
+		if (softwareVersions!=null&&!softwareVersions.isEmpty()) {
+			encyclopediaFile.setSoftwareVersions(softwareVersions);
+		}
+		ImmutableMultimap<InstrumentId, InstrumentComponent> instrumentConfigurations=provider.getInstrumentConfigurations();
+		if (instrumentConfigurations!=null&&!instrumentConfigurations.isEmpty()) {
+			encyclopediaFile.setInstrumentConfiguration(instrumentConfigurations);
 		}
 	}
 

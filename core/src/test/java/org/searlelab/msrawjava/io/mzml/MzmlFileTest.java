@@ -16,18 +16,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.Deflater;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
+
+import com.google.common.collect.ImmutableMultimap;
 
 class MzmlFileTest {
 
@@ -159,6 +164,31 @@ class MzmlFileTest {
 		Map<String, String> meta=reader.getMetadata();
 		assertEquals("1852649200000", meta.get("totalPrecursorTIC"));
 		assertEquals("1234.5", meta.get("gradientLength"));
+		reader.close();
+	}
+
+	@Test
+	void parsesStructuredRunSoftwareAndInstrumentMetadata() throws Exception {
+		String xml="<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"+"<mzML xmlns=\"http://psi.hupo.org/ms/mzml\" version=\"1.1.1\">\n"
+				+"  <cvList count=\"2\"><cv id=\"MS\" fullName=\"PSI-MS\" version=\"4.1.136\" URI=\"\"/><cv id=\"UO\" fullName=\"Unit Ontology\" version=\"1\" URI=\"\"/></cvList>\n"
+				+"  <softwareList count=\"1\">\n"+"    <software id=\"soft1\" version=\"1.2.3\">\n"
+				+"      <cvParam cvRef=\"MS\" accession=\"MS:1000615\" name=\"instrument control software\"/>\n"+"    </software>\n"+"  </softwareList>\n"
+				+"  <instrumentConfigurationList count=\"1\">\n"+"    <instrumentConfiguration id=\"IC1\">\n"
+				+"      <cvParam cvRef=\"MS\" accession=\"MS:1000031\" name=\"instrument model\"/>\n"+"      <source order=\"1\">\n"
+				+"        <cvParam cvRef=\"MS\" accession=\"MS:1000398\" name=\"nanoelectrospray\"/>\n"+"      </source>\n"+"      <analyzer order=\"2\">\n"
+				+"        <cvParam cvRef=\"MS\" accession=\"MS:1000484\" name=\"orbitrap\"/>\n"+"      </analyzer>\n"+"    </instrumentConfiguration>\n"
+				+"  </instrumentConfigurationList>\n"+"  <run id=\"run1\" startTimeStamp=\"2024-01-02T03:04:05Z\">\n"
+				+"    <spectrumList count=\"0\" defaultDataProcessingRef=\"dp\"/>\n"+"  </run>\n"+"</mzML>\n";
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+		assertEquals(Date.from(java.time.Instant.parse("2024-01-02T03:04:05Z")), reader.getRunStartTime().orElseThrow());
+		assertEquals(List.of("1.2.3"), new ArrayList<>(reader.getSoftwareAccessionIdToVersion().get("MS:1000615")));
+		ImmutableMultimap<InstrumentId, InstrumentComponent> instruments=reader.getInstrumentConfigurations();
+		assertEquals(1, instruments.keySet().size());
+		InstrumentId id=instruments.keySet().iterator().next();
+		assertEquals("IC1", id.instrumentConfigurationId);
+		assertEquals(2, instruments.get(id).size());
 		reader.close();
 	}
 

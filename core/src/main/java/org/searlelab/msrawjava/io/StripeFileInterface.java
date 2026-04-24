@@ -124,7 +124,7 @@ public interface StripeFileInterface {
 	/**
 	 * closes file
 	 */
-	void close() throws IOException;
+	void close();
 
 	boolean isOpen();
 

@@ -16,15 +16,21 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
+
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.LinkedHashMultimap;
 
 class EncyclopeDIAFileTest {
 
@@ -100,6 +106,41 @@ class EncyclopeDIAFileTest {
 		dia.openFile();
 		assertTrue(dia.getMetadata().size()>0);
 		dia.close();
+	}
+
+	@Test
+	void writerCompatibilityMethodsPersistExpectedMetadata() throws Exception {
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile();
+		dia.setFileName("source.raw", "source.raw", "/data/source.raw");
+		gnu.trove.map.hash.TIntObjectHashMap<String> fractions=new gnu.trove.map.hash.TIntObjectHashMap<String>();
+		fractions.put(0, "fraction0");
+		dia.setFractionNames(fractions);
+		dia.setStartTime(new Date(0L));
+		LinkedHashMultimap<String, String> versions=LinkedHashMultimap.create();
+		versions.put("MS:1000615", "1.0");
+		versions.put("MS:1000615", "1.1");
+		dia.setSoftwareVersions(versions);
+		ImmutableMultimap<InstrumentId, InstrumentComponent> instruments=ImmutableMultimap.of(
+				InstrumentId.builder().setInstrumentConfigurationId("IC1").setAccession("MS:1000031").setName("instrument").build(),
+				InstrumentComponent.builder().setType(InstrumentComponent.Type.SOURCE).setOrder(1).setCvRef("MS").setAccessionId("MS:1000398")
+						.setName("nanoelectrospray").build());
+		dia.setInstrumentConfiguration(instruments);
+
+		Path out=tmp.resolve("writer_compat.dia");
+		dia.saveAsFile(out.toFile());
+		dia.close();
+
+		EncyclopeDIAFile reopened=new EncyclopeDIAFile();
+		reopened.openFile(out.toFile());
+		assertEquals("writer_compat.dia", reopened.getMetadata().get(EncyclopeDIAFile.FILENAME_ATTRIBUTE));
+		assertEquals("source.raw", reopened.getMetadata().get(EncyclopeDIAFile.SOURCENAME_ATTRIBUTE));
+		assertEquals("/data/source.raw", reopened.getMetadata().get(EncyclopeDIAFile.FILELOCATION_ATTRIBUTE));
+		assertTrue(reopened.getMetadata().containsKey(EncyclopeDIAFile.RUN_START_TIME));
+		assertEquals("fraction0", reopened.getFractionNames().get(0));
+		assertEquals("1.0;1.1", reopened.getMetadata().get(EncyclopeDIAFile.SOFTWARE_VERSION_PREFIX+"MS:1000615"));
+		assertTrue(reopened.getMetadata().containsKey(EncyclopeDIAFile.INSTRUMENT_CONFIGURATIONS));
+		reopened.close();
 	}
 
 	private static void assertTableExists(DatabaseMetaData md, String tableName) throws SQLException {
@@ -450,7 +491,7 @@ class EncyclopeDIAFileTest {
 		assertEquals(2, summaries.size(), "Expected one precursor and one fragment summary");
 		var fragmentSummary=summaries.stream().filter(s -> !s.isPrecursor()).findFirst().orElseThrow();
 		assertEquals(0, fragmentSummary.getCharge(), "Legacy files should default missing fragment charge to zero");
-		assertTrue(Float.isNaN(fragmentSummary.getTic()), "Legacy spectra without TIC should expose NaN summary TIC");
+		assertEquals(300.0f, fragmentSummary.getTic(), "Legacy spectra without TIC should compute summary TIC from the intensity array");
 
 		ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 0.0f, 10.0f, false);
 		assertEquals(1, stripes.size());

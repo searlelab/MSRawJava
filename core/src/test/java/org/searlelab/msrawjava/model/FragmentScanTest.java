@@ -104,6 +104,13 @@ class FragmentScanTest {
 	}
 
 	@Test
+	void compatibilityHelpersExposeLegacySurface() {
+		assertEquals(500.0, scan.getIsolationWindowCenter(), 1e-9);
+		assertEquals((byte)2, scan.getPrecursorCharge());
+		assertEquals(scan.getPrecursorRange(), scan.getRange());
+	}
+
+	@Test
 	void getPeaksFiltersAboveMinimumIntensity() {
 		ArrayList<PeakInterface> peaks=scanWithIms.getPeaks(1500.0f);
 		assertEquals(1, peaks.size());
@@ -244,6 +251,41 @@ class FragmentScanTest {
 	}
 
 	@Test
+	void shallowCloneUpdatesIndexAndFraction() {
+		FragmentScan clone=scan.shallowClone(4, 99);
+		assertEquals(4, clone.getFraction());
+		assertEquals(99, clone.getSpectrumIndex());
+		assertEquals(scan.getPrecursorMZ(), clone.getPrecursorMZ(), 1e-9);
+		assertArrayEquals(scan.getMassArray(), clone.getMassArray(), 1e-9);
+	}
+
+	@Test
+	void sqrtReturnsProtectedSqrtIntensityArray() {
+		FragmentScan sqrtScan=scan.sqrt();
+		assertEquals((float)Math.sqrt(1000.0), sqrtScan.getIntensityArray()[0], 1e-5f);
+		assertEquals((float)Math.sqrt(2000.0), sqrtScan.getIntensityArray()[1], 1e-5f);
+	}
+
+	@Test
+	void trimMassesKeepsOnlyPeaksInRange() {
+		FragmentScan trimmed=scanWithIms.trimMasses(new Range(150.0f, 250.0f));
+		assertEquals(1, trimmed.getMassArray().length);
+		assertEquals(200.0, trimmed.getMassArray()[0], 1e-9);
+		assertTrue(trimmed.getIonMobilityArray().isPresent());
+		assertEquals(0.8f, trimmed.getIonMobilityArray().get()[0], 1e-6f);
+	}
+
+	@Test
+	void trimToPeakDepthLimitsPeaksPerBin() {
+		double[] masses= {10.0, 20.0, 30.0, 140.0};
+		float[] intensities= {5.0f, 25.0f, 15.0f, 7.0f};
+		FragmentScan dense=new FragmentScan("dense", "prec", 3, 400.0, 10.0f, 0, null, 390.0, 410.0, masses, intensities, null, (byte)2, 0.0, 500.0);
+		FragmentScan trimmed=dense.trimToPeakDepth(2);
+		assertEquals(3, trimmed.getMassArray().length);
+		assertArrayEquals(new double[] {20.0, 30.0, 140.0}, trimmed.getMassArray(), 1e-9);
+	}
+
+	@Test
 	void toStringContainsIsolationWindowInfo() {
 		String str=scan.toString();
 		assertTrue(str.contains("400.0"));
@@ -262,6 +304,6 @@ class FragmentScanTest {
 		double[] masses= {100.0};
 		float[] intensities= {100.0f};
 		FragmentScan scanNoInjectionTime=new FragmentScan("a", "a", 1, 500.0, 120.0f, 0, null, 400.0, 600.0, masses, intensities, null, (byte)2, 100.0, 1000.0);
-		assertEquals(null, scanNoInjectionTime.getIonInjectionTime());
+		assertEquals(-1.0f, scanNoInjectionTime.getIonInjectionTime(), 1e-6f);
 	}
 }

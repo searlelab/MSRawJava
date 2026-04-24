@@ -9,15 +9,15 @@ import java.util.List;
 public final class PeptideIonGenerator {
 
 	public List<PeptideIonTarget> generatePrecursorTargets(ParsedPeptideQuery peptide) {
-		if (peptide==null||peptide.length()<=0||peptide.getPrecursorCharge()<=0) return List.of();
+		if (peptide==null||peptide.length()<=0||peptide.getPrecursorCharge()==0) return List.of();
 		double neutralMass=computePeptideNeutralMass(peptide);
 		int charge=peptide.getPrecursorCharge();
-		String baseLabel=peptide.getSequence()+"+"+charge;
+		String baseLabel=peptide.getSequence()+ChargeParsingUtils.formatChargeShorthand(charge);
 
 		ArrayList<PeptideIonTarget> targets=new ArrayList<>(3);
 		for (int isotope=0; isotope<=2; isotope++) {
 			double isotopeNeutral=neutralMass+(isotope*PeptideMassConstants.ISOTOPE_DELTA);
-			double mz=(isotopeNeutral+(charge*PeptideMassConstants.PROTON_MASS))/charge;
+			double mz=ChargeParsingUtils.mzFromNeutralMass(isotopeNeutral, charge);
 			String isotopeLabel=(isotope==0)?"M":"M+"+isotope;
 			String label=baseLabel+" ["+isotopeLabel+"]";
 			targets.add(new PeptideIonTarget(mz, label, peptide.getOriginalToken(), PeptideIonTarget.IonKind.PRECURSOR, isotope, 0, charge));
@@ -28,7 +28,8 @@ public final class PeptideIonGenerator {
 	public List<PeptideIonTarget> generateFragmentTargets(ParsedPeptideQuery peptide) {
 		if (peptide==null||peptide.length()<2) return List.of();
 		int precursorCharge=peptide.getPrecursorCharge();
-		int fragmentChargeMax=Math.min(2, precursorCharge-1);
+		int chargeSign=(precursorCharge<0)?-1:1;
+		int fragmentChargeMax=Math.min(2, Math.abs(precursorCharge)-1);
 		if (fragmentChargeMax<1) return List.of();
 
 		int length=peptide.length();
@@ -53,19 +54,20 @@ public final class PeptideIonGenerator {
 		}
 
 		ArrayList<PeptideIonTarget> targets=new ArrayList<>(cutCount*2*fragmentChargeMax);
-		String prefix=peptide.getSequence()+"+"+precursorCharge+" ";
+		String prefix=peptide.getSequence()+ChargeParsingUtils.formatChargeShorthand(precursorCharge)+" ";
 		for (int z=1; z<=fragmentChargeMax; z++) {
+			int signedCharge=z*chargeSign;
 			for (int bIndex=1; bIndex<=cutCount; bIndex++) {
 				double bNeutral=bNeutralByIndex[bIndex];
-				double bMz=(bNeutral+(z*PeptideMassConstants.PROTON_MASS))/z;
-				String bLabel=prefix+"b"+bIndex+chargeSuffix(z);
-				targets.add(new PeptideIonTarget(bMz, bLabel, peptide.getOriginalToken(), PeptideIonTarget.IonKind.B_ION, -1, bIndex, z));
+				double bMz=ChargeParsingUtils.mzFromNeutralMass(bNeutral, signedCharge);
+				String bLabel=prefix+"b"+bIndex+chargeSuffix(signedCharge);
+				targets.add(new PeptideIonTarget(bMz, bLabel, peptide.getOriginalToken(), PeptideIonTarget.IonKind.B_ION, -1, bIndex, signedCharge));
 			}
 			for (int yIndex=1; yIndex<=cutCount; yIndex++) {
 				double yNeutral=yNeutralByIndex[yIndex];
-				double yMz=(yNeutral+(z*PeptideMassConstants.PROTON_MASS))/z;
-				String yLabel=prefix+"y"+yIndex+chargeSuffix(z);
-				targets.add(new PeptideIonTarget(yMz, yLabel, peptide.getOriginalToken(), PeptideIonTarget.IonKind.Y_ION, -1, yIndex, z));
+				double yMz=ChargeParsingUtils.mzFromNeutralMass(yNeutral, signedCharge);
+				String yLabel=prefix+"y"+yIndex+chargeSuffix(signedCharge);
+				targets.add(new PeptideIonTarget(yMz, yLabel, peptide.getOriginalToken(), PeptideIonTarget.IonKind.Y_ION, -1, yIndex, signedCharge));
 			}
 		}
 		return targets;
@@ -88,8 +90,7 @@ public final class PeptideIonGenerator {
 	}
 
 	private static String chargeSuffix(int charge) {
-		if (charge<=0) return "";
-		return "+".repeat(charge);
+		return ChargeParsingUtils.formatChargeShorthand(charge);
 	}
 
 }

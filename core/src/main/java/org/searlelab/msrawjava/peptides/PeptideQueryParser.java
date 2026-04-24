@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Optional;
 
+import org.searlelab.msrawjava.model.molecules.MolecularFormulaParser;
+import org.searlelab.msrawjava.model.molecules.ParsedMolecularFormula;
+
 /**
  * Parser for mixed XIC tokens: numeric m/z values and peptide queries with optional mods and charge suffixes.
  */
@@ -14,9 +17,7 @@ public final class PeptideQueryParser {
 	private static final double MASS_CARBAMIDOMETHYL=57.021464;
 	private static final double MASS_OXIDATION=15.994915;
 	private static final double MASS_ACETYL_NTERM=42.010565;
-
-	private record ChargeSplit(String peptideCore, int charge) {
-	}
+	private static final MolecularFormulaParser FORMULA_PARSER=new MolecularFormulaParser();
 
 	/**
 	 * Parse a single token as either numeric m/z or peptide query.
@@ -32,8 +33,11 @@ public final class PeptideQueryParser {
 		}
 
 		Optional<ParsedPeptideQuery> peptide=parsePeptide(trimmed);
-		if (peptide.isEmpty()) return Optional.empty();
-		return Optional.of(ParsedQueryToken.peptide(trimmed, peptide.get()));
+		if (peptide.isPresent()) return Optional.of(ParsedQueryToken.peptide(trimmed, peptide.get()));
+
+		Optional<ParsedMolecularFormula> formula=FORMULA_PARSER.parse(trimmed);
+		if (formula.isEmpty()) return Optional.empty();
+		return Optional.of(ParsedQueryToken.molecularFormula(trimmed, formula.get()));
 	}
 
 	/**
@@ -44,10 +48,10 @@ public final class PeptideQueryParser {
 		String trimmed=token.trim();
 		if (trimmed.isEmpty()) return Optional.empty();
 
-		ChargeSplit chargeSplit=parseChargeSuffix(trimmed);
+		ChargeParsingUtils.ChargeSplit chargeSplit=ChargeParsingUtils.splitTrailingCharge(trimmed, 2);
 		if (chargeSplit==null) return Optional.empty();
 
-		String peptideText=stripOuterUnderscores(chargeSplit.peptideCore());
+		String peptideText=stripOuterUnderscores(chargeSplit.coreText());
 		if (peptideText.isEmpty()) return Optional.empty();
 
 		ArrayList<Character> residues=new ArrayList<>();
@@ -137,54 +141,6 @@ public final class PeptideQueryParser {
 		} catch (NumberFormatException ignored) {
 		}
 		return null;
-	}
-
-	private ChargeSplit parseChargeSuffix(String token) {
-		int depth=0;
-		int suffixStart=token.length();
-		for (int i=token.length()-1; i>=0; i--) {
-			char c=token.charAt(i);
-			if (c==']') {
-				depth++;
-				continue;
-			}
-			if (c=='[') {
-				depth--;
-				if (depth<0) return null;
-				continue;
-			}
-			if (depth==0&&(c=='+'||Character.isDigit(c))) {
-				suffixStart=i;
-				continue;
-			}
-			if (depth==0) {
-				break;
-			}
-		}
-		if (depth!=0) return null;
-
-		String suffix=token.substring(suffixStart);
-		if (suffix.isEmpty()||suffix.charAt(0)!='+') {
-			return new ChargeSplit(token, 2);
-		}
-
-		int charge;
-		if (suffix.matches("\\+[0-9]+")) {
-			try {
-				charge=Integer.parseInt(suffix.substring(1));
-			} catch (NumberFormatException ex) {
-				return null;
-			}
-		} else if (suffix.matches("\\++")) {
-			charge=suffix.length();
-		} else {
-			return null;
-		}
-		if (charge<=0) return null;
-
-		String peptideCore=token.substring(0, suffixStart).trim();
-		if (peptideCore.isEmpty()) return null;
-		return new ChargeSplit(peptideCore, charge);
 	}
 
 	private String stripOuterUnderscores(String text) {

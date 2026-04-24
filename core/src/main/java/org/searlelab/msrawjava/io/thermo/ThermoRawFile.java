@@ -5,8 +5,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -14,7 +17,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.io.thermo.rpc.CloseReply;
 import org.searlelab.msrawjava.io.thermo.rpc.CloseRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.MetadataReply;
@@ -40,6 +46,10 @@ import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Multimap;
+
 import io.grpc.ManagedChannel;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -51,12 +61,13 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
  * gradient length), enumerates DIA window definitions as {@link java.util.Map}&lt;Range,WindowData&gt;, and streams
  * MS1/MS2 content as PrecursorScan and FragmentScan objects.
  */
-public final class ThermoRawFile implements StripeFileInterface, Closeable {
+public final class ThermoRawFile implements StripeFileInterface, StructuredMetadataProvider, Closeable {
 	private static final String INVALID_INSTRUMENT_INDEX_TEXT="instrument index";
 	private Path rawPath=null;
 	private ManagedChannel channel=null;
 	private ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=null;
 	private String sessionId=null;
+	private Optional<Date> runStartTime=Optional.empty();
 
 	public ThermoRawFile() {
 	}
@@ -101,6 +112,13 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		try {
 			OpenReply rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
 			this.sessionId=rep.getSessionId();
+			runStartTime=Optional.empty();
+			try {
+				Map<String, String> metadata=getMetadata();
+				runStartTime=parseDate(firstNonBlank(metadata.get("run.start_time_iso8601"), metadata.get("run.start_time_utc")));
+			} catch (Exception ignored) {
+				runStartTime=Optional.empty();
+			}
 		} catch (StatusRuntimeException e) {
 			String detail=e.getStatus()!=null?e.getStatus().getDescription():e.getMessage();
 			if (detail!=null&&detail.toLowerCase(Locale.ROOT).contains(INVALID_INSTRUMENT_INDEX_TEXT)) {
@@ -115,6 +133,46 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 		Session req=Session.newBuilder().setSessionId(sessionId).build();
 		MetadataReply reply=stub.getMetadata(req);
 		return reply.getKvMap();
+	}
+
+	@Override
+	public Optional<Date> getRunStartTime() {
+		return runStartTime;
+	}
+
+	@Override
+	public Multimap<String, String> getSoftwareAccessionIdToVersion() throws IOException, SQLException {
+		Map<String, String> metadata=getMetadata();
+		LinkedHashMultimap<String, String> out=LinkedHashMultimap.create();
+		String version=metadata.get("instrument.software_version");
+		if (version!=null&&!version.isBlank()) {
+			out.put("thermo.instrument.software", version);
+		}
+		return out;
+	}
+
+	@Override
+	public ImmutableMultimap<InstrumentId, InstrumentComponent> getInstrumentConfigurations() throws IOException, SQLException {
+		Map<String, String> metadata=getMetadata();
+		String model=firstNonBlank(metadata.get("instrument.model"), metadata.get("instrument.name"), "Thermo RAW");
+		InstrumentId id=InstrumentId.builder().setInstrumentConfigurationId("IC1").setAccession("").setName(model).build();
+		ImmutableMultimap.Builder<InstrumentId, InstrumentComponent> builder=ImmutableMultimap.builder();
+		String analyzers=metadata.get("acq.mass_analyzers");
+		if (analyzers!=null&&!analyzers.isBlank()) {
+			int order=1;
+			for (String analyzer : analyzers.split(",")) {
+				String trimmed=analyzer.trim();
+				if (!trimmed.isEmpty()) {
+					builder.put(id, InstrumentComponent.builder().setType(InstrumentComponent.Type.ANALYZER).setOrder(order++).setCvRef("")
+							.setAccessionId("").setName(trimmed).build());
+				}
+			}
+		}
+		if (builder.build().isEmpty()) {
+			builder.put(id, InstrumentComponent.builder().setType(InstrumentComponent.Type.ANALYZER).setOrder(1).setCvRef("").setAccessionId("")
+					.setName(model).build());
+		}
+		return builder.build();
 	}
 
 	public static final class RunSummary {
@@ -335,5 +393,21 @@ public final class ThermoRawFile implements StripeFileInterface, Closeable {
 
 	private static String buildDefaultSpectrumName(int scanNumber) {
 		return "scan="+scanNumber;
+	}
+
+	private static String firstNonBlank(String... values) {
+		for (String value : values) {
+			if (value!=null&&!value.isBlank()) return value;
+		}
+		return "";
+	}
+
+	private static Optional<Date> parseDate(String raw) {
+		if (raw==null||raw.isBlank()) return Optional.empty();
+		try {
+			return Optional.of(Date.from(OffsetDateTime.parse(raw).toInstant()));
+		} catch (DateTimeParseException ignored) {
+			return Optional.empty();
+		}
 	}
 }

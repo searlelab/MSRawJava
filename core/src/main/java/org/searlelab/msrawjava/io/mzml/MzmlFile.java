@@ -9,14 +9,18 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.StringReader;
 import java.sql.SQLException;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.ArrayDeque;
 import java.nio.charset.StandardCharsets;
 import java.util.zip.DataFormatException;
 
@@ -25,6 +29,7 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
+import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.Logger;
@@ -35,6 +40,9 @@ import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
+
 /**
  * MzmlFile reads mzML files (PSI standard XML format for mass spectrometry data) and implements StripeFileInterface
  * so that mzML can be treated as a first-class input format alongside Thermo .raw, Bruker .d, and EncyclopeDIA .dia.
@@ -43,7 +51,7 @@ import org.searlelab.msrawjava.model.WindowData;
  * - Index pass (openFile): streams through the mzML extracting per-spectrum metadata into an in-memory index.
  * - Data pass (on demand): re-reads the file decoding binary arrays only for spectra matching the query.
  */
-public class MzmlFile implements StripeFileInterface {
+public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider {
 	private static final String METADATA_USERPARAM_PREFIX="msrawjava.metadata.";
 	private static final int SPECTRUM_CACHE_SIZE=256;
 	private static final int SPECTRUM_PREFETCH_COUNT=8;
@@ -67,6 +75,9 @@ public class MzmlFile implements StripeFileInterface {
 	private final ArrayList<Float> ms1Rts=new ArrayList<>();
 	private final ArrayList<Float> ms1Tics=new ArrayList<>();
 	private final HashMap<Integer, MzmlScanEntry> indexBySpectrumIndex=new HashMap<>();
+	private Optional<Date> runStartTime=Optional.empty();
+	private Multimap<String, String> softwareAccessionIdToVersion=ImmutableMultimap.of();
+	private ImmutableMultimap<InstrumentId, InstrumentComponent> instrumentConfigurations=ImmutableMultimap.of();
 	private final LinkedHashMap<Integer, AcquiredSpectrum> spectrumCache=new LinkedHashMap<Integer, AcquiredSpectrum>(SPECTRUM_CACHE_SIZE, 0.75f, true) {
 		private static final long serialVersionUID=1L;
 
@@ -97,6 +108,9 @@ public class MzmlFile implements StripeFileInterface {
 		ms1Tics.clear();
 		indexBySpectrumIndex.clear();
 		spectrumCache.clear();
+		runStartTime=Optional.empty();
+		softwareAccessionIdToVersion=ImmutableMultimap.of();
+		instrumentConfigurations=ImmutableMultimap.of();
 		lastRequestedSequentialIndex=-1;
 
 		try {
@@ -115,6 +129,13 @@ public class MzmlFile implements StripeFileInterface {
 		XMLInputFactory factory=XMLInputFactory.newInstance();
 		factory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, false);
 		factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+		ArrayDeque<String> tagStack=new ArrayDeque<>();
+		ImmutableMultimap.Builder<String, String> softwareBuilder=ImmutableMultimap.builder();
+		ImmutableMultimap.Builder<InstrumentId, InstrumentComponent> instrumentBuilder=ImmutableMultimap.builder();
+		String currentSoftwareVersion=null;
+		InstrumentId.Builder currentInstrumentIdBuilder=null;
+		ArrayList<InstrumentComponent> currentInstrumentComponents=new ArrayList<>();
+		InstrumentComponent.Builder currentInstrumentComponentBuilder=null;
 
 		try (FileInputStream fis=new FileInputStream(userFile)) {
 			XMLStreamReader reader=factory.createXMLStreamReader(fis);
@@ -139,20 +160,81 @@ public class MzmlFile implements StripeFileInterface {
 							index.add(entry);
 							spectrumIdx++;
 						} else if ("software".equals(localName)) {
+							currentSoftwareVersion=reader.getAttributeValue(null, "version");
 							String id=reader.getAttributeValue(null, "id");
 							String version=reader.getAttributeValue(null, "version");
-							if (id!=null&&version!=null) {
-								metadata.put("software."+id, version);
-							}
+							if (id!=null&&version!=null) metadata.put("software."+id, version);
+							tagStack.addLast(localName);
 						} else if ("userParam".equals(localName)) {
 							parseMetadataUserParam(reader);
+							tagStack.addLast(localName);
+						} else {
+							tagStack.addLast(localName);
+							if ("run".equals(localName)) {
+								String startTimeStamp=reader.getAttributeValue(null, "startTimeStamp");
+								if (startTimeStamp!=null) {
+									try {
+										runStartTime=Optional.of(Date.from(OffsetDateTime.parse(startTimeStamp).toInstant()));
+									} catch (DateTimeParseException ignored) {
+										runStartTime=Optional.empty();
+									}
+								}
+							} else if ("instrumentConfiguration".equals(localName)) {
+								currentInstrumentIdBuilder=InstrumentId.builder().setInstrumentConfigurationId(reader.getAttributeValue(null, "id"));
+								currentInstrumentComponents=new ArrayList<>();
+							} else if (InstrumentComponent.Type.getTypeByName(localName).isPresent()) {
+								currentInstrumentComponentBuilder=InstrumentComponent.builder().setType(InstrumentComponent.Type.getTypeByName(localName).get());
+								String order=reader.getAttributeValue(null, "order");
+								if (order!=null) currentInstrumentComponentBuilder.setOrder(Integer.parseInt(order));
+							} else if ("cvParam".equals(localName)) {
+								String parent=parentTag(tagStack);
+								String accession=reader.getAttributeValue(null, "accession");
+								String name=reader.getAttributeValue(null, "name");
+								String cvRef=reader.getAttributeValue(null, "cvRef");
+								if ("software".equals(parent)&&currentSoftwareVersion!=null&&accession!=null) {
+									softwareBuilder.put(accession, currentSoftwareVersion);
+								} else if ("instrumentConfiguration".equals(parent)&&currentInstrumentIdBuilder!=null) {
+									currentInstrumentIdBuilder.setAccession(accession).setName(name);
+								} else if (InstrumentComponent.Type.getTypeByName(parent).isPresent()&&currentInstrumentComponentBuilder!=null) {
+									currentInstrumentComponentBuilder.setCvRef(cvRef).setAccessionId(accession).setName(name);
+								}
+							}
+						}
+					} else if (event==XMLStreamConstants.END_ELEMENT) {
+						String localName=reader.getLocalName();
+						if (InstrumentComponent.Type.getTypeByName(localName).isPresent()) {
+							if (currentInstrumentComponentBuilder!=null) {
+								currentInstrumentComponents.add(currentInstrumentComponentBuilder.build());
+								currentInstrumentComponentBuilder=null;
+							}
+						} else if ("instrumentConfiguration".equals(localName)) {
+							if (currentInstrumentIdBuilder!=null) {
+								instrumentBuilder.putAll(currentInstrumentIdBuilder.build(), currentInstrumentComponents);
+								currentInstrumentIdBuilder=null;
+								currentInstrumentComponents=new ArrayList<>();
+							}
+						} else if ("software".equals(localName)) {
+							currentSoftwareVersion=null;
+						}
+						if (!tagStack.isEmpty()) {
+							tagStack.removeLast();
 						}
 					}
 				}
+				softwareAccessionIdToVersion=softwareBuilder.build();
+				instrumentConfigurations=instrumentBuilder.build();
 			} finally {
 				reader.close();
 			}
 		}
+	}
+
+	private static String parentTag(ArrayDeque<String> tagStack) {
+		if (tagStack.size()<2) return null;
+		String current=tagStack.removeLast();
+		String parent=tagStack.peekLast();
+		tagStack.addLast(current);
+		return parent;
 	}
 
 	private void parseMetadataUserParam(XMLStreamReader reader) {
@@ -582,6 +664,21 @@ public class MzmlFile implements StripeFileInterface {
 	public void close() {
 		closeSpectrumCursor();
 		open=false;
+	}
+
+	@Override
+	public Optional<Date> getRunStartTime() {
+		return runStartTime;
+	}
+
+	@Override
+	public Multimap<String, String> getSoftwareAccessionIdToVersion() {
+		return softwareAccessionIdToVersion;
+	}
+
+	@Override
+	public ImmutableMultimap<InstrumentId, InstrumentComponent> getInstrumentConfigurations() {
+		return instrumentConfigurations;
 	}
 
 	/**

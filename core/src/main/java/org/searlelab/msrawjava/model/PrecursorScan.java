@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.model;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 
@@ -18,7 +19,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 	private final int fraction;
 	private final double scanWindowLower;
 	private final double scanWindowUpper;
-	private final Float ionInjectionTime;
+	private final float ionInjectionTime;
 	private final double[] massArray;
 	private final float[] intensityArray;
 	private final float[] ionMobilityArray;
@@ -26,17 +27,51 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 
 	public PrecursorScan(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double scanWindowLower, double scanWindowUpper,
 			Float ionInjectionTime, double[] massArray, float[] intensityArray, float[] ionMobilityArray) {
+		this(spectrumName, spectrumIndex, scanStartTime, fraction, scanWindowLower, scanWindowUpper, ionInjectionTime, massArray, intensityArray,
+				ionMobilityArray, null);
+	}
+
+	public PrecursorScan(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double scanWindowLower, double scanWindowUpper,
+			Float ionInjectionTime, double[] massArray, float[] intensityArray, float[] ionMobilityArray, Float tic) {
 		this.spectrumName=spectrumName;
 		this.spectrumIndex=spectrumIndex;
 		this.scanStartTime=scanStartTime;
 		this.fraction=fraction;
 		this.scanWindowLower=scanWindowLower;
 		this.scanWindowUpper=scanWindowUpper;
-		this.ionInjectionTime=ionInjectionTime;
+		this.ionInjectionTime=ionInjectionTime==null?-1f:ionInjectionTime;
 		this.massArray=massArray;
 		this.intensityArray=intensityArray;
 		this.ionMobilityArray=ionMobilityArray;
-		this.tic=MatrixMath.sum(intensityArray);
+		this.tic=tic==null?MatrixMath.sum(intensityArray):tic;
+	}
+
+	public PrecursorScan shallowClone(int fraction, int spectrumIndex) {
+		return new PrecursorScan(spectrumName, spectrumIndex, scanStartTime, fraction, scanWindowLower, scanWindowUpper, ionInjectionTime, massArray,
+				intensityArray, ionMobilityArray, tic);
+	}
+
+	public PrecursorScan shallowClone(int fraction, int spectrumIndex, Range precursorIsolationWindow) {
+		double lowerBound=Math.max(precursorIsolationWindow.getStart(), scanWindowLower);
+		double upperBound=Math.min(precursorIsolationWindow.getStop(), scanWindowUpper);
+		return new PrecursorScan(spectrumName, spectrumIndex, scanStartTime, fraction, lowerBound, upperBound, ionInjectionTime, massArray, intensityArray,
+				ionMobilityArray, tic);
+	}
+
+	public float integrate(Range mzRange) {
+		int index=Arrays.binarySearch(massArray, mzRange.getStart());
+		if (index<0) {
+			index=-(index+1);
+		}
+		float sum=0.0f;
+		while (index<massArray.length) {
+			if (!mzRange.contains(massArray[index])) {
+				break;
+			}
+			sum+=intensityArray[index];
+			index++;
+		}
+		return sum;
 	}
 
 	public PrecursorScan rebuild(int newSpectrumIndex, ArrayList<? extends PeakInterface> peaks) {
@@ -134,7 +169,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 	}
 
 	@Override
-	public Float getIonInjectionTime() {
+	public float getIonInjectionTime() {
 		return ionInjectionTime;
 	}
 

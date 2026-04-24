@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.lang.reflect.Field;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -131,6 +134,22 @@ class EncyclopeDIAFileAdditionalTest {
 		file.close();
 	}
 
+	@Test
+	void scanSummaries_computeFragmentTicWhenLegacyDiaLacksSpectraTicColumn() throws Exception {
+		File diaFile=createSimpleDia();
+		removeSpectraTicColumn(diaFile);
+
+		EncyclopeDIAFile file=new EncyclopeDIAFile();
+		file.openFile(diaFile);
+
+		ArrayList<ScanSummary> summaries=file.getScanSummaries(0.0f, 100.0f);
+		ScanSummary fragmentSummary=summaries.stream().filter(s -> !s.isPrecursor()).findFirst().orElseThrow();
+		assertTrue(Float.isFinite(fragmentSummary.getTic()));
+		assertEquals(5.0f, fragmentSummary.getTic());
+
+		file.close();
+	}
+
 	private static void assertFractionNamesLoaded(EncyclopeDIAFile file, int expectedSize) throws Exception {
 		Field field=EncyclopeDIAFile.class.getDeclaredField("fractionNames");
 		field.setAccessible(true);
@@ -157,6 +176,19 @@ class EncyclopeDIAFileAdditionalTest {
 		dia.saveAsFile(out.toFile());
 		dia.close();
 		return out.toFile();
+	}
+
+	private static void removeSpectraTicColumn(File diaFile) throws Exception {
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+diaFile.getAbsolutePath());
+				Statement s=c.createStatement()) {
+			s.execute("ALTER TABLE spectra RENAME TO spectra_old");
+			s.execute(
+					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
+			s.execute(
+					"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray) "
+							+"select Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray from spectra_old");
+			s.execute("drop table spectra_old");
+		}
 	}
 
 	private static void invokeEnsureWritableTempFile(EncyclopeDIAFile file) throws Exception {
