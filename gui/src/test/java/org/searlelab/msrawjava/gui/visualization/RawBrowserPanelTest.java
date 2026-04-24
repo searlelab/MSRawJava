@@ -3,6 +3,7 @@ package org.searlelab.msrawjava.gui.visualization;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.awt.event.KeyEvent;
+import java.util.List;
 
 import javax.swing.InputMap;
 import javax.swing.KeyStroke;
@@ -47,5 +48,11 @@ class RawBrowserPanelTest {
 		assertEquals("rawBrowser.chartSelectNextRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0)));
 		assertEquals("rawBrowser.chartSelectPreviousRowExtend", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, KeyEvent.SHIFT_DOWN_MASK)));
 		assertEquals("rawBrowser.chartSelectNextRowExtend", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, KeyEvent.SHIFT_DOWN_MASK)));
+	}
+
+	@Test
+	void findFirstMatchingIndex_returnsIndexOfMs1StyleEntry() {
+		assertEquals(1, RawBrowserPanel.findFirstMatchingIndex(List.of("All spectra", "MS1", "MS2 500.0 to 520.0 m/z"), "MS1"::equals));
+		assertEquals(-1, RawBrowserPanel.findFirstMatchingIndex(List.of("All spectra", "MS2"), "MS1"::equals));
 	}
 }
