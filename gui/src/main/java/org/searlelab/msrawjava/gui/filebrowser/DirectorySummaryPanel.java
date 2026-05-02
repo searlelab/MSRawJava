@@ -311,17 +311,26 @@ public class DirectorySummaryPanel extends JPanel {
 	}
 
 	private String getHeaderTooltip(int modelColumn) {
-		return switch (modelColumn) {
-			case 0 -> "The table row number for this file.";
-			case 1 -> "The raw file or directory name.";
-			case 2 -> "The detected vendor or file format.";
-			case 3 -> "The last modified date reported by the file system.";
-			case 4 -> "The total file size on disk.";
-			case 5 -> "The gradient length in minutes.";
-			case 6 -> "The sum of MS1 TIC values across the entire raw file.";
-			case 7 -> "A compact trace of total ion current across retention time.";
-			default -> null;
-		};
+		switch (modelColumn) {
+			case 0:
+				return "The table row number for this file.";
+			case 1:
+				return "The raw file or directory name.";
+			case 2:
+				return "The detected vendor or file format.";
+			case 3:
+				return "The last modified date reported by the file system.";
+			case 4:
+				return "The total file size on disk.";
+			case 5:
+				return "The gradient length in minutes.";
+			case 6:
+				return "The sum of MS1 TIC values across the entire raw file.";
+			case 7:
+				return "A compact trace of total ion current across retention time.";
+			default:
+				return null;
+		}
 	}
 
 	private void updateFilters() {
@@ -363,7 +372,8 @@ public class DirectorySummaryPanel extends JPanel {
 			@Override
 			public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
 				super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-				if (value instanceof VendorFile vendor) {
+				if (value instanceof VendorFile) {
+					VendorFile vendor=(VendorFile)value;
 					setText(vendor.getDisplayName());
 				}
 				return this;
@@ -399,10 +409,12 @@ public class DirectorySummaryPanel extends JPanel {
 	}
 
 	static String getVendorFilterValueForSelection(Object selection) {
-		if (selection instanceof VendorFile vendor) {
+		if (selection instanceof VendorFile) {
+			VendorFile vendor=(VendorFile)selection;
 			return vendor.name();
 		}
-		if (selection instanceof String value) {
+		if (selection instanceof String) {
+			String value=(String)selection;
 			return normalizeSavedVendorFilter(value);
 		}
 		return VENDOR_ALL_RAW_INSTRUMENT_FILES;
@@ -861,13 +873,15 @@ public class DirectorySummaryPanel extends JPanel {
 	private static boolean hasCancelledGrpcStatus(Throwable throwable) {
 		Throwable cur=throwable;
 		while (cur!=null) {
-			if (cur instanceof StatusRuntimeException sre) {
+			if (cur instanceof StatusRuntimeException) {
+				StatusRuntimeException sre=(StatusRuntimeException)cur;
 				Status status=sre.getStatus();
 				if (status!=null&&status.getCode()==Status.Code.CANCELLED) {
 					return true;
 				}
 			}
-			if (cur instanceof StatusException se) {
+			if (cur instanceof StatusException) {
+				StatusException se=(StatusException)cur;
 				Status status=se.getStatus();
 				if (status!=null&&status.getCode()==Status.Code.CANCELLED) {
 					return true;
@@ -885,13 +899,15 @@ public class DirectorySummaryPanel extends JPanel {
 	static boolean isThermoReaderUnavailable(Throwable throwable) {
 		Throwable cur=throwable;
 		while (cur!=null) {
-			if (cur instanceof StatusRuntimeException sre) {
+			if (cur instanceof StatusRuntimeException) {
+				StatusRuntimeException sre=(StatusRuntimeException)cur;
 				Status status=sre.getStatus();
 				if (status!=null&&status.getCode()==Status.Code.UNAVAILABLE) {
 					return true;
 				}
 			}
-			if (cur instanceof StatusException se) {
+			if (cur instanceof StatusException) {
+				StatusException se=(StatusException)cur;
 				Status status=se.getStatus();
 				if (status!=null&&status.getCode()==Status.Code.UNAVAILABLE) {
 					return true;
@@ -1113,31 +1129,49 @@ public class DirectorySummaryPanel extends JPanel {
 
 		@Override
 		public Class<?> getColumnClass(int c) {
-			return switch (c) {
-				case 0, 1, 2 -> String.class;
-				case 3 -> Date.class;
-				case 4 -> Long.class; // SIZE_RENDERER will humanize it
-				case 5 -> Float.class; // we format "X.Y min" in renderer
-				case 6 -> Float.class; // total TIC
-				case 7 -> SparkData.class;
-				default -> Object.class;
-			};
+			switch (c) {
+				case 0:
+				case 1:
+				case 2:
+					return String.class;
+				case 3:
+					return Date.class;
+				case 4:
+					return Long.class; // SIZE_RENDERER will humanize it
+				case 5:
+					return Float.class; // we format "X.Y min" in renderer
+				case 6:
+					return Float.class; // total TIC
+				case 7:
+					return SparkData.class;
+				default:
+					return Object.class;
+			}
 		}
 
 		@Override
 		public Object getValueAt(int r, int c) {
 			DirRow row=rows.get(r);
-			return switch (c) {
-				case 0 -> null;
-				case 1 -> row.fileName;
-				case 2 -> row.vendor.getVendorName();
-				case 3 -> row.lastModified;
-				case 4 -> row.sizeBytes;
-				case 5 -> row.gradientMin; // may be null
-				case 6 -> row.totalTIC; // may be null
-				case 7 -> row.spark; // may be null
-				default -> null;
-			};
+			switch (c) {
+				case 0:
+					return null;
+				case 1:
+					return row.fileName;
+				case 2:
+					return row.vendor.getVendorName();
+				case 3:
+					return row.lastModified;
+				case 4:
+					return row.sizeBytes;
+				case 5:
+					return row.gradientMin; // may be null
+				case 6:
+					return row.totalTIC; // may be null
+				case 7:
+					return row.spark; // may be null
+				default:
+					return null;
+			}
 		}
 	}
 
@@ -1338,7 +1372,8 @@ public class DirectorySummaryPanel extends JPanel {
 		@Override
 		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
 			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
-			if (value instanceof Float f) {
+			if (value instanceof Float) {
+				Float f=(Float)value;
 				setHorizontalAlignment(SwingConstants.RIGHT);
 				setText(String.format(Locale.ROOT, "%.1f min", f));
 			} else {
@@ -1355,7 +1390,8 @@ public class DirectorySummaryPanel extends JPanel {
 		@Override
 		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
 			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
-			if (value instanceof Date d) {
+			if (value instanceof Date) {
+				Date d=(Date)value;
 				setHorizontalAlignment(SwingConstants.RIGHT);
 				setText(format.format(d));
 			} else {
@@ -1398,7 +1434,14 @@ public class DirectorySummaryPanel extends JPanel {
 				return this;
 			}
 
-			if (!(value instanceof SparkData sd)||sd==null||sd.yNorm==null||sd.yNorm.length==0) {
+			if (!(value instanceof SparkData)) {
+				setHorizontalAlignment(SwingConstants.CENTER);
+				setText(getLoadingText());
+				putClientProperty("spark", null);
+				return this;
+			}
+			SparkData sd=(SparkData)value;
+			if (sd.yNorm==null||sd.yNorm.length==0) {
 				setHorizontalAlignment(SwingConstants.CENTER);
 				setText(getLoadingText());
 				putClientProperty("spark", null);
@@ -1417,7 +1460,9 @@ public class DirectorySummaryPanel extends JPanel {
 			super.paintComponent(g); // paints stripe background + border
 
 			Object o=getClientProperty("spark");
-			if (!(o instanceof SparkData sd)||sd.yNorm==null||sd.yNorm.length==0) return;
+			if (!(o instanceof SparkData)) return;
+			SparkData sd=(SparkData)o;
+			if (sd.yNorm==null||sd.yNorm.length==0) return;
 
 			Graphics2D g2=(Graphics2D)g.create();
 			try {

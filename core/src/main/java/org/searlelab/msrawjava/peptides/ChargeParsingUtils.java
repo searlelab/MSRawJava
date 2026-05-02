@@ -1,11 +1,46 @@
 package org.searlelab.msrawjava.peptides;
 
+import java.util.Objects;
+
 /**
  * Shared helpers for parsing and formatting signed charge suffixes in query tokens.
  */
 public final class ChargeParsingUtils {
 
-	public record ChargeSplit(String coreText, int charge) {
+	public static final class ChargeSplit {
+		private final String coreText;
+		private final int charge;
+
+		public ChargeSplit(String coreText, int charge) {
+			this.coreText=coreText;
+			this.charge=charge;
+		}
+
+		public String coreText() {
+			return coreText;
+		}
+
+		public int charge() {
+			return charge;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this==obj) return true;
+			if (!(obj instanceof ChargeSplit)) return false;
+			ChargeSplit other=(ChargeSplit)obj;
+			return charge==other.charge&&Objects.equals(coreText, other.coreText);
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(coreText, Integer.valueOf(charge));
+		}
+
+		@Override
+		public String toString() {
+			return "ChargeSplit[coreText="+coreText+", charge="+charge+"]";
+		}
 	}
 
 	private ChargeParsingUtils() {
@@ -98,23 +133,29 @@ public final class ChargeParsingUtils {
 		for (int i=0; i<text.length(); i++) {
 			char c=text.charAt(i);
 			switch (c) {
-				case '[' -> square++;
-				case ']' -> {
+				case '[':
+					square++;
+					break;
+				case ']':
 					square--;
 					if (square<0) return false;
-				}
-				case '(' -> round++;
-				case ')' -> {
+					break;
+				case '(':
+					round++;
+					break;
+				case ')':
 					round--;
 					if (round<0) return false;
-				}
-				case '{' -> curly++;
-				case '}' -> {
+					break;
+				case '{':
+					curly++;
+					break;
+				case '}':
 					curly--;
 					if (curly<0) return false;
-				}
-				default -> {
-				}
+					break;
+				default:
+					break;
 			}
 		}
 		return square==0&&round==0&&curly==0;

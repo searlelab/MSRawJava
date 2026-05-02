@@ -14,13 +14,13 @@ If you are new to programming, start with the **Java-only** build first. It conf
 Use this if you want the simplest “does it compile” check.
 
 1) Install:
-- **JDK 17+ (Temurin recommended):** https://adoptium.net/temurin/releases/?version=17
+- **JDK 11+ (Temurin recommended):** https://adoptium.net/temurin/releases/?version=11
 - **Maven 3.9+:** https://maven.apache.org/download.cgi  
   - Install guide: https://maven.apache.org/install.html
 
 2) Verify:
-- `java -version` (must show 17+)
-- `mvn -v` (must show Maven 3.9+ and Java 17+)
+- `java -version` (must show 11+)
+- `mvn -v` (must show Maven 3.9+ and Java 11+)
 
 3) Build (from the repo root):
 - `mvn -DskipTests -Dskip.build.natives=true package`
@@ -33,7 +33,7 @@ If this works, your Java toolchain is good. Move to Path B if you need native co
 This is the normal packaging build, it runs native build scripts by default.
 
 1) Install all required tools:
-- JDK 17+  
+- JDK 11+  (Java 17 recommended)
   - https://adoptium.net/temurin/releases/?version=17
 - Maven 3.9+  
   - https://maven.apache.org/download.cgi

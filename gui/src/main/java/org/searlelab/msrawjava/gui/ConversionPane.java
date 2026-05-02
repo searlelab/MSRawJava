@@ -301,11 +301,14 @@ public class ConversionPane extends JPanel {
 	}
 
 	private String getQueueHeaderTooltip(int modelColumn) {
-		return switch (modelColumn) {
-			case 0 -> "The queued source file name.";
-			case 1 -> "Conversion progress for this queued job.";
-			default -> null;
-		};
+		switch (modelColumn) {
+			case 0:
+				return "The queued source file name.";
+			case 1:
+				return "Conversion progress for this queued job.";
+			default:
+				return null;
+		}
 	}
 
 	private JPanel buildConsolePanel() {

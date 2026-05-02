@@ -53,7 +53,8 @@ public final class MenuManager {
 	}
 
 	static void install(Window menuHost, RawFileBrowser browser) {
-		if (menuHost instanceof RawFileBrowser rawFileBrowser) {
+		if (menuHost instanceof RawFileBrowser) {
+			RawFileBrowser rawFileBrowser=(RawFileBrowser)menuHost;
 			installMainMenu(rawFileBrowser, rawFileBrowser);
 			return;
 		}
@@ -267,23 +268,23 @@ public final class MenuManager {
 	}
 
 	private static JMenuBar getMenuBar(Window menuHost) {
-		if (menuHost instanceof JFrame frame) return frame.getJMenuBar();
-		if (menuHost instanceof JDialog dialog) return dialog.getJMenuBar();
+		if (menuHost instanceof JFrame) return ((JFrame)menuHost).getJMenuBar();
+		if (menuHost instanceof JDialog) return ((JDialog)menuHost).getJMenuBar();
 		return null;
 	}
 
 	private static void setMenuBar(Window menuHost, JMenuBar menuBar) {
-		if (menuHost instanceof JFrame frame) {
-			frame.setJMenuBar(menuBar);
+		if (menuHost instanceof JFrame) {
+			((JFrame)menuHost).setJMenuBar(menuBar);
 			return;
 		}
-		if (menuHost instanceof JDialog dialog) {
-			dialog.setJMenuBar(menuBar);
+		if (menuHost instanceof JDialog) {
+			((JDialog)menuHost).setJMenuBar(menuBar);
 		}
 	}
 
 	private static Frame resolveOwnerFrame(Window menuHost, RawFileBrowser browser) {
-		if (menuHost instanceof Frame frame) return frame;
+		if (menuHost instanceof Frame) return (Frame)menuHost;
 		return browser;
 	}
 

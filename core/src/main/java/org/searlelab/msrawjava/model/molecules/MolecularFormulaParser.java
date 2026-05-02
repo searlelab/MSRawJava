@@ -113,12 +113,16 @@ public final class MolecularFormulaParser {
 		}
 
 		private static char matchingClose(char c) {
-			return switch (c) {
-				case '(' -> ')';
-				case '[' -> ']';
-				case '{' -> '}';
-				default -> '\0';
-			};
+			switch (c) {
+				case '(':
+					return ')';
+				case '[':
+					return ']';
+				case '{':
+					return '}';
+				default:
+					return '\0';
+			}
 		}
 	}
 }

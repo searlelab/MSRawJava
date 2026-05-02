@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 
 import org.junit.jupiter.api.Assumptions;
@@ -76,7 +75,7 @@ class ResourceTreeExtractorTest {
 			while (din.read(buf)!=-1) {
 				/* stream */ }
 		}
-		return HexFormat.of().formatHex(md.digest());
+		return toLowerHex(md.digest());
 	}
 
 	private long lengthOfResource(String resPath) throws Exception {
@@ -97,6 +96,15 @@ class ResourceTreeExtractorTest {
 			while (din.read(buf)!=-1) {
 				/* stream */ }
 		}
-		return HexFormat.of().formatHex(md.digest());
+		return toLowerHex(md.digest());
+	}
+
+	private static String toLowerHex(byte[] bytes) {
+		StringBuilder sb=new StringBuilder(bytes.length*2);
+		for (byte b : bytes) {
+			sb.append(Character.forDigit((b>>4)&0xF, 16));
+			sb.append(Character.forDigit(b&0xF, 16));
+		}
+		return sb.toString();
 	}
 }

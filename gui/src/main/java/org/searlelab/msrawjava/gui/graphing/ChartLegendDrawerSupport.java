@@ -374,7 +374,8 @@ final class ChartLegendDrawerSupport {
 
 	private void addHoverListenersRecursive(Component component) {
 		component.addMouseListener(hoverListener);
-		if (component instanceof java.awt.Container container) {
+		if (component instanceof java.awt.Container) {
+			java.awt.Container container=(java.awt.Container)component;
 			for (Component child : container.getComponents()) {
 				addHoverListenersRecursive(child);
 			}
@@ -383,7 +384,8 @@ final class ChartLegendDrawerSupport {
 
 	private void removeHoverListenersRecursive(Component component) {
 		component.removeMouseListener(hoverListener);
-		if (component instanceof java.awt.Container container) {
+		if (component instanceof java.awt.Container) {
+			java.awt.Container container=(java.awt.Container)component;
 			for (Component child : container.getComponents()) {
 				removeHoverListenersRecursive(child);
 			}
@@ -483,7 +485,8 @@ final class ChartLegendDrawerSupport {
 
 	private void addClickListenersRecursive(Component component, MouseAdapter listener) {
 		component.addMouseListener(listener);
-		if (component instanceof java.awt.Container container) {
+		if (component instanceof java.awt.Container) {
+			java.awt.Container container=(java.awt.Container)component;
 			for (Component child : container.getComponents()) {
 				addClickListenersRecursive(child, listener);
 			}
@@ -542,8 +545,10 @@ final class ChartLegendDrawerSupport {
 		MouseEvent trigger=event.getTrigger();
 		ChartEntity entity=event.getEntity();
 		JFreeChart chart=chartPanel.getChart();
-		if (!(chart!=null&&chart.getPlot() instanceof XYPlot xyPlot)) return;
-		if (entity instanceof XYItemEntity xyEntity) {
+		if (chart==null||!(chart.getPlot() instanceof XYPlot)) return;
+		XYPlot xyPlot=(XYPlot)chart.getPlot();
+		if (entity instanceof XYItemEntity) {
+			XYItemEntity xyEntity=(XYItemEntity)entity;
 			XYDataset dataset=xyEntity.getDataset();
 			if (dataset==null) return;
 			int datasetIndex=resolveDatasetIndex(xyPlot, dataset);
@@ -627,7 +632,8 @@ final class ChartLegendDrawerSupport {
 			}
 		}
 		JFreeChart chart=chartPanel.getChart();
-		if (!(chart!=null&&chart.getPlot() instanceof XYPlot xyPlot)) return null;
+		if (chart==null||!(chart.getPlot() instanceof XYPlot)) return null;
+		XYPlot xyPlot=(XYPlot)chart.getPlot();
 		XYDataset dataset=xyPlot.getDataset(datasetIndex);
 		if (dataset==null||seriesIndex<0||seriesIndex>=dataset.getSeriesCount()) return null;
 		Comparable<?> seriesKey=dataset.getSeriesKey(seriesIndex);
@@ -660,7 +666,8 @@ final class ChartLegendDrawerSupport {
 		clearSelectedTraceHalo();
 		JFreeChart chart=chartPanel.getChart();
 		if (chart==null) return;
-		if (!(chart.getPlot() instanceof XYPlot xyPlot)) return;
+		if (!(chart.getPlot() instanceof XYPlot)) return;
+		XYPlot xyPlot=(XYPlot)chart.getPlot();
 		int datasetIndex=row.datasetIndex;
 		int seriesIndex=row.seriesIndex;
 		if (datasetIndex<0&&xyPlot.getDatasetCount()>0) {
@@ -679,7 +686,8 @@ final class ChartLegendDrawerSupport {
 		if (renderer!=null) {
 			Stroke stroke=renderer.getSeriesStroke(seriesIndex);
 			if (stroke==null) stroke=renderer.getDefaultStroke();
-			if (stroke instanceof BasicStroke bs&&Float.isFinite(bs.getLineWidth())) {
+			if (stroke instanceof BasicStroke&&Float.isFinite(((BasicStroke)stroke).getLineWidth())) {
+				BasicStroke bs=(BasicStroke)stroke;
 				baseStroke=Math.max(1.0f, bs.getLineWidth());
 			}
 		}
@@ -717,10 +725,11 @@ final class ChartLegendDrawerSupport {
 
 	private void clearSelectedTraceHalo() {
 		JFreeChart chart=chartPanel.getChart();
-		if (!(chart!=null&&chart.getPlot() instanceof XYPlot xyPlot)) {
+		if (chart==null||!(chart.getPlot() instanceof XYPlot)) {
 			selectedHaloAnnotations.clear();
 			return;
 		}
+		XYPlot xyPlot=(XYPlot)chart.getPlot();
 		for (XYAnnotation annotation : selectedHaloAnnotations) {
 			xyPlot.removeAnnotation(annotation);
 		}
@@ -751,9 +760,11 @@ final class ChartLegendDrawerSupport {
 		if (!items.isEmpty()) return items;
 
 		Plot plot=chart.getPlot();
-		if (plot instanceof XYPlot xyPlot) {
+		if (plot instanceof XYPlot) {
+			XYPlot xyPlot=(XYPlot)plot;
 			appendLegendCollection(items, xyPlot.getLegendItems());
-		} else if (plot instanceof CategoryPlot categoryPlot) {
+		} else if (plot instanceof CategoryPlot) {
+			CategoryPlot categoryPlot=(CategoryPlot)plot;
 			appendLegendCollection(items, categoryPlot.getLegendItems());
 		}
 		return items;

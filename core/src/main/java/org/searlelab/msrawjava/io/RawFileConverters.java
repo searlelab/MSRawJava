@@ -640,9 +640,14 @@ public class RawFileConverters {
 	}
 
 	private static void applyStructuredMetadata(StripeFileInterface rawFile, OutputSpectrumFile outFile) throws Exception {
-		if (!(outFile instanceof EncyclopeDIAFile encyclopediaFile) || !(rawFile instanceof StructuredMetadataProvider provider)) {
+		if (!(outFile instanceof EncyclopeDIAFile)) {
 			return;
 		}
+		if (!(rawFile instanceof StructuredMetadataProvider)) {
+			return;
+		}
+		EncyclopeDIAFile encyclopediaFile=(EncyclopeDIAFile)outFile;
+		StructuredMetadataProvider provider=(StructuredMetadataProvider)rawFile;
 		Optional<Date> runStartTime=provider.getRunStartTime();
 		if (runStartTime.isPresent()) {
 			encyclopediaFile.setStartTime(runStartTime.get());

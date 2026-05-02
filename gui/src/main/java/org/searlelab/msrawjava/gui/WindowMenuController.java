@@ -151,7 +151,8 @@ final class WindowMenuController {
 	private static void focusWindow(Window window) {
 		runOnEdt(() -> {
 			if (window==null) return;
-			if (window instanceof Frame frame) {
+			if (window instanceof Frame) {
+				Frame frame=(Frame)window;
 				frame.setExtendedState(frame.getExtendedState()&~Frame.ICONIFIED);
 			}
 			if (!window.isVisible()) {
@@ -159,7 +160,8 @@ final class WindowMenuController {
 			}
 			window.toFront();
 			window.requestFocus();
-			if (window instanceof RootPaneContainer rootPaneContainer) {
+			if (window instanceof RootPaneContainer) {
+				RootPaneContainer rootPaneContainer=(RootPaneContainer)window;
 				if (!rootPaneContainer.getRootPane().requestFocusInWindow()) {
 					Component content=rootPaneContainer.getContentPane();
 					if (content!=null) {

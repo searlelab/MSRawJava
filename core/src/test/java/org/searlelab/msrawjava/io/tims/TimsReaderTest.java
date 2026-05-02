@@ -140,12 +140,12 @@ class TimsReaderTest {
 		assertEquals(997.5038783578941, calibrateMz, 0.001);
 		assertEquals(1000, reader.uncalibrateMz(calibrateMz), 0.01);
 
-		Random random=new Random(42);
-		for (int i=0; i<1000; i++) {
-			double original=random.nextDouble(100, 1700);
-			calibrateMz=reader.calibrateMz(original);
-			assertEquals(original, reader.uncalibrateMz(calibrateMz), 0.01);
-		}
+			Random random=new Random(42);
+			for (int i=0; i<1000; i++) {
+				double original=100.0+(random.nextDouble()*1600.0);
+				calibrateMz=reader.calibrateMz(original);
+				assertEquals(original, reader.uncalibrateMz(calibrateMz), 0.01);
+			}
 
 		System.out.println("Total time: "+(System.currentTimeMillis()-startTime));
 	}
