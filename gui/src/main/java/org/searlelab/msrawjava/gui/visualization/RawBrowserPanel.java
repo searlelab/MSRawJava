@@ -320,11 +320,16 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		private boolean includes(ScanSummary summary) {
 			if (summary==null) return false;
 			double precursorMz=summary.getPrecursorMz();
-			return switch (kind) {
-				case ALL -> true;
-				case MS1 -> precursorMz<0.0;
-				case MS2_RANGE -> precursorMz>=0.0&&range!=null&&range.contains(precursorMz);
-			};
+			switch (kind) {
+				case ALL:
+					return true;
+				case MS1:
+					return precursorMz<0.0;
+				case MS2_RANGE:
+					return precursorMz>=0.0&&range!=null&&range.contains(precursorMz);
+				default:
+					return false;
+			}
 		}
 
 		private boolean isAll() {
@@ -525,8 +530,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 				super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 				setHorizontalAlignment(SwingConstants.RIGHT);
-				if (value instanceof Number n) {
-					setText(StripeTableCellRenderer.formatScientific(n));
+				if (value instanceof Number) {
+					setText(StripeTableCellRenderer.formatScientific((Number)value));
 				} else {
 					setText("");
 				}
@@ -537,14 +542,20 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private String getScanHeaderTooltip(int modelColumn) {
-		return switch (modelColumn) {
-			case 0 -> "The table row number for this scan.";
-			case 1 -> "The vendor-provided scan or spectrum name.";
-			case 2 -> "The scan start time in minutes.";
-			case 3 -> "The precursor m/z for this scan (blank for MS1).";
-			case 4 -> "Total ion current for this scan.";
-			default -> null;
-		};
+		switch (modelColumn) {
+			case 0:
+				return "The table row number for this scan.";
+			case 1:
+				return "The vendor-provided scan or spectrum name.";
+			case 2:
+				return "The scan start time in minutes.";
+			case 3:
+				return "The precursor m/z for this scan (blank for MS1).";
+			case 4:
+				return "Total ion current for this scan.";
+			default:
+				return null;
+		}
 	}
 
 	private void initializeScanTypeFilter() {
@@ -987,7 +998,9 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		if (endIndex>startIndex) {
 			int traceCount=Math.min(activeXicTargets.size(), progress.traces.length);
 			for (int t=0; t<traceCount; t++) {
-				if (!(plot.getDataset(t) instanceof XYSeriesCollection seriesCollection)||seriesCollection.getSeriesCount()<=0) continue;
+				if (!(plot.getDataset(t) instanceof XYSeriesCollection)) continue;
+				XYSeriesCollection seriesCollection=(XYSeriesCollection)plot.getDataset(t);
+				if (seriesCollection.getSeriesCount()<=0) continue;
 				XYSeries series=seriesCollection.getSeries(0);
 				series.setNotify(false);
 				for (int i=startIndex; i<endIndex; i++) {
@@ -1372,8 +1385,10 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			plot.addAnnotation(new XYBoxAnnotation(left, 0.0, right, chartMaxY, new BasicStroke(1.0f), shade, shade));
 		}
 
-		if (!(plot.getRenderer(0) instanceof XYLineAndShapeRenderer renderer)) return;
-		if (!(plot.getDataset(0) instanceof XYSeriesCollection dataset)) return;
+		if (!(plot.getRenderer(0) instanceof XYLineAndShapeRenderer)) return;
+		if (!(plot.getDataset(0) instanceof XYSeriesCollection)) return;
+		XYLineAndShapeRenderer renderer=(XYLineAndShapeRenderer)plot.getRenderer(0);
+		XYSeriesCollection dataset=(XYSeriesCollection)plot.getDataset(0);
 
 		for (int seriesIndex=0; seriesIndex<dataset.getSeriesCount(); seriesIndex++) {
 			if (dataset.getItemCount(seriesIndex)<2) continue;

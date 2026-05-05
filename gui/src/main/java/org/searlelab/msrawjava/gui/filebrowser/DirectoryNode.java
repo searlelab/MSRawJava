@@ -25,7 +25,7 @@ public class DirectoryNode extends DefaultMutableTreeNode {
 	}
 
 	public File getFile() {
-		return (getUserObject() instanceof File f)?f:null;
+		return (getUserObject() instanceof File)?(File)getUserObject():null;
 	}
 
 	@Override

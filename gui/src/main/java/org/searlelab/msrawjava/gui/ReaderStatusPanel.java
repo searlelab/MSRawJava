@@ -164,9 +164,17 @@ public class ReaderStatusPanel extends JPanel {
 		private void setState(StatusState next) {
 			state=next;
 			switch (state) {
-				case OK -> light.setColors(GREEN, GREEN);
-				case ERROR -> light.setColors(RED, RED);
-				case WAITING -> light.setColors(YELLOW, OFF_GRAY);
+				case OK:
+					light.setColors(GREEN, GREEN);
+					break;
+				case ERROR:
+					light.setColors(RED, RED);
+					break;
+				case WAITING:
+					light.setColors(YELLOW, OFF_GRAY);
+					break;
+				default:
+					break;
 			}
 		}
 

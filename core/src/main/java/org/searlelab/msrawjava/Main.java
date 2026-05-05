@@ -194,12 +194,21 @@ public class Main {
 
 		if (base.isDemultiplex()&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA||source==VendorFile.MZML)) {
 			String baseName=stripExtension(name);
-			String suffix=switch (base.getOutType()) {
-				case EncyclopeDIA -> ".demux"+EncyclopeDIAFile.DIA_EXTENSION;
-				case mzML -> ".demux"+MzmlConstants.MZML_EXTENSION;
-				case mgf -> ".demux"+MGFOutputFile.MGF_EXTENSION;
-				default -> null;
-			};
+			String suffix;
+			switch (base.getOutType()) {
+				case EncyclopeDIA:
+					suffix=".demux"+EncyclopeDIAFile.DIA_EXTENSION;
+					break;
+				case mzML:
+					suffix=".demux"+MzmlConstants.MZML_EXTENSION;
+					break;
+				case mgf:
+					suffix=".demux"+MGFOutputFile.MGF_EXTENSION;
+					break;
+				default:
+					suffix=null;
+					break;
+			}
 			if (suffix!=null) {
 				return cloneWithOutputOverride(base, outputDir.resolve(baseName+suffix));
 			}

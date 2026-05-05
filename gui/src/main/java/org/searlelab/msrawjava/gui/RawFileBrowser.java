@@ -279,7 +279,8 @@ public class RawFileBrowser extends JFrame {
 					if (isCancelled()) return;
 					JComponent top=get(); // may be a DirectorySummaryPanel or a JLabel on error
 
-					if (top instanceof DirectorySummaryPanel panel) {
+					if (top instanceof DirectorySummaryPanel) {
+						DirectorySummaryPanel panel=(DirectorySummaryPanel)top;
 						installSummaryInteractions(panel); // double-click + right-click menu
 						conversionPane.setSelectedPathsSupplier(() -> (panel!=null)?panel.getSelectedPaths():java.util.List.of());
 						conversionPane.updateDemuxAvailability(panel.getSelectedPaths());
@@ -352,7 +353,8 @@ public class RawFileBrowser extends JFrame {
 		double r=dividerProportion(fileSplit);
 		fileSplit.setTopComponent(c);
 		fileSplit.setDividerLocation(r);
-		if (c instanceof DirectorySummaryPanel panel) {
+		if (c instanceof DirectorySummaryPanel) {
+			DirectorySummaryPanel panel=(DirectorySummaryPanel)c;
 			currentSummaryPanel=panel;
 			applyPendingSelection(panel);
 		} else {
@@ -530,7 +532,8 @@ public class RawFileBrowser extends JFrame {
 		Enumeration<?> e=parent.children();
 		while (e.hasMoreElements()) {
 			Object o=e.nextElement();
-			if (o instanceof DirectoryNode dn) {
+			if (o instanceof DirectoryNode) {
+				DirectoryNode dn=(DirectoryNode)o;
 				if (Objects.equals(fileKey(dn.getFile()), fileKey(f))) return dn;
 			}
 		}
@@ -557,7 +560,8 @@ public class RawFileBrowser extends JFrame {
 		@Override
 		public void treeWillExpand(TreeExpansionEvent event) {
 			Object last=event.getPath().getLastPathComponent();
-			if (last instanceof DirectoryNode dn) {
+			if (last instanceof DirectoryNode) {
+				DirectoryNode dn=(DirectoryNode)last;
 				Object evt=EventQueue.getCurrentEvent();
 				if (!programmaticSelection&&isUserEvent(evt)) {
 					dn.setLoaded(false);

@@ -46,13 +46,13 @@ import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.jfree.graphics2d.svg.SVGGraphics2D;
 import org.jfree.graphics2d.svg.SVGUtils;
-import org.openpdf.text.Document;
-import org.openpdf.text.FontFactory;
-import org.openpdf.text.Rectangle;
-import org.openpdf.text.pdf.PdfContentByte;
-import org.openpdf.text.pdf.PdfGraphics2D;
-import org.openpdf.text.pdf.PdfTemplate;
-import org.openpdf.text.pdf.PdfWriter;
+import com.lowagie.text.Document;
+import com.lowagie.text.FontFactory;
+import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.PdfContentByte;
+import com.lowagie.text.pdf.PdfGraphics2D;
+import com.lowagie.text.pdf.PdfTemplate;
+import com.lowagie.text.pdf.PdfWriter;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.io.utils.Triplet;
@@ -613,7 +613,8 @@ public class BasicChartGenerator {
 			g2.setColor(bg);
 			g2.fillRect(0, 0, d.width, d.height);
 
-			if (panel instanceof ExtendedChartPanel chartPanel&&chartPanel.getChart()!=null) {
+			if (panel instanceof ExtendedChartPanel&&((ExtendedChartPanel)panel).getChart()!=null) {
+				ExtendedChartPanel chartPanel=(ExtendedChartPanel)panel;
 				chartPanel.getChart().draw(g2, new Rectangle2D.Double(0, 0, d.width, d.height));
 			} else {
 				RepaintManager rm=RepaintManager.currentManager(panel);

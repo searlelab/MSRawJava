@@ -130,8 +130,8 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 
 			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, column);
-			if (value instanceof Long l&&l>=0L) {
-				setText(humanBytes(l));
+			if (value instanceof Long&&((Long)value).longValue()>=0L) {
+				setText(humanBytes(((Long)value).longValue()));
 			} else {
 				setText("");
 			}
@@ -156,8 +156,8 @@ public class StripeTableCellRenderer extends DefaultTableCellRenderer {
 		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
 			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
 			setHorizontalAlignment(SwingConstants.RIGHT);
-			if (value instanceof Number n) {
-				setText(formatScientific(n));
+			if (value instanceof Number) {
+				setText(formatScientific((Number)value));
 			} else {
 				setText("");
 			}

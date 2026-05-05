@@ -60,7 +60,7 @@ public class FileDetailsDialog {
 		// Use a non-owned dialog so it doesn't stay above the main window on macOS.
 		final JDialog dlg=new JDialog((Frame)null, f.getName(), false); // non-modal
 		dlg.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-		RawFileBrowser browser=(frame instanceof RawFileBrowser rawFileBrowser)?rawFileBrowser:null;
+		RawFileBrowser browser=(frame instanceof RawFileBrowser)?(RawFileBrowser)frame:null;
 		if (browser!=null) {
 			browser.getWindowMenuController().registerVisualizationWindow(dlg);
 			MenuManager.install(dlg, browser);

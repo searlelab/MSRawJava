@@ -22,7 +22,8 @@ public class FileTreeCellRenderer extends DefaultTreeCellRenderer {
 	@Override
 	public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean exp, boolean leaf, int row, boolean focus) {
 		super.getTreeCellRendererComponent(tree, value, sel, exp, leaf, row, focus);
-		if (value instanceof DirectoryNode dn) {
+		if (value instanceof DirectoryNode) {
+			DirectoryNode dn=(DirectoryNode)value;
 			File f=dn.getFile();
 			if (f!=null) {
 				setIcon(fsv.getSystemIcon(f));
