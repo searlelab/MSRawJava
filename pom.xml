@@ -10,7 +10,7 @@
   <name>msrawjava (parent)</name>
 
   <properties>
-    <revision>26.5.2</revision>
+    <revision>26.5.6</revision>
     <maven.build.timestamp.format>yyyy-MM-dd</maven.build.timestamp.format>
   </properties>
 
@@ -30,13 +30,29 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-deploy-plugin</artifactId>
-        <version>3.1.2</version>
-        <inherited>false</inherited>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>flatten-maven-plugin</artifactId>
+        <version>1.6.0</version>
         <configuration>
-          <skip>true</skip>
+          <flattenMode>resolveCiFriendliesOnly</flattenMode>
+          <updatePomFile>true</updatePomFile>
         </configuration>
+        <executions>
+          <execution>
+            <id>flatten</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>flatten</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>flatten.clean</id>
+            <phase>clean</phase>
+            <goals>
+              <goal>clean</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

@@ -35,6 +35,7 @@ replay_pid*
 
 # target files
 /target/
+.flattened-pom.xml
 /rust-jni/target/
 /publish/
 /thermo-raw-server/bin/
