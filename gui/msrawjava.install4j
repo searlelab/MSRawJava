@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <install4j version="12.0.2" transformSequenceNumber="12">
-  <directoryPresets config="./target/msrawjava-26.4.24.jar" />
-  <application name="MSRawJava" applicationId="7985-7208-6179-2855" mediaDir="target/install4j" shortName="MSRawJava" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="26.4.24" macVolumeId="c048ca009eaf9ba9">
+  <directoryPresets config="./target/msrawjava-${compiler:project.version}.jar" />
+  <application name="MSRawJava" applicationId="7985-7208-6179-2855" mediaDir="target/install4j" shortName="MSRawJava" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="${compiler:project.version}" macVolumeId="c048ca009eaf9ba9">
+    <variables>
+      <variable name="project.version" value="unknown" />
+    </variables>
     <jreBundles jdkProviderId="Adoptium" release="21/latest" />
   </application>
   <files>
@@ -10,7 +13,7 @@
     </mountPoints>
     <entries>
       <dirEntry mountPoint="34" file="./target/lib" entryMode="subdir" subDirectory="lib" />
-      <fileEntry mountPoint="34" file="./target/msrawjava-26.4.24.jar" />
+      <fileEntry mountPoint="34" file="./target/msrawjava-${compiler:project.version}.jar" />
     </entries>
   </files>
   <launchers>
@@ -23,7 +26,7 @@
       </splashScreen>
       <java mainClass="org.searlelab.msrawjava.gui.GuiMain" vmParameters="-Xms2g">
         <classPath>
-          <archive location="msrawjava-26.4.24.jar" failOnError="false" />
+          <archive location="msrawjava-${compiler:project.version}.jar" failOnError="false" />
           <directory location="lib" failOnError="false" />
         </classPath>
       </java>
@@ -238,6 +241,14 @@ return console.askOkCancel(message, true);
             </formComponents>
           </screen>
           <screen id="20" beanClass="com.install4j.runtime.beans.screens.FinishedScreen" styleId="16" rollbackBarrierExitCode="0" finishScreen="true">
+            <actions>
+              <action id="306" beanClass="com.install4j.runtime.beans.actions.finish.ExecuteLauncherAction" actionElevationType="none">
+                <serializedBean>
+                  <property name="launcherId" type="string">35</property>
+                </serializedBean>
+                <condition>context.getBooleanVariable("executeLauncherAction") &amp;&amp; (!context.isUnattended())</condition>
+              </action>
+            </actions>
             <styleOverrides>
               <styleOverride name="Customize banner image" enabled="true">
                 <group id="42" beanClass="com.install4j.runtime.beans.groups.VerticalFormComponentGroup" useExternalParametrization="true" externalParametrizationName="Customize banner image" externalParametrizationMode="include">
@@ -306,6 +317,13 @@ return console.askOkCancel(message, true);
               <formComponent id="21" beanClass="com.install4j.runtime.beans.formcomponents.MultilineLabelComponent" insetBottom="10">
                 <serializedBean>
                   <property name="labelText" type="string">${form:finishedMessage}</property>
+                </serializedBean>
+              </formComponent>
+              <formComponent name="Execute Launcher" id="305" beanClass="com.install4j.runtime.beans.formcomponents.CheckboxComponent">
+                <serializedBean>
+                  <property name="checkboxText" type="string">${i18n:RunEntryExec("${compiler:sys.fullName}")}</property>
+                  <property name="initiallySelected" type="boolean" value="true" />
+                  <property name="variableName" type="string">executeLauncherAction</property>
                 </serializedBean>
               </formComponent>
             </formComponents>

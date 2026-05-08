@@ -224,4 +224,34 @@
 		</plugins>
 	</build>
 
+	<profiles>
+		<profile>
+			<id>install4j</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.install4j</groupId>
+						<artifactId>install4j-maven</artifactId>
+						<version>12.0.2</version>
+						<executions>
+							<execution>
+								<id>compile-installers</id>
+								<phase>package</phase>
+								<goals>
+									<goal>compile</goal>
+								</goals>
+								<configuration>
+									<projectFile>${project.basedir}/msrawjava.install4j</projectFile>
+									<variables>
+										<project.version>${project.version}</project.version>
+									</variables>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+
 </project>
