@@ -1,14 +1,18 @@
 package org.searlelab.msrawjava.gui.visualization;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.event.KeyEvent;
 import java.util.List;
 
 import javax.swing.InputMap;
+import javax.swing.JTable;
 import javax.swing.KeyStroke;
+import javax.swing.RowSorter;
 
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.io.utils.Pair;
 
 class RawBrowserPanelTest {
 
@@ -54,5 +58,44 @@ class RawBrowserPanelTest {
 	void findFirstMatchingIndex_returnsIndexOfMs1StyleEntry() {
 		assertEquals(1, RawBrowserPanel.findFirstMatchingIndex(List.of("All spectra", "MS1", "MS2 500.0 to 520.0 m/z"), "MS1"::equals));
 		assertEquals(-1, RawBrowserPanel.findFirstMatchingIndex(List.of("All spectra", "MS2"), "MS1"::equals));
+	}
+
+	@Test
+	void scanMetadataTableModel_usesPropertyAndValueColumnsInVendorOrder() {
+		RawBrowserPanel.ScanMetadataTableModel model=new RawBrowserPanel.ScanMetadataTableModel();
+		model.update(new Pair<>(new String[] {"Source: Source Type", "Source: Set Capillary"}, new String[] {"11", "1600 V"}));
+
+		assertEquals("Property", model.getColumnName(0));
+		assertEquals("Value", model.getColumnName(1));
+		assertEquals(2, model.getRowCount());
+		assertEquals("Source: Source Type", model.getValueAt(0, 0));
+		assertEquals("1600 V", model.getValueAt(1, 1));
+	}
+
+	@Test
+	void scanMetadataTable_isSortableAndCompactByDefault() {
+		RawBrowserPanel.ScanMetadataTableModel model=new RawBrowserPanel.ScanMetadataTableModel();
+		model.update(new Pair<>(new String[] {"B", "A"}, new String[] {"2", "1"}));
+		JTable table=RawBrowserPanel.createScanMetadataTable(model);
+
+		assertEquals(220, table.getPreferredScrollableViewportSize().width);
+		assertEquals(95, table.getColumnModel().getColumn(0).getPreferredWidth());
+		assertEquals(125, table.getColumnModel().getColumn(1).getPreferredWidth());
+		assertTrue(table.getRowSorter()!=null);
+
+		@SuppressWarnings("unchecked")
+		RowSorter<?> sorter=table.getRowSorter();
+		sorter.toggleSortOrder(0);
+		assertEquals("A", table.getValueAt(0, 0));
+	}
+
+	@Test
+	void scanMetadataTableModel_emptyForNullOrMismatchedMetadata() {
+		RawBrowserPanel.ScanMetadataTableModel model=new RawBrowserPanel.ScanMetadataTableModel();
+		model.update(null);
+		assertEquals(0, model.getRowCount());
+
+		model.update(new Pair<>(new String[] {"Only property"}, new String[0]));
+		assertEquals(0, model.getRowCount());
 	}
 }

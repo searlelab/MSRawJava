@@ -18,6 +18,7 @@ service ThermoRawService {
   rpc GetRunSummary(Session) returns (RunSummary);
   rpc GetRanges(Session) returns (RangesReply);
   rpc GetMetadata(Session) returns (MetadataReply);
+  rpc GetScanMetadata(ScanMetadataRequest) returns (ScanMetadataReply);
   rpc GetMs1Tic(TicRequest) returns (TicReply);
 }
 
@@ -35,6 +36,16 @@ message RunSummary {
 
 message MetadataReply {
   map<string, string> kv = 1;
+}
+
+message ScanMetadataRequest {
+  string session_id = 1;
+  int32 scan_number = 2;
+}
+
+message ScanMetadataReply {
+  repeated string properties = 1;
+  repeated string values = 2;
 }
 
 message WindowRange {
@@ -94,6 +105,7 @@ message Spectrum {
   double ion_injection_time_s = 18;
   double scan_window_lower = 19;
   double scan_window_upper = 20;
+  double raw_ov_ftt = 21;
 }
 
 message SpectrumSummary {
@@ -109,6 +121,7 @@ message SpectrumSummary {
   double scan_window_lower = 10;
   double scan_window_upper = 11;
   double tic = 12;
+  double raw_ov_ftt = 13;
 }
 
 message SummariesReply {

@@ -459,7 +459,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            double isoLo = double.PositiveInfinity;
 	            double isoHi = double.NegativeInfinity;
 
-	            IScanEvent evt = null;
+	            IScanEvent? evt = null;
 	            try { evt = raw.GetScanEventForScanNumber(scan); } catch { }
 	            if (evt != null)
 	            {
@@ -498,9 +498,10 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            }
 
 	            double injS;
+	            double rawOvFtT;
 	            int charge;
 	            int precursorScan;
-	            ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan);
+	            ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan, out rawOvFtT);
 	            double tic = 0.0;
 	            try
 	            {
@@ -525,7 +526,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	                IonInjectionTimeS = injS,
 	                ScanWindowLower = swLo,
 	                ScanWindowUpper = swHi,
-	                Tic = tic
+	                Tic = tic,
+	                RawOvFtt = rawOvFtT
 	            };
 	            reply.Summaries.Add(summary);
 	        }
@@ -741,9 +743,10 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         ReadMzAndIntensity(raw, scan, out var mz, out var intensF);
         
         double injS;
+        double rawOvFtT;
         int charge;
         int precursorScan;
-        ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan);
+        ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan, out rawOvFtT);
 
         double swLo, swHi;
         GetScanWindow(raw, scan, out swLo, out swHi);
@@ -760,9 +763,9 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             PrecursorName   = precursorScan.ToString(CultureInfo.InvariantCulture),
             IonInjectionTimeS = injS,
 	        ScanWindowLower = swLo,
-	        ScanWindowUpper = swHi
+	        ScanWindowUpper = swHi,
+	        RawOvFtt = rawOvFtT
         };
-
         s.Mz.AddRange(mz);
         s.Intensity.AddRange(intensF);
         return s;
@@ -770,12 +773,12 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     private static void GetScanWindow(IRawDataPlus raw, int scan, out double swLo, out double swHi)
     {
-        IScanEvent evt2 = null;
+        IScanEvent? evt2 = null;
         try { evt2 = raw.GetScanEventForScanNumber(scan); } catch { }
         GetScanWindow(evt2, out swLo, out swHi);
     }
 
-    private static void GetScanWindow(IScanEvent evt2, out double swLo, out double swHi)
+    private static void GetScanWindow(IScanEvent? evt2, out double swLo, out double swHi)
     {
         swLo = double.PositiveInfinity;
         swHi = double.NegativeInfinity;
@@ -805,11 +808,12 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         }
     }
 
-    private static void ExtractTrailerInfo(IRawDataPlus raw, int scan, out double injS, out int charge, out int precursorScan)
+    private static void ExtractTrailerInfo(IRawDataPlus raw, int scan, out double injS, out int charge, out int precursorScan, out double rawOvFtT)
     {
         injS = 0;
         charge = 0;
         precursorScan = 0;
+        rawOvFtT = 0;
         try
         {
             var trailers = raw.GetTrailerExtraInformation(scan); // ILogEntryAccess with Labels/Values
@@ -835,9 +839,61 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
                     if (int.TryParse(ExtractInteger(value), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ps))
                         precursorScan = ps;
                 }
+                if (rawOvFtT == 0 && label.IndexOf("RawOvFtT", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (TryParseNumber(value, out var parsedRawOvFtT))
+                        rawOvFtT = parsedRawOvFtT;
+                }
             }
         }
         catch { }
+    }
+
+    public override Task<ScanMetadataReply> GetScanMetadata(ScanMetadataRequest request, ServerCallContext context)
+    {
+        try
+        {
+            if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
+                throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
+
+            var reply = new ScanMetadataReply();
+            AddStatusLogValues(raw, request.ScanNumber, reply);
+            return Task.FromResult(reply);
+        }
+        catch (RpcException) { throw; }
+        catch
+        {
+            return Task.FromResult(new ScanMetadataReply());
+        }
+    }
+
+    private static void AddStatusLogValues(IRawDataPlus raw, int scan, ScanMetadataReply reply)
+    {
+        if (reply == null) return;
+        try
+        {
+            double rt = raw.RetentionTimeFromScanNumber(scan);
+            var statusLog = raw.GetStatusLogForRetentionTime(rt);
+            int n = statusLog.Length;
+            for (int i = 0; i < n; i++)
+            {
+                string label = StripTrailingColon(statusLog.Labels?[i] ?? string.Empty);
+                string value = statusLog.Values?[i] ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(label) && !string.IsNullOrWhiteSpace(value))
+                {
+                    reply.Properties.Add(label);
+                    reply.Values.Add(value);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static string StripTrailingColon(string label)
+    {
+        if (string.IsNullOrWhiteSpace(label)) return string.Empty;
+        label = label.Trim();
+        return label.EndsWith(":", StringComparison.Ordinal) ? label.Substring(0, label.Length - 1) : label;
     }
 
     private static bool TryParseNumber(string s, out double value)
@@ -876,9 +932,21 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 			    var s = v.ToString();
 			    if (!string.IsNullOrWhiteSpace(s)) kv[k] = s;
 			}
+
+	        void AddProperty(string k, object? owner, string propertyName)
+	        {
+	            if (owner == null) return;
+	            try
+	            {
+	                var prop = owner.GetType().GetProperty(propertyName);
+	                Add(k, prop?.GetValue(owner));
+	            }
+	            catch { }
+	        }
 	
 	        // --- File / run header ---
 	        try { Add("file.path", raw.FileName); } catch { }
+	        AddProperty("thermo.creation_date", raw, "CreationDate");
 	        try
 	        {
 	            var p = raw.FileName;
@@ -911,6 +979,10 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        Add("run.start_scan",     firstScan);
 	        Add("run.end_scan",       lastScan);
 	        Add("run.total_scans",    (lastScan >= firstScan) ? (lastScan - firstScan + 1) : 0);
+	        object runHeader = raw.RunHeaderEx != null ? (object)raw.RunHeaderEx : raw.RunHeader;
+	        AddProperty("thermo.run.expected_run_time", runHeader, "ExpectedRunTime");
+	        AddProperty("thermo.run.max_integrated_intensity", runHeader, "MaxIntegratedIntensity");
+	        AddProperty("thermo.run.spectra_count", runHeader, "SpectraCount");
 	        try
 	        {
 	            var startDateProp = raw.GetType().GetProperty("CreationDate")
@@ -926,6 +998,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        // If you already compute these elsewhere, reuse them; otherwise:
 	        var gradientSeconds = Math.Max(0.0, (endMin - startMin) * 60.0);
 	        Add("run.gradient_length_seconds", gradientSeconds);
+	        Add("thermo.run.duration_minutes", Math.Max(0.0, endMin - startMin));
 	
 	        // Optional TIC total (same logic as GetRunSummary; okay to repeat)
 	        try
@@ -956,6 +1029,61 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            }
 	        }
 	        catch { }
+
+	        try
+	        {
+	            var sample = raw.SampleInformation;
+	            AddProperty("thermo.sample.injection_volume", sample, "InjectionVolume");
+	            AddProperty("thermo.sample.instrument_method_file", sample, "InstrumentMethodFile");
+	            AddProperty("thermo.sample.raw_file_name", sample, "RawFileName");
+	            AddProperty("thermo.sample.vial", sample, "Vial");
+	        }
+	        catch { }
+
+	        try
+	        {
+	            var methodNames = raw.GetAllInstrumentNamesFromInstrumentMethod();
+	            if (methodNames != null && methodNames.Count() > 0) Add("thermo.instrument_method.0.name", methodNames.FirstOrDefault());
+	        }
+	        catch { }
+	        try
+	        {
+	            int methodCount = raw.InstrumentMethodsCount;
+	            if (methodCount > 0) Add("thermo.instrument_method.0.raw_text", raw.GetInstrumentMethod(0));
+	            if (methodCount > 1) Add("thermo.instrument_method.1.raw_text", raw.GetInstrumentMethod(1));
+	        }
+	        catch { }
+
+	        try
+	        {
+	            if (raw.GetTuneDataCount() > 0)
+	            {
+	                var tune = raw.GetTuneData(0);
+	                AddLogEntryValue("thermo.tune.0.spray_voltage_positive", tune, "Spray Voltage (+)");
+	                AddLogEntryValue("thermo.tune.0.spray_voltage_negative", tune, "Spray Voltage (-)");
+	                AddLogEntryValue("thermo.tune.0.ion_transfer_tube_temperature_positive", tune, "Ion Transfer Tube Temperature (+ or +-)");
+	                AddLogEntryValue("thermo.tune.0.ion_transfer_tube_temperature_negative", tune, "Ion Transfer Tube Temperature (-)");
+	            }
+	        }
+	        catch { }
+
+	        void AddLogEntryValue(string key, dynamic logEntry, string label)
+	        {
+	            try
+	            {
+	                int n = logEntry.Length;
+	                for (int i = 0; i < n; i++)
+	                {
+	                    string current = StripTrailingColon(logEntry.Labels?[i] ?? string.Empty);
+	                    if (string.Equals(current, label, StringComparison.OrdinalIgnoreCase))
+	                    {
+	                        Add(key, logEntry.Values?[i]);
+	                        return;
+	                    }
+	                }
+	            }
+	            catch { }
+	        }
 	
 	        // --- Acquisition summary (fast scan filter pass) ---
 	        var analyzers   = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

@@ -28,6 +28,8 @@ import org.searlelab.msrawjava.io.thermo.rpc.OpenRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.OpenReply;
 import org.searlelab.msrawjava.io.thermo.rpc.PrecursorsRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.RangesReply;
+import org.searlelab.msrawjava.io.thermo.rpc.ScanMetadataReply;
+import org.searlelab.msrawjava.io.thermo.rpc.ScanMetadataRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.Session;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.SpectrumSummary;
@@ -249,6 +251,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 
 		while (it.hasNext()) {
 			Spectrum s=it.next();
+			double rawOvFtT=s.getRawOvFtt();
 			double[] mz=s.getMzList().stream().mapToDouble(d -> d).toArray();
 			float[] intensity=new float[s.getIntensityCount()];
 			for (int i=0; i<intensity.length; i++) {
@@ -258,6 +261,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			String spectrumName=buildDefaultSpectrumName(s.getScanNumber());
 			out.add(new PrecursorScan(spectrumName, s.getScanNumber(), (float)s.getRtSeconds(), 0, s.getIsoLower(), s.getIsoUpper(),
 					(float)s.getIonInjectionTimeS(), mz, intensity, null));
+			consumePendingThermoSpectrumFields(rawOvFtT);
 		}
 		out.sort(Comparator.comparingDouble(PrecursorScan::getScanStartTime));
 		return out;
@@ -273,6 +277,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 
 		while (it.hasNext()) {
 			Spectrum s=it.next();
+			double rawOvFtT=s.getRawOvFtt();
 			double[] mz=s.getMzList().stream().mapToDouble(d -> d).toArray();
 			float[] intensity=new float[s.getIntensityCount()];
 			for (int i=0; i<intensity.length; i++) {
@@ -284,6 +289,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			out.add(new FragmentScan(spectrumName, s.getPrecursorName(), s.getScanNumber(), precursorMz, (float)s.getRtSeconds(), 0,
 					(float)s.getIonInjectionTimeS(), s.getIsoLower(), s.getIsoUpper(), mz, intensity, null, (byte)s.getCharge(), s.getScanWindowLower(),
 					s.getScanWindowUpper()));
+			consumePendingThermoSpectrumFields(rawOvFtT);
 		}
 		out.sort(Comparator.comparingDouble(FragmentScan::getScanStartTime));
 		return out;
@@ -301,14 +307,35 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		SummariesReply reply=stub.getScanSummaries(req);
 		ArrayList<ScanSummary> out=new ArrayList<>(reply.getSummariesCount());
 		for (SpectrumSummary s : reply.getSummariesList()) {
+			double rawOvFtT=s.getRawOvFtt();
 			boolean precursor=s.getMsLevel()==1;
 			String spectrumName=buildDefaultSpectrumName(s.getScanNumber());
 			out.add(new ScanSummary(spectrumName, s.getScanNumber(), (float)s.getRtSeconds(), 0, (float)s.getTic(),
 					precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0, precursor, (float)s.getIonInjectionTimeS(), s.getIsoLower(), s.getIsoUpper(),
 					s.getScanWindowLower(), s.getScanWindowUpper(), (byte)s.getCharge()));
+			consumePendingThermoSpectrumFields(rawOvFtT);
 		}
 		out.sort(Comparator.comparingDouble(ScanSummary::getScanStartTime));
 		return out;
+	}
+
+	@Override
+	public Pair<String[], String[]> getScanMetadata(ScanSummary summary) {
+		if (summary==null||stub==null||sessionId==null) return emptyScanMetadata();
+		try {
+			ScanMetadataRequest req=ScanMetadataRequest.newBuilder().setSessionId(sessionId).setScanNumber(summary.getSpectrumIndex()).build();
+			ScanMetadataReply reply=stub.getScanMetadata(req);
+			int n=Math.min(reply.getPropertiesCount(), reply.getValuesCount());
+			String[] properties=new String[n];
+			String[] values=new String[n];
+			for (int i=0; i<n; i++) {
+				properties[i]=reply.getProperties(i);
+				values[i]=reply.getValues(i);
+			}
+			return new Pair<>(properties, values);
+		} catch (Exception e) {
+			return emptyScanMetadata();
+		}
 	}
 
 	@Override
@@ -389,6 +416,18 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		} catch (Exception ignored) {
 			Logger.errorException(ignored);
 		}
+	}
+
+	private static void consumePendingThermoSpectrumFields(double rawOvFtT) {
+		// Transport-only for now. This verifies the Java client can read RawOvFtT
+		// without changing the shared spectrum model until the fields have a defined downstream use.
+		if (rawOvFtT==Double.NEGATIVE_INFINITY) {
+			throw new IllegalStateException("Unreachable Thermo metadata sentinel");
+		}
+	}
+
+	private static Pair<String[], String[]> emptyScanMetadata() {
+		return new Pair<>(new String[0], new String[0]);
 	}
 
 	private static String buildDefaultSpectrumName(int scanNumber) {

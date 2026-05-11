@@ -95,6 +95,14 @@ public interface StripeFileInterface {
 	AcquiredSpectrum getSpectrum(ScanSummary summary) throws IOException, SQLException, DataFormatException;
 
 	/**
+	 * On-demand per-scan vendor metadata for GUI inspection. Unsupported readers or missing vendor data should return
+	 * empty arrays rather than fail the spectrum view.
+	 */
+	default Pair<String[], String[]> getScanMetadata(ScanSummary summary) throws IOException, SQLException, DataFormatException {
+		return new Pair<>(new String[0], new String[0]);
+	}
+
+	/**
 	 * returns total precursor ion current across entire file
 	 * 
 	 * @return

@@ -18,6 +18,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -54,6 +55,46 @@ class BrukerTIMSFileSummaryTest {
 		AcquiredSpectrum ms2Spec=file.getSpectrum(ms2);
 		assertNotNull(ms2Spec);
 		assertEquals(FragmentScan.class, ms2Spec.getClass());
+
+		file.close();
+	}
+
+	@Test
+	void getScanMetadata_readsDiaFixturePropertiesInVendorOrderByFrameRetentionTime() throws Exception {
+		Path path=Path.of("src", "test", "resources", "rawdata", "230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d");
+		Assumptions.assumeTrue(Files.exists(path), "Fixture .d not present: "+path);
+
+		BrukerTIMSFile file=new BrukerTIMSFile();
+		file.openFile(path);
+
+		ArrayList<ScanSummary> summaries=file.getScanSummaries(0.0f, Float.MAX_VALUE);
+		ScanSummary first=summaries.stream().filter(ScanSummary::isPrecursor).findFirst().orElseThrow();
+		ScanSummary byRtOnly=new ScanSummary("bogus", -999, first.getScanStartTime(), first.getFraction(), first.getTic(), first.getPrecursorMz(),
+				first.isPrecursor(), first.getIonInjectionTime(), first.getIsolationWindowLower(), first.getIsolationWindowUpper(), first.getScanWindowLower(),
+				first.getScanWindowUpper(), first.getCharge());
+
+		Pair<String[], String[]> metadata=file.getScanMetadata(byRtOnly);
+		assertTrue(metadata.getX().length>20, "Expected real Bruker frame properties");
+		assertEquals(metadata.getX().length, metadata.getY().length);
+		assertEquals("Source: Source Type", metadata.getX()[0]);
+		assertEquals("11", metadata.getY()[0]);
+		assertEquals("Source: Set Divert Valve", metadata.getX()[1]);
+
+		file.close();
+	}
+
+	@Test
+	void getScanMetadata_returnsEmptyWhenBrukerPropertyTablesAreMissing() throws Exception {
+		Path path=Path.of("src", "test", "resources", "rawdata", "dda_test.d");
+		Assumptions.assumeTrue(Files.exists(path), "Fixture .d not present: "+path);
+
+		BrukerTIMSFile file=new BrukerTIMSFile();
+		file.openFile(path);
+
+		ScanSummary first=file.getScanSummaries(0.0f, Float.MAX_VALUE).get(0);
+		Pair<String[], String[]> metadata=file.getScanMetadata(first);
+		assertEquals(0, metadata.getX().length);
+		assertEquals(0, metadata.getY().length);
 
 		file.close();
 	}

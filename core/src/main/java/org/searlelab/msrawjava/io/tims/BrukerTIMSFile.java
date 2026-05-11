@@ -433,6 +433,15 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		}
 	}
 
+	private boolean tableOrViewExists(String name) throws SQLException {
+		try (PreparedStatement ps=conn.prepareStatement("SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?")) {
+			ps.setString(1, name);
+			try (ResultSet rs=ps.executeQuery()) {
+				return rs.next();
+			}
+		}
+	}
+
 	private LinkedHashMap<String, String> metadata=null;
 
 	/**
@@ -1078,6 +1087,63 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 			if (scan.getSpectrumIndex()==summary.getSpectrumIndex()) return scan;
 		}
 		return scans.isEmpty()?null:scans.get(0);
+	}
+
+	@Override
+	public Pair<String[], String[]> getScanMetadata(ScanSummary summary) {
+		if (summary==null) return emptyScanMetadata();
+		try {
+			ensureOpen();
+			if (!tableOrViewExists("Properties")||!tableOrViewExists("PropertyDefinitions")) return emptyScanMetadata();
+			int frameId=resolveFrameIdForMetadata(summary);
+			if (frameId<=0) return emptyScanMetadata();
+
+			ArrayList<String> properties=new ArrayList<>();
+			ArrayList<String> values=new ArrayList<>();
+			String sql="SELECT pd.DisplayGroupName, pd.DisplayName, pd.DisplayDimension, CAST(p.Value AS TEXT) AS ValueText "
+					+"FROM Properties p JOIN PropertyDefinitions pd ON pd.Id = p.Property "
+					+"WHERE p.Frame = ? AND p.Value IS NOT NULL AND TRIM(CAST(p.Value AS TEXT)) <> '' "+"ORDER BY p.Property ASC";
+			try (PreparedStatement ps=conn.prepareStatement(sql)) {
+				ps.setInt(1, frameId);
+				try (ResultSet rs=ps.executeQuery()) {
+					while (rs.next()) {
+						String property=formatPropertyName(rs.getString(1), rs.getString(2));
+						String value=rs.getString(4);
+						String dimension=rs.getString(3);
+						if (property.isBlank()||value==null||value.isBlank()) continue;
+						if (dimension!=null&&!dimension.isBlank()) value=value+" "+dimension.trim();
+						properties.add(property);
+						values.add(value);
+					}
+				}
+			}
+			return new Pair<>(properties.toArray(new String[0]), values.toArray(new String[0]));
+		} catch (Exception e) {
+			return emptyScanMetadata();
+		}
+	}
+
+	private int resolveFrameIdForMetadata(ScanSummary summary) throws SQLException {
+		String sql="SELECT Id FROM Frames ORDER BY ABS(Time - ?) ASC, Id ASC LIMIT 1";
+		try (PreparedStatement ps=conn.prepareStatement(sql)) {
+			ps.setFloat(1, summary.getScanStartTime());
+			try (ResultSet rs=ps.executeQuery()) {
+				if (rs.next()) return rs.getInt(1);
+			}
+		}
+		return -1;
+	}
+
+	private static String formatPropertyName(String group, String displayName) {
+		String cleanGroup=group==null?"":group.trim();
+		String cleanName=displayName==null?"":displayName.trim();
+		if (cleanGroup.isEmpty()) return cleanName;
+		if (cleanName.isEmpty()) return cleanGroup;
+		return cleanGroup+": "+cleanName;
+	}
+
+	private static Pair<String[], String[]> emptyScanMetadata() {
+		return new Pair<>(new String[0], new String[0]);
 	}
 
 	private float getIMSFromScanNumber(int scanNumber, int scanMax) {
