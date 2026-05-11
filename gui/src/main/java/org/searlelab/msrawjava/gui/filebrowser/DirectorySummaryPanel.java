@@ -1,22 +1,17 @@
 package org.searlelab.msrawjava.gui.filebrowser;
 
-import java.awt.AlphaComposite;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Point;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.Rectangle;
 import java.awt.Dimension;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -26,7 +21,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -63,14 +57,11 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.TableColumnModelEvent;
 import javax.swing.event.TableColumnModelListener;
-import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumn;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableRowSorter;
 
-import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.gui.GUIPreferences;
-import org.searlelab.msrawjava.gui.utils.PathDisplayNames;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -81,23 +72,19 @@ import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.Logger;
 
-import io.grpc.Status;
-import io.grpc.StatusException;
-import io.grpc.StatusRuntimeException;
-
 /** Small, streaming table that summarizes raw files in a directory. */
 public class DirectorySummaryPanel extends JPanel {
 	private static final long serialVersionUID=1L;
 
 	private static final int sparkResolution=128;
-	private static final Color COLOR_FILL=new Color(0x5555ED);
+	private static final Color COLOR_FILL=DirectorySummaryRenderers.COLOR_FILL;
 	private static final Color SPINNER_BG=new Color(0xE0E0E0);
-	private static final SparkData FAILED=new SparkData(new float[0]);
-	private static final ConcurrentHashMap<Path, SlowBits> SLOW_BITS_CACHE=new ConcurrentHashMap<>();
+	static final SparkData FAILED=new SparkData(new float[0]);
+	private static final ConcurrentHashMap<Path, DirectorySummaryMetrics> SLOW_BITS_CACHE=new ConcurrentHashMap<>();
 	private static final java.util.Set<String> EXPECTED_SLOW_BITS_FAILURES_LOGGED=ConcurrentHashMap.newKeySet();
-	private static final String VENDOR_ALL="All";
-	private static final String VENDOR_ALL_RAW_INSTRUMENT_FILES="All raw instrument files";
-	private static final String SLOW_BITS_CANCELLED_BY_USER_SUMMARY="previous request was cancelled by user";
+	private static final String VENDOR_ALL=DirectorySummaryVendorFilter.VENDOR_ALL;
+	private static final String VENDOR_ALL_RAW_INSTRUMENT_FILES=DirectorySummaryVendorFilter.VENDOR_ALL_RAW_INSTRUMENT_FILES;
+	private static final String SLOW_BITS_CANCELLED_BY_USER_SUMMARY=DirectorySummarySlowBitsFailures.SLOW_BITS_CANCELLED_BY_USER_SUMMARY;
 	private static final long SLOW_BITS_STALL_THRESHOLD_NANOS=1_000_000_000L;
 	private static final long SLOW_BITS_READER_RETRY_NANOS=750_000_000L;
 	private static final AtomicInteger SLOW_BITS_THREAD_ID=new AtomicInteger(1);
@@ -105,8 +92,8 @@ public class DirectorySummaryPanel extends JPanel {
 	private final int slowBitsWorkerCount=Math.max(1, Runtime.getRuntime().availableProcessors()-2);
 	private final JTable table;
 	private final JScrollPane tableScrollPane;
-	private final DirSummaryModel model=new DirSummaryModel();
-	private final TableRowSorter<DirSummaryModel> sorter;
+	private final DirectorySummaryModel model=new DirectorySummaryModel();
+	private final TableRowSorter<DirectorySummaryModel> sorter;
 	// Use a wider pool to speed up slow-bit extraction on large directories.
 	private final ExecutorService pool=Executors.newFixedThreadPool(slowBitsWorkerCount, r -> {
 		Thread t=new Thread(r, "dir-summary-slow-bits-"+SLOW_BITS_THREAD_ID.getAndIncrement());
@@ -124,9 +111,9 @@ public class DirectorySummaryPanel extends JPanel {
 	private final ProgressSpinner spinner=new ProgressSpinner();
 	private final AtomicInteger slowBitsTotal=new AtomicInteger(0);
 	private final AtomicInteger slowBitsDone=new AtomicInteger(0);
-	private final java.util.Set<DirRow> slowBitsRunning=ConcurrentHashMap.newKeySet();
-	private final ConcurrentHashMap<DirRow, SlowBitsLaunchPlanner.Lane> slowBitsRunningLane=new ConcurrentHashMap<>();
-	private final ConcurrentHashMap<DirRow, Long> slowBitsRunningStartNanos=new ConcurrentHashMap<>();
+	private final java.util.Set<DirectorySummaryRow> slowBitsRunning=ConcurrentHashMap.newKeySet();
+	private final ConcurrentHashMap<DirectorySummaryRow, SlowBitsLaunchPlanner.Lane> slowBitsRunningLane=new ConcurrentHashMap<>();
+	private final ConcurrentHashMap<DirectorySummaryRow, Long> slowBitsRunningStartNanos=new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<Path, Long> slowBitsRetryAfterNanos=new ConcurrentHashMap<>();
 	private final java.util.Set<Path> slowBitsDeprioritized=ConcurrentHashMap.newKeySet();
 	private final java.util.Set<Path> slowBitsStallWarned=ConcurrentHashMap.newKeySet();
@@ -172,26 +159,26 @@ public class DirectorySummaryPanel extends JPanel {
 		// Stripe renderers so it blends in
 		table.setDefaultRenderer(String.class, StripeTableCellRenderer.BASE_RENDERER);
 		table.setDefaultRenderer(Long.class, StripeTableCellRenderer.SIZE_RENDERER);
-		table.setDefaultRenderer(Date.class, new DateOnlyRenderer());
-		table.setDefaultRenderer(Float.class, new GradientRenderer()); // formats "X.Y min"
-		table.setDefaultRenderer(SparkData.class, new SparkRenderer()); // red filled spark
+		table.setDefaultRenderer(Date.class, new DirectorySummaryRenderers.DateOnlyRenderer());
+		table.setDefaultRenderer(Float.class, new DirectorySummaryRenderers.GradientRenderer()); // formats "X.Y min"
+		table.setDefaultRenderer(SparkData.class, new DirectorySummaryRenderers.SparkRenderer()); // red filled spark
 		installTableHeaderTooltips();
 
 		table.getColumnModel().getColumn(0).setCellRenderer(StripeTableCellRenderer.ROW_NUMBER_RENDERER);
 		table.getColumnModel().getColumn(1).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
 		table.getColumnModel().getColumn(2).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
-		table.getColumnModel().getColumn(3).setCellRenderer(new DateOnlyRenderer());
+		table.getColumnModel().getColumn(3).setCellRenderer(new DirectorySummaryRenderers.DateOnlyRenderer());
 		table.getColumnModel().getColumn(4).setCellRenderer(StripeTableCellRenderer.SIZE_RENDERER);
-		table.getColumnModel().getColumn(5).setCellRenderer(new GradientRenderer());
+		table.getColumnModel().getColumn(5).setCellRenderer(new DirectorySummaryRenderers.GradientRenderer());
 		table.getColumnModel().getColumn(6).setCellRenderer(StripeTableCellRenderer.SCI_RENDERER);
-		table.getColumnModel().getColumn(7).setCellRenderer(new SparkRenderer());
+		table.getColumnModel().getColumn(7).setCellRenderer(new DirectorySummaryRenderers.SparkRenderer());
 
 		add(buildSearchBar(), BorderLayout.NORTH);
 		tableScrollPane=new JScrollPane(table);
 		tableScrollPane.getViewport().addChangeListener(e -> requestSlowBitsDispatch());
 		add(tableScrollPane, BorderLayout.CENTER);
 		loadingTimer=new Timer(500, e -> {
-			SparkRenderer.advanceLoadingPhase();
+			DirectorySummaryRenderers.SparkRenderer.advanceLoadingPhase();
 			table.repaint();
 			requestSlowBitsDispatch();
 		});
@@ -199,28 +186,28 @@ public class DirectorySummaryPanel extends JPanel {
 		installColumnPreferenceListeners();
 
 		// Seed fast info (file name/vendor/size) synchronously so table appears immediately
-		ArrayList<DirRow> brukerRows=new ArrayList<DirRow>();
+		ArrayList<DirectorySummaryRow> brukerRows=new ArrayList<DirectorySummaryRow>();
 		for (Path p : files.getBrukerDirs()) {
-			brukerRows.add(DirRow.fromBruker(p));
+			brukerRows.add(DirectorySummaryRow.fromBruker(p));
 		}
 		Collections.sort(brukerRows);
-		ArrayList<DirRow> thermoRows=new ArrayList<DirRow>();
+		ArrayList<DirectorySummaryRow> thermoRows=new ArrayList<DirectorySummaryRow>();
 		for (Path p : files.getThermoFiles()) {
-			thermoRows.add(DirRow.fromThermo(p));
+			thermoRows.add(DirectorySummaryRow.fromThermo(p));
 		}
 		Collections.sort(thermoRows);
-		ArrayList<DirRow> diaRows=new ArrayList<DirRow>();
+		ArrayList<DirectorySummaryRow> diaRows=new ArrayList<DirectorySummaryRow>();
 		for (Path p : files.getDiaFiles()) {
-			diaRows.add(DirRow.fromDia(p));
+			diaRows.add(DirectorySummaryRow.fromDia(p));
 		}
 		Collections.sort(diaRows);
-		ArrayList<DirRow> mzmlRows=new ArrayList<DirRow>();
+		ArrayList<DirectorySummaryRow> mzmlRows=new ArrayList<DirectorySummaryRow>();
 		for (Path p : files.getMzmlFiles()) {
-			mzmlRows.add(DirRow.fromMzml(p));
+			mzmlRows.add(DirectorySummaryRow.fromMzml(p));
 		}
 		Collections.sort(mzmlRows);
 
-		ArrayList<DirRow> allRows=new ArrayList<DirRow>(brukerRows.size()+thermoRows.size()+diaRows.size()+mzmlRows.size());
+		ArrayList<DirectorySummaryRow> allRows=new ArrayList<DirectorySummaryRow>(brukerRows.size()+thermoRows.size()+diaRows.size()+mzmlRows.size());
 		allRows.addAll(brukerRows);
 		allRows.addAll(thermoRows);
 		allRows.addAll(diaRows);
@@ -337,20 +324,20 @@ public class DirectorySummaryPanel extends JPanel {
 		String raw=searchField.getText();
 		String text=(raw==null)?"":raw.trim();
 		String needle=text.isEmpty()?null:text.toLowerCase(Locale.ROOT);
-		String vendorFilterValue=getVendorFilterValueForSelection(vendorFilter.getSelectedItem());
-		VendorFile specificVendorFilter=parseSpecificVendorFilter(vendorFilterValue);
+		String vendorFilterValue=DirectorySummaryVendorFilter.getVendorFilterValueForSelection(vendorFilter.getSelectedItem());
+		VendorFile specificVendorFilter=DirectorySummaryVendorFilter.parseSpecificVendorFilter(vendorFilterValue);
 		if (needle==null&&VENDOR_ALL.equals(vendorFilterValue)) {
 			sorter.setRowFilter(null);
 			requestSlowBitsDispatch();
 			return;
 		}
-		sorter.setRowFilter(new RowFilter<DirSummaryModel, Integer>() {
+		sorter.setRowFilter(new RowFilter<DirectorySummaryModel, Integer>() {
 			@Override
-			public boolean include(Entry<? extends DirSummaryModel, ? extends Integer> entry) {
-				DirSummaryModel m=entry.getModel();
-				DirRow row=m.getAt(entry.getIdentifier());
+			public boolean include(Entry<? extends DirectorySummaryModel, ? extends Integer> entry) {
+				DirectorySummaryModel m=entry.getModel();
+				DirectorySummaryRow row=m.getAt(entry.getIdentifier());
 				if (row==null) return false;
-				if (!matchesVendorFilterValue(row.vendor, vendorFilterValue, specificVendorFilter)) return false;
+				if (!DirectorySummaryVendorFilter.matchesVendorFilterValue(row.vendor, vendorFilterValue, specificVendorFilter)) return false;
 				if (needle==null) return true;
 				return row.fileNameLower!=null&&row.fileNameLower.contains(needle);
 			}
@@ -380,8 +367,8 @@ public class DirectorySummaryPanel extends JPanel {
 			}
 		});
 		String saved=GUIPreferences.getDirectorySummaryVendorFilter();
-		String vendorFilterValue=normalizeSavedVendorFilter(saved);
-		VendorFile specificVendorFilter=parseSpecificVendorFilter(vendorFilterValue);
+		String vendorFilterValue=DirectorySummaryVendorFilter.normalizeSavedVendorFilter(saved);
+		VendorFile specificVendorFilter=DirectorySummaryVendorFilter.parseSpecificVendorFilter(vendorFilterValue);
 		if (specificVendorFilter!=null) {
 			vendorFilter.setSelectedItem(specificVendorFilter);
 		} else {
@@ -390,59 +377,7 @@ public class DirectorySummaryPanel extends JPanel {
 	}
 
 	private void persistVendorFilter() {
-		GUIPreferences.setDirectorySummaryVendorFilter(getVendorFilterValueForSelection(vendorFilter.getSelectedItem()));
-	}
-
-	static String normalizeSavedVendorFilter(String saved) {
-		if (saved==null||saved.isBlank()) {
-			return VENDOR_ALL_RAW_INSTRUMENT_FILES;
-		}
-		if (VENDOR_ALL.equals(saved)||VENDOR_ALL_RAW_INSTRUMENT_FILES.equals(saved)) {
-			return saved;
-		}
-		try {
-			return VendorFile.valueOf(saved).name();
-		} catch (IllegalArgumentException ignore) {
-			Logger.errorException(ignore);
-			return VENDOR_ALL_RAW_INSTRUMENT_FILES;
-		}
-	}
-
-	static String getVendorFilterValueForSelection(Object selection) {
-		if (selection instanceof VendorFile) {
-			VendorFile vendor=(VendorFile)selection;
-			return vendor.name();
-		}
-		if (selection instanceof String) {
-			String value=(String)selection;
-			return normalizeSavedVendorFilter(value);
-		}
-		return VENDOR_ALL_RAW_INSTRUMENT_FILES;
-	}
-
-	static boolean matchesVendorFilterValue(VendorFile vendor, String vendorFilterValue) {
-		return matchesVendorFilterValue(vendor, vendorFilterValue, parseSpecificVendorFilter(vendorFilterValue));
-	}
-
-	private static boolean matchesVendorFilterValue(VendorFile vendor, String vendorFilterValue, VendorFile specificVendorFilter) {
-		if (vendor==null) return false;
-		if (VENDOR_ALL.equals(vendorFilterValue)) return true;
-		if (VENDOR_ALL_RAW_INSTRUMENT_FILES.equals(vendorFilterValue)) {
-			return vendor==VendorFile.BRUKER||vendor==VendorFile.THERMO;
-		}
-		if (specificVendorFilter==null) return true;
-		return vendor==specificVendorFilter;
-	}
-
-	private static VendorFile parseSpecificVendorFilter(String vendorFilterValue) {
-		if (vendorFilterValue==null||vendorFilterValue.isBlank()) return null;
-		if (VENDOR_ALL.equals(vendorFilterValue)||VENDOR_ALL_RAW_INSTRUMENT_FILES.equals(vendorFilterValue)) return null;
-		try {
-			return VendorFile.valueOf(vendorFilterValue);
-		} catch (IllegalArgumentException ignore) {
-			Logger.errorException(ignore);
-			return null;
-		}
+		GUIPreferences.setDirectorySummaryVendorFilter(DirectorySummaryVendorFilter.getVendorFilterValueForSelection(vendorFilter.getSelectedItem()));
 	}
 
 	private static JSeparator makeSeparator() {
@@ -457,24 +392,24 @@ public class DirectorySummaryPanel extends JPanel {
 		return sep;
 	}
 
-	private void initializeSlowBitsProgress(List<DirRow> rows) {
+	private void initializeSlowBitsProgress(List<DirectorySummaryRow> rows) {
 		int total=rows==null?0:rows.size();
 		slowBitsTotal.set(Math.max(0, total));
 		slowBitsDone.set(0);
 
 		if (rows!=null) {
-			for (DirRow row : rows) {
+			for (DirectorySummaryRow row : rows) {
 				if (row==null||row.path==null) continue;
-				SlowBits cached=SLOW_BITS_CACHE.get(row.path);
+				DirectorySummaryMetrics cached=SLOW_BITS_CACHE.get(row.path);
 				if (cached!=null) {
-					row.applySlowBits(cached);
+					row.applyMetrics(cached);
 					markSlowBitsDone(row);
 				}
 			}
 		}
 	}
 
-	private void markSlowBitsDone(DirRow row) {
+	private void markSlowBitsDone(DirectorySummaryRow row) {
 		if (row==null||!row.markSlowBitsReady()) return;
 		if (row.path!=null) {
 			slowBitsDeprioritized.remove(row.path);
@@ -494,7 +429,7 @@ public class DirectorySummaryPanel extends JPanel {
 		List<Path> out=new ArrayList<>(view.length);
 		for (int vr : view) {
 			int mr=table.convertRowIndexToModel(vr);
-			DirRow r=model.getAt(mr);
+			DirectorySummaryRow r=model.getAt(mr);
 			if (r!=null) out.add(r.path);
 		}
 		return out;
@@ -504,7 +439,7 @@ public class DirectorySummaryPanel extends JPanel {
 		if (target==null) return false;
 		int rows=model.getRowCount();
 		for (int mr=0; mr<rows; mr++) {
-			DirRow row=model.getAt(mr);
+			DirectorySummaryRow row=model.getAt(mr);
 			if (row==null||row.path==null) continue;
 			if (row.path.equals(target)) {
 				int vr=table.convertRowIndexToView(mr);
@@ -523,14 +458,14 @@ public class DirectorySummaryPanel extends JPanel {
 		int row=table.getSelectedRow();
 		if (row<0) return null;
 		int mr=table.convertRowIndexToModel(row);
-		DirRow r=model.getAt(mr);
+		DirectorySummaryRow r=model.getAt(mr);
 		return (r==null)?null:r.path;
 	}
 
 	public Path getPathAtViewRow(int vr) {
 		if (vr<0) return null;
 		int mr=table.convertRowIndexToModel(vr);
-		DirRow r=model.getAt(mr);
+		DirectorySummaryRow r=model.getAt(mr);
 		return (r==null)?null:r.path;
 	}
 
@@ -549,7 +484,7 @@ public class DirectorySummaryPanel extends JPanel {
 			requestSlowBitsDispatch();
 			return;
 		}
-		List<DirRow> rows=model.snapshotRows();
+		List<DirectorySummaryRow> rows=model.snapshotRows();
 		if (rows.isEmpty()) return;
 
 		long nowNanos=System.nanoTime();
@@ -558,9 +493,9 @@ public class DirectorySummaryPanel extends JPanel {
 		int lastVisible=visibleRange[1];
 
 		ArrayList<SlowBitsLaunchPlanner.RowState> states=new ArrayList<>(rows.size());
-		HashMap<Integer, DirRow> rowsByModelIndex=new HashMap<>(rows.size());
+		HashMap<Integer, DirectorySummaryRow> rowsByModelIndex=new HashMap<>(rows.size());
 		for (int modelIndex=0; modelIndex<rows.size(); modelIndex++) {
-			DirRow row=rows.get(modelIndex);
+			DirectorySummaryRow row=rows.get(modelIndex);
 			if (row==null) continue;
 			rowsByModelIndex.put(Integer.valueOf(modelIndex), row);
 			int viewIndex=safeConvertRowIndexToView(table, modelIndex);
@@ -574,13 +509,13 @@ public class DirectorySummaryPanel extends JPanel {
 			boolean deprioritized=row.path!=null&&slowBitsDeprioritized.contains(row.path);
 			long retryAfterNanos=(row.path==null)?0L:slowBitsRetryAfterNanos.getOrDefault(row.path, 0L).longValue();
 			boolean launchEligible=!row.isSlowBitsReady()&&nowNanos>=retryAfterNanos;
-			states.add(new SlowBitsLaunchPlanner.RowState(modelIndex, row.vendor, hidden, inViewport, row.isSlowBitsReady(), running, runningLane, distanceFromViewport,
-					runningNanos, deprioritized, launchEligible));
+			states.add(new SlowBitsLaunchPlanner.RowState(modelIndex, row.vendor, hidden, inViewport, row.isSlowBitsReady(), running, runningLane,
+					distanceFromViewport, runningNanos, deprioritized, launchEligible));
 		}
 
 		SlowBitsLaunchPlanner.Plan plan=SlowBitsLaunchPlanner.plan(states, slowBitsWorkerCount, SLOW_BITS_STALL_THRESHOLD_NANOS);
 		for (Integer stalledModelIndex : plan.stalledVisibleModelRows()) {
-			DirRow stalledRow=rowsByModelIndex.get(stalledModelIndex);
+			DirectorySummaryRow stalledRow=rowsByModelIndex.get(stalledModelIndex);
 			if (stalledRow==null||stalledRow.path==null) continue;
 			slowBitsDeprioritized.add(stalledRow.path);
 			if (slowBitsStallWarned.add(stalledRow.path)) {
@@ -589,7 +524,7 @@ public class DirectorySummaryPanel extends JPanel {
 		}
 
 		for (SlowBitsLaunchPlanner.Launch launch : plan.launches()) {
-			DirRow row=rowsByModelIndex.get(Integer.valueOf(launch.modelIndex()));
+			DirectorySummaryRow row=rowsByModelIndex.get(Integer.valueOf(launch.modelIndex()));
 			if (row==null||row.isSlowBitsReady()) continue;
 			if (!isReaderReadyForSlowBits(row.vendor)) {
 				deferSlowBitsForReaderNotReady(row);
@@ -663,7 +598,7 @@ public class DirectorySummaryPanel extends JPanel {
 		return true;
 	}
 
-	private void deferSlowBitsForReaderNotReady(DirRow row) {
+	private void deferSlowBitsForReaderNotReady(DirectorySummaryRow row) {
 		if (row==null||row.path==null) return;
 		slowBitsDeprioritized.add(row.path);
 		slowBitsRetryAfterNanos.put(row.path, Long.valueOf(System.nanoTime()+SLOW_BITS_READER_RETRY_NANOS));
@@ -672,12 +607,12 @@ public class DirectorySummaryPanel extends JPanel {
 		}
 	}
 
-	private void computeSlowBits(DirRow row) {
+	private void computeSlowBits(DirectorySummaryRow row) {
 		if (closed) return;
 		// Per-file fault isolation: if anything fails, we just skip updating that row
-		SlowBits cached=SLOW_BITS_CACHE.get(row.path);
+		DirectorySummaryMetrics cached=SLOW_BITS_CACHE.get(row.path);
 		if (cached!=null) {
-			row.applySlowBits(cached);
+			row.applyMetrics(cached);
 			markSlowBitsDone(row);
 			safeRowUpdate(row);
 			return;
@@ -691,14 +626,14 @@ public class DirectorySummaryPanel extends JPanel {
 				row.totalTIC=dia.getTIC();
 				row.gradientMin=dia.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
-				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
+				SLOW_BITS_CACHE.put(row.path, row.toMetrics());
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-				} catch (Throwable ignore) {
-					logSlowBitsFailure(row, ignore);
-					row.spark=FAILED;
-					markSlowBitsDone(row);
-					safeRowUpdate(row);
+			} catch (Throwable ignore) {
+				logSlowBitsFailure(row, ignore);
+				row.spark=FAILED;
+				markSlowBitsDone(row);
+				safeRowUpdate(row);
 			} finally {
 				try {
 					if (dia!=null) dia.close();
@@ -714,14 +649,14 @@ public class DirectorySummaryPanel extends JPanel {
 				row.totalTIC=mzml.getTIC();
 				row.gradientMin=mzml.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
-				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
+				SLOW_BITS_CACHE.put(row.path, row.toMetrics());
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-				} catch (Throwable ignore) {
-					logSlowBitsFailure(row, ignore);
-					row.spark=FAILED;
-					markSlowBitsDone(row);
-					safeRowUpdate(row);
+			} catch (Throwable ignore) {
+				logSlowBitsFailure(row, ignore);
+				row.spark=FAILED;
+				markSlowBitsDone(row);
+				safeRowUpdate(row);
 			} finally {
 				try {
 					mzml.close();
@@ -738,31 +673,31 @@ public class DirectorySummaryPanel extends JPanel {
 				row.totalTIC=raw.getTIC();
 				row.gradientMin=raw.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
-				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
+				SLOW_BITS_CACHE.put(row.path, row.toMetrics());
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-				} catch (Throwable ignore) {
-					if (isThermoReaderUnavailable(ignore)) {
-						if (shouldSkipThermoRetryOnClose(closed)) {
-							skipClose=true;
-							return;
-						}
-						ThermoServerPool.startAsync();
-						deferSlowBitsForReaderNotReady(row);
-						safeRowUpdate(row);
+			} catch (Throwable ignore) {
+				if (DirectorySummarySlowBitsFailures.isThermoReaderUnavailable(ignore)) {
+					if (DirectorySummarySlowBitsFailures.shouldSkipThermoRetryOnClose(closed)) {
+						skipClose=true;
 						return;
 					}
-					logSlowBitsFailure(row, ignore);
-					row.spark=FAILED;
-					markSlowBitsDone(row);
+					ThermoServerPool.startAsync();
+					deferSlowBitsForReaderNotReady(row);
 					safeRowUpdate(row);
-				} finally {
-					try {
-						if (!skipClose) raw.close();
-					} catch (Throwable t) {
-						logSlowBitsFailure(row, t);
-					}
+					return;
 				}
+				logSlowBitsFailure(row, ignore);
+				row.spark=FAILED;
+				markSlowBitsDone(row);
+				safeRowUpdate(row);
+			} finally {
+				try {
+					if (!skipClose) raw.close();
+				} catch (Throwable t) {
+					logSlowBitsFailure(row, t);
+				}
+			}
 		} else {
 			BrukerTIMSFile raw=new BrukerTIMSFile();
 			try {
@@ -771,14 +706,14 @@ public class DirectorySummaryPanel extends JPanel {
 				row.totalTIC=raw.getTIC();
 				row.gradientMin=raw.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
-				SLOW_BITS_CACHE.put(row.path, row.toSlowBits());
+				SLOW_BITS_CACHE.put(row.path, row.toMetrics());
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-				} catch (Throwable ignore) {
-					logSlowBitsFailure(row, ignore);
-					row.spark=FAILED;
-					markSlowBitsDone(row);
-					safeRowUpdate(row);
+			} catch (Throwable ignore) {
+				logSlowBitsFailure(row, ignore);
+				row.spark=FAILED;
+				markSlowBitsDone(row);
+				safeRowUpdate(row);
 			} finally {
 				try {
 					raw.close();
@@ -789,10 +724,10 @@ public class DirectorySummaryPanel extends JPanel {
 		}
 	}
 
-	private void logSlowBitsFailure(DirRow row, Throwable failure) {
+	private void logSlowBitsFailure(DirectorySummaryRow row, Throwable failure) {
 		if (failure==null) return;
 		String file=(row!=null&&row.path!=null)?row.path.toString():"<unknown>";
-		String summary=expectedSlowBitsFailureSummary(failure);
+		String summary=DirectorySummarySlowBitsFailures.expectedSlowBitsFailureSummary(failure);
 		if (summary==null) {
 			Logger.errorLine("Unclassified slow-bits failure for "+file+": "+String.valueOf(failure));
 			Logger.errorException(failure);
@@ -808,128 +743,7 @@ public class DirectorySummaryPanel extends JPanel {
 		}
 	}
 
-	static String expectedSlowBitsFailureSummary(Throwable failure) {
-		if (failure==null) return null;
-		if (Thread.currentThread().isInterrupted()) {
-			return SLOW_BITS_CANCELLED_BY_USER_SUMMARY;
-		}
-		if (hasCancelledGrpcStatus(failure)) {
-			return SLOW_BITS_CANCELLED_BY_USER_SUMMARY;
-		}
-		String lower=exceptionChainMessage(failure);
-		if (lower.contains("cancelled: thread interrupted")||lower.contains("statusruntimeexception:cancelled")
-				||lower.contains("statusruntimeexception: cancelled")||hasInterruptedCause(failure)) {
-			return SLOW_BITS_CANCELLED_BY_USER_SUMMARY;
-		}
-		if (lower.contains("no valid type found for")) {
-			return "input is not a supported TIMS .d dataset";
-		}
-		if (lower.contains("instrument index")) {
-			return "Thermo RAW has no usable MS instrument index";
-		}
-		if (lower.contains("no such table: precursor")) {
-			return "older DIA schema is missing precursor table";
-		}
-		if (lower.contains("no such table: fractions")) {
-			return "older DIA schema is missing fractions table";
-		}
-		return null;
-	}
-
-	private static String exceptionChainMessage(Throwable throwable) {
-		StringBuilder sb=new StringBuilder();
-		Throwable cur=throwable;
-		while (cur!=null) {
-			sb.append(cur.getClass().getName()).append(':');
-			String msg=cur.getMessage();
-			if (msg!=null) {
-				sb.append(msg);
-			}
-			sb.append('\n');
-			Throwable next=cur.getCause();
-			if (next==cur) {
-				break;
-			}
-			cur=next;
-		}
-		return sb.toString().toLowerCase(Locale.ROOT);
-	}
-
-	private static boolean hasInterruptedCause(Throwable throwable) {
-		Throwable cur=throwable;
-		while (cur!=null) {
-			if (cur instanceof InterruptedException) {
-				return true;
-			}
-			Throwable next=cur.getCause();
-			if (next==cur) {
-				break;
-			}
-			cur=next;
-		}
-		return false;
-	}
-
-	private static boolean hasCancelledGrpcStatus(Throwable throwable) {
-		Throwable cur=throwable;
-		while (cur!=null) {
-			if (cur instanceof StatusRuntimeException) {
-				StatusRuntimeException sre=(StatusRuntimeException)cur;
-				Status status=sre.getStatus();
-				if (status!=null&&status.getCode()==Status.Code.CANCELLED) {
-					return true;
-				}
-			}
-			if (cur instanceof StatusException) {
-				StatusException se=(StatusException)cur;
-				Status status=se.getStatus();
-				if (status!=null&&status.getCode()==Status.Code.CANCELLED) {
-					return true;
-				}
-			}
-			Throwable next=cur.getCause();
-			if (next==cur) {
-				break;
-			}
-			cur=next;
-		}
-		return false;
-	}
-
-	static boolean isThermoReaderUnavailable(Throwable throwable) {
-		Throwable cur=throwable;
-		while (cur!=null) {
-			if (cur instanceof StatusRuntimeException) {
-				StatusRuntimeException sre=(StatusRuntimeException)cur;
-				Status status=sre.getStatus();
-				if (status!=null&&status.getCode()==Status.Code.UNAVAILABLE) {
-					return true;
-				}
-			}
-			if (cur instanceof StatusException) {
-				StatusException se=(StatusException)cur;
-				Status status=se.getStatus();
-				if (status!=null&&status.getCode()==Status.Code.UNAVAILABLE) {
-					return true;
-				}
-			}
-			String msg=cur.getMessage();
-			if (msg!=null) {
-				String lower=msg.toLowerCase(Locale.ROOT);
-				if (lower.contains("connection refused")||lower.contains("failed to connect")) {
-					return true;
-				}
-			}
-			Throwable next=cur.getCause();
-			if (next==cur) {
-				break;
-			}
-			cur=next;
-		}
-		return false;
-	}
-
-	private void safeRowUpdate(DirRow row) {
+	private void safeRowUpdate(DirectorySummaryRow row) {
 		if (closed) return;
 		SwingUtilities.invokeLater(() -> model.rowUpdated(row));
 	}
@@ -1069,228 +883,7 @@ public class DirectorySummaryPanel extends JPanel {
 		slowBitsRetryAfterNanos.clear();
 		slowBitsDeprioritized.clear();
 		slowBitsReaderNotReadyWarned.clear();
-		shutdownSlowBitsPool(pool);
-	}
-
-	static void shutdownSlowBitsPool(ExecutorService pool) {
-		if (pool==null) return;
-		// Let in-flight readers finish so panel teardown does not interrupt gRPC calls mid-request.
-		pool.shutdown();
-	}
-
-	static boolean shouldSkipThermoRetryOnClose(boolean closed) {
-		return closed;
-	}
-
-	/** Table model: File | Vendor | Date Modified | Size | Gradient (min) | TIC spark */
-	private static final class DirSummaryModel extends AbstractTableModel {
-		private static final String[] COLS= {"#", "File", "Vendor", "Date Modified", "Size", "Gradient (min)", "Total TIC", "TIC"};
-		private static final long serialVersionUID=1L;
-
-		private final CopyOnWriteArrayList<DirRow> rows=new CopyOnWriteArrayList<>();
-
-		void addRows(List<DirRow> rs) {
-			final int start=rows.size();
-			rows.addAll(rs);
-			final int end=rows.size()-1;
-			if (end>=start) {
-				SwingUtilities.invokeLater(() -> fireTableRowsInserted(start, end));
-			}
-		}
-
-		DirRow getAt(int modelRow) {
-			if (modelRow<0||modelRow>=rows.size()) return null;
-			return rows.get(modelRow);
-		}
-
-		List<DirRow> snapshotRows() {
-			return new ArrayList<>(rows);
-		}
-
-		void rowUpdated(DirRow r) {
-			int idx=rows.indexOf(r);
-			if (idx>=0) fireTableRowsUpdated(idx, idx);
-		}
-
-		@Override
-		public int getRowCount() {
-			return rows.size();
-		}
-
-		@Override
-		public int getColumnCount() {
-			return COLS.length;
-		}
-
-		@Override
-		public String getColumnName(int c) {
-			return COLS[c];
-		}
-
-		@Override
-		public Class<?> getColumnClass(int c) {
-			switch (c) {
-				case 0:
-				case 1:
-				case 2:
-					return String.class;
-				case 3:
-					return Date.class;
-				case 4:
-					return Long.class; // SIZE_RENDERER will humanize it
-				case 5:
-					return Float.class; // we format "X.Y min" in renderer
-				case 6:
-					return Float.class; // total TIC
-				case 7:
-					return SparkData.class;
-				default:
-					return Object.class;
-			}
-		}
-
-		@Override
-		public Object getValueAt(int r, int c) {
-			DirRow row=rows.get(r);
-			switch (c) {
-				case 0:
-					return null;
-				case 1:
-					return row.fileName;
-				case 2:
-					return row.vendor.getVendorName();
-				case 3:
-					return row.lastModified;
-				case 4:
-					return row.sizeBytes;
-				case 5:
-					return row.gradientMin; // may be null
-				case 6:
-					return row.totalTIC; // may be null
-				case 7:
-					return row.spark; // may be null
-				default:
-					return null;
-			}
-		}
-	}
-
-	/** Row data for the directory summary. */
-	private static final class DirRow implements Comparable<DirRow> {
-		final Path path;
-		final String fileName;
-		final String fileNameLower;
-		final VendorFile vendor;
-		final long sizeBytes;
-		final Date lastModified;
-
-		volatile Float gradientMin; // null until computed
-		volatile Float totalTIC; // null until computed
-		volatile SparkData spark; // null until computed
-		private final AtomicBoolean slowBitsReady=new AtomicBoolean(false);
-
-		private DirRow(Path p, VendorFile v, long size, Date lastModified) {
-			this.path=p;
-			this.fileName=PathDisplayNames.displayNameFor(p);
-			this.fileNameLower=fileName.toLowerCase(Locale.ROOT);
-			this.vendor=v;
-			this.sizeBytes=Math.max(0L, size);
-			this.lastModified=lastModified;
-		}
-
-		@Override
-		public int compareTo(DirRow o) {
-			if (o==null) return 1;
-			int c=String.CASE_INSENSITIVE_ORDER.compare(this.fileName, o.fileName);
-			if (c!=0) return c;
-			c=this.fileName.compareTo(o.fileName);
-			if (c!=0) return c;
-			return Long.compare(this.sizeBytes, o.sizeBytes);
-		}
-
-		static DirRow fromThermo(Path p) {
-			long size=(Files.isRegularFile(p)?p.toFile().length():0L);
-			Date modified=null;
-			try {
-				modified=new Date(Files.getLastModifiedTime(p).toMillis());
-			} catch (IOException e) {
-				Logger.errorException(e);
-			}
-			return new DirRow(p, VendorFile.THERMO, size, modified);
-		}
-
-		SlowBits toSlowBits() {
-			return new SlowBits(gradientMin, totalTIC, spark);
-		}
-
-		void applySlowBits(SlowBits bits) {
-			if (bits==null) return;
-			this.gradientMin=bits.gradientMin;
-			this.totalTIC=bits.totalTIC;
-			this.spark=bits.spark;
-		}
-
-		boolean markSlowBitsReady() {
-			return slowBitsReady.compareAndSet(false, true);
-		}
-
-		boolean isSlowBitsReady() {
-			return slowBitsReady.get();
-		}
-
-		static DirRow fromDia(Path p) {
-			long size=(Files.isRegularFile(p)?p.toFile().length():0L);
-			Date modified=null;
-			try {
-				modified=new Date(Files.getLastModifiedTime(p).toMillis());
-			} catch (IOException e) {
-				Logger.errorException(e);
-			}
-			return new DirRow(p, VendorFile.ENCYCLOPEDIA, size, modified);
-		}
-
-		static DirRow fromMzml(Path p) {
-			long size=(Files.isRegularFile(p)?p.toFile().length():0L);
-			Date modified=null;
-			try {
-				modified=new Date(Files.getLastModifiedTime(p).toMillis());
-			} catch (IOException e) {
-				Logger.errorException(e);
-			}
-			return new DirRow(p, VendorFile.MZML, size, modified);
-		}
-
-		static DirRow fromBruker(Path p) {
-			long size;
-			Date modified=null;
-			try {
-				modified=new Date(Files.getLastModifiedTime(p).toMillis());
-				size=Files.walk(p).filter(Files::isRegularFile).mapToLong(f -> {
-					try {
-						return Files.size(f);
-					} catch (IOException e) {
-						Logger.errorLine("Error getting size of file "+f+": "+e.getMessage());
-						return 0L;
-					}
-				}).sum();
-			} catch (IOException e) {
-				Logger.errorException(e);
-				size=0;
-			}
-			return new DirRow(p, VendorFile.BRUKER, size, modified);
-		}
-	}
-
-	private static final class SlowBits {
-		private final Float gradientMin;
-		private final Float totalTIC;
-		private final SparkData spark;
-
-		private SlowBits(Float gradientMin, Float totalTIC, SparkData spark) {
-			this.gradientMin=gradientMin;
-			this.totalTIC=totalTIC;
-			this.spark=spark;
-		}
+		DirectorySummarySlowBitsFailures.shutdownSlowBitsPool(pool);
 	}
 
 	private final class ProgressSpinner extends JComponent {
@@ -1334,174 +927,4 @@ public class DirectorySummaryPanel extends JPanel {
 		}
 	}
 
-	/** Compact TIC representation for painting fast. Stores normalized y in [0..1]. */
-	private static final class SparkData {
-		final float[] yNorm; // 0..1, fixed-size (e.g., 64 points)
-
-		private SparkData(float[] yNorm) {
-			this.yNorm=yNorm;
-		}
-
-		static SparkData fromTIC(float[] x, float[] y, int maxPts) {
-			if (y==null||y.length==0) {
-				return new SparkData(new float[] {0.0f});
-			}
-			int n=Math.min(maxPts, y.length);
-
-			float[] pick=new float[n];
-			for (int i=0; i<y.length; i++) {
-				int index=(int)Math.floor(n*i/(float)y.length);
-				if (y[i]>pick[index]) {
-					pick[index]=y[i];
-				}
-			}
-			float max=MatrixMath.max(pick);
-			if (max<=0) max=1.0f;
-
-			for (int i=0; i<n; i++) {
-				pick[i]=(float)(pick[i]/max);
-			}
-			return new SparkData(pick);
-		}
-	}
-
-	/** Renders "X.Y min", respecting stripes/borders via StripeTableCellRenderer. */
-	private static final class GradientRenderer extends StripeTableCellRenderer {
-		private static final long serialVersionUID=1L;
-
-		@Override
-		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
-			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
-			if (value instanceof Float) {
-				Float f=(Float)value;
-				setHorizontalAlignment(SwingConstants.RIGHT);
-				setText(String.format(Locale.ROOT, "%.1f min", f));
-			} else {
-				setText("");
-			}
-			return this;
-		}
-	}
-
-	private static final class DateOnlyRenderer extends StripeTableCellRenderer {
-		private static final long serialVersionUID=1L;
-		private final DateFormat format=DateFormat.getDateInstance(DateFormat.SHORT);
-
-		@Override
-		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
-			super.getTableCellRendererComponent(tbl, "", isSelected, hasFocus, row, col);
-			if (value instanceof Date) {
-				Date d=(Date)value;
-				setHorizontalAlignment(SwingConstants.RIGHT);
-				setText(format.format(d));
-			} else {
-				setText("");
-			}
-			return this;
-		}
-	}
-
-	/** Sparkline renderer: red area under curve, no labels, striped background. */
-	private static final class SparkRenderer extends StripeTableCellRenderer {
-		private static final long serialVersionUID=1L;
-		private static final int PAD=2;
-		private static int loadingPhase=0;
-
-		private static String getLoadingText() {
-			int dots=3+loadingPhase;
-			StringBuilder sb=new StringBuilder("<html>Reading File");
-			for (int i=0; i<dots; i++)
-				sb.append('.');
-			for (int i=dots; i<5; i++)
-				sb.append("&nbsp;");
-			sb.append("</html>");
-			return sb.toString();
-		}
-
-		private static void advanceLoadingPhase() {
-			loadingPhase=(loadingPhase+1)%3;
-		}
-
-		@Override
-		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-			// Keep stripes/border from base class
-			super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
-			// If spark data not ready -> show placeholder text
-
-			if (value==FAILED) {
-				setText("");
-				putClientProperty("spark", null);
-				return this;
-			}
-
-			if (!(value instanceof SparkData)) {
-				setHorizontalAlignment(SwingConstants.CENTER);
-				setText(getLoadingText());
-				putClientProperty("spark", null);
-				return this;
-			}
-			SparkData sd=(SparkData)value;
-			if (sd.yNorm==null||sd.yNorm.length==0) {
-				setHorizontalAlignment(SwingConstants.CENTER);
-				setText(getLoadingText());
-				putClientProperty("spark", null);
-				return this;
-			}
-
-			// Spark is ready -> no text, just the area chart
-			setText("");
-
-			putClientProperty("spark", value); // hand data to paint()
-			return this;
-		}
-
-		@Override
-		protected void paintComponent(Graphics g) {
-			super.paintComponent(g); // paints stripe background + border
-
-			Object o=getClientProperty("spark");
-			if (!(o instanceof SparkData)) return;
-			SparkData sd=(SparkData)o;
-			if (sd.yNorm==null||sd.yNorm.length==0) return;
-
-			Graphics2D g2=(Graphics2D)g.create();
-			try {
-				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-				Insets ins=getInsets();
-				int w=getWidth()-ins.left-ins.right-PAD*2;
-				int h=getHeight()-ins.top-ins.bottom-PAD*2;
-				int ox=ins.left+PAD;
-				int oy=ins.top+PAD;
-
-				if (w<=4||h<=4) return;
-
-				// Build polygon (x from 0..w, y from bottom up)
-				int n=sd.yNorm.length;
-				int[] xs=new int[n+2];
-				int[] ys=new int[n+2];
-
-				// baseline start
-				xs[0]=ox;
-				ys[0]=oy+h;
-
-				for (int i=0; i<n; i++) {
-					float t=(n==1)?0f:(i/(float)(n-1));
-					xs[i+1]=ox+Math.min(w, Math.max(0, Math.round(t*w)));
-					float yn=sd.yNorm[i];
-					int ypix=oy+(int)Math.round((1.0-Math.max(0f, Math.min(1f, yn)))*h);
-					ys[i+1]=ypix;
-				}
-
-				// baseline end
-				xs[n+1]=ox+w;
-				ys[n+1]=oy+h;
-
-				g2.setComposite(AlphaComposite.SrcOver.derive(0.85f));
-				g2.setColor(COLOR_FILL);
-				g2.fillPolygon(xs, ys, n+2);
-			} finally {
-				g2.dispose();
-			}
-		}
-	}
 }

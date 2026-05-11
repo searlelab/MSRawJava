@@ -24,56 +24,56 @@ class DirectorySummaryPanelSlowBitsFailureTest {
 		RuntimeException cancelled=new RuntimeException("CANCELLED: Thread interrupted", interrupted);
 		RuntimeException failure=new RuntimeException(cancelled);
 
-		assertEquals("previous request was cancelled by user", DirectorySummaryPanel.expectedSlowBitsFailureSummary(failure));
+		assertEquals("previous request was cancelled by user", DirectorySummarySlowBitsFailures.expectedSlowBitsFailureSummary(failure));
 	}
 
 	@Test
 	void expectedSlowBitsFailureSummary_handlesCancelledWithoutSpaceAfterColon() {
 		RuntimeException failure=new RuntimeException("io.grpc.StatusRuntimeException:CANCELLED");
 
-		assertEquals("previous request was cancelled by user", DirectorySummaryPanel.expectedSlowBitsFailureSummary(failure));
+		assertEquals("previous request was cancelled by user", DirectorySummarySlowBitsFailures.expectedSlowBitsFailureSummary(failure));
 	}
 
 	@Test
 	void expectedSlowBitsFailureSummary_handlesCancelledGrpcStatusCode() {
 		StatusRuntimeException failure=new StatusRuntimeException(Status.CANCELLED);
 
-		assertEquals("previous request was cancelled by user", DirectorySummaryPanel.expectedSlowBitsFailureSummary(failure));
+		assertEquals("previous request was cancelled by user", DirectorySummarySlowBitsFailures.expectedSlowBitsFailureSummary(failure));
 	}
 
 	@Test
 	void expectedSlowBitsFailureSummary_handlesInstrumentIndexError() {
 		RuntimeException failure=new RuntimeException("No valid instrument index was found");
 
-		assertEquals("Thermo RAW has no usable MS instrument index", DirectorySummaryPanel.expectedSlowBitsFailureSummary(failure));
+		assertEquals("Thermo RAW has no usable MS instrument index", DirectorySummarySlowBitsFailures.expectedSlowBitsFailureSummary(failure));
 	}
 
 	@Test
 	void expectedSlowBitsFailureSummary_returnsNullForUnavailableReaderFailure() {
 		StatusRuntimeException failure=new StatusRuntimeException(Status.UNAVAILABLE);
 
-		assertNull(DirectorySummaryPanel.expectedSlowBitsFailureSummary(failure));
+		assertNull(DirectorySummarySlowBitsFailures.expectedSlowBitsFailureSummary(failure));
 	}
 
 	@Test
 	void expectedSlowBitsFailureSummary_returnsNullForUnexpectedFailure() {
 		RuntimeException failure=new RuntimeException("completely unrelated failure");
 
-		assertNull(DirectorySummaryPanel.expectedSlowBitsFailureSummary(failure));
+		assertNull(DirectorySummarySlowBitsFailures.expectedSlowBitsFailureSummary(failure));
 	}
 
 	@Test
 	void thermoReaderUnavailable_detectsGrpcUnavailableStatus() {
 		StatusRuntimeException failure=new StatusRuntimeException(Status.UNAVAILABLE);
 
-		assertEquals(true, DirectorySummaryPanel.isThermoReaderUnavailable(failure));
+		assertEquals(true, DirectorySummarySlowBitsFailures.isThermoReaderUnavailable(failure));
 	}
 
 	@Test
 	void thermoReaderUnavailable_detectsConnectionRefusedMessage() {
 		RuntimeException failure=new RuntimeException(new java.net.ConnectException("Connection refused"));
 
-		assertEquals(true, DirectorySummaryPanel.isThermoReaderUnavailable(failure));
+		assertEquals(true, DirectorySummarySlowBitsFailures.isThermoReaderUnavailable(failure));
 	}
 
 	@Test
@@ -99,7 +99,7 @@ class DirectorySummaryPanelSlowBitsFailureTest {
 		});
 
 		assertTrue(started.await(2, TimeUnit.SECONDS));
-		DirectorySummaryPanel.shutdownSlowBitsPool(pool);
+		DirectorySummarySlowBitsFailures.shutdownSlowBitsPool(pool);
 		release.countDown();
 		assertTrue(pool.awaitTermination(2, TimeUnit.SECONDS));
 		assertFalse(interrupted.get());
@@ -107,7 +107,7 @@ class DirectorySummaryPanelSlowBitsFailureTest {
 
 	@Test
 	void shouldSkipThermoRetryOnClose_isTrueOnlyWhenPanelIsClosed() {
-		assertTrue(DirectorySummaryPanel.shouldSkipThermoRetryOnClose(true));
-		assertFalse(DirectorySummaryPanel.shouldSkipThermoRetryOnClose(false));
+		assertTrue(DirectorySummarySlowBitsFailures.shouldSkipThermoRetryOnClose(true));
+		assertFalse(DirectorySummarySlowBitsFailures.shouldSkipThermoRetryOnClose(false));
 	}
 }
