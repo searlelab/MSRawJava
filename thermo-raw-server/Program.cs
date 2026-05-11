@@ -459,7 +459,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            double isoLo = double.PositiveInfinity;
 	            double isoHi = double.NegativeInfinity;
 
-	            IScanEvent evt = null;
+	            IScanEvent? evt = null;
 	            try { evt = raw.GetScanEventForScanNumber(scan); } catch { }
 	            if (evt != null)
 	            {
@@ -773,12 +773,12 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     private static void GetScanWindow(IRawDataPlus raw, int scan, out double swLo, out double swHi)
     {
-        IScanEvent evt2 = null;
+        IScanEvent? evt2 = null;
         try { evt2 = raw.GetScanEventForScanNumber(scan); } catch { }
         GetScanWindow(evt2, out swLo, out swHi);
     }
 
-    private static void GetScanWindow(IScanEvent evt2, out double swLo, out double swHi)
+    private static void GetScanWindow(IScanEvent? evt2, out double swLo, out double swHi)
     {
         swLo = double.PositiveInfinity;
         swHi = double.NegativeInfinity;
