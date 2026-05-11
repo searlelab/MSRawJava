@@ -1042,15 +1042,15 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
 	        try
 	        {
-	            var methodNames = raw.GetAllInstrumentNamesFromInstrumentMethod();
-	            if (methodNames != null && methodNames.Count() > 0) Add("thermo.instrument_method.0.name", methodNames.FirstOrDefault());
-	        }
-	        catch { }
-	        try
-	        {
 	            int methodCount = raw.InstrumentMethodsCount;
-	            if (methodCount > 0) Add("thermo.instrument_method.0.raw_text", raw.GetInstrumentMethod(0));
-	            if (methodCount > 1) Add("thermo.instrument_method.1.raw_text", raw.GetInstrumentMethod(1));
+	            Add("thermo.instrument_method.count", methodCount);
+	            var methodNames = raw.GetAllInstrumentNamesFromInstrumentMethod();
+	            for (int methodIndex = 0; methodIndex < methodCount; methodIndex++)
+	            {
+	                var methodName = methodNames?.ElementAtOrDefault(methodIndex);
+	                if (!string.IsNullOrWhiteSpace(methodName)) Add($"thermo.instrument_method.{methodIndex}.name", methodName);
+	                Add($"thermo.instrument_method.{methodIndex}.raw_text", raw.GetInstrumentMethod(methodIndex));
+	            }
 	        }
 	        catch { }
 

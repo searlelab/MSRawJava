@@ -79,8 +79,8 @@ class RawBrowserPanelTest {
 		JTable table=RawBrowserPanel.createScanMetadataTable(model);
 
 		assertEquals(220, table.getPreferredScrollableViewportSize().width);
-		assertEquals(95, table.getColumnModel().getColumn(0).getPreferredWidth());
-		assertEquals(125, table.getColumnModel().getColumn(1).getPreferredWidth());
+		assertEquals(143, table.getColumnModel().getColumn(0).getPreferredWidth());
+		assertEquals(77, table.getColumnModel().getColumn(1).getPreferredWidth());
 		assertTrue(table.getRowSorter()!=null);
 
 		@SuppressWarnings("unchecked")

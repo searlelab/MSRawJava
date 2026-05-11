@@ -114,6 +114,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final String XIC_EXAMPLE_PEG="371.228, 415.254, 459.280, 503.306, 547.332, 597.359";
 	private static final String XIC_EXAMPLE_POLYSILOXANE="[C2H6SiO]5, [C2H6SiO]6, [C2H6SiO]7, [C2H6SiO]8, [C2H6SiO]9, [C2H6SiO]10, [C2H6SiO]11";
 	private static final String XIC_EXAMPLE_VATVSLPR="VATVSLPR++";
+	private static final int SPECTRUM_HISTOGRAM_TAB_INDEX=0;
+	private static final int SPECTRUM_PROPERTIES_TAB_INDEX=1;
 	private static final Color[] XIC_COLORS=new Color[] {
 			new Color(0xE6, 0x4A, 0x19), new Color(0x00, 0x79, 0x6B), new Color(0x1E, 0x88, 0xE5), new Color(0x8E, 0x24, 0xAA), new Color(0x6D, 0x4C, 0x41),
 			new Color(0x43, 0xA0, 0x47), new Color(0xFB, 0x8C, 0x00), new Color(0x39, 0x49, 0xAB)};
@@ -136,14 +138,13 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private final JSplitPane boxplotSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane rawSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane spectrumSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-	private final JSplitPane spectrumMetadataSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JSplitPane imsSpectrumSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JSplitPane split=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JTabbedPane primaryTabs=new JTabbedPane();
+	private final JTabbedPane spectrumDetailsTabs=new JTabbedPane();
 	private final ScanMetadataTableModel scanMetadataModel=new ScanMetadataTableModel();
 	private JTable scanMetadataTable;
 	private JScrollPane scanMetadataScroll;
-	private boolean scanMetadataDividerInitialized=false;
 
 	private List<ScanSummary> allScans=List.of();
 	private XYTrace globalChromatogram;
@@ -425,6 +426,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		scanMetadataScroll.setMinimumSize(new Dimension(150, 80));
 		scanMetadataScroll.setPreferredSize(new Dimension(220, 180));
 		scanMetadataScroll.setToolTipText("Per-scan vendor properties for the selected spectrum.");
+		initializeSpectrumDetailsTabs();
 
 		filterField=new JTextField();
 		filterField.setToolTipText("Filter scans in this table by matching text.");
@@ -549,11 +551,6 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		spectrumSplit.setContinuousLayout(true);
 		spectrumSplit.setOneTouchExpandable(true);
 
-		spectrumMetadataSplit.setResizeWeight(0.0);
-		spectrumMetadataSplit.setDividerSize(8);
-		spectrumMetadataSplit.setContinuousLayout(true);
-		spectrumMetadataSplit.setOneTouchExpandable(true);
-
 		imsSpectrumSplit.setResizeWeight(0.75);
 		imsSpectrumSplit.setDividerSize(8);
 		imsSpectrumSplit.setContinuousLayout(true);
@@ -576,10 +573,19 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		metadataTable.setToolTipText("Sortable per-scan vendor metadata.");
 		TableColumn propertyColumn=metadataTable.getColumnModel().getColumn(0);
 		TableColumn valueColumn=metadataTable.getColumnModel().getColumn(1);
-		propertyColumn.setPreferredWidth(95);
-		valueColumn.setPreferredWidth(125);
+		propertyColumn.setPreferredWidth(143);
+		valueColumn.setPreferredWidth(77);
 		metadataTable.setPreferredScrollableViewportSize(new Dimension(220, 160));
 		return metadataTable;
+	}
+
+	private void initializeSpectrumDetailsTabs() {
+		spectrumDetailsTabs.addTab("Histogram", new JLabel(""));
+		spectrumDetailsTabs.setToolTipTextAt(SPECTRUM_HISTOGRAM_TAB_INDEX, HISTOGRAM_TOOLTIP);
+		spectrumDetailsTabs.addTab("Properties", scanMetadataScroll);
+		spectrumDetailsTabs.setToolTipTextAt(SPECTRUM_PROPERTIES_TAB_INDEX, "Per-scan vendor properties for the selected spectrum.");
+		spectrumDetailsTabs.setEnabledAt(SPECTRUM_PROPERTIES_TAB_INDEX, false);
+		spectrumDetailsTabs.setSelectedIndex(SPECTRUM_HISTOGRAM_TAB_INDEX);
 	}
 
 	private static Pair<String[], String[]> emptyScanMetadata() {
@@ -1607,25 +1613,29 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	}
 
 	private void updateSpectrumRightComponent(ExtendedChartPanel spectrumHistogram, Pair<String[], String[]> metadata) {
+		int selectedTab=spectrumDetailsTabs.getSelectedIndex();
 		scanMetadataModel.update(metadata);
-		if (scanMetadataModel.getRowCount()<=0) {
-			spectrumSplit.setRightComponent(spectrumHistogram);
-			return;
+		boolean hasMetadata=scanMetadataModel.getRowCount()>0;
+		spectrumDetailsTabs.setComponentAt(SPECTRUM_HISTOGRAM_TAB_INDEX, spectrumHistogram);
+		spectrumDetailsTabs.setEnabledAt(SPECTRUM_PROPERTIES_TAB_INDEX, hasMetadata);
+		if (selectedTab==SPECTRUM_PROPERTIES_TAB_INDEX&&hasMetadata) {
+			spectrumDetailsTabs.setSelectedIndex(SPECTRUM_PROPERTIES_TAB_INDEX);
+		} else {
+			spectrumDetailsTabs.setSelectedIndex(SPECTRUM_HISTOGRAM_TAB_INDEX);
 		}
-		spectrumMetadataSplit.setLeftComponent(scanMetadataScroll);
-		spectrumMetadataSplit.setRightComponent(spectrumHistogram);
-		spectrumSplit.setRightComponent(spectrumMetadataSplit);
-		if (!scanMetadataDividerInitialized) {
-			scanMetadataDividerInitialized=true;
-			SwingUtilities.invokeLater(() -> spectrumMetadataSplit.setDividerLocation(Math.min(220, Math.max(150, spectrumMetadataSplit.getWidth()/3))));
-		}
+		spectrumSplit.setRightComponent(spectrumDetailsTabs);
 	}
 
 	private ExtendedChartPanel currentHistogramChartPanel() {
 		Component right=spectrumSplit.getRightComponent();
 		ExtendedChartPanel direct=componentAsChartPanel(right);
 		if (direct!=null) return direct;
-		if (right==spectrumMetadataSplit) return componentAsChartPanel(spectrumMetadataSplit.getRightComponent());
+		if (right==spectrumDetailsTabs) {
+			for (int i=0; i<spectrumDetailsTabs.getTabCount(); i++) {
+				ExtendedChartPanel tab=componentAsChartPanel(spectrumDetailsTabs.getComponentAt(i));
+				if (tab!=null) return tab;
+			}
+		}
 		return null;
 	}
 
