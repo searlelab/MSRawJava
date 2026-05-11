@@ -96,8 +96,9 @@ public final class RawBrowserDataLoader {
 		XYTrace precursorIntensityHistogram=new XYTrace(new double[0], new double[0], GraphType.area, "Log10 Precursor Intensity Distribution");
 		XYTrace fragmentIntensityHistogram=new XYTrace(new double[0], new double[0], GraphType.area, "Log10 Fragment Intensity Distribution");
 
+		Map<String, String> metadata=rawFile.getMetadata();
 		return new RawBrowserData(scans, chromatogramTrace, basepeakTrace, precursorIntensityHistogram, fragmentIntensityHistogram, structure, global,
-				iitByRange, iitByRt, maxTicLocal);
+				iitByRange, iitByRt, metadata, maxTicLocal);
 	}
 
 	// no helper needed

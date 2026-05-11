@@ -34,6 +34,7 @@ import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.KeyStroke;
 import javax.swing.RowFilter;
 import javax.swing.SwingConstants;
@@ -81,6 +82,7 @@ import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.gui.graphing.XYTraceInterface;
 import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
 import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
 import org.searlelab.msrawjava.io.utils.Pair;
@@ -100,6 +102,8 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final String STRUCTURE_TITLE="Structure";
 	private static final String GLOBAL_TITLE="Global";
 	private static final String BOXPLOT_TITLE="Range Statistics";
+	private static final String SETTINGS_TITLE="Settings";
+	private static final String THERMO_METHOD_COUNT_KEY="thermo.instrument_method.count";
 	private static final float MINIMUM_MS1_INTENSITY=3.0f;
 	private static final float MINIMUM_MS2_INTENSITY=1.0f;
 	private static final String TIC_TOOLTIP="Total ion current across retention time; selected scan ranges are marked when available.";
@@ -139,11 +143,15 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private final JSplitPane rawSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane spectrumSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JSplitPane imsSpectrumSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+	private final JSplitPane settingsSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JSplitPane split=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JTabbedPane primaryTabs=new JTabbedPane();
+	private final JTabbedPane instrumentMethodTabs=new JTabbedPane();
 	private final JTabbedPane spectrumDetailsTabs=new JTabbedPane();
 	private final ScanMetadataTableModel scanMetadataModel=new ScanMetadataTableModel();
+	private final MetadataTableModel metadataModel=new MetadataTableModel();
 	private JTable scanMetadataTable;
+	private JTable metadataTable;
 	private JScrollPane scanMetadataScroll;
 
 	private List<ScanSummary> allScans=List.of();
@@ -238,6 +246,41 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		@Override
 		public Object getValueAt(int rowIndex, int columnIndex) {
 			return columnIndex==0?properties[rowIndex]:values[rowIndex];
+		}
+	}
+
+	static final class MetadataTableModel extends AbstractTableModel {
+		private static final long serialVersionUID=1L;
+		private final ArrayList<Map.Entry<String, String>> rows=new ArrayList<>();
+
+		void update(Map<String, String> metadata) {
+			rows.clear();
+			if (metadata!=null) {
+				rows.addAll(metadata.entrySet());
+				rows.sort(Map.Entry.comparingByKey());
+			}
+			fireTableDataChanged();
+		}
+
+		@Override
+		public int getRowCount() {
+			return rows.size();
+		}
+
+		@Override
+		public int getColumnCount() {
+			return 2;
+		}
+
+		@Override
+		public String getColumnName(int column) {
+			return column==0?"Parameter":"Value";
+		}
+
+		@Override
+		public Object getValueAt(int rowIndex, int columnIndex) {
+			Map.Entry<String, String> row=rows.get(rowIndex);
+			return columnIndex==0?row.getKey():row.getValue();
 		}
 	}
 
@@ -427,6 +470,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		scanMetadataScroll.setPreferredSize(new Dimension(220, 180));
 		scanMetadataScroll.setToolTipText("Per-scan vendor properties for the selected spectrum.");
 		initializeSpectrumDetailsTabs();
+		metadataTable=createMetadataTable(metadataModel);
 
 		filterField=new JTextField();
 		filterField.setToolTipText("Filter scans in this table by matching text.");
@@ -517,16 +561,22 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab("Scans"), "Scan table, TIC view, and selected-spectrum plots.");
 		rawSplit.setTopComponent(topChartContainer);
 		rawSplit.setBottomComponent(spectrumSplit);
+
 		primaryTabs.addTab(BOXPLOT_TITLE, boxplotSplit);
 		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab(BOXPLOT_TITLE), "Boxplots summarizing ion injection times.");
+
 		JLabel structureLoading=new JLabel("Loading...");
 		structureLoading.setToolTipText("Global structure chart is loading.");
 		primaryTabs.addTab(STRUCTURE_TITLE, structureLoading);
 		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab(STRUCTURE_TITLE), "Global acquisition structure chart.");
+
 		JLabel globalLoading=new JLabel("Loading...");
 		globalLoading.setToolTipText("Global summary chart is loading.");
 		primaryTabs.addTab(GLOBAL_TITLE, globalLoading);
 		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab(GLOBAL_TITLE), "Global summary chart for the opened file.");
+
+		primaryTabs.addTab(SETTINGS_TITLE, new JScrollPane(metadataTable));
+		primaryTabs.setToolTipTextAt(primaryTabs.indexOfTab(SETTINGS_TITLE), "File-level metadata from the opened file.");
 
 		split.setLeftComponent(left);
 		split.setRightComponent(primaryTabs);
@@ -556,6 +606,11 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		imsSpectrumSplit.setContinuousLayout(true);
 		imsSpectrumSplit.setOneTouchExpandable(true);
 
+		settingsSplit.setResizeWeight(0.4);
+		settingsSplit.setDividerSize(8);
+		settingsSplit.setContinuousLayout(true);
+		settingsSplit.setOneTouchExpandable(true);
+
 		registerSplitPreference(split, GUIPreferences::setRawBrowserMainSplitRatio);
 		registerSplitPreference(rawSplit, GUIPreferences::setRawBrowserScansSplitRatio);
 		registerSplitPreference(spectrumSplit, GUIPreferences::setRawBrowserSpectrumSplitRatio);
@@ -576,6 +631,20 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		propertyColumn.setPreferredWidth(143);
 		valueColumn.setPreferredWidth(77);
 		metadataTable.setPreferredScrollableViewportSize(new Dimension(220, 160));
+		return metadataTable;
+	}
+
+	static JTable createMetadataTable(MetadataTableModel model) {
+		JTable metadataTable=new JTable(model);
+		metadataTable.setAutoCreateRowSorter(true);
+		metadataTable.setFillsViewportHeight(true);
+		metadataTable.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
+		metadataTable.setToolTipText("Sortable file-level metadata.");
+		TableColumn parameterColumn=metadataTable.getColumnModel().getColumn(0);
+		TableColumn valueColumn=metadataTable.getColumnModel().getColumn(1);
+		parameterColumn.setPreferredWidth(360);
+		valueColumn.setPreferredWidth(240);
+		metadataTable.setPreferredScrollableViewportSize(new Dimension(600, 360));
 		return metadataTable;
 	}
 
@@ -816,6 +885,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		this.globalChart=data.getGlobalChart();
 
 		model.updateEntries(data.getScans());
+		updateSettingsTab(data.getMetadata());
 
 		refreshChromatogramChart(false);
 		updateXicControlEnabledState();
@@ -844,6 +914,75 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		updateFilter();
 
 		SwingUtilities.invokeLater(this::applySplitPreferences);
+	}
+
+	private void updateSettingsTab(Map<String, String> metadata) {
+		metadataModel.update(metadata);
+		Component component=createSettingsComponent(metadata);
+		int index=primaryTabs.indexOfTab(SETTINGS_TITLE);
+		if (index>=0) {
+			primaryTabs.setComponentAt(index, component);
+		}
+	}
+
+	private Component createSettingsComponent(Map<String, String> metadata) {
+		JScrollPane metadataScroll=new JScrollPane(metadataTable);
+		metadataScroll.setMinimumSize(new Dimension(240, 120));
+		metadataScroll.setToolTipText("File-level metadata from the opened file.");
+		if (!shouldShowInstrumentMethodBrowser(metadata)) {
+			return metadataScroll;
+		}
+
+		populateInstrumentMethodTabs(metadata);
+		settingsSplit.setLeftComponent(metadataScroll);
+		settingsSplit.setRightComponent(instrumentMethodTabs);
+		SwingUtilities.invokeLater(() -> settingsSplit.setDividerLocation(0.4));
+		return settingsSplit;
+	}
+
+	private void populateInstrumentMethodTabs(Map<String, String> metadata) {
+		int selectedIndex=instrumentMethodTabs.getSelectedIndex();
+		instrumentMethodTabs.removeAll();
+		int count=getInstrumentMethodCount(metadata);
+		for (int i=0; i<count; i++) {
+			String prefix=instrumentMethodMetadataPrefix(i);
+			String name=metadata.get(prefix+".name");
+			if (name==null||name.isBlank()) name="Method "+i;
+			JTextPane textPane=new JTextPane();
+			textPane.setEditable(false);
+			textPane.setText(metadata.getOrDefault(prefix+".raw_text", ""));
+			textPane.setCaretPosition(0);
+			JScrollPane scroll=new JScrollPane(textPane);
+			scroll.setMinimumSize(new Dimension(240, 120));
+			instrumentMethodTabs.addTab(name, scroll);
+		}
+		if (instrumentMethodTabs.getTabCount()>0) {
+			instrumentMethodTabs.setSelectedIndex(Math.min(Math.max(selectedIndex, 0), instrumentMethodTabs.getTabCount()-1));
+		}
+	}
+
+	static String instrumentMethodMetadataPrefix(int index) {
+		return "thermo.instrument_method."+index;
+	}
+
+	static boolean hasInstrumentMethods(Map<String, String> metadata) {
+		return getInstrumentMethodCount(metadata)>0;
+	}
+
+	private boolean shouldShowInstrumentMethodBrowser(Map<String, String> metadata) {
+		return stripe instanceof ThermoRawFile||hasInstrumentMethods(metadata);
+	}
+
+	static int getInstrumentMethodCount(Map<String, String> metadata) {
+		if (metadata==null) return 0;
+		String raw=metadata.get(THERMO_METHOD_COUNT_KEY);
+		if (raw==null) return 0;
+		try {
+			int count=Integer.parseInt(raw.trim());
+			return Math.max(0, count);
+		} catch (NumberFormatException e) {
+			return 0;
+		}
 	}
 
 	private void onExtractXicClicked() {

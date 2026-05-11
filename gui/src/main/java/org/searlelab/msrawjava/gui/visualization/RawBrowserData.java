@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui.visualization;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,11 +24,12 @@ public class RawBrowserData {
 	private final ExtendedChartPanel globalChart;
 	private final Map<Comparable<?>, TFloatArrayList> iitByRange;
 	private final Map<Comparable<?>, TFloatArrayList> iitByRt;
+	private final Map<String, String> metadata;
 	private final float maxTic;
 
 	public RawBrowserData(List<ScanSummary> scans, XYTrace chromatogram, XYTrace basepeakTrace, XYTrace precursorIntensityHistogram,
 			XYTrace fragmentIntensityHistogram, ExtendedChartPanel structureChart, ExtendedChartPanel globalChart,
-			Map<Comparable<?>, TFloatArrayList> iitByRange, Map<Comparable<?>, TFloatArrayList> iitByRt, float maxTic) {
+			Map<Comparable<?>, TFloatArrayList> iitByRange, Map<Comparable<?>, TFloatArrayList> iitByRt, Map<String, String> metadata, float maxTic) {
 		this.scans=(scans==null)?new ArrayList<>():new ArrayList<>(scans);
 		this.chromatogram=chromatogram;
 		this.basepeakTrace=basepeakTrace;
@@ -37,6 +39,7 @@ public class RawBrowserData {
 		this.globalChart=globalChart;
 		this.iitByRange=iitByRange;
 		this.iitByRt=iitByRt;
+		this.metadata=(metadata==null)?new HashMap<>():new HashMap<>(metadata);
 		this.maxTic=maxTic;
 	}
 
@@ -74,6 +77,10 @@ public class RawBrowserData {
 
 	public Map<Comparable<?>, TFloatArrayList> getIitByRt() {
 		return iitByRt;
+	}
+
+	public Map<String, String> getMetadata() {
+		return metadata;
 	}
 
 	public float getMaxTic() {

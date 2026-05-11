@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.event.KeyEvent;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.InputMap;
 import javax.swing.JTable;
@@ -97,5 +98,42 @@ class RawBrowserPanelTest {
 
 		model.update(new Pair<>(new String[] {"Only property"}, new String[0]));
 		assertEquals(0, model.getRowCount());
+	}
+
+	@Test
+	void metadataTableModel_sortsKeysAndUsesParameterValueColumns() {
+		RawBrowserPanel.MetadataTableModel model=new RawBrowserPanel.MetadataTableModel();
+		model.update(Map.of("zeta", "last", "alpha", "first", "middle", "center"));
+
+		assertEquals("Parameter", model.getColumnName(0));
+		assertEquals("Value", model.getColumnName(1));
+		assertEquals(3, model.getRowCount());
+		assertEquals("alpha", model.getValueAt(0, 0));
+		assertEquals("first", model.getValueAt(0, 1));
+		assertEquals("zeta", model.getValueAt(2, 0));
+	}
+
+	@Test
+	void metadataTable_defaultsToSixtyFortyColumnWidths() {
+		RawBrowserPanel.MetadataTableModel model=new RawBrowserPanel.MetadataTableModel();
+		JTable table=RawBrowserPanel.createMetadataTable(model);
+
+		assertEquals(600, table.getPreferredScrollableViewportSize().width);
+		assertEquals(360, table.getColumnModel().getColumn(0).getPreferredWidth());
+		assertEquals(240, table.getColumnModel().getColumn(1).getPreferredWidth());
+	}
+
+	@Test
+	void hasInstrumentMethods_requiresPositiveThermoMethodCount() {
+		assertTrue(RawBrowserPanel.hasInstrumentMethods(Map.of("thermo.instrument_method.count", "2")));
+		assertEquals(2, RawBrowserPanel.getInstrumentMethodCount(Map.of("thermo.instrument_method.count", "2")));
+		assertEquals(0, RawBrowserPanel.getInstrumentMethodCount(Map.of("thermo.instrument_method.count", "not a number")));
+		assertEquals(0, RawBrowserPanel.getInstrumentMethodCount(Map.of("filename", "bruker.d")));
+	}
+
+	@Test
+	void instrumentMethodMetadataPrefix_isZeroBased() {
+		assertEquals("thermo.instrument_method.0", RawBrowserPanel.instrumentMethodMetadataPrefix(0));
+		assertEquals("thermo.instrument_method.1", RawBrowserPanel.instrumentMethodMetadataPrefix(1));
 	}
 }
