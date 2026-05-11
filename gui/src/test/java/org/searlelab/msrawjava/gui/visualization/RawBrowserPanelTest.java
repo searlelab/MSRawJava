@@ -20,23 +20,23 @@ class RawBrowserPanelTest {
 	@Test
 	void findNearestValueIndex_returnsClosestFiniteValue() {
 		double[] values=new double[] {1.0, 2.5, 4.1, 7.2};
-		assertEquals(2, RawBrowserPanel.findNearestValueIndex(3.9, values));
-		assertEquals(0, RawBrowserPanel.findNearestValueIndex(1.2, values));
-		assertEquals(3, RawBrowserPanel.findNearestValueIndex(9.0, values));
+		assertEquals(2, RawBrowserNavigation.findNearestValueIndex(3.9, values));
+		assertEquals(0, RawBrowserNavigation.findNearestValueIndex(1.2, values));
+		assertEquals(3, RawBrowserNavigation.findNearestValueIndex(9.0, values));
 	}
 
 	@Test
 	void findNearestValueIndex_ignoresNonFiniteValues() {
 		double[] values=new double[] {Double.NaN, Double.NEGATIVE_INFINITY, 5.0, Double.POSITIVE_INFINITY};
-		assertEquals(2, RawBrowserPanel.findNearestValueIndex(4.8, values));
-		assertEquals(-1, RawBrowserPanel.findNearestValueIndex(4.8, new double[] {Double.NaN}));
-		assertEquals(-1, RawBrowserPanel.findNearestValueIndex(Double.NaN, values));
+		assertEquals(2, RawBrowserNavigation.findNearestValueIndex(4.8, values));
+		assertEquals(-1, RawBrowserNavigation.findNearestValueIndex(4.8, new double[] {Double.NaN}));
+		assertEquals(-1, RawBrowserNavigation.findNearestValueIndex(Double.NaN, values));
 	}
 
 	@Test
 	void installHorizontalRowNavigation_mapsLeftRightToRowActions() {
 		InputMap inputMap=new InputMap();
-		RawBrowserPanel.mapHorizontalNavigationToRows(inputMap);
+		RawBrowserNavigation.mapHorizontalNavigationToRows(inputMap);
 		assertEquals("selectPreviousRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0)));
 		assertEquals("selectNextRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0)));
 		assertEquals("selectPreviousRowExtendSelection", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, KeyEvent.SHIFT_DOWN_MASK)));
@@ -46,7 +46,7 @@ class RawBrowserPanelTest {
 	@Test
 	void mapChartNavigationToRows_mapsArrowKeysToChartRowActions() {
 		InputMap inputMap=new InputMap();
-		RawBrowserPanel.mapChartNavigationToRows(inputMap);
+		RawBrowserNavigation.mapChartNavigationToRows(inputMap);
 		assertEquals("rawBrowser.chartSelectPreviousRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0)));
 		assertEquals("rawBrowser.chartSelectNextRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0)));
 		assertEquals("rawBrowser.chartSelectPreviousRow", inputMap.get(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, 0)));
@@ -57,13 +57,13 @@ class RawBrowserPanelTest {
 
 	@Test
 	void findFirstMatchingIndex_returnsIndexOfMs1StyleEntry() {
-		assertEquals(1, RawBrowserPanel.findFirstMatchingIndex(List.of("All spectra", "MS1", "MS2 500.0 to 520.0 m/z"), "MS1"::equals));
-		assertEquals(-1, RawBrowserPanel.findFirstMatchingIndex(List.of("All spectra", "MS2"), "MS1"::equals));
+		assertEquals(1, RawBrowserScansTab.findFirstMatchingIndex(List.of("All spectra", "MS1", "MS2 500.0 to 520.0 m/z"), "MS1"::equals));
+		assertEquals(-1, RawBrowserScansTab.findFirstMatchingIndex(List.of("All spectra", "MS2"), "MS1"::equals));
 	}
 
 	@Test
 	void scanMetadataTableModel_usesPropertyAndValueColumnsInVendorOrder() {
-		RawBrowserPanel.ScanMetadataTableModel model=new RawBrowserPanel.ScanMetadataTableModel();
+		ScanMetadataTableModel model=new ScanMetadataTableModel();
 		model.update(new Pair<>(new String[] {"Source: Source Type", "Source: Set Capillary"}, new String[] {"11", "1600 V"}));
 
 		assertEquals("Property", model.getColumnName(0));
@@ -75,9 +75,9 @@ class RawBrowserPanelTest {
 
 	@Test
 	void scanMetadataTable_isSortableAndCompactByDefault() {
-		RawBrowserPanel.ScanMetadataTableModel model=new RawBrowserPanel.ScanMetadataTableModel();
+		ScanMetadataTableModel model=new ScanMetadataTableModel();
 		model.update(new Pair<>(new String[] {"B", "A"}, new String[] {"2", "1"}));
-		JTable table=RawBrowserPanel.createScanMetadataTable(model);
+		JTable table=RawBrowserTables.createScanMetadataTable(model);
 
 		assertEquals(220, table.getPreferredScrollableViewportSize().width);
 		assertEquals(143, table.getColumnModel().getColumn(0).getPreferredWidth());
@@ -92,7 +92,7 @@ class RawBrowserPanelTest {
 
 	@Test
 	void scanMetadataTableModel_emptyForNullOrMismatchedMetadata() {
-		RawBrowserPanel.ScanMetadataTableModel model=new RawBrowserPanel.ScanMetadataTableModel();
+		ScanMetadataTableModel model=new ScanMetadataTableModel();
 		model.update(null);
 		assertEquals(0, model.getRowCount());
 
@@ -102,7 +102,7 @@ class RawBrowserPanelTest {
 
 	@Test
 	void metadataTableModel_sortsKeysAndUsesParameterValueColumns() {
-		RawBrowserPanel.MetadataTableModel model=new RawBrowserPanel.MetadataTableModel();
+		RawBrowserSettingsTab.MetadataTableModel model=new RawBrowserSettingsTab.MetadataTableModel();
 		model.update(Map.of("zeta", "last", "alpha", "first", "middle", "center"));
 
 		assertEquals("Parameter", model.getColumnName(0));
@@ -115,8 +115,8 @@ class RawBrowserPanelTest {
 
 	@Test
 	void metadataTable_defaultsToSixtyFortyColumnWidths() {
-		RawBrowserPanel.MetadataTableModel model=new RawBrowserPanel.MetadataTableModel();
-		JTable table=RawBrowserPanel.createMetadataTable(model);
+		RawBrowserSettingsTab.MetadataTableModel model=new RawBrowserSettingsTab.MetadataTableModel();
+		JTable table=RawBrowserSettingsTab.createMetadataTable(model);
 
 		assertEquals(600, table.getPreferredScrollableViewportSize().width);
 		assertEquals(360, table.getColumnModel().getColumn(0).getPreferredWidth());
@@ -125,15 +125,15 @@ class RawBrowserPanelTest {
 
 	@Test
 	void hasInstrumentMethods_requiresPositiveThermoMethodCount() {
-		assertTrue(RawBrowserPanel.hasInstrumentMethods(Map.of("thermo.instrument_method.count", "2")));
-		assertEquals(2, RawBrowserPanel.getInstrumentMethodCount(Map.of("thermo.instrument_method.count", "2")));
-		assertEquals(0, RawBrowserPanel.getInstrumentMethodCount(Map.of("thermo.instrument_method.count", "not a number")));
-		assertEquals(0, RawBrowserPanel.getInstrumentMethodCount(Map.of("filename", "bruker.d")));
+		assertTrue(RawBrowserSettingsTab.hasInstrumentMethods(Map.of("thermo.instrument_method.count", "2")));
+		assertEquals(2, RawBrowserSettingsTab.getInstrumentMethodCount(Map.of("thermo.instrument_method.count", "2")));
+		assertEquals(0, RawBrowserSettingsTab.getInstrumentMethodCount(Map.of("thermo.instrument_method.count", "not a number")));
+		assertEquals(0, RawBrowserSettingsTab.getInstrumentMethodCount(Map.of("filename", "bruker.d")));
 	}
 
 	@Test
 	void instrumentMethodMetadataPrefix_isZeroBased() {
-		assertEquals("thermo.instrument_method.0", RawBrowserPanel.instrumentMethodMetadataPrefix(0));
-		assertEquals("thermo.instrument_method.1", RawBrowserPanel.instrumentMethodMetadataPrefix(1));
+		assertEquals("thermo.instrument_method.0", RawBrowserSettingsTab.instrumentMethodMetadataPrefix(0));
+		assertEquals("thermo.instrument_method.1", RawBrowserSettingsTab.instrumentMethodMetadataPrefix(1));
 	}
 }
