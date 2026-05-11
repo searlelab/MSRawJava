@@ -17,11 +17,13 @@ import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
+import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 /**
@@ -125,6 +127,22 @@ public class ThermoRawFileSmokeIT {
 
 			assertTrue(MatrixMath.sum(f.getTICTrace().y)>0);
 			assertTrue(f.getTIC()>0);
+
+			ArrayList<ScanSummary> summaries=f.getScanSummaries(0, Float.POSITIVE_INFINITY);
+			assertTrue(!summaries.isEmpty(), "Expected scan summaries");
+			Pair<String[], String[]> observedMetadata=null;
+			for (ScanSummary summary : summaries) {
+				Pair<String[], String[]> metadata=f.getScanMetadata(summary);
+				assertEquals(metadata.getX().length, metadata.getY().length, "Scan metadata arrays should stay parallel");
+				if (metadata.getX().length>0) {
+					observedMetadata=metadata;
+					break;
+				}
+			}
+			assertNotNull(observedMetadata, "Expected at least one real Thermo status-log metadata row");
+			ScanSummary missingStatusSummary=new ScanSummary("missing", -999999, 0.0f, 0, 0.0f, -1.0, true, null, 0.0, 0.0, 0.0, 0.0, (byte)0);
+			Pair<String[], String[]> missingMetadata=f.getScanMetadata(missingStatusSummary);
+			assertEquals(missingMetadata.getX().length, missingMetadata.getY().length);
 
 			System.out.println("Begin MS1 reading..."+" Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
 			ArrayList<PrecursorScan> ms1s=f.getPrecursors(0, Float.POSITIVE_INFINITY);

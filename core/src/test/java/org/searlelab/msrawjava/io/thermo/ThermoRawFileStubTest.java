@@ -21,13 +21,16 @@ import org.searlelab.msrawjava.io.thermo.rpc.MetadataReply;
 import org.searlelab.msrawjava.io.thermo.rpc.OpenReply;
 import org.searlelab.msrawjava.io.thermo.rpc.RangesReply;
 import org.searlelab.msrawjava.io.thermo.rpc.RunSummary;
+import org.searlelab.msrawjava.io.thermo.rpc.ScanMetadataReply;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
 import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.WindowRange;
+import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
+import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
 
 import io.grpc.Attributes;
@@ -60,6 +63,11 @@ class ThermoRawFileStubTest {
 
 		Map<String, String> metadata=rawFile.getMetadata();
 		assertEquals("TestModel", metadata.get("instrument"));
+		assertEquals("3", metadata.get("thermo.sample.injection_volume"));
+		assertEquals("method.meth", metadata.get("thermo.sample.instrument_method_file"));
+		assertEquals("75", metadata.get("thermo.run.expected_run_time"));
+		assertEquals("MS method text", metadata.get("thermo.instrument_method.1.raw_text"));
+		assertEquals("2000.00", metadata.get("thermo.tune.0.spray_voltage_positive"));
 
 		ThermoRawFile.RunSummary summary=rawFile.getRunSummary();
 		assertEquals(120.0, summary.gradientLengthSeconds, 1e-6);
@@ -94,6 +102,12 @@ class ThermoRawFileStubTest {
 		List<FragmentScan> stripesSingle=rawFile.getStripes(500.0, 0, 100, false);
 		assertEquals(2, stripesSingle.size());
 		assertEquals(-4.0f, stripesSingle.get(0).getIntensityArray()[0], 1e-6f);
+
+		ScanSummary selected=new ScanSummary("scan=3", 3, 20.0f, 0, 0.0f, 400.5, false, 0.3f, 400.0, 401.0, 399.5, 401.5, (byte)2);
+		Pair<String[], String[]> scanMetadata=rawFile.getScanMetadata(selected);
+		assertArrayEquals(new String[] {"Status", "Performance"}, scanMetadata.getX());
+		assertArrayEquals(new String[] {"Instrument status Ok", "Ok"}, scanMetadata.getY());
+		assertEquals(0, rawFile.getScanMetadata(null).getX().length);
 
 		rawFile.close();
 		assertTrue(channel.shutdownCalled);
@@ -291,7 +305,9 @@ class ThermoRawFileStubTest {
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetMetadata")) {
-				MetadataReply reply=MetadataReply.newBuilder().putKv("instrument", "TestModel").build();
+				MetadataReply reply=MetadataReply.newBuilder().putKv("instrument", "TestModel").putKv("thermo.sample.injection_volume", "3")
+						.putKv("thermo.sample.instrument_method_file", "method.meth").putKv("thermo.run.expected_run_time", "75")
+						.putKv("thermo.instrument_method.1.raw_text", "MS method text").putKv("thermo.tune.0.spray_voltage_positive", "2000.00").build();
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetRunSummary")) {
@@ -311,20 +327,25 @@ class ThermoRawFileStubTest {
 				TicReply reply=TicReply.newBuilder().addAllRtSeconds(Arrays.asList(10.0, 20.0)).addAllTic(Arrays.asList(100.0, 200.0)).build();
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
+			if (name.endsWith("/GetScanMetadata")) {
+				ScanMetadataReply reply=ScanMetadataReply.newBuilder().addProperties("Status").addValues("Instrument status Ok").addProperties("Performance")
+						.addValues("Ok").build();
+				return new FakeClientCall<>(List.of((RespT)reply));
+			}
 			if (name.endsWith("/GetPrecursors")) {
 				Spectrum s1=Spectrum.newBuilder().addMz(100.0).addIntensity(10.0f).setScanNumber(2).setRtSeconds(30.0).setIsoLower(499.0).setIsoUpper(501.0)
-						.setIonInjectionTimeS(0.2).setSpectrumName("s2").build();
+						.setIonInjectionTimeS(0.2).setSpectrumName("s2").setRawOvFtt(123.4).build();
 				Spectrum s2=Spectrum.newBuilder().addMz(101.0).addIntensity(11.0f).setScanNumber(1).setRtSeconds(10.0).setIsoLower(499.0).setIsoUpper(501.0)
-						.setIonInjectionTimeS(0.1).setSpectrumName("s1").build();
+						.setIonInjectionTimeS(0.1).setSpectrumName("s1").setRawOvFtt(234.5).build();
 				return new FakeClientCall<>(List.of((RespT)s1, (RespT)s2));
 			}
 			if (name.endsWith("/GetStripes")) {
 				Spectrum s1=Spectrum.newBuilder().addMz(400.5).addIntensity(-4.0f).setScanNumber(3).setRtSeconds(20.0).setIsoLower(400.0).setIsoUpper(401.0)
 						.setCharge(2).setSpectrumName("f1").setPrecursorName("p1").setIonInjectionTimeS(0.3).setScanWindowLower(399.5).setScanWindowUpper(401.5)
-						.build();
+						.setRawOvFtt(345.6).build();
 				Spectrum s2=Spectrum.newBuilder().addMz(401.5).addIntensity(9.0f).setScanNumber(4).setRtSeconds(25.0).setIsoLower(401.0).setIsoUpper(402.0)
 						.setCharge(2).setSpectrumName("f2").setPrecursorName("p2").setIonInjectionTimeS(0.4).setScanWindowLower(400.5).setScanWindowUpper(402.5)
-						.build();
+						.setRawOvFtt(456.7).build();
 				return new FakeClientCall<>(List.of((RespT)s1, (RespT)s2));
 			}
 			throw new IllegalArgumentException("Unhandled method: "+name);

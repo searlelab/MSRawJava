@@ -6,6 +6,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.Dimension;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -47,6 +48,8 @@ import javax.swing.event.ListSelectionListener;
 import javax.swing.plaf.basic.BasicSplitPaneDivider;
 import javax.swing.plaf.basic.BasicSplitPaneUI;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableColumn;
 import javax.swing.table.TableModel;
 import javax.swing.table.TableRowSorter;
 import javax.swing.table.JTableHeader;
@@ -80,6 +83,7 @@ import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
+import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
@@ -132,9 +136,14 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private final JSplitPane boxplotSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane rawSplit=new JSplitPane(JSplitPane.VERTICAL_SPLIT);
 	private final JSplitPane spectrumSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+	private final JSplitPane spectrumMetadataSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JSplitPane imsSpectrumSplit=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JSplitPane split=new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 	private final JTabbedPane primaryTabs=new JTabbedPane();
+	private final ScanMetadataTableModel scanMetadataModel=new ScanMetadataTableModel();
+	private JTable scanMetadataTable;
+	private JScrollPane scanMetadataScroll;
+	private boolean scanMetadataDividerInitialized=false;
 
 	private List<ScanSummary> allScans=List.of();
 	private XYTrace globalChromatogram;
@@ -178,14 +187,56 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 	private static final class SelectionResult {
 		private final List<AcquiredSpectrum> entries;
 		private final AcquiredSpectrum displaySpectrum;
+		private final Pair<String[], String[]> scanMetadata;
 		private final float minRT;
 		private final float maxRT;
 
-		private SelectionResult(List<AcquiredSpectrum> entries, AcquiredSpectrum displaySpectrum, float minRT, float maxRT) {
+		private SelectionResult(List<AcquiredSpectrum> entries, AcquiredSpectrum displaySpectrum, Pair<String[], String[]> scanMetadata, float minRT, float maxRT) {
 			this.entries=entries;
 			this.displaySpectrum=displaySpectrum;
+			this.scanMetadata=scanMetadata;
 			this.minRT=minRT;
 			this.maxRT=maxRT;
+		}
+	}
+
+	static final class ScanMetadataTableModel extends AbstractTableModel {
+		private static final long serialVersionUID=1L;
+		private String[] properties=new String[0];
+		private String[] values=new String[0];
+
+		void update(Pair<String[], String[]> metadata) {
+			if (metadata==null||metadata.getX()==null||metadata.getY()==null) {
+				properties=new String[0];
+				values=new String[0];
+			} else {
+				int n=Math.min(metadata.getX().length, metadata.getY().length);
+				properties=new String[n];
+				values=new String[n];
+				System.arraycopy(metadata.getX(), 0, properties, 0, n);
+				System.arraycopy(metadata.getY(), 0, values, 0, n);
+			}
+			fireTableDataChanged();
+		}
+
+		@Override
+		public int getRowCount() {
+			return properties.length;
+		}
+
+		@Override
+		public int getColumnCount() {
+			return 2;
+		}
+
+		@Override
+		public String getColumnName(int column) {
+			return column==0?"Property":"Value";
+		}
+
+		@Override
+		public Object getValueAt(int rowIndex, int columnIndex) {
+			return columnIndex==0?properties[rowIndex]:values[rowIndex];
 		}
 	}
 
@@ -369,6 +420,12 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		installScanHeaderTooltips();
 		installScanCellRenderers();
 
+		scanMetadataTable=createScanMetadataTable(scanMetadataModel);
+		scanMetadataScroll=new JScrollPane(scanMetadataTable);
+		scanMetadataScroll.setMinimumSize(new Dimension(150, 80));
+		scanMetadataScroll.setPreferredSize(new Dimension(220, 180));
+		scanMetadataScroll.setToolTipText("Per-scan vendor properties for the selected spectrum.");
+
 		filterField=new JTextField();
 		filterField.setToolTipText("Filter scans in this table by matching text.");
 		filterField.getDocument().addDocumentListener(new DocumentListener() {
@@ -492,6 +549,11 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		spectrumSplit.setContinuousLayout(true);
 		spectrumSplit.setOneTouchExpandable(true);
 
+		spectrumMetadataSplit.setResizeWeight(0.0);
+		spectrumMetadataSplit.setDividerSize(8);
+		spectrumMetadataSplit.setContinuousLayout(true);
+		spectrumMetadataSplit.setOneTouchExpandable(true);
+
 		imsSpectrumSplit.setResizeWeight(0.75);
 		imsSpectrumSplit.setDividerSize(8);
 		imsSpectrumSplit.setContinuousLayout(true);
@@ -504,6 +566,24 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		registerSplitPreference(boxplotSplit, GUIPreferences::setRawBrowserBoxplotSplitRatio);
 
 		applySplitPreferences();
+	}
+
+	static JTable createScanMetadataTable(ScanMetadataTableModel model) {
+		JTable metadataTable=new JTable(model);
+		metadataTable.setAutoCreateRowSorter(true);
+		metadataTable.setFillsViewportHeight(true);
+		metadataTable.setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
+		metadataTable.setToolTipText("Sortable per-scan vendor metadata.");
+		TableColumn propertyColumn=metadataTable.getColumnModel().getColumn(0);
+		TableColumn valueColumn=metadataTable.getColumnModel().getColumn(1);
+		propertyColumn.setPreferredWidth(95);
+		valueColumn.setPreferredWidth(125);
+		metadataTable.setPreferredScrollableViewportSize(new Dimension(220, 160));
+		return metadataTable;
+	}
+
+	private static Pair<String[], String[]> emptyScanMetadata() {
+		return new Pair<>(new String[0], new String[0]);
 	}
 
 	private void installScanHeaderTooltips() {
@@ -1423,7 +1503,15 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 					AcquiredSpectrum spectrum=stripe.getSpectrum(summary);
 					if (spectrum!=null) spectra.add(spectrum);
 				}
-				if (spectra.isEmpty()) return new SelectionResult(spectra, null, Float.NaN, Float.NaN);
+				Pair<String[], String[]> metadata=emptyScanMetadata();
+				if (summaries.size()==1) {
+					try {
+						metadata=stripe.getScanMetadata(summaries.get(0));
+					} catch (Exception ignored) {
+						metadata=emptyScanMetadata();
+					}
+				}
+				if (spectra.isEmpty()) return new SelectionResult(spectra, null, metadata, Float.NaN, Float.NaN);
 
 				final AcquiredSpectrum merged;
 				float minRT=Float.MAX_VALUE;
@@ -1442,7 +1530,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 					}
 				}
 				AcquiredSpectrum display=peakPickSpectrumIfIMS(merged);
-				return new SelectionResult(spectra, display, minRT, maxRT);
+				return new SelectionResult(spectra, display, metadata, minRT, maxRT);
 			}
 
 			@Override
@@ -1465,11 +1553,12 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		pendingChartFocusRestore=false;
 		ExtendedChartPanel previousSpectrumChart=currentSpectrumChartPanel();
 		ExtendedChartPanel previousImsChart=componentAsChartPanel(imsSpectrumSplit.getRightComponent());
-		ExtendedChartPanel previousHistogramChart=componentAsChartPanel(spectrumSplit.getRightComponent());
+		ExtendedChartPanel previousHistogramChart=currentHistogramChartPanel();
 		if (result==null||result.entries==null||result.entries.isEmpty()) {
 			updateTopChartSelectionMarkers(Float.NaN, Float.NaN);
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
 			spectrumSplit.setRightComponent(new JLabel(""));
+			scanMetadataModel.update(emptyScanMetadata());
 			return;
 		}
 
@@ -1478,6 +1567,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 			updateTopChartSelectionMarkers(Float.NaN, Float.NaN);
 			spectrumSplit.setLeftComponent(new JLabel("No spectrum available"));
 			spectrumSplit.setRightComponent(new JLabel(""));
+			scanMetadataModel.update(emptyScanMetadata());
 			return;
 		}
 		ExtendedChartPanel spectrumChart=BasicChartGenerator.getChart("m/z", "Intensity", false, new XYTrace(displaySpectrum));
@@ -1506,7 +1596,7 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		ChartStyleTransfer.apply(previousHistogramChart, spectrumHistogram);
 		installChartArrowNavigation(spectrumHistogram, ChartFocusTarget.HISTOGRAM);
 		spectrumHistogram.setToolTipText(HISTOGRAM_TOOLTIP);
-		spectrumSplit.setRightComponent(spectrumHistogram);
+		updateSpectrumRightComponent(spectrumHistogram, result.scanMetadata);
 		if (shouldRestoreChartFocus) {
 			restoreSpectrumFocusIfNeeded(spectrumChart, imsChart, spectrumHistogram);
 		}
@@ -1514,6 +1604,29 @@ public class RawBrowserPanel extends JPanel implements AutoCloseable {
 		updateTopChartSelectionMarkers(result.minRT, result.maxRT);
 
 		applySplitPreferences();
+	}
+
+	private void updateSpectrumRightComponent(ExtendedChartPanel spectrumHistogram, Pair<String[], String[]> metadata) {
+		scanMetadataModel.update(metadata);
+		if (scanMetadataModel.getRowCount()<=0) {
+			spectrumSplit.setRightComponent(spectrumHistogram);
+			return;
+		}
+		spectrumMetadataSplit.setLeftComponent(scanMetadataScroll);
+		spectrumMetadataSplit.setRightComponent(spectrumHistogram);
+		spectrumSplit.setRightComponent(spectrumMetadataSplit);
+		if (!scanMetadataDividerInitialized) {
+			scanMetadataDividerInitialized=true;
+			SwingUtilities.invokeLater(() -> spectrumMetadataSplit.setDividerLocation(Math.min(220, Math.max(150, spectrumMetadataSplit.getWidth()/3))));
+		}
+	}
+
+	private ExtendedChartPanel currentHistogramChartPanel() {
+		Component right=spectrumSplit.getRightComponent();
+		ExtendedChartPanel direct=componentAsChartPanel(right);
+		if (direct!=null) return direct;
+		if (right==spectrumMetadataSplit) return componentAsChartPanel(spectrumMetadataSplit.getRightComponent());
+		return null;
 	}
 
 	private ExtendedChartPanel componentAsChartPanel(Component component) {
