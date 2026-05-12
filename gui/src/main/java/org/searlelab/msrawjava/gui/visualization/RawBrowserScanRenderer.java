@@ -6,6 +6,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.function.Consumer;
@@ -23,8 +24,11 @@ import org.jfree.chart.ChartMouseListener;
 import org.jfree.chart.annotations.XYAnnotation;
 import org.jfree.chart.annotations.XYBoxAnnotation;
 import org.jfree.chart.annotations.XYLineAnnotation;
+import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.data.RangeType;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
@@ -47,6 +51,7 @@ final class RawBrowserScanRenderer {
 	private static final String HISTOGRAM_TOOLTIP="Log10 fragment intensity distribution for the selected spectrum.";
 	private static final int SPECTRUM_HISTOGRAM_TAB_INDEX=0;
 	private static final int SPECTRUM_PROPERTIES_TAB_INDEX=1;
+	private static final java.awt.Shape XIC_DELTA_DOT_SHAPE=new Ellipse2D.Double(-2.0, -2.0, 4.0, 4.0);
 	private static final Color[] XIC_COLORS=new Color[] {new Color(0xE6, 0x4A, 0x19), new Color(0x00, 0x79, 0x6B), new Color(0x1E, 0x88, 0xE5),
 			new Color(0x8E, 0x24, 0xAA), new Color(0x6D, 0x4C, 0x41), new Color(0x43, 0xA0, 0x47), new Color(0xFB, 0x8C, 0x00), new Color(0x39, 0x49, 0xAB)};
 	private final JPanel topChartContent=new JPanel(new BorderLayout());
@@ -128,8 +133,31 @@ final class RawBrowserScanRenderer {
 	void refreshChromatogramChart(XYTrace activeChromatogram, float activeMaxTic, RawBrowserXicController xicController, boolean preserveAxisView) {
 		ExtendedChartPanel previousChart=preserveAxisView?topChromatogramChart:null;
 		ExtendedChartPanel chart=buildChromatogramChart(activeChromatogram, xicController);
+		if (previousChart!=null&&xicController.isXicModeActive()) {
+			ChartStyleTransfer.apply(previousChart, chart);
+			replaceTopChartData(previousChart, chart);
+			previousChart.setToolTipText(chart.getToolTipText());
+			previousChart.repaint();
+			return;
+		}
 		ChartStyleTransfer.apply(previousChart, chart);
 		setTopChart(chart);
+	}
+
+	private void replaceTopChartData(ExtendedChartPanel targetPanel, ExtendedChartPanel sourcePanel) {
+		if (targetPanel==null||sourcePanel==null||targetPanel.getChart()==null||sourcePanel.getChart()==null) return;
+		XYPlot target=targetPanel.getChart().getXYPlot();
+		XYPlot source=sourcePanel.getChart().getXYPlot();
+		if (target==null||source==null) return;
+		clearTopChartSelectionMarkers();
+		int maxDatasets=Math.max(target.getDatasetCount(), source.getDatasetCount());
+		for (int i=0; i<maxDatasets; i++) {
+			target.setDataset(i, i<source.getDatasetCount()?source.getDataset(i):null);
+			target.setRenderer(i, i<source.getRendererCount()?source.getRenderer(i):null);
+		}
+		target.setRangeAxis(source.getRangeAxis());
+		targetPanel.setDivider(sourcePanel.getDivider());
+		chromatogramSelectionAnnotations.clear();
 	}
 
 	void refreshTopChartForSelection(float minRT, float maxRT, float activeMaxTic, RawBrowserXicController xicController) {
@@ -157,7 +185,14 @@ final class RawBrowserScanRenderer {
 		XYPlot plot=topChromatogramChart.getChart().getXYPlot();
 		if (plot==null) return;
 		if (endIndex<=startIndex) return;
-		int count=Math.min(traceCount, progress.traces.length);
+		boolean deltaMode=false;
+		if (plot.getRangeAxis()!=null) {
+			String label=plot.getRangeAxis().getLabel();
+			deltaMode="PPM error".equals(label)||"m/z error".equals(label);
+		}
+		double intensityDivider=topChromatogramChart.getDivider();
+		if (!(intensityDivider>0.0)) intensityDivider=1.0;
+		int count=Math.min(traceCount, progress.intensities.length);
 		for (int t=0; t<count; t++) {
 			if (!(plot.getDataset(t) instanceof XYSeriesCollection)) continue;
 			XYSeriesCollection seriesCollection=(XYSeriesCollection)plot.getDataset(t);
@@ -166,9 +201,13 @@ final class RawBrowserScanRenderer {
 			series.setNotify(false);
 			for (int i=startIndex; i<endIndex; i++) {
 				double x=progress.xMinutes[i];
-				double y=progress.traces[t][i];
-				if (!Double.isFinite(x)||!Double.isFinite(y)) continue;
-				series.add(x, y, false);
+				double y=deltaMode?progress.deltas[t][i]:progress.intensities[t][i]/intensityDivider;
+				if (!Double.isFinite(x)) continue;
+				if (deltaMode&&!Double.isFinite(y)) {
+					series.add(x, null, false);
+				} else if (Double.isFinite(y)) {
+					series.add(x, y, false);
+				}
 			}
 			series.setNotify(true);
 		}
@@ -307,15 +346,23 @@ final class RawBrowserScanRenderer {
 		if (!Float.isFinite(minRT)||!Float.isFinite(maxRT)) return;
 		XYPlot plot=topChromatogramChart.getChart().getXYPlot();
 		if (plot==null) return;
+		double markerMin=0.0;
 		double markerMax=Math.max(xicController.isXicModeActive()?xicController.getActiveXicMax():activeMaxTic, 1.0f);
+		if (xicController.isXicModeActive()&&xicController.getDisplayMode()==XicDisplayMode.DELTA) {
+			ValueAxis rangeAxis=plot.getRangeAxis();
+			if (rangeAxis!=null&&rangeAxis.getRange()!=null) {
+				markerMin=rangeAxis.getRange().getLowerBound();
+				markerMax=rangeAxis.getRange().getUpperBound();
+			}
+		}
 		BasicStroke stroke=new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 0.0f, new float[] {3.0f, 5.0f}, 0.0f);
 		if (Math.abs(minRT-maxRT)<1e-6) {
-			XYLineAnnotation marker=new XYLineAnnotation(minRT, 0.0, minRT, markerMax, stroke, java.awt.Color.black);
+			XYLineAnnotation marker=new XYLineAnnotation(minRT, markerMin, minRT, markerMax, stroke, java.awt.Color.black);
 			chromatogramSelectionAnnotations.add(marker);
 			plot.addAnnotation(marker, false);
 		} else {
-			XYLineAnnotation minMarker=new XYLineAnnotation(minRT, 0.0, minRT, markerMax, stroke, java.awt.Color.black);
-			XYLineAnnotation maxMarker=new XYLineAnnotation(maxRT, 0.0, maxRT, markerMax, stroke, java.awt.Color.black);
+			XYLineAnnotation minMarker=new XYLineAnnotation(minRT, markerMin, minRT, markerMax, stroke, java.awt.Color.black);
+			XYLineAnnotation maxMarker=new XYLineAnnotation(maxRT, markerMin, maxRT, markerMax, stroke, java.awt.Color.black);
 			chromatogramSelectionAnnotations.add(minMarker);
 			chromatogramSelectionAnnotations.add(maxMarker);
 			plot.addAnnotation(minMarker, false);
@@ -329,17 +376,72 @@ final class RawBrowserScanRenderer {
 		LegendMode legendMode=LegendMode.NONE;
 		String yAxis="TIC";
 		String tooltip=TIC_TOOLTIP;
+		XicTraceData xicTraceData=null;
 		if (xicController.isXicModeActive()) {
-			traces.addAll(xicController.getActiveXicTraces());
+			xicTraceData=xicController.getActiveXicTraceData();
+			traces.addAll(xicTraceData.buildIntensityTraces());
 			legendMode=LegendMode.DRAWER;
-			yAxis="XIC";
+			yAxis="XIC Intensity";
 			tooltip=XIC_TOOLTIP;
 		} else if (activeChromatogram!=null) {
 			traces.add(activeChromatogram);
 		}
 		ExtendedChartPanel chart=BasicChartGenerator.getChart("Time (min)", yAxis, legendMode, traces.toArray(new XYTraceInterface[0]));
+		if (xicController.isXicModeActive()&&xicController.getDisplayMode()==XicDisplayMode.DELTA) {
+			configureDeltaChart(chart, xicTraceData);
+		}
 		chart.setToolTipText(tooltip);
 		return chart;
+	}
+
+	private void configureDeltaChart(ExtendedChartPanel chart, XicTraceData traceData) {
+		if (chart==null||chart.getChart()==null||traceData==null) return;
+		XYPlot plot=chart.getChart().getXYPlot();
+		if (plot==null) return;
+		NumberAxis templateAxis=plot.getRangeAxis() instanceof NumberAxis?(NumberAxis)plot.getRangeAxis():null;
+		for (int i=plot.getDatasetCount()-1; i>=0; i--) {
+			plot.setDataset(i, null);
+			plot.setRenderer(i, null);
+		}
+		for (int t=0; t<traceData.targets.size(); t++) {
+			XYSeries series=new XYSeries(formatXicTargetLabel(traceData.targets.get(t)), false);
+			double[] y=t<traceData.deltas.length?traceData.deltas[t]:new double[0];
+			for (int i=0; i<traceData.xMinutes.length&&i<y.length; i++) {
+				if (!Double.isFinite(traceData.xMinutes[i])) continue;
+				if (Double.isFinite(y[i])) {
+					series.add(traceData.xMinutes[i], y[i], false);
+				} else {
+					series.add(traceData.xMinutes[i], null, false);
+				}
+			}
+			XYSeriesCollection dataset=new XYSeriesCollection();
+			dataset.addSeries(series);
+			XYLineAndShapeRenderer renderer=new XYLineAndShapeRenderer(true, true);
+			renderer.setSeriesPaint(0, getXicColor(t));
+			renderer.setSeriesStroke(0, new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+			renderer.setSeriesShape(0, XIC_DELTA_DOT_SHAPE);
+			renderer.setDefaultShape(XIC_DELTA_DOT_SHAPE);
+			plot.setDataset(t, dataset);
+			plot.setRenderer(t, renderer);
+		}
+		String yLabel=traceData.tolerance.unit==XicToleranceOption.Unit.PPM?"PPM error":"m/z error";
+		NumberAxis rangeAxis=new NumberAxis(yLabel);
+		if (templateAxis!=null) {
+			rangeAxis.setLabelFont(templateAxis.getLabelFont());
+			rangeAxis.setTickLabelFont(templateAxis.getTickLabelFont());
+			rangeAxis.setLabelPaint(templateAxis.getLabelPaint());
+			rangeAxis.setTickLabelPaint(templateAxis.getTickLabelPaint());
+			rangeAxis.setAxisLinePaint(templateAxis.getAxisLinePaint());
+			rangeAxis.setTickMarkPaint(templateAxis.getTickMarkPaint());
+		}
+		rangeAxis.setRangeType(RangeType.FULL);
+		rangeAxis.setAutoRange(false);
+		rangeAxis.setRange(-traceData.tolerance.value, traceData.tolerance.value);
+		plot.setRangeAxis(rangeAxis);
+	}
+
+	private static String formatXicTargetLabel(RawBrowserXicUtils.XicTarget target) {
+		return String.format(java.util.Locale.ROOT, "%s (%.3f m/z)", target.label(), target.mz());
 	}
 
 	private Color withAlpha(Color color, float alpha) {

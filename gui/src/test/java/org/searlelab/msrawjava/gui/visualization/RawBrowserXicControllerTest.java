@@ -41,9 +41,25 @@ class RawBrowserXicControllerTest {
 		RawBrowserXicController controller=newController();
 		JComboBox<XicToleranceOption> tolerances=new JComboBox<>(XicToleranceOption.valuesForUi());
 		tolerances.setSelectedItem(null);
-		controller.bindControls(new JLabel(), new JTextField(), tolerances, new JButton());
+		controller.bindControls(new JLabel(), null, null, new JTextField(), tolerances, new JButton());
 
 		assertEquals(XicToleranceOption.DEFAULT, controller.getSelectedTolerance());
+	}
+
+	@Test
+	void displayMode_defaultsToIntensityAndToggleRefreshesWithoutChangingExtractionState() {
+		AtomicReference<Integer> refreshCount=new AtomicReference<>(0);
+		RawBrowserXicController controller=new RawBrowserXicController(null, () -> refreshCount.set(refreshCount.get()+1), () -> {}, () -> {}, cursor -> {});
+
+		assertEquals(XicDisplayMode.INTENSITY, controller.getDisplayMode());
+
+		controller.setDisplayMode(XicDisplayMode.DELTA);
+		assertEquals(XicDisplayMode.DELTA, controller.getDisplayMode());
+		assertEquals(1, refreshCount.get());
+
+		controller.setDisplayMode(XicDisplayMode.DELTA);
+		assertEquals(1, refreshCount.get());
+		assertFalse(controller.isXicModeActive());
 	}
 
 	@Test

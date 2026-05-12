@@ -9,11 +9,11 @@ import java.util.function.Consumer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JRadioButton;
 import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 import javax.swing.Timer;
 
-import org.searlelab.msrawjava.gui.graphing.GraphType;
 import org.searlelab.msrawjava.gui.graphing.XYTrace;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.logging.Logger;
@@ -31,8 +31,9 @@ final class RawBrowserXicController {
 	private long xicToken=0L;
 	private RawBrowserXicUtils.ParsedXicTargets activeParsedXicTargets=RawBrowserXicUtils.ParsedXicTargets.empty();
 	private List<RawBrowserXicUtils.XicTarget> activeXicTargets=List.of();
-	private List<XYTrace> activeXicTraces=List.of();
+	private XicTraceData activeXicTraceData=XicTraceData.empty(List.of(), XicToleranceOption.DEFAULT);
 	private XicToleranceOption activeXicTolerance=XicToleranceOption.DEFAULT;
+	private XicDisplayMode displayMode=XicDisplayMode.INTENSITY;
 	private float activeXicMax=0.0f;
 	private boolean xicActive=false;
 	private int activeXicExtractionCount=0;
@@ -40,6 +41,8 @@ final class RawBrowserXicController {
 	private Timer xicProgressTimer;
 	private long xicProgressTimerToken=-1L;
 	private JLabel xicLabel;
+	private JRadioButton xicModeButton;
+	private JRadioButton deltaModeButton;
 	private JTextField xicField;
 	private JComboBox<XicToleranceOption> xicToleranceFilter;
 	private JButton extractXicButton;
@@ -57,8 +60,11 @@ final class RawBrowserXicController {
 		this.renderer=renderer;
 	}
 
-	void bindControls(JLabel xicLabel, JTextField xicField, JComboBox<XicToleranceOption> xicToleranceFilter, JButton extractXicButton) {
+	void bindControls(JLabel xicLabel, JRadioButton xicModeButton, JRadioButton deltaModeButton, JTextField xicField, JComboBox<XicToleranceOption> xicToleranceFilter,
+			JButton extractXicButton) {
 		this.xicLabel=xicLabel;
+		this.xicModeButton=xicModeButton;
+		this.deltaModeButton=deltaModeButton;
 		this.xicField=xicField;
 		this.xicToleranceFilter=xicToleranceFilter;
 		this.extractXicButton=extractXicButton;
@@ -72,7 +78,7 @@ final class RawBrowserXicController {
 		xicActive=false;
 		activeParsedXicTargets=RawBrowserXicUtils.ParsedXicTargets.empty();
 		activeXicTargets=List.of();
-		activeXicTraces=List.of();
+		activeXicTraceData=XicTraceData.empty(List.of(), activeXicTolerance);
 		activeXicMax=0.0f;
 	}
 
@@ -120,7 +126,7 @@ final class RawBrowserXicController {
 		xicActive=false;
 		activeParsedXicTargets=RawBrowserXicUtils.ParsedXicTargets.empty();
 		activeXicTargets=List.of();
-		activeXicTraces=List.of();
+		activeXicTraceData=XicTraceData.empty(List.of(), activeXicTolerance);
 		activeXicMax=0.0f;
 	}
 
@@ -134,6 +140,8 @@ final class RawBrowserXicController {
 	void updateControlEnabledState(ScanTypeFilterOption activeScanType) {
 		boolean enabled=activeScanType!=null&&!activeScanType.isAll();
 		if (xicLabel!=null) xicLabel.setEnabled(enabled);
+		if (xicModeButton!=null) xicModeButton.setEnabled(enabled);
+		if (deltaModeButton!=null) deltaModeButton.setEnabled(enabled);
 		if (xicField!=null) xicField.setEnabled(enabled);
 		if (xicToleranceFilter!=null) xicToleranceFilter.setEnabled(enabled);
 		if (extractXicButton!=null) extractXicButton.setEnabled(enabled);
@@ -147,12 +155,43 @@ final class RawBrowserXicController {
 		return activeXicTargets;
 	}
 
-	List<XYTrace> getActiveXicTraces() {
-		return activeXicTraces;
+	XicTraceData getActiveXicTraceData() {
+		XicExtractionProgress progress=activeXicProgress;
+		if (progress!=null&&progress.token==xicToken) {
+			synchronized (progress.lock) {
+				if (progress.extractedCount>0) {
+					return XicTraceData.fromProgress(activeXicTargets, activeXicTolerance, progress, progress.extractedCount, progress.maxIntensity);
+				}
+			}
+		}
+		return activeXicTraceData;
 	}
 
 	XicToleranceOption getActiveXicTolerance() {
 		return activeXicTolerance;
+	}
+
+	XicDisplayMode getDisplayMode() {
+		return displayMode;
+	}
+
+	void setDisplayMode(XicDisplayMode displayMode) {
+		XicDisplayMode newMode=displayMode==null?XicDisplayMode.INTENSITY:displayMode;
+		if (this.displayMode==newMode) return;
+		this.displayMode=newMode;
+		snapshotRunningProgress(true);
+		refreshChromatogramChart.run();
+		refreshTopChartSelection.run();
+	}
+
+	private void snapshotRunningProgress(boolean markFlushed) {
+		XicExtractionProgress progress=activeXicProgress;
+		if (progress==null||progress.token!=xicToken) return;
+		synchronized (progress.lock) {
+			activeXicTraceData=XicTraceData.fromProgress(activeXicTargets, activeXicTolerance, progress, progress.extractedCount, progress.maxIntensity);
+			activeXicMax=progress.maxIntensity;
+			if (markFlushed) progress.flushedCount=progress.extractedCount;
+		}
 	}
 
 	float getActiveXicMax() {
@@ -171,12 +210,7 @@ final class RawBrowserXicController {
 	}
 
 	List<XYTrace> buildEmptyXicTraces(List<RawBrowserXicUtils.XicTarget> targets) {
-		ArrayList<XYTrace> traces=new ArrayList<>();
-		for (int i=0; i<targets.size(); i++) {
-			RawBrowserXicUtils.XicTarget target=targets.get(i);
-			traces.add(new XYTrace(new double[0], new double[0], GraphType.line, formatXicTargetLabel(target), RawBrowserScanRenderer.getXicColor(i), 3.0f));
-		}
-		return traces;
+		return XicTraceData.empty(targets, getSelectedTolerance()).buildIntensityTraces();
 	}
 
 	String formatXicTargetLabel(RawBrowserXicUtils.XicTarget target) {
@@ -191,7 +225,7 @@ final class RawBrowserXicController {
 		activeXicTargets=targetCopy;
 		activeXicTolerance=tolerance;
 		activeXicMax=0.0f;
-		activeXicTraces=buildEmptyXicTraces(targetCopy);
+		activeXicTraceData=XicTraceData.empty(targetCopy, tolerance);
 		xicActive=true;
 		activeXicProgress=null;
 		refreshChromatogramChart.run();
@@ -209,7 +243,7 @@ final class RawBrowserXicController {
 				try {
 					if (token!=xicToken) return;
 					XicExtractionResult result=get();
-					activeXicTraces=result.traces;
+					activeXicTraceData=result.traceData;
 					activeXicMax=result.maxIntensity;
 					flushProgress(token, true);
 					refreshTopChartSelection.run();
@@ -240,8 +274,16 @@ final class RawBrowserXicController {
 		}
 		sourceScans.sort((a, b) -> Float.compare(a.getScanStartTime(), b.getScanStartTime()));
 		double[] xMinutes=new double[sourceScans.size()];
-		double[][] traces=new double[targets.size()][sourceScans.size()];
-		XicExtractionProgress progress=new XicExtractionProgress(token, xMinutes, traces);
+		double[][] intensities=new double[targets.size()][sourceScans.size()];
+		double[][] observedMzs=new double[targets.size()][sourceScans.size()];
+		double[][] deltas=new double[targets.size()][sourceScans.size()];
+		for (int t=0; t<targets.size(); t++) {
+			for (int i=0; i<sourceScans.size(); i++) {
+				observedMzs[t][i]=Double.NaN;
+				deltas[t][i]=Double.NaN;
+			}
+		}
+		XicExtractionProgress progress=new XicExtractionProgress(token, xMinutes, intensities, observedMzs, deltas);
 		activeXicProgress=progress;
 		for (int i=0; i<sourceScans.size(); i++) {
 			ScanSummary summary=sourceScans.get(i);
@@ -261,9 +303,13 @@ final class RawBrowserXicController {
 					double target=targets.get(t).mz();
 					if (!RawBrowserXicUtils.isTargetInScanWindow(target, spectrum.getScanWindowLower(), spectrum.getScanWindowUpper())) continue;
 					double tol=toleranceOption.toleranceMz(target);
-					double sum=RawBrowserXicUtils.sumIntensityWithinTolerance(mz, intensity, target, tol);
-					traces[t][i]=sum;
-					if (sum>scanMax) scanMax=(float)sum;
+					RawBrowserXicUtils.XicPointExtraction point=RawBrowserXicUtils.extractWeightedPointWithinTolerance(mz, intensity, target, tol);
+					intensities[t][i]=point.intensity;
+					if (point.hasSignal()) {
+						observedMzs[t][i]=point.observedMz;
+						deltas[t][i]=RawBrowserXicUtils.deltaForDisplay(point.deltaMz, target, toleranceOption);
+					}
+					if (point.intensity>scanMax) scanMax=(float)point.intensity;
 				}
 			}
 			synchronized (progress.lock) {
@@ -271,16 +317,12 @@ final class RawBrowserXicController {
 				progress.extractedCount=i+1;
 			}
 		}
-		ArrayList<XYTrace> xicTraces=new ArrayList<>();
-		for (int t=0; t<targets.size(); t++) {
-			RawBrowserXicUtils.XicTarget target=targets.get(t);
-			xicTraces.add(new XYTrace(xMinutes, traces[t], GraphType.line, formatXicTargetLabel(target), RawBrowserScanRenderer.getXicColor(t), 3.0f));
-		}
 		float max;
 		synchronized (progress.lock) {
 			max=progress.maxIntensity;
 		}
-		return new XicExtractionResult(xicTraces, max);
+		XicTraceData traceData=new XicTraceData(targets, toleranceOption, xMinutes, intensities, observedMzs, deltas, max);
+		return new XicExtractionResult(traceData, max);
 	}
 
 	private void startProgressTimer(long token) {
@@ -316,6 +358,7 @@ final class RawBrowserXicController {
 			if (endIndex<startIndex) endIndex=startIndex;
 			progress.flushedCount=endIndex;
 			progressMax=progress.maxIntensity;
+			activeXicTraceData=XicTraceData.fromProgress(activeXicTargets, activeXicTolerance, progress, endIndex, progressMax);
 		}
 		renderer.appendXicProgress(progress, activeXicTargets.size(), startIndex, endIndex);
 		if (progressMax!=activeXicMax) {

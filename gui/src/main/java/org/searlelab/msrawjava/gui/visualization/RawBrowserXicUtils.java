@@ -73,6 +73,22 @@ final class RawBrowserXicUtils {
 	private RawBrowserXicUtils() {
 	}
 
+	static final class XicPointExtraction {
+		final double intensity;
+		final double observedMz;
+		final double deltaMz;
+
+		XicPointExtraction(double intensity, double observedMz, double deltaMz) {
+			this.intensity=intensity;
+			this.observedMz=observedMz;
+			this.deltaMz=deltaMz;
+		}
+
+		boolean hasSignal() {
+			return intensity>0.0&&Double.isFinite(observedMz)&&Double.isFinite(deltaMz);
+		}
+	}
+
 	static String sanitizeXicText(String text) {
 		return sanitizeInternal(text, true);
 	}
@@ -204,6 +220,34 @@ final class RawBrowserXicUtils {
 			}
 		}
 		return sum;
+	}
+
+	static XicPointExtraction extractWeightedPointWithinTolerance(double[] mz, float[] intensity, double targetMz, double toleranceMz) {
+		if (mz==null||intensity==null||mz.length==0||intensity.length==0) return new XicPointExtraction(0.0, Double.NaN, Double.NaN);
+		int count=Math.min(mz.length, intensity.length);
+		double minMz=targetMz-toleranceMz;
+		double maxMz=targetMz+toleranceMz;
+		double sum=0.0;
+		double weightedMzSum=0.0;
+		for (int i=0; i<count; i++) {
+			double mass=mz[i];
+			float ion=intensity[i];
+			if (!Double.isFinite(mass)||!Float.isFinite(ion)) continue;
+			if (mass>=minMz&&mass<=maxMz) {
+				sum+=ion;
+				weightedMzSum+=mass*ion;
+			}
+		}
+		if (!(sum>0.0)) return new XicPointExtraction(0.0, Double.NaN, Double.NaN);
+		double observedMz=weightedMzSum/sum;
+		return new XicPointExtraction(sum, observedMz, observedMz-targetMz);
+	}
+
+	static double deltaForDisplay(double deltaMz, double targetMz, XicToleranceOption toleranceOption) {
+		if (!Double.isFinite(deltaMz)) return Double.NaN;
+		XicToleranceOption tolerance=toleranceOption==null?XicToleranceOption.DEFAULT:toleranceOption;
+		if (tolerance.unit==XicToleranceOption.Unit.PPM) return deltaMz/targetMz*1_000_000.0;
+		return deltaMz;
 	}
 
 	static boolean isTargetInScanWindow(double targetMz, double scanWindowLower, double scanWindowUpper) {

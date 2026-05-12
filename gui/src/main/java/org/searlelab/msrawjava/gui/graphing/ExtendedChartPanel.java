@@ -9,7 +9,7 @@ import org.jfree.chart.JFreeChart;
 public class ExtendedChartPanel extends ChartPanel {
 	private static final long serialVersionUID=1L;
 
-	private final double divider;
+	private double divider;
 	private final String name;
 	private ChartLegendDrawerSupport legendDrawerSupport;
 
@@ -32,6 +32,10 @@ public class ExtendedChartPanel extends ChartPanel {
 
 	public double getDivider() {
 		return divider;
+	}
+
+	public void setDivider(double divider) {
+		this.divider=divider;
 	}
 
 	public void enableLegendDrawer() {

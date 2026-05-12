@@ -89,6 +89,36 @@ class RawBrowserXicUtilsTest {
 	}
 
 	@Test
+	void extractWeightedPointWithinTolerance_returnsIntensityWeightedDeltaMz() {
+		double[] mz=new double[] {499.95, 500.10, 500.50};
+		float[] intensity=new float[] {10.0f, 30.0f, 100.0f};
+
+		RawBrowserXicUtils.XicPointExtraction point=RawBrowserXicUtils.extractWeightedPointWithinTolerance(mz, intensity, 500.0, 0.2);
+
+		assertEquals(40.0, point.intensity, 1e-8);
+		assertEquals(500.0625, point.observedMz, 1e-8);
+		assertEquals(0.0625, point.deltaMz, 1e-8);
+		assertTrue(point.hasSignal());
+	}
+
+	@Test
+	void extractWeightedPointWithinTolerance_marksNoSignalAsMissingDelta() {
+		RawBrowserXicUtils.XicPointExtraction point=RawBrowserXicUtils.extractWeightedPointWithinTolerance(new double[] {501.0}, new float[] {25.0f}, 500.0,
+				0.1);
+
+		assertEquals(0.0, point.intensity, 1e-8);
+		assertTrue(Double.isNaN(point.observedMz));
+		assertTrue(Double.isNaN(point.deltaMz));
+		assertFalse(point.hasSignal());
+	}
+
+	@Test
+	void deltaForDisplay_convertsOnlyPpmToleranceToPpmScale() {
+		assertEquals(20.0, RawBrowserXicUtils.deltaForDisplay(0.01, 500.0, new XicToleranceOption("10 ppm", XicToleranceOption.Unit.PPM, 10.0)), 1e-8);
+		assertEquals(0.01, RawBrowserXicUtils.deltaForDisplay(0.01, 500.0, new XicToleranceOption("0.4 m/z", XicToleranceOption.Unit.DA, 0.4)), 1e-8);
+	}
+
+	@Test
 	void isTargetInScanWindow_requiresMzWithinFiniteWindowButDefaultsOpenForMissingBounds() {
 		assertTrue(RawBrowserXicUtils.isTargetInScanWindow(500.0, 400.0, 600.0));
 		assertTrue(RawBrowserXicUtils.isTargetInScanWindow(500.0, Double.NaN, 600.0));
