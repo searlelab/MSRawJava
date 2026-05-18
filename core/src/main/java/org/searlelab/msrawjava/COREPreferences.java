@@ -13,6 +13,8 @@ public final class COREPreferences {
 	private static final String PREF_DEMUX_TOLERANCE_PPM="core.demuxTolerancePpm";
 	private static final String PREF_MIN_MS1_INTENSITY="core.minMs1Intensity";
 	private static final String PREF_MIN_MS2_INTENSITY="core.minMs2Intensity";
+	private static final String PREF_PROCESSING_THREADS="core.processingThreads";
+	private static final String PREF_ASK_PROCESSING_ON_STARTUP="core.askProcessingOnStartup";
 
 	private static boolean verboseCoreLogging=PREFS.getBoolean(PREF_VERBOSE_CORE_LOGGING, true);
 
@@ -63,6 +65,35 @@ public final class COREPreferences {
 		logWrite(PREF_MIN_MS2_INTENSITY, value);
 	}
 
+	public static Integer getProcessingThreadLimit() {
+		int value=PREFS.getInt(PREF_PROCESSING_THREADS, 0);
+		Integer limit=value>0?value:null;
+		logRead(PREF_PROCESSING_THREADS, limit);
+		return limit;
+	}
+
+	public static void setProcessingThreadLimit(Integer value) {
+		if (value==null) {
+			PREFS.remove(PREF_PROCESSING_THREADS);
+			logWrite(PREF_PROCESSING_THREADS, null);
+		} else {
+			int limit=Math.max(1, value);
+			PREFS.putInt(PREF_PROCESSING_THREADS, limit);
+			logWrite(PREF_PROCESSING_THREADS, limit);
+		}
+	}
+
+	public static boolean isAskProcessingOnStartup() {
+		boolean value=PREFS.getBoolean(PREF_ASK_PROCESSING_ON_STARTUP, true);
+		logRead(PREF_ASK_PROCESSING_ON_STARTUP, value);
+		return value;
+	}
+
+	public static void setAskProcessingOnStartup(boolean enabled) {
+		PREFS.putBoolean(PREF_ASK_PROCESSING_ON_STARTUP, enabled);
+		logWrite(PREF_ASK_PROCESSING_ON_STARTUP, enabled);
+	}
+
 	public static void resetAll() {
 		PREFS.remove(PREF_DEMUX_TOLERANCE_PPM);
 		logWrite(PREF_DEMUX_TOLERANCE_PPM, null);
@@ -70,6 +101,10 @@ public final class COREPreferences {
 		logWrite(PREF_MIN_MS1_INTENSITY, null);
 		PREFS.remove(PREF_MIN_MS2_INTENSITY);
 		logWrite(PREF_MIN_MS2_INTENSITY, null);
+		PREFS.remove(PREF_PROCESSING_THREADS);
+		logWrite(PREF_PROCESSING_THREADS, null);
+		PREFS.remove(PREF_ASK_PROCESSING_ON_STARTUP);
+		logWrite(PREF_ASK_PROCESSING_ON_STARTUP, null);
 	}
 
 	private static void logRead(String key, Object value) {

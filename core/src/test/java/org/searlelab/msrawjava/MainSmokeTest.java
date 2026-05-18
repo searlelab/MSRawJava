@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -28,6 +29,8 @@ import org.searlelab.msrawjava.io.thermo.ThermoRawFile; // <-- added
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
+
+import picocli.CommandLine;
 
 class MainSmokeTest {
 
@@ -57,6 +60,14 @@ class MainSmokeTest {
 		ArrayList<java.io.File> files=new ArrayList<>();
 		files.add(start.toFile());
 		return ConversionParameters.builder().fileList(files).outType(out).outputDirPath(outDir).minimumMS1Intensity(ms1).minimumMS2Intensity(ms2).build();
+	}
+
+	@Test
+	void cliThreadsOptionIsStoredOnlyInConversionParameters() {
+		Main.CliArguments args=new Main.CliArguments();
+		new CommandLine(args).parseArgs("--threads", "7", tmp.toString());
+
+		assertEquals(7, args.toParameters().getProcessingThreads());
 	}
 
 	@Test

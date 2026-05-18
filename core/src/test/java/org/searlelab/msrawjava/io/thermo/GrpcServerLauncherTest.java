@@ -131,4 +131,12 @@ class GrpcServerLauncherTest {
 		String rid=GrpcServerLauncher.rid();
 		assertTrue(rid.startsWith("win-")||rid.startsWith("osx-")||rid.startsWith("linux-"), "RID should start with OS identifier: "+rid);
 	}
+
+	@Test
+	void threadLimitEnvironmentValueUsesPositiveLimitsOnly() {
+		assertEquals(null, GrpcServerLauncher.threadLimitEnvironmentValue(null));
+		assertEquals("1", GrpcServerLauncher.threadLimitEnvironmentValue(0));
+		assertEquals("1", GrpcServerLauncher.threadLimitEnvironmentValue(-4));
+		assertEquals("4", GrpcServerLauncher.threadLimitEnvironmentValue(4));
+	}
 }

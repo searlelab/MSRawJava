@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.gui;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.FileDialog;
 import java.awt.FlowLayout;
 import java.awt.Frame;
@@ -21,6 +22,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTextField;
 
 import org.searlelab.msrawjava.COREPreferences;
+import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 /**
  * Dialog for editing GUI preferences.
@@ -32,8 +34,10 @@ public class PreferencesDialog extends JDialog {
 	private final JTextField minMs1Field=new JTextField(8);
 	private final JTextField minMs2Field=new JTextField(8);
 	private final JCheckBox verboseCoreBox=new JCheckBox("Enable verbose logging");
+	private final JComboBox<ProcessingThreadOption> processingThreadsBox=new JComboBox<>();
+	private final JCheckBox askProcessingStartupBox=new JCheckBox("Ask on startup");
+	private final JLabel processingRestartLabel=new JLabel("Restart required for thread changes.");
 
-	private final JCheckBox verboseGuiBox=new JCheckBox("Enable verbose logging");
 	private final JTextField lastDirField=new JTextField(28);
 	private final JComboBox<LookAndFeelOption> lookAndFeelBox=new JComboBox<>();
 	private File lastDirSelection=null;
@@ -62,10 +66,12 @@ public class PreferencesDialog extends JDialog {
 		content.setToolTipText("Configure conversion and GUI defaults for MSRawJava.");
 
 		JTabbedPane tabs=new JTabbedPane();
+		tabs.addTab("Processing", buildProcessingTab());
 		tabs.addTab("Conversion", buildConversionTab());
 		tabs.addTab("GUI", buildGuiTab());
-		tabs.setToolTipTextAt(0, "Configure default conversion thresholds and core logging.");
-		tabs.setToolTipTextAt(1, "Configure GUI behavior, appearance, and saved layout resets.");
+		tabs.setToolTipTextAt(0, "Configure processing threads and core logging.");
+		tabs.setToolTipTextAt(1, "Configure default conversion thresholds.");
+		tabs.setToolTipTextAt(2, "Configure GUI behavior, appearance, and saved layout resets.");
 		content.add(tabs, BorderLayout.CENTER);
 
 		JPanel buttons=new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 8));
@@ -80,6 +86,48 @@ public class PreferencesDialog extends JDialog {
 		content.add(buttons, BorderLayout.SOUTH);
 
 		setContentPane(content);
+	}
+
+	private JPanel buildProcessingTab() {
+		JPanel panel=new JPanel(new GridBagLayout());
+		panel.setToolTipText("Processing defaults used by the GUI.");
+		GridBagConstraints gbc=new GridBagConstraints();
+		gbc.insets=new Insets(6, 6, 6, 6);
+		gbc.anchor=GridBagConstraints.WEST;
+
+		loadProcessingThreadOptions();
+		processingThreadsBox.setToolTipText("Throttle processing worker threads, or use Max for the CPU-based default.");
+		processingRestartLabel.setForeground(new Color(0xc62828));
+		processingRestartLabel.setVisible(false);
+		processingThreadsBox.addActionListener(e -> {
+			askProcessingStartupBox.setSelected(false);
+			processingRestartLabel.setVisible(true);
+		});
+		askProcessingStartupBox.setSelected(COREPreferences.isAskProcessingOnStartup());
+		askProcessingStartupBox.setToolTipText("Ask whether this is an instrument computer when the GUI starts.");
+		verboseCoreBox.setSelected(COREPreferences.isVerboseCoreLogging());
+		verboseCoreBox.setToolTipText("Enable detailed logging from core conversion code.");
+
+		JLabel threadsLabel=new JLabel("Processing threads:");
+		threadsLabel.setToolTipText(processingThreadsBox.getToolTipText());
+		threadsLabel.setLabelFor(processingThreadsBox);
+
+		gbc.gridx=0;
+		gbc.gridy=0;
+		panel.add(threadsLabel, gbc);
+		gbc.gridx=1;
+		panel.add(processingThreadsBox, gbc);
+
+		gbc.gridx=0;
+		gbc.gridy=1;
+		gbc.gridwidth=2;
+		panel.add(askProcessingStartupBox, gbc);
+		gbc.gridy=2;
+		panel.add(verboseCoreBox, gbc);
+		gbc.gridy=3;
+		panel.add(processingRestartLabel, gbc);
+
+		return panel;
 	}
 
 	private JPanel buildConversionTab() {
@@ -98,8 +146,6 @@ public class PreferencesDialog extends JDialog {
 		minMs1Field.setToolTipText(minMs1Tip);
 		minMs2Field.setText(Float.toString(COREPreferences.getMinimumMS2Intensity()));
 		minMs2Field.setToolTipText(minMs2Tip);
-		verboseCoreBox.setSelected(COREPreferences.isVerboseCoreLogging());
-		verboseCoreBox.setToolTipText("Enable detailed logging from core conversion code.");
 
 		JLabel demuxLabel=new JLabel("Demux tolerance (ppm):");
 		demuxLabel.setToolTipText(demuxTip);
@@ -131,12 +177,24 @@ public class PreferencesDialog extends JDialog {
 		gbc.gridx=1;
 		panel.add(minMs2Field, gbc);
 
-		gbc.gridx=0;
-		gbc.gridy=3;
-		gbc.gridwidth=2;
-		panel.add(verboseCoreBox, gbc);
-
 		return panel;
+	}
+
+	private void loadProcessingThreadOptions() {
+		processingThreadsBox.removeAllItems();
+		Integer current=COREPreferences.getProcessingThreadLimit();
+		int defaultThreads=ProcessingThreadPool.defaultThreadCount();
+		processingThreadsBox.addItem(new ProcessingThreadOption(1, "1"));
+		if (defaultThreads>2) processingThreadsBox.addItem(new ProcessingThreadOption(2, "2"));
+		if (defaultThreads>4) processingThreadsBox.addItem(new ProcessingThreadOption(4, "4"));
+		processingThreadsBox.addItem(new ProcessingThreadOption(null, "Max"));
+		for (int i=0; i<processingThreadsBox.getItemCount(); i++) {
+			ProcessingThreadOption option=processingThreadsBox.getItemAt(i);
+			if ((current==null&&option.value==null)||(current!=null&&current.equals(option.value))) {
+				processingThreadsBox.setSelectedIndex(i);
+				break;
+			}
+		}
 	}
 
 	private JPanel buildGuiTab() {
@@ -221,11 +279,6 @@ public class PreferencesDialog extends JDialog {
 		gbc.gridy=5;
 		panel.add(resetTablesButton, gbc);
 
-		verboseGuiBox.setSelected(GUIPreferences.isVerboseGuiLogging());
-		verboseGuiBox.setToolTipText("Enable detailed logging from GUI components.");
-		gbc.gridy=6;
-		panel.add(verboseGuiBox, gbc);
-
 		return panel;
 	}
 
@@ -288,6 +341,9 @@ public class PreferencesDialog extends JDialog {
 			COREPreferences.setMinimumMS1Intensity(minMs1);
 			COREPreferences.setMinimumMS2Intensity(minMs2);
 			COREPreferences.setVerboseCoreLogging(verboseCoreBox.isSelected());
+			ProcessingThreadOption processingThreads=(ProcessingThreadOption)processingThreadsBox.getSelectedItem();
+			COREPreferences.setProcessingThreadLimit(processingThreads==null?null:processingThreads.value);
+			COREPreferences.setAskProcessingOnStartup(askProcessingStartupBox.isSelected());
 
 			if (lastDirSelection!=null) {
 				GUIPreferences.rememberLastDirectory(lastDirSelection);
@@ -301,8 +357,6 @@ public class PreferencesDialog extends JDialog {
 			if (resetTables) {
 				GUIPreferences.resetTablePreferences();
 			}
-			GUIPreferences.setVerboseGuiLogging(verboseGuiBox.isSelected());
-
 			LookAndFeelOption selected=(LookAndFeelOption)lookAndFeelBox.getSelectedItem();
 			String lafId=(selected==null)?LookAndFeelManager.LAF_FLAT_LIGHT:selected.id;
 			if (!lafId.equals(lookAndFeelSelection)) {
@@ -323,6 +377,21 @@ public class PreferencesDialog extends JDialog {
 
 		private LookAndFeelOption(String id, String label) {
 			this.id=id;
+			this.label=label;
+		}
+
+		@Override
+		public String toString() {
+			return label;
+		}
+	}
+
+	private static final class ProcessingThreadOption {
+		private final Integer value;
+		private final String label;
+
+		private ProcessingThreadOption(Integer value, String label) {
+			this.value=value;
 			this.label=label;
 		}
 

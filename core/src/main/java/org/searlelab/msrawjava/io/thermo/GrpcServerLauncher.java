@@ -30,6 +30,7 @@ final class GrpcServerLauncher implements AutoCloseable {
 	private static final String OS_LINUX="linux";
 	private static final String OS_OSX="osx";
 	private static final String OS_WIN="win";
+	static final String ENV_PROCESSING_THREADS="MSRAW_THERMO_THREADS";
 	private final int port;
 	private final Process proc;
 	private final Path workDir; // temp dir holding extracted publish tree
@@ -73,10 +74,14 @@ final class GrpcServerLauncher implements AutoCloseable {
 	}
 
 	GrpcServerLauncher() throws IOException, InterruptedException {
-		this(pickFreePort());
+		this(pickFreePort(), null);
 	}
 
 	GrpcServerLauncher(int port) throws IOException, InterruptedException {
+		this(port, null);
+	}
+
+	GrpcServerLauncher(int port, Integer processingThreads) throws IOException, InterruptedException {
 		this.port=port;
 
 		// 1) Extract entire published folder from resources into a fresh temp dir
@@ -107,6 +112,8 @@ final class GrpcServerLauncher implements AutoCloseable {
 
 		ProcessBuilder pb=new ProcessBuilder(cmd);
 		pb.environment().put("MSRAW_THERMO_URL", "http://127.0.0.1:"+port);
+		String threadLimit=threadLimitEnvironmentValue(processingThreads);
+		if (threadLimit!=null) pb.environment().put(ENV_PROCESSING_THREADS, threadLimit);
 		pb.directory(workDir.toFile()); // critical: loader probes base dir for ThermoFisher.*.dll + runtimes/
 		boolean suppressChildLogs=Logger.getConsoleStatus()!=null&&Logger.getConsoleStatus().isEnabled();
 		if (suppressChildLogs) {
@@ -150,6 +157,10 @@ final class GrpcServerLauncher implements AutoCloseable {
 			}
 		}
 		Logger.logLine(String.format(Locale.ROOT, "Thermo server: port "+port+" ready in %.2f s", (System.nanoTime()-start)/1_000_000_000.0));
+	}
+
+	static String threadLimitEnvironmentValue(Integer processingThreads) {
+		return processingThreads==null?null:Integer.toString(Math.max(1, processingThreads));
 	}
 
 	private static Thread startStreamPump(String name, InputStream input, PrintStream output) {

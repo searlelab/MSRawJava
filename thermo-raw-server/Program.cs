@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Runtime.InteropServices;
 using Grpc.Core;
 using MSRaw.Thermo.Proto;
@@ -38,6 +39,7 @@ string url = Environment.GetEnvironmentVariable("MSRAW_THERMO_URL")
 var uri = new Uri(url);
 IPAddress ip = uri.Host is "localhost" ? IPAddress.Loopback : IPAddress.Parse(uri.Host);
 int port = uri.Port;
+Console.WriteLine($"Thermo server: processing thread limit {ProcessingThrottle.Description}");
 
 // Configure Kestrel to use HTTP/2 (h2c: prior-knowledge, no TLS) on the chosen endpoint
 builder.WebHost.ConfigureKestrel(options =>
@@ -142,6 +144,56 @@ internal sealed class GrpcCallHandlerLoggerProvider : ILoggerProvider
     }
 }
 
+internal static class ProcessingThrottle
+{
+    private const string EnvVar = "MSRAW_THERMO_THREADS";
+    private static readonly int? Limit = ParseLimit();
+    private static readonly SemaphoreSlim? Semaphore = Limit.HasValue ? new SemaphoreSlim(Limit.Value, Limit.Value) : null;
+    private static readonly IDisposable NoopLease = new Lease(null);
+
+    public static string Description => Limit.HasValue ? Limit.Value.ToString(CultureInfo.InvariantCulture) : "max";
+
+    public static IDisposable Enter(CancellationToken cancellationToken)
+    {
+        if (Semaphore == null) return NoopLease;
+        Semaphore.Wait(cancellationToken);
+        return new Lease(Semaphore);
+    }
+
+    public static async Task<IDisposable> EnterAsync(CancellationToken cancellationToken)
+    {
+        if (Semaphore == null) return NoopLease;
+        await Semaphore.WaitAsync(cancellationToken);
+        return new Lease(Semaphore);
+    }
+
+    private static int? ParseLimit()
+    {
+        string? raw = Environment.GetEnvironmentVariable(EnvVar);
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (!int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed) || parsed <= 0) return null;
+        return parsed;
+    }
+
+    private sealed class Lease : IDisposable
+    {
+        private readonly SemaphoreSlim? semaphore;
+        private bool disposed;
+
+        public Lease(SemaphoreSlim? semaphore)
+        {
+            this.semaphore = semaphore;
+        }
+
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            semaphore?.Release();
+        }
+    }
+}
+
 public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 {
     private static readonly ConcurrentDictionary<string, IRawDataPlus> Sessions = new();
@@ -149,6 +201,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     public override Task<OpenReply> Open(OpenRequest request, ServerCallContext context)
     {
+		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 		IRawDataPlus? raw = null;
 		bool sessionRegistered = false;
 		try
@@ -206,6 +259,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     public override Task<CloseReply> Close(CloseRequest request, ServerCallContext context)
     {
+		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 		try 
 		{
 	        if (Sessions.TryRemove(request.SessionId, out var raw))
@@ -220,8 +274,9 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    }
     }
     
-     public override Task<TicReply> GetMs1Tic(TicRequest req, ServerCallContext context)
+	 public override Task<TicReply> GetMs1Tic(TicRequest req, ServerCallContext context)
 	{
+		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
 	        var raw = Get(req.SessionId); // your existing helper
@@ -271,6 +326,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
     
     public override Task<RunSummary> GetRunSummary(Session request, ServerCallContext context)
     {
+	    using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
 	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
@@ -320,6 +376,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
     
     public override Task<RangesReply> GetRanges(Session request, ServerCallContext context)
     {
+	    using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
 	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
@@ -435,6 +492,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     public override Task<SummariesReply> GetScanSummaries(Session request, ServerCallContext context)
     {
+	    using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
 	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
@@ -612,6 +670,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
        public override async Task GetPrecursors(PrecursorsRequest req, IServerStreamWriter<Spectrum> stream, ServerCallContext ctx)
     {
+		using var throttle = await ProcessingThrottle.EnterAsync(ctx.CancellationToken);
 		try 
 		{
 	        var raw = Get(req.SessionId);
@@ -660,6 +719,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     public override async Task GetStripes(StripesRequest req, IServerStreamWriter<Spectrum> stream, ServerCallContext ctx)
     {
+		using var throttle = await ProcessingThrottle.EnterAsync(ctx.CancellationToken);
 		try
 		{
 	        var raw = Get(req.SessionId);
@@ -851,6 +911,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     public override Task<ScanMetadataReply> GetScanMetadata(ScanMetadataRequest request, ServerCallContext context)
     {
+		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
         try
         {
             if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
@@ -919,6 +980,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
     
     public override Task<MetadataReply> GetMetadata(Session request, ServerCallContext context)
 	{
+		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
 	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)

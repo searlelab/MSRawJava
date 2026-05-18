@@ -52,6 +52,7 @@ The CLI in `Main.java` accepts files or directories and searches them for Bruker
   --demux-exclude-edges     Exclude edge sub-windows from demux output
   --demux-ppm [#]           Mass tolerance in ppm for demux (default 10.0)
   --discoverDIAFiles        Allow directory discovery of EncyclopeDIA .dia files
+  --threads [#]             Processing worker threads (default max)
   --batch                   Disable status bar and progress updates
   --no-ansi                 Disable ANSI output, even on TTYs
   --silent                  Suppress all non-error output

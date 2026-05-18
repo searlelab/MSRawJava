@@ -89,4 +89,16 @@ class ThermoServerPoolTest {
 		ThermoServerPool.shutdown();
 		assertFalse(ThermoServerPool.isStarting());
 	}
+
+	@Test
+	void processingThreadLimitIsClampedAndNullable() {
+		ThermoServerPool.setProcessingThreadLimit(4);
+		assertEquals(4, ThermoServerPool.getProcessingThreadLimit());
+
+		ThermoServerPool.setProcessingThreadLimit(0);
+		assertEquals(1, ThermoServerPool.getProcessingThreadLimit());
+
+		ThermoServerPool.setProcessingThreadLimit(null);
+		assertEquals(null, ThermoServerPool.getProcessingThreadLimit());
+	}
 }

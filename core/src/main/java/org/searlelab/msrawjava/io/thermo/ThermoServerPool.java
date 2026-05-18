@@ -29,6 +29,7 @@ public final class ThermoServerPool {
 
 	// One shared future for the singleton launcher
 	private static volatile CompletableFuture<GrpcServerLauncher> launcherFuture;
+	private static volatile Integer processingThreadLimit=null;
 
 	private ThermoServerPool() {
 	}
@@ -36,12 +37,13 @@ public final class ThermoServerPool {
 	/** Lazily start the Thermo server in the background (idempotent). */
 	public static synchronized CompletableFuture<Integer> startAsync() {
 		if (launcherFuture==null||launcherFuture.isCompletedExceptionally()||launcherFuture.isCancelled()) {
+			Integer threadLimit=processingThreadLimit;
 			launcherFuture=CompletableFuture.supplyAsync(() -> {
 				int attempt=0;
 				while (true) {
 					attempt++;
 					try {
-						return new GrpcServerLauncher(); // <- your slow constructor
+						return new GrpcServerLauncher(GrpcServerLauncher.pickFreePort(), threadLimit); // <- your slow constructor
 					} catch (Exception e) {
 						Logger.logLine("Thermo server: startup attempt "+attempt+" failed: "+e.getClass().getSimpleName()+" - "+e.getMessage());
 						if (attempt>=MAX_START_ATTEMPTS) {
@@ -61,6 +63,14 @@ public final class ThermoServerPool {
 		return launcherFuture.thenApply(launcher -> {
 			return launcher.port();
 		});
+	}
+
+	public static synchronized void setProcessingThreadLimit(Integer threadLimit) {
+		processingThreadLimit=threadLimit==null?null:Math.max(1, threadLimit);
+	}
+
+	public static Integer getProcessingThreadLimit() {
+		return processingThreadLimit;
 	}
 
 	/** blocking call with a sensible timeout. */

@@ -80,10 +80,57 @@ class ProcessingThreadPoolTest {
 	@Test
 	void createDefaultUsesAvailableProcessors() throws InterruptedException {
 		int cores=Runtime.getRuntime().availableProcessors();
-		int expectedThreads=Math.max(1, cores-1);
+		int expectedThreads=ProcessingThreadPool.defaultThreadCount();
+		assertEquals(Math.max(1, cores-1), expectedThreads);
 
 		try (ProcessingThreadPool pool=ProcessingThreadPool.createDefault()) {
 			// Submit tasks to verify thread count
+			CountDownLatch latch=new CountDownLatch(expectedThreads);
+			CountDownLatch startLatch=new CountDownLatch(1);
+
+			for (int i=0; i<expectedThreads; i++) {
+				pool.computePool().submit(() -> {
+					try {
+						startLatch.await();
+						latch.countDown();
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+				});
+			}
+
+			startLatch.countDown();
+			assertTrue(latch.await(5, TimeUnit.SECONDS));
+		}
+	}
+
+	@Test
+	void createWithThreadLimitUsesExplicitPositiveLimit() throws InterruptedException {
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(3)) {
+			CountDownLatch latch=new CountDownLatch(3);
+			CountDownLatch startLatch=new CountDownLatch(1);
+
+			for (int i=0; i<3; i++) {
+				pool.computePool().submit(() -> {
+					try {
+						startLatch.await();
+						latch.countDown();
+					} catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+					}
+				});
+			}
+
+			startLatch.countDown();
+			assertTrue(latch.await(5, TimeUnit.SECONDS));
+		}
+	}
+
+	@Test
+	void createWithThreadLimitFallsBackToDefaultWhenNull() throws InterruptedException {
+		int expectedThreads=ProcessingThreadPool.defaultThreadCount();
+
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(null)) {
 			CountDownLatch latch=new CountDownLatch(expectedThreads);
 			CountDownLatch startLatch=new CountDownLatch(1);
 

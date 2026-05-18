@@ -29,10 +29,18 @@ public class ConversionParameters {
 	private final boolean discoverDIAFiles;
 	private final boolean discoverMzMLFiles;
 	private final Path outputFilePathOverride;
+	private final Integer processingThreads;
 
 	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity, float minimumMS2Intensity,
 			boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi,
 			boolean discoverDIAFiles, boolean discoverMzMLFiles, Path outputFilePathOverride) {
+		this(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance, demuxConfig, logFilePath, batch,
+				silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride, null);
+	}
+
+	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity, float minimumMS2Intensity,
+			boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi,
+			boolean discoverDIAFiles, boolean discoverMzMLFiles, Path outputFilePathOverride, Integer processingThreads) {
 		this.fileList=new ArrayList<>(fileList==null?Collections.emptyList():fileList);
 		this.outType=outType;
 		this.outputDirPath=outputDirPath;
@@ -48,6 +56,7 @@ public class ConversionParameters {
 		this.discoverDIAFiles=discoverDIAFiles;
 		this.discoverMzMLFiles=discoverMzMLFiles;
 		this.outputFilePathOverride=outputFilePathOverride;
+		this.processingThreads=processingThreads;
 	}
 
 	public ArrayList<File> getFileList() {
@@ -110,12 +119,16 @@ public class ConversionParameters {
 		return outputFilePathOverride;
 	}
 
+	public Integer getProcessingThreads() {
+		return processingThreads;
+	}
+
 	@Override
 	public String toString() {
 		return "ConversionParameters[outType="+outType+", outputDirPath="+outputDirPath+", minMS1="+minimumMS1Intensity+", minMS2="+minimumMS2Intensity
 				+", demux="+demultiplex+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig+", logFilePath="+logFilePath+", batch="+batch
 				+", silent="+silent+", noAnsi="+noAnsi+", discoverDIAFiles="+discoverDIAFiles+", discoverMzMLFiles="+discoverMzMLFiles
-				+", outputFilePathOverride="+outputFilePathOverride+"]";
+				+", outputFilePathOverride="+outputFilePathOverride+", processingThreads="+processingThreads+"]";
 	}
 
 	public static Builder builder() {
@@ -138,6 +151,7 @@ public class ConversionParameters {
 		private boolean discoverDIAFiles=false;
 		private boolean discoverMzMLFiles=false;
 		private Path outputFilePathOverride=null;
+		private Integer processingThreads=null;
 
 		public Builder fileList(List<File> files) {
 			this.fileList=new ArrayList<>(files);
@@ -219,9 +233,14 @@ public class ConversionParameters {
 			return this;
 		}
 
+		public Builder processingThreads(Integer processingThreads) {
+			this.processingThreads=processingThreads;
+			return this;
+		}
+
 		public ConversionParameters build() {
 			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance,
-					demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride);
+					demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride, processingThreads);
 		}
 	}
 }

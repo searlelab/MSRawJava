@@ -43,10 +43,18 @@ public class ProcessingThreadPool implements AutoCloseable {
 	}
 
 	public static ProcessingThreadPool createDefault() {
-		int cores=Runtime.getRuntime().availableProcessors();
-		int threads=Math.max(1, cores-1);
+		return createWithThreadLimit(defaultThreadCount());
+	}
+
+	public static ProcessingThreadPool createWithThreadLimit(Integer threadLimit) {
+		int threads=(threadLimit==null)?defaultThreadCount():Math.max(1, threadLimit);
 		int queueCapacity=threads*4; // small-ish bounded queue; tune if needed
 		return new ProcessingThreadPool(threads, queueCapacity);
+	}
+
+	public static int defaultThreadCount() {
+		int cores=Runtime.getRuntime().availableProcessors();
+		return Math.max(1, cores-1);
 	}
 
 	private static final class BlockOnRejectPolicy implements RejectedExecutionHandler {

@@ -14,32 +14,44 @@ class COREPreferencesTest {
 		double originalDemux=COREPreferences.getDemuxTolerancePpm();
 		float originalMs1=COREPreferences.getMinimumMS1Intensity();
 		float originalMs2=COREPreferences.getMinimumMS2Intensity();
+		Integer originalThreads=COREPreferences.getProcessingThreadLimit();
+		boolean originalAsk=COREPreferences.isAskProcessingOnStartup();
 
 		try {
 			COREPreferences.setVerboseCoreLogging(false);
 			COREPreferences.setDemuxTolerancePpm(42.5);
 			COREPreferences.setMinimumMS1Intensity(9.5f);
 			COREPreferences.setMinimumMS2Intensity(4.25f);
+			COREPreferences.setProcessingThreadLimit(2);
+			COREPreferences.setAskProcessingOnStartup(false);
 
 			assertFalse(COREPreferences.isVerboseCoreLogging());
 			assertEquals(42.5, COREPreferences.getDemuxTolerancePpm(), 1e-9);
 			assertEquals(9.5f, COREPreferences.getMinimumMS1Intensity(), 1e-6f);
 			assertEquals(4.25f, COREPreferences.getMinimumMS2Intensity(), 1e-6f);
+			assertEquals(2, COREPreferences.getProcessingThreadLimit());
+			assertFalse(COREPreferences.isAskProcessingOnStartup());
 
 			COREPreferences.setVerboseCoreLogging(true);
 			assertTrue(COREPreferences.isVerboseCoreLogging());
 			COREPreferences.getDemuxTolerancePpm();
 			COREPreferences.getMinimumMS1Intensity();
 			COREPreferences.getMinimumMS2Intensity();
+			COREPreferences.setProcessingThreadLimit(null);
+			assertEquals(null, COREPreferences.getProcessingThreadLimit());
 
 			COREPreferences.resetAll();
 			assertEquals(10.0, COREPreferences.getDemuxTolerancePpm(), 1e-9);
 			assertEquals(3.0f, COREPreferences.getMinimumMS1Intensity(), 1e-6f);
 			assertEquals(1.0f, COREPreferences.getMinimumMS2Intensity(), 1e-6f);
+			assertEquals(null, COREPreferences.getProcessingThreadLimit());
+			assertTrue(COREPreferences.isAskProcessingOnStartup());
 		} finally {
 			COREPreferences.setDemuxTolerancePpm(originalDemux);
 			COREPreferences.setMinimumMS1Intensity(originalMs1);
 			COREPreferences.setMinimumMS2Intensity(originalMs2);
+			COREPreferences.setProcessingThreadLimit(originalThreads);
+			COREPreferences.setAskProcessingOnStartup(originalAsk);
 			COREPreferences.setVerboseCoreLogging(originalVerbose);
 		}
 	}

@@ -1,7 +1,9 @@
 package org.searlelab.msrawjava.gui;
 
+import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
+import org.searlelab.msrawjava.COREPreferences;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
@@ -14,8 +16,10 @@ public class GuiMain {
 	public static void main(String[] args) {
 		LoggingConsoleDialog.installSystemCapture();
 		LookAndFeelManager.applyLookAndFeel(GUIPreferences.getLookAndFeelId(LookAndFeelManager.LAF_FLAT_LIGHT));
+		askProcessingQuestionIfNeeded();
+		ThermoServerPool.setProcessingThreadLimit(COREPreferences.getProcessingThreadLimit());
 		ThermoServerPool.startAsync();
-		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
+		ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(COREPreferences.getProcessingThreadLimit());
 
 		// Run Thermo server cleanup on JVM shutdown (quit, Ctrl-C, etc.)
 		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -42,6 +46,20 @@ public class GuiMain {
 			});
 			app.setVisible(true);
 		});
+	}
+
+	private static void askProcessingQuestionIfNeeded() {
+		if (!COREPreferences.isAskProcessingOnStartup()) return;
+		Object[] options= {"Yes (min processing)", "No (max processing)"};
+		int answer=JOptionPane.showOptionDialog(null, "Is this an instrument computer?\nCan be changed in preferences.", "Processing", JOptionPane.YES_NO_OPTION,
+				JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+		if (answer==JOptionPane.YES_OPTION) {
+			COREPreferences.setProcessingThreadLimit(2);
+			COREPreferences.setAskProcessingOnStartup(false);
+		} else if (answer==JOptionPane.NO_OPTION) {
+			COREPreferences.setProcessingThreadLimit(null);
+			COREPreferences.setAskProcessingOnStartup(false);
+		}
 	}
 
 }

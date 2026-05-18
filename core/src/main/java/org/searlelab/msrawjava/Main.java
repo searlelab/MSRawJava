@@ -51,7 +51,8 @@ public class Main {
 
 	/** Discovers vendor files and writes outputs using the selected format. */
 	public static void convertKnownFiles(ConversionParameters params) throws Exception {
-		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
+		ThermoServerPool.setProcessingThreadLimit(params.getProcessingThreads());
+		ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(params.getProcessingThreads());
 		VendorFiles files=new VendorFiles();
 		LoggingProgressIndicator indicator=null;
 		for (File f : params.getFileList()) {
@@ -239,7 +240,7 @@ public class Main {
 				.minimumMS1Intensity(base.getMinimumMS1Intensity()).minimumMS2Intensity(base.getMinimumMS2Intensity()).demultiplex(base.isDemultiplex())
 				.demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig()).logFilePath(base.getLogFilePath()).batch(base.isBatch())
 				.silent(base.isSilent()).noAnsi(base.isNoAnsi()).discoverDIAFiles(base.isDiscoverDIAFiles()).discoverMzMLFiles(base.isDiscoverMzMLFiles())
-				.outputFilePathOverride(override).build();
+				.outputFilePathOverride(override).processingThreads(base.getProcessingThreads()).build();
 	}
 
 	@Command(name="msrawjava", mixinStandardHelpOptions=true, description="Convert vendor raw files into analysis-ready formats.", versionProvider=VersionProvider.class)
@@ -292,6 +293,9 @@ public class Main {
 		@Option(names="--no-ansi", defaultValue="false", description="Disable ANSI output, even on TTYs.")
 		private boolean noAnsi=false;
 
+		@Option(names="--threads", paramLabel="#", description="Processing worker threads. Defaults to max available CPU processing.")
+		private Integer threads=null;
+
 		@Override
 		public Integer call() throws Exception {
 			ConversionParameters params=toParameters();
@@ -319,7 +323,13 @@ public class Main {
 			return ConversionParameters.builder().fileList(paths).outType(format.toOutputType()).outputDirPath(outputDirPath).logFilePath(logFilePath)
 					.minimumMS1Intensity(minimumMS1Intensity).minimumMS2Intensity(minimumMS2Intensity).demultiplex(demultiplex)
 					.demuxTolerance(new PPMMassTolerance(demuxPpm)).demuxConfig(demuxConfig).batch(batch).silent(silent).noAnsi(noAnsi)
-					.discoverDIAFiles(discoverDIAFiles).discoverMzMLFiles(discoverMzMLFiles).build();
+					.discoverDIAFiles(discoverDIAFiles).discoverMzMLFiles(discoverMzMLFiles).processingThreads(validateThreads()).build();
+		}
+
+		private Integer validateThreads() {
+			if (threads==null) return null;
+			if (threads<1) throw new CommandLine.ParameterException(new CommandLine(this), "--threads must be a positive integer.");
+			return threads;
 		}
 
 		private void configureLogging(ConversionParameters params) throws Exception {
