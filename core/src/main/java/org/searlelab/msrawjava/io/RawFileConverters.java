@@ -81,7 +81,7 @@ public class RawFileConverters {
 
 			outFile.addMetadata(rawFile.getMetadata());
 			writeConversionParameterMetadata(outFile, params);
-			outFile.setFileName(originalFileName, rawFile.toString());
+			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
 			applyStructuredMetadata(rawFile, outFile);
 

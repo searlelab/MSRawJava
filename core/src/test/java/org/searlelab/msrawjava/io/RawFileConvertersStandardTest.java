@@ -176,6 +176,33 @@ class RawFileConvertersStandardTest {
 	}
 
 	@Test
+	void writeStandard_dia_usesSourcePathForFileLocationMetadata() throws Exception {
+		Path outputDir=tmp.resolve("out_filelocation_dia");
+		Files.createDirectories(outputDir);
+
+		FakeStripeFile raw=new FakeStripeFile(tmp.resolve("source.raw").toFile());
+		raw.setGradientLength(1.0f);
+		raw.setRanges(Map.of(new Range(400.0f, 500.0f), new WindowData(0.5f, 1)));
+		raw.setMetadata(Collections.emptyMap());
+		raw.setScans(singleMs1(), singleMs2());
+
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.EncyclopeDIA).build();
+		CapturingProgress progress=new CapturingProgress();
+		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
+		try {
+			assertTrue(RawFileConverters.writeStandard(pool, raw, outputDir, params, progress));
+		} finally {
+			pool.close();
+		}
+
+		Path outFile=outputDir.resolve("source.dia");
+		assertTrue(Files.exists(outFile));
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+outFile)) {
+			assertEquals(raw.getFile().getAbsolutePath(), string(c, "select Value from metadata where Key='filelocation'"));
+		}
+	}
+
+	@Test
 	void writeStandard_dia_persistsConversionParameterMetadata() throws Exception {
 		Path outputDir=tmp.resolve("out_conversion_metadata_dia");
 		Files.createDirectories(outputDir);
