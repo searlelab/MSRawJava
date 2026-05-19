@@ -39,6 +39,7 @@ import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.PeakInterface;
 import org.searlelab.msrawjava.model.PeakWithIMS;
+import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
@@ -79,7 +80,8 @@ public class RawFileConverters {
 			long startTime=System.currentTimeMillis();
 
 			outFile.addMetadata(rawFile.getMetadata());
-			outFile.setFileName(originalFileName, rawFile.toString());
+			writeConversionParameterMetadata(outFile, params);
+			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 			outFile.setRanges(new HashMap<Range, WindowData>(rawFile.getRanges()));
 			applyStructuredMetadata(rawFile, outFile);
 
@@ -179,6 +181,7 @@ public class RawFileConverters {
 			Map<Range, WindowData> ranges=rawFile.getRanges();
 
 			outFile.addMetadata(rawFile.getMetadata());
+			writeConversionParameterMetadata(outFile, params);
 			outFile.setFileName(originalFileName, rawFile.getFile().getAbsolutePath());
 			applyStructuredMetadata(rawFile, outFile);
 
@@ -419,7 +422,9 @@ public class RawFileConverters {
 
 		outFile.setRanges(new HashMap<Range, WindowData>(timsFile.getRanges()));
 		outFile.addMetadata(timsFile.getMetadata());
+		writeConversionParameterMetadata(outFile, params);
 		outFile.setFileName(originalFileName, timsFilePath.toString());
+		applyStructuredMetadata(timsFile, outFile);
 
 		try {
 			int scanNumber=1;
@@ -660,6 +665,33 @@ public class RawFileConverters {
 		if (instrumentConfigurations!=null&&!instrumentConfigurations.isEmpty()) {
 			encyclopediaFile.setInstrumentConfiguration(instrumentConfigurations);
 		}
+	}
+
+	private static void writeConversionParameterMetadata(OutputSpectrumFile outFile, ConversionParameters params) throws IOException, SQLException {
+		if (!(outFile instanceof EncyclopeDIAFile)||params==null) {
+			return;
+		}
+		HashMap<String, String> metadata=new HashMap<String, String>();
+		metadata.put("conversion.outputType", String.valueOf(params.getOutType()));
+		metadata.put("conversion.demultiplex", Boolean.toString(params.isDemultiplex()));
+		metadata.put("conversion.timsTOF.minimumMS1Intensity", Float.toString(params.getMinimumMS1Intensity()));
+		metadata.put("conversion.timsTOF.minimumMS2Intensity", Float.toString(params.getMinimumMS2Intensity()));
+
+		DemuxConfig demuxConfig=params.getDemuxConfig();
+		if (demuxConfig!=null) {
+			metadata.put("conversion.demux.k", Integer.toString(demuxConfig.getK()));
+			metadata.put("conversion.demux.interpolation", demuxConfig.getInterpolationMethod().name());
+			metadata.put("conversion.demux.includeEdgeSubWindows", Boolean.toString(demuxConfig.isIncludeEdgeSubWindows()));
+		}
+
+		MassTolerance tolerance=params.getDemuxTolerance();
+		if (tolerance!=null) {
+			metadata.put("conversion.demux.massTolerance.type", tolerance.getClass().getSimpleName());
+			if (tolerance instanceof PPMMassTolerance) {
+				metadata.put("conversion.demux.massTolerance.ppm", Double.toString(((PPMMassTolerance)tolerance).getPpmTolerance()));
+			}
+		}
+		outFile.addMetadata(metadata);
 	}
 
 	static String addBrukerMergedPrefix(String spectrumName, int mergedIndex) {

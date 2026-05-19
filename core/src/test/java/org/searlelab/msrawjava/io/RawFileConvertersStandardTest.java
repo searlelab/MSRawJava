@@ -23,11 +23,14 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
+import org.searlelab.msrawjava.algorithms.demux.DemuxConfig.InterpolationMethod;
 import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
 import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.FragmentScan;
+import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
@@ -169,6 +172,68 @@ class RawFileConvertersStandardTest {
 			assertEquals(java.time.Instant.parse("2024-01-02T03:04:05Z"),
 					OffsetDateTime.parse(string(c, "select Value from metadata where Key='runStartTime'")).toInstant());
 			assertTrue(string(c, "select Value from metadata where Key='InstrumentConfigurations'").contains("IC1"));
+		}
+	}
+
+	@Test
+	void writeStandard_dia_usesSourcePathForFileLocationMetadata() throws Exception {
+		Path outputDir=tmp.resolve("out_filelocation_dia");
+		Files.createDirectories(outputDir);
+
+		FakeStripeFile raw=new FakeStripeFile(tmp.resolve("source.raw").toFile());
+		raw.setGradientLength(1.0f);
+		raw.setRanges(Map.of(new Range(400.0f, 500.0f), new WindowData(0.5f, 1)));
+		raw.setMetadata(Collections.emptyMap());
+		raw.setScans(singleMs1(), singleMs2());
+
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.EncyclopeDIA).build();
+		CapturingProgress progress=new CapturingProgress();
+		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
+		try {
+			assertTrue(RawFileConverters.writeStandard(pool, raw, outputDir, params, progress));
+		} finally {
+			pool.close();
+		}
+
+		Path outFile=outputDir.resolve("source.dia");
+		assertTrue(Files.exists(outFile));
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+outFile)) {
+			assertEquals(raw.getFile().getAbsolutePath(), string(c, "select Value from metadata where Key='filelocation'"));
+		}
+	}
+
+	@Test
+	void writeStandard_dia_persistsConversionParameterMetadata() throws Exception {
+		Path outputDir=tmp.resolve("out_conversion_metadata_dia");
+		Files.createDirectories(outputDir);
+
+		FakeStripeFile raw=new FakeStripeFile(tmp.resolve("params.raw").toFile());
+		raw.setGradientLength(1.0f);
+		raw.setRanges(Map.of(new Range(400.0f, 500.0f), new WindowData(0.5f, 1)));
+		raw.setMetadata(Map.of("filename", "params.raw", "filelocation", "/tmp/params.raw"));
+		raw.setScans(singleMs1(), singleMs2());
+
+		DemuxConfig demuxConfig=new DemuxConfig(9, InterpolationMethod.LOG_QUADRATIC, false);
+		ConversionParameters params=ConversionParameters.builder().outType(OutputType.EncyclopeDIA).demultiplex(true).demuxConfig(demuxConfig)
+				.demuxTolerance(new PPMMassTolerance(12.5)).minimumMS1Intensity(7.0f).minimumMS2Intensity(2.5f).build();
+		CapturingProgress progress=new CapturingProgress();
+		ProcessingThreadPool pool=ProcessingThreadPool.createDefault();
+		try {
+			assertTrue(RawFileConverters.writeStandard(pool, raw, outputDir, params, progress));
+		} finally {
+			pool.close();
+		}
+
+		Path outFile=outputDir.resolve("params.dia");
+		assertTrue(Files.exists(outFile));
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+outFile)) {
+			assertEquals("true", string(c, "select Value from metadata where Key='conversion.demultiplex'"));
+			assertEquals("9", string(c, "select Value from metadata where Key='conversion.demux.k'"));
+			assertEquals("LOG_QUADRATIC", string(c, "select Value from metadata where Key='conversion.demux.interpolation'"));
+			assertEquals("false", string(c, "select Value from metadata where Key='conversion.demux.includeEdgeSubWindows'"));
+			assertEquals("12.5", string(c, "select Value from metadata where Key='conversion.demux.massTolerance.ppm'"));
+			assertEquals(7.0, Double.parseDouble(string(c, "select Value from metadata where Key='conversion.timsTOF.minimumMS1Intensity'")), 0.0);
+			assertEquals(2.5, Double.parseDouble(string(c, "select Value from metadata where Key='conversion.timsTOF.minimumMS2Intensity'")), 0.0);
 		}
 	}
 
