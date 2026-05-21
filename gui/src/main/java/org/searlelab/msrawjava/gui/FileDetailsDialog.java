@@ -121,18 +121,18 @@ public class FileDetailsDialog {
 					} else if (vendor==VendorFile.ENCYCLOPEDIA) {
 						EncyclopeDIAFile dia=new EncyclopeDIAFile();
 						dia.openFile(f);
-						if (dia.needsSpectraTicUpgrade()) {
+						if (dia.needsSchemaUpgrade()) {
 							final boolean[] upgradeAccepted=new boolean[] {false};
 							SwingUtilities.invokeAndWait(() -> {
 								int choice=JOptionPane.showConfirmDialog(dlg,
-										"This DIA file uses an older schema (0.7.0) without spectra TIC.\nUpgrade to 0.8.0 now and calculate TIC values?",
+										"This DIA file uses an older schema.\nUpgrade to 0.8.0 now and add missing schema fields?",
 										"Upgrade DIA Schema", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
 								upgradeAccepted[0]=choice==JOptionPane.YES_OPTION;
 							});
 							if (upgradeAccepted[0]) {
 								final JDialog[] waitDialog=new JDialog[1];
 								SwingUtilities.invokeAndWait(() -> {
-									waitDialog[0]=createUpgradeWaitDialog(dlg, "Upgrading DIA schema and calculating spectra TIC...");
+									waitDialog[0]=createUpgradeWaitDialog(dlg, "Upgrading DIA schema...");
 									SwingUtilities.invokeLater(() -> waitDialog[0].setVisible(true));
 								});
 								try {

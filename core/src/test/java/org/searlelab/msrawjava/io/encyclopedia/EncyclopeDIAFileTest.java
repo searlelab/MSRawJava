@@ -167,6 +167,19 @@ class EncyclopeDIAFileTest {
 		}
 	}
 
+	private static boolean hasColumn(Path path, String table, String column) throws SQLException {
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+path.toString())) {
+			return hasColumn(c, table, column);
+		}
+	}
+
+	private static boolean hasTable(Path path, String table) throws SQLException {
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+path.toString());
+				ResultSet rs=c.getMetaData().getTables(null, null, table, null)) {
+			return rs.next();
+		}
+	}
+
 	/**
 	 * Helper to create a test .dia file with multiple spectra for read testing
 	 */
@@ -563,6 +576,86 @@ class EncyclopeDIAFileTest {
 				assertEquals(300.0f, rs.getFloat(1), 0.001f, "TIC should be backfilled from intensity array");
 			}
 		}
+	}
+
+	@Test
+	void saveAsFile_legacy060SchemaPatchesWritableCopyBeforeWritingRanges() throws Exception {
+		Path legacyPath=tmp.resolve("legacy_060_missing_rt_ranges.dia");
+
+		double[] masses=new double[] {450.0, 460.0};
+		float[] intensities=new float[] {100.0f, 200.0f};
+		byte[] massBytes=ByteConverter.toByteArray(masses);
+		byte[] intensityBytes=ByteConverter.toByteArray(intensities);
+		byte[] massCompressed=CompressionUtils.compress(massBytes);
+		byte[] intensityCompressed=CompressionUtils.compress(intensityBytes);
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString()); Statement s=c.createStatement()) {
+			s.execute("create table metadata ( Key varchar(255), Value text not null, PRIMARY KEY (Key) )");
+			s.execute(
+					"create table ranges ( Start float not null, Stop float not null, DutyCycle float not null, NumWindows int, IonMobilityStart float, IonMobilityStop float )");
+			s.execute(
+					"create table precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, TIC float, primary key (SpectrumIndex) )");
+			s.execute(
+					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
+			s.execute("insert into metadata (Key, Value) values ('filename', 'legacy_060_missing_rt_ranges.dia')");
+			s.execute("insert into metadata (Key, Value) values ('sourcename', 'legacy_060_missing_rt_ranges.raw')");
+			s.execute("insert into metadata (Key, Value) values ('version', '0.6.0')");
+			s.execute("insert into ranges (Start, Stop, DutyCycle, NumWindows, IonMobilityStart, IonMobilityStop) values (400.0, 500.0, 0.5, 1, null, null)");
+		}
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString());
+				PreparedStatement prep=c.prepareStatement(
+						"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+			prep.setInt(1, 0);
+			prep.setString(2, "ms2-1");
+			prep.setString(3, "prec");
+			prep.setInt(4, 2);
+			prep.setFloat(5, 1.5f);
+			prep.setNull(6, java.sql.Types.FLOAT);
+			prep.setDouble(7, 400.0);
+			prep.setDouble(8, 450.0);
+			prep.setDouble(9, 500.0);
+			prep.setInt(10, 0);
+			prep.setInt(11, massBytes.length);
+			prep.setBytes(12, massCompressed);
+			prep.setInt(13, intensityBytes.length);
+			prep.setBytes(14, intensityCompressed);
+			prep.setNull(15, java.sql.Types.INTEGER);
+			prep.setNull(16, java.sql.Types.BLOB);
+			prep.executeUpdate();
+		}
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile(legacyPath.toFile());
+		assertTrue(dia.needsSchemaUpgrade(), "Legacy 0.6.0 schema should require the general schema upgrade");
+		assertFalse(hasColumn(legacyPath, "ranges", "RtStart"), "Opening a legacy DIA should not mutate the source schema");
+		assertFalse(hasTable(legacyPath, "fractions"), "Opening a legacy DIA should not add new tables to the source");
+
+		Path outputPath=tmp.resolve("legacy_060_patched_copy.dia");
+		dia.saveAsFile(outputPath.toFile());
+		dia.close();
+
+		assertFalse(hasColumn(legacyPath, "ranges", "RtStart"), "Copy-on-write save should leave the source schema unchanged");
+		assertTrue(hasColumn(outputPath, "ranges", "RtStart"), "Patched copy should include ranges.RtStart");
+		assertTrue(hasColumn(outputPath, "ranges", "RtStop"), "Patched copy should include ranges.RtStop");
+		assertTrue(hasColumn(outputPath, "spectra", "TIC"), "Patched copy should include spectra.TIC");
+		assertTrue(hasTable(outputPath, "fractions"), "Patched copy should include fractions table");
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+outputPath.toString()); Statement s=c.createStatement()) {
+			assertEquals("0.8.0", string(c, "select Value from metadata where Key='version'"));
+			try (ResultSet rs=s.executeQuery("select TIC from spectra where SpectrumIndex=2")) {
+				assertTrue(rs.next());
+				assertEquals(300.0f, rs.getFloat(1), 0.001f);
+			}
+		}
+
+		EncyclopeDIAFile reopened=new EncyclopeDIAFile();
+		reopened.openFile(outputPath.toFile());
+		assertFalse(reopened.needsSchemaUpgrade(), "Patched copy should no longer require schema upgrade");
+		WindowData loaded=reopened.getRanges().get(new Range(400.0f, 500.0f));
+		assertNotNull(loaded);
+		assertTrue(loaded.getRtRange().isEmpty(), "Missing legacy RT range values should reload as absent RT ranges");
+		reopened.close();
 	}
 
 	@Test

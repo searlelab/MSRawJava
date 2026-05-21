@@ -669,6 +669,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	@Override
 	public void saveAsFile(File saveFile) throws IOException, SQLException {
 		ensureWritableTempFile();
+		applySchemaPatchesToWritableFile();
 		HashMap<String, String> map=new HashMap<String, String>();
 		map.put(FILENAME_ATTRIBUTE, saveFile.getName()==null?UNKNOWN_VALUE:saveFile.getName());
 		addMetadata(map);
@@ -801,6 +802,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	public void saveFile() throws IOException, SQLException {
 		ensureWritableTempFile();
+		applySchemaPatchesToWritableFile();
 		writeRanges();
 		writeFractionNames();
 		createIndices();
@@ -973,11 +975,17 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	}
 
 	public boolean needsSpectraTicUpgrade() throws IOException, SQLException {
+		return needsSchemaUpgrade();
+	}
+
+	public boolean needsSchemaUpgrade() throws IOException, SQLException {
 		if (userFile==null||!userFile.exists()) return false;
 		Connection c=getConnection();
 		try {
-			if (!doesTableExist(c, "spectra")) return false;
-			return !doesColumnExist(c, "spectra", "TIC");
+			Version currentVersion=readFileVersion(c);
+			if (currentVersion!=null&&currentVersion.amIAbove(MOST_RECENT_VERSION)) return false;
+			if (currentVersion==null||!MOST_RECENT_VERSION.equals(currentVersion)) return true;
+			return isCurrentSchemaMissing(c);
 		} finally {
 			c.close();
 		}
@@ -989,48 +997,168 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 		Connection c=getConnection(userFile, false);
 		try {
-			if (!doesTableExist(c, "spectra")) {
-				setFileVersion(c);
-				c.commit();
-				Logger.logLine("Completed DIA schema upgrade to 0.8.0 for file: "+userFile.getAbsolutePath()+" (no spectra table present).");
-				return;
-			}
-
-			if (!doesColumnExist(c, "spectra", "TIC")) {
-				try (Statement alter=c.createStatement()) {
-					alter.execute("ALTER TABLE spectra ADD COLUMN TIC float");
-				}
-			}
-
-			int spectraCount=0;
-			try (Statement s=c.createStatement();
-					ResultSet rs=s.executeQuery("SELECT SpectrumIndex, IntensityEncodedLength, IntensityArray FROM spectra");
-					PreparedStatement update=c.prepareStatement("UPDATE spectra SET TIC=? WHERE SpectrumIndex=?")) {
-				while (rs.next()) {
-					int spectrumIndex=rs.getInt(1);
-					int encodedLength=rs.getInt(2);
-					byte[] intensityBytes=rs.getBytes(3);
-
-					float tic=Float.NaN;
-					if (intensityBytes!=null&&encodedLength>0) {
-						float[] intensities=ByteConverter.toFloatArray(CompressionUtils.decompress(intensityBytes, encodedLength));
-						tic=MatrixMath.sum(intensities);
-					}
-
-					update.setFloat(1, tic);
-					update.setInt(2, spectrumIndex);
-					update.addBatch();
-					spectraCount++;
-				}
-				update.executeBatch();
-			}
-
-			setFileVersion(c);
+			Version currentVersion=getFileVersion(c);
+			int spectraCount=applySchemaPatches(c, currentVersion);
 			c.commit();
 			Logger.logLine("Completed DIA schema upgrade to 0.8.0 for file: "+userFile.getAbsolutePath()+" (backfilled TIC for "+spectraCount+" spectra).");
 		} finally {
 			c.close();
 		}
+	}
+
+	private void applySchemaPatchesToWritableFile() throws IOException, SQLException {
+		if (tempFile==null) return;
+		Connection c=getConnection(tempFile, false);
+		try {
+			Version currentVersion=getFileVersion(c);
+			applySchemaPatches(c, currentVersion);
+			c.commit();
+		} finally {
+			c.close();
+		}
+	}
+
+	private Version getFileVersion(Connection c) throws SQLException, IOException {
+		try (Statement s=c.createStatement()) {
+			s.execute("create table if not exists metadata ( Key string not null, Value string not null, primary key (Key) )");
+		}
+		return readFileVersion(c);
+	}
+
+	private Version readFileVersion(Connection c) throws SQLException, IOException {
+		if (!doesTableExist(c, "metadata")) return null;
+		try (PreparedStatement prep=c.prepareStatement("select Value from metadata where Key=?")) {
+			prep.setString(1, VERSION_STRING);
+			try (ResultSet rs=prep.executeQuery()) {
+				if (rs.next()) {
+					try {
+						return new Version(rs.getString(1));
+					} catch (RuntimeException e) {
+						Logger.errorLine("Unexpected DIA file version "+rs.getString(1)+", applying schema patches by inspection.");
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	private boolean isCurrentSchemaMissing(Connection c) throws SQLException, IOException {
+		if (doesTableExist(c, "ranges")) {
+			if (!doesColumnExist(c, "ranges", "NumWindows")) return true;
+			if (!doesColumnExist(c, "ranges", "IonMobilityStart")) return true;
+			if (!doesColumnExist(c, "ranges", "IonMobilityStop")) return true;
+			if (!doesColumnExist(c, "ranges", "RtStart")) return true;
+			if (!doesColumnExist(c, "ranges", "RtStop")) return true;
+		}
+		if (doesTableExist(c, "spectra")) {
+			if (!doesColumnExist(c, "spectra", "Fraction")) return true;
+			if (!doesColumnExist(c, "spectra", "PrecursorCharge")) return true;
+			if (!doesColumnExist(c, "spectra", "IonInjectionTime")) return true;
+			if (!doesColumnExist(c, "spectra", "IonMobilityArrayEncodedLength")) return true;
+			if (!doesColumnExist(c, "spectra", "IonMobilityArray")) return true;
+			if (!doesColumnExist(c, "spectra", "TIC")) return true;
+		}
+		if (doesTableExist(c, "precursor")) {
+			if (!doesColumnExist(c, "precursor", "Fraction")) return true;
+			if (!doesColumnExist(c, "precursor", "IsolationWindowLower")) return true;
+			if (!doesColumnExist(c, "precursor", "IsolationWindowUpper")) return true;
+			if (!doesColumnExist(c, "precursor", "TIC")) return true;
+			if (!doesColumnExist(c, "precursor", "IonInjectionTime")) return true;
+			if (!doesColumnExist(c, "precursor", "IonMobilityArrayEncodedLength")) return true;
+			if (!doesColumnExist(c, "precursor", "IonMobilityArray")) return true;
+		}
+		return !doesTableExist(c, "fractions");
+	}
+
+	private int applySchemaPatches(Connection c, Version currentVersion) throws SQLException, IOException {
+		if (currentVersion!=null&&currentVersion.amIAbove(MOST_RECENT_VERSION)) {
+			Logger.errorLine("WARNING: Dia file "+this.getOriginalFileName()+" is from a more recent version of EncyclopeDIA. "
+					+"Attempting to open, but this may cause unpredictable results.");
+			return 0;
+		}
+
+		int spectraTicBackfilled=0;
+		try (Statement s=c.createStatement()) {
+			s.execute("create table if not exists metadata ( Key string not null, Value string not null, primary key (Key) )");
+
+			if (doesTableExist(c, "ranges")) {
+				addColumnIfMissing(c, s, "ranges", "NumWindows", "alter table ranges add column NumWindows int");
+				addColumnIfMissing(c, s, "ranges", "IonMobilityStart", "alter table ranges add column IonMobilityStart float");
+				addColumnIfMissing(c, s, "ranges", "IonMobilityStop", "alter table ranges add column IonMobilityStop float");
+				addColumnIfMissing(c, s, "ranges", "RtStart", "alter table ranges add column RtStart float");
+				addColumnIfMissing(c, s, "ranges", "RtStop", "alter table ranges add column RtStop float");
+			}
+
+			if (doesTableExist(c, "spectra")) {
+				boolean addedFraction=addColumnIfMissing(c, s, "spectra", "Fraction", "alter table spectra add column Fraction int");
+				boolean addedCharge=addColumnIfMissing(c, s, "spectra", "PrecursorCharge", "alter table spectra add column PrecursorCharge int");
+				addColumnIfMissing(c, s, "spectra", "IonInjectionTime", "alter table spectra add column IonInjectionTime float");
+				addColumnIfMissing(c, s, "spectra", "IonMobilityArrayEncodedLength",
+						"alter table spectra add column IonMobilityArrayEncodedLength int");
+				addColumnIfMissing(c, s, "spectra", "IonMobilityArray", "alter table spectra add column IonMobilityArray blob");
+				boolean addedTic=addColumnIfMissing(c, s, "spectra", "TIC", "alter table spectra add column TIC float");
+				if (addedFraction) s.execute("update spectra set Fraction=0 where Fraction is null");
+				if (addedCharge) s.execute("update spectra set PrecursorCharge=0 where PrecursorCharge is null");
+				if (addedTic) spectraTicBackfilled=backfillSpectraTic(c);
+			}
+
+			if (doesTableExist(c, "precursor")) {
+				boolean addedFraction=addColumnIfMissing(c, s, "precursor", "Fraction", "alter table precursor add column Fraction int");
+				boolean addedIsolationLower=addColumnIfMissing(c, s, "precursor", "IsolationWindowLower",
+						"alter table precursor add column IsolationWindowLower float");
+				boolean addedIsolationUpper=addColumnIfMissing(c, s, "precursor", "IsolationWindowUpper",
+						"alter table precursor add column IsolationWindowUpper float");
+				addColumnIfMissing(c, s, "precursor", "TIC", "alter table precursor add column TIC float");
+				addColumnIfMissing(c, s, "precursor", "IonInjectionTime", "alter table precursor add column IonInjectionTime float");
+				addColumnIfMissing(c, s, "precursor", "IonMobilityArrayEncodedLength",
+						"alter table precursor add column IonMobilityArrayEncodedLength int");
+				addColumnIfMissing(c, s, "precursor", "IonMobilityArray", "alter table precursor add column IonMobilityArray blob");
+				if (addedFraction) s.execute("update precursor set Fraction=0 where Fraction is null");
+				if (addedIsolationLower) s.execute("update precursor set IsolationWindowLower=0 where IsolationWindowLower is null");
+				if (addedIsolationUpper) s.execute("update precursor set IsolationWindowUpper=999999999 where IsolationWindowUpper is null");
+			}
+
+			s.execute("create table if not exists fractions ( Fraction int not null, Name string not null, primary key (Fraction) )");
+		}
+		setFileVersion(c);
+		return spectraTicBackfilled;
+	}
+
+	private boolean addColumnIfMissing(Connection c, Statement s, String table, String column, String sql) throws SQLException {
+		if (doesColumnExist(c, table, column)) return false;
+		s.execute(sql);
+		return true;
+	}
+
+	private int backfillSpectraTic(Connection c) throws SQLException, IOException {
+		int spectraCount=0;
+		try (Statement s=c.createStatement();
+				ResultSet rs=s.executeQuery("SELECT SpectrumIndex, IntensityEncodedLength, IntensityArray FROM spectra");
+				PreparedStatement update=c.prepareStatement("UPDATE spectra SET TIC=? WHERE SpectrumIndex=?")) {
+			while (rs.next()) {
+				int spectrumIndex=rs.getInt(1);
+				int encodedLength=rs.getInt(2);
+				byte[] intensityBytes=rs.getBytes(3);
+
+				float tic=Float.NaN;
+				if (intensityBytes!=null&&encodedLength>0) {
+					float[] intensities;
+					try {
+						intensities=ByteConverter.toFloatArray(CompressionUtils.decompress(intensityBytes, encodedLength));
+					} catch (DataFormatException e) {
+						throw new IOException("Error decompressing spectra intensity array while upgrading DIA schema", e);
+					}
+					tic=MatrixMath.sum(intensities);
+				}
+
+				update.setFloat(1, tic);
+				update.setInt(2, spectrumIndex);
+				update.addBatch();
+				spectraCount++;
+			}
+			update.executeBatch();
+		}
+		return spectraCount;
 	}
 
 	@Override
