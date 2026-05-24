@@ -133,7 +133,7 @@ final class RawBrowserScanRenderer {
 	void refreshChromatogramChart(XYTrace activeChromatogram, float activeMaxTic, RawBrowserXicController xicController, boolean preserveAxisView) {
 		ExtendedChartPanel previousChart=preserveAxisView?topChromatogramChart:null;
 		ExtendedChartPanel chart=buildChromatogramChart(activeChromatogram, xicController);
-		if (previousChart!=null&&xicController.isXicModeActive()) {
+		if (previousChart!=null&&xicController.isXicModeActive()&&previousChart.isLegendDrawerEnabled()) {
 			ChartStyleTransfer.apply(previousChart, chart);
 			replaceTopChartData(previousChart, chart);
 			previousChart.setToolTipText(chart.getToolTipText());
@@ -157,6 +157,7 @@ final class RawBrowserScanRenderer {
 		}
 		target.setRangeAxis(source.getRangeAxis());
 		targetPanel.setDivider(sourcePanel.getDivider());
+		targetPanel.refreshLegendDrawer();
 		chromatogramSelectionAnnotations.clear();
 	}
 

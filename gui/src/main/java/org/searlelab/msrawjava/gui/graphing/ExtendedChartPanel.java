@@ -63,6 +63,12 @@ public class ExtendedChartPanel extends ChartPanel {
 		return legendDrawerSupport!=null;
 	}
 
+	public void refreshLegendDrawer() {
+		if (legendDrawerSupport!=null) {
+			legendDrawerSupport.refreshLegendRows();
+		}
+	}
+
 	ChartLegendDrawerSupport getLegendDrawerSupportForTest() {
 		return legendDrawerSupport;
 	}
