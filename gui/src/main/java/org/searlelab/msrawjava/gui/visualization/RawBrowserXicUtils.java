@@ -256,4 +256,24 @@ final class RawBrowserXicUtils {
 		if (scanWindowUpper<scanWindowLower) return true;
 		return targetMz>=scanWindowLower&&targetMz<=scanWindowUpper;
 	}
+
+	static boolean isTargetExtractableFromScan(double targetMz, boolean precursorScan, double scanWindowLower, double scanWindowUpper,
+			double isolationWindowLower, double isolationWindowUpper) {
+		if (!Double.isFinite(targetMz)||targetMz<=0.0) return false;
+		if (precursorScan) return true;
+		if (!hasUsableScanWindow(scanWindowLower, scanWindowUpper)) return true;
+		if (!precursorScan&&sameWindow(scanWindowLower, scanWindowUpper, isolationWindowLower, isolationWindowUpper)) return true;
+		return isTargetInScanWindow(targetMz, scanWindowLower, scanWindowUpper);
+	}
+
+	private static boolean hasUsableScanWindow(double scanWindowLower, double scanWindowUpper) {
+		if (!Double.isFinite(scanWindowLower)||!Double.isFinite(scanWindowUpper)) return false;
+		if (scanWindowUpper<scanWindowLower) return false;
+		return scanWindowUpper>scanWindowLower&&scanWindowUpper>0.0;
+	}
+
+	private static boolean sameWindow(double lowerA, double upperA, double lowerB, double upperB) {
+		if (!Double.isFinite(lowerB)||!Double.isFinite(upperB)) return false;
+		return Math.abs(lowerA-lowerB)<1e-6&&Math.abs(upperA-upperB)<1e-6;
+	}
 }

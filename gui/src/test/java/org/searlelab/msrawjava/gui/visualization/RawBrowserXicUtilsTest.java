@@ -126,4 +126,25 @@ class RawBrowserXicUtilsTest {
 		assertFalse(RawBrowserXicUtils.isTargetInScanWindow(399.9, 400.0, 600.0));
 		assertFalse(RawBrowserXicUtils.isTargetInScanWindow(600.1, 400.0, 600.0));
 	}
+
+	@Test
+	void isTargetExtractableFromScan_treatsMissingMzmlMs1ScanWindowAsOpen() {
+		assertTrue(RawBrowserXicUtils.isTargetExtractableFromScan(500.0, true, 0.0, 0.0, 0.0, 0.0));
+	}
+
+	@Test
+	void isTargetExtractableFromScan_treatsPrecursorScanWindowAsAdvisory() {
+		assertTrue(RawBrowserXicUtils.isTargetExtractableFromScan(421.758, true, 399.4353, 416.4353, 0.0, 0.0));
+	}
+
+	@Test
+	void isTargetExtractableFromScan_treatsFragmentIsolationWindowAsUnknownProductWindow() {
+		assertTrue(RawBrowserXicUtils.isTargetExtractableFromScan(175.1, false, 500.0, 525.0, 500.0, 525.0));
+	}
+
+	@Test
+	void isTargetExtractableFromScan_honorsDistinctFiniteProductWindow() {
+		assertTrue(RawBrowserXicUtils.isTargetExtractableFromScan(175.1, false, 100.0, 300.0, 500.0, 525.0));
+		assertFalse(RawBrowserXicUtils.isTargetExtractableFromScan(350.0, false, 100.0, 300.0, 500.0, 525.0));
+	}
 }

@@ -38,14 +38,13 @@ final class ScanTypeFilterOption {
 
 	boolean includes(ScanSummary summary) {
 		if (summary==null) return false;
-		double precursorMz=summary.getPrecursorMz();
 		switch (kind) {
 			case ALL:
 				return true;
 			case MS1:
-				return precursorMz<0.0;
+				return summary.isPrecursor();
 			case MS2_RANGE:
-				return precursorMz>=0.0&&range!=null&&range.contains(precursorMz);
+				return !summary.isPrecursor()&&range!=null&&range.contains(summary.getPrecursorMz());
 			default:
 				return false;
 		}

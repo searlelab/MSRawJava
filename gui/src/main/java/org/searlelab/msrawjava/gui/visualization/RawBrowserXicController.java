@@ -264,7 +264,8 @@ final class RawBrowserXicController {
 				boolean keep=false;
 				targetLoop: for (int t=0; t<targets.size(); t++) {
 					double target=targets.get(t).mz();
-					if (RawBrowserXicUtils.isTargetInScanWindow(target, summary.getScanWindowLower(), summary.getScanWindowUpper())) {
+					if (RawBrowserXicUtils.isTargetExtractableFromScan(target, summary.isPrecursor(), summary.getScanWindowLower(),
+							summary.getScanWindowUpper(), summary.getIsolationWindowLower(), summary.getIsolationWindowUpper())) {
 						keep=true;
 						break targetLoop;
 					}
@@ -301,7 +302,8 @@ final class RawBrowserXicController {
 				float[] intensity=spectrum.getIntensityArray();
 				for (int t=0; t<targets.size(); t++) {
 					double target=targets.get(t).mz();
-					if (!RawBrowserXicUtils.isTargetInScanWindow(target, spectrum.getScanWindowLower(), spectrum.getScanWindowUpper())) continue;
+					if (!RawBrowserXicUtils.isTargetExtractableFromScan(target, summary.isPrecursor(), spectrum.getScanWindowLower(),
+							spectrum.getScanWindowUpper(), spectrum.getIsolationWindowLower(), spectrum.getIsolationWindowUpper())) continue;
 					double tol=toleranceOption.toleranceMz(target);
 					RawBrowserXicUtils.XicPointExtraction point=RawBrowserXicUtils.extractWeightedPointWithinTolerance(mz, intensity, target, tol);
 					intensities[t][i]=point.intensity;
