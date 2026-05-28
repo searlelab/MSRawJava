@@ -10,8 +10,8 @@
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
-	<artifactId>msrawjava</artifactId>
-	<name>msrawjava (gui)</name>
+	<artifactId>msforest</artifactId>
+	<name>MSForest (gui)</name>
 	<packaging>jar</packaging>
 
 	<properties>
@@ -241,7 +241,7 @@
 									<goal>compile</goal>
 								</goals>
 								<configuration>
-									<projectFile>${project.basedir}/msrawjava.install4j</projectFile>
+									<projectFile>${project.basedir}/msforest.install4j</projectFile>
 									<variables>
 										<project.version>${project.version}</project.version>
 									</variables>

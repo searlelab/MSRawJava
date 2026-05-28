@@ -1,13 +1,17 @@
-# MSRawJava: Java-first readers for Bruker timsTOF and Thermo RAW
-<img align="left" src="gui/splash@2x.png" width=200 style="margin-right: 15px;">
+# **MS**RawJava: Java-first readers for Bruker timsTOF and Thermo RAW
+<img align="left" src="msrawjava.png" width=200 style="margin-right: 15px;">
 
-MSRawJava is a Java-first toolkit for efficiently reading Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X. The code provides additional tooling for reading spectra and metadata into a standard object model, and producing analysis-ready outputs (`.mzML`, `.MGF`, and [EncyclopeDIA](https://bitbucket.org/searleb/encyclopedia/wiki/Home) `.DIA`). The library exposes a uniform Java API and a compact CLI. Vendor specifics are isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo, so the public surface remains consistent across platforms.
+**MS**RawJava is a Java-first toolkit and CLI for efficiently reading and converting Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X. The core library normalizes spectra and metadata into a standard object model, produces analysis-ready outputs (`.mzML`, `.MGF`, and [EncyclopeDIA](https://bitbucket.org/searleb/encyclopedia/wiki/Home) `.DIA`), and keeps vendor specifics isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo.
 
-## What MSRawJava is and is not
-**MSRawJava is not a [ProteoWizard](https://proteowizard.sourceforge.io/) replacement.** MSRawJava has a significantly smaller surface area than ProteoWizard, supporting only a narrow set of Vendor files and output formats. Additionally, there are very limited options for processing raw files and no options for non-vendor peak picking. In exchange, MSRawJava offers higher conversion speed and a more straightforward interface for daily work in the GUI, at the command line, and via programmatic interfaces. It also provides rich, integrated visualization of raw files, with a forensic focus to catch mistakes in data acquisition. This visualization focuses on rapid understanding of the entire raw data file (rather than spectrum by spectrum), enabling interrogation of windowing and global trends. Lastly, it offers high (>90%) test coverage in the core code and first-class support for Apple computers as well as Linux and Windows. **Use ProteoWizard for completeness and MSRawJava for "real-life" tasks.**
+<img align="right" src="gui/splash@2x.png" width=300 style="margin-left: 15px;">
+
+**MS**Forest is the desktop GUI product built on **MS**RawJava. Its theme is being able to see the forest through the trees with your mass spec data: fast directory-level discovery, conversion controls, and integrated visualization that emphasize whole-file structure, acquisition windows, and global trends rather than only spectrum-by-spectrum inspection.
+
+## What **MS**RawJava and **MS**Forest are and are not
+**MS**RawJava is not a [ProteoWizard](https://proteowizard.sourceforge.io/) replacement. **MS**RawJava has a significantly smaller surface area than ProteoWizard, supporting only a narrow set of vendor files and output formats. Additionally, there are very limited options for processing raw files and no options for non-vendor peak picking. In exchange, **MS**RawJava offers higher conversion speed and a more straightforward interface for daily work at the command line and via programmatic interfaces. **MS**Forest adds the GUI workflow and rich, integrated raw-file visualization with a forensic focus to catch mistakes in data acquisition. Lastly, the project offers high (>90%) test coverage in the core code and first-class support for Apple computers as well as Linux and Windows. Use ProteoWizard for completeness, **MS**RawJava for core conversion, and **MS**Forest for visual daily work.
 
 ## Architecture and code structure
-<img align="right" src="gui/splash_vert@2x.png" width=100 style="margin-right: 15px;">
+<img align="right" src="msrawjava.png" width=100 style="margin-left: 15px;">
 
 **Coding style notes are in `CODE_STYLE.md`.** The library normalizes vendor streams into a compact, immutable model under `model`. `AcquiredSpectrum` defines the common surface for MS1 and MS2 and is implemented by `PrecursorScan` and `FragmentScan`. Both carry `spectrumName`, `spectrumIndex`, `scanStartTime`, `fraction`, isolation/scan window bounds, optional `ionInjectionTime`, and primitive `double[]` m/z with `float[]` intensity; timsTOF adds an optional `float[]` ion mobility vector where every peak gets an assigned ion mobility value. `Peak` is a lightweight value object (`mz`, `intensity`, `ims`) materialized on demand when point lists are needed, avoiding overhead during bulk transfer. Windowing is represented by `Range` (the m/z interval) and `WindowData` (average duty cycle, MS/MS counts, optional ion-mobility span). Readers construct a `Map<Range, WindowData>` of DIA stripes, stream MS1 as `PrecursorScan` and `FragmentScan` records sliced using retention time and m/z windows (for `FragmentScan`s). Arrays remain primitive to enable zero-copy JNI/gRPC exchange; conversion to `Peak` lists is threshold-aware and performed lazily only when necessary. The model’s immutability supports parallel read stages while writers serialize output for deterministic archives.
 
@@ -37,7 +41,7 @@ Note, you need to run scripts/build-all-net.sh before scripts/build-all-rust.sh 
 Bruker timsTOF-specific Rust binaries are embedded in the jar under `META-INF/lib/{os-arch}` and `resources/msraw/thermo/bin/{rid}` for the Thermo server. The runtime loaders (`NativeLibraryLoader`, `GrpcServerLauncher`) resolve and launch them automatically.
 
 
-## CLI usage
+## **MS**RawJava CLI usage
 The CLI in `Main.java` accepts files or directories and searches them for Bruker `.d` and Thermo `.raw` files, with optional [EncyclopeDIA](https://bitbucket.org/searleb/encyclopedia/wiki/Home) `.dia` discovery when enabled. Command line options include:
 
 ```
