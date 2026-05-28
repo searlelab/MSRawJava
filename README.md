@@ -1,5 +1,5 @@
 # MSRawJava: Java-first readers for Bruker timsTOF and Thermo RAW
-<img align="left" src="gui/splash@2x.png" width=200 style="margin-right: 15px;">
+<img align="left" src="msrawjava.png" width=200 style="margin-right: 15px;">
 
 MSRawJava is a Java-first toolkit for efficiently reading Bruker timsTOF `.d` and Thermo `.raw` files on Windows, Linux, and MacOS X. The code provides additional tooling for reading spectra and metadata into a standard object model, and producing analysis-ready outputs (`.mzML`, `.MGF`, and [EncyclopeDIA](https://bitbucket.org/searleb/encyclopedia/wiki/Home) `.DIA`). The library exposes a uniform Java API and a compact CLI. Vendor specifics are isolated behind a JNI bridge for Bruker and a local gRPC client for Thermo, so the public surface remains consistent across platforms.
 
