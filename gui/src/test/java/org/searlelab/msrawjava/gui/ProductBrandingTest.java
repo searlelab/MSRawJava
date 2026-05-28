@@ -3,6 +3,7 @@ package org.searlelab.msrawjava.gui;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import javax.swing.Icon;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 
@@ -38,5 +39,13 @@ class ProductBrandingTest {
 		assertTrue(citation.contains("MSForest"));
 		assertTrue(citation.contains("MSRawJava"));
 		assertTrue(citation.contains("https://github.com/searlelab/MSRawJava"));
+	}
+
+	@Test
+	void howToCiteTopGraphicUsesSplashResource() {
+		Icon splash=HowToCiteDialog.loadSplashIcon();
+
+		assertEquals(300, splash.getIconWidth());
+		assertEquals(150, splash.getIconHeight());
 	}
 }

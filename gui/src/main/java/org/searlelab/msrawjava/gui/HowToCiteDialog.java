@@ -4,10 +4,13 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Desktop;
 import java.awt.FlowLayout;
+import java.awt.Image;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.net.URL;
 
 import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JEditorPane;
@@ -25,6 +28,10 @@ import org.searlelab.msrawjava.logging.Logger;
  * Dialog showing citation guidance for the project.
  */
 public final class HowToCiteDialog {
+	private static final int SPLASH_WIDTH=300;
+	private static final int SPLASH_HEIGHT=150;
+	private static final int FALLBACK_ICON_SIZE=96;
+
 	private HowToCiteDialog() {
 	}
 
@@ -34,7 +41,7 @@ public final class HowToCiteDialog {
 		JPanel content=new JPanel(new BorderLayout());
 		content.setBackground(Color.WHITE);
 
-		JLabel graphic=new JLabel(new FlatSVGIcon("icons/icon.svg", 96, 96));
+		JLabel graphic=new JLabel(loadSplashIcon());
 		JPanel head=new JPanel(new BorderLayout());
 		head.setBackground(Color.WHITE);
 		head.add(graphic, BorderLayout.NORTH);
@@ -115,5 +122,13 @@ public final class HowToCiteDialog {
 				+"JVM: "+Version.getJvmName()+" ("+Version.getJvmVersion()+")<br/>"
 				+"Runtime: "+Version.getRuntimeName()+" ("+Version.getRuntimeVersion()+")"
 				+"</p></html>";
+	}
+
+	static javax.swing.Icon loadSplashIcon() {
+		URL splashResource=HowToCiteDialog.class.getResource("/splash/splash@2x.png");
+		if (splashResource==null) return new FlatSVGIcon("icons/icon.svg", FALLBACK_ICON_SIZE, FALLBACK_ICON_SIZE);
+		ImageIcon retinaIcon=new ImageIcon(splashResource);
+		Image scaledImage=retinaIcon.getImage().getScaledInstance(SPLASH_WIDTH, SPLASH_HEIGHT, Image.SCALE_SMOOTH);
+		return new ImageIcon(scaledImage);
 	}
 }
