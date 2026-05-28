@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <install4j version="12.0.2" transformSequenceNumber="12">
-  <directoryPresets config="./target/msrawjava-${compiler:project.version}.jar" />
-  <application name="MSRawJava" applicationId="7985-7208-6179-2855" mediaDir="target/install4j" shortName="MSRawJava" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="${compiler:project.version}" macVolumeId="c048ca009eaf9ba9">
+  <directoryPresets config="./target/msforest-${compiler:project.version}.jar" />
+  <application name="MSForest" applicationId="3912-8846-2175-6403" mediaDir="target/install4j" shortName="MSForest" publisher="Searle Lab" publisherWeb="https://www.searlelab.org/" version="${compiler:project.version}" macVolumeId="a9f1d4e624b03c7a">
     <variables>
       <variable name="project.version" value="unknown" />
     </variables>
@@ -13,12 +13,12 @@
     </mountPoints>
     <entries>
       <dirEntry mountPoint="34" file="./target/lib" entryMode="subdir" subDirectory="lib" />
-      <fileEntry mountPoint="34" file="./target/msrawjava-${compiler:project.version}.jar" />
+      <fileEntry mountPoint="34" file="./target/msforest-${compiler:project.version}.jar" />
     </entries>
   </files>
   <launchers>
-    <launcher name="MSRawJava" id="35">
-      <executable name="MSRawJava" iconSet="true" stderrMode="append" redirectStdout="true" executableMode="gui" changeWorkingDirectory="false" checkConsoleParameter="true" />
+    <launcher name="MSForest" id="35">
+      <executable name="MSForest" iconSet="true" stderrMode="append" redirectStdout="true" executableMode="gui" changeWorkingDirectory="false" checkConsoleParameter="true" />
       <splashScreen show="true" bitmapFile="./splash.png" textOverlay="true">
         <text>
           <versionLine x="10" y="10" text="version ${compiler:sys.version}" fontColor="153,153,153" />
@@ -26,7 +26,7 @@
       </splashScreen>
       <java mainClass="org.searlelab.msrawjava.gui.GuiMain" vmParameters="-Xms2g">
         <classPath>
-          <archive location="msrawjava-${compiler:project.version}.jar" failOnError="false" />
+          <archive location="msforest-${compiler:project.version}.jar" failOnError="false" />
           <directory location="lib" failOnError="false" />
         </classPath>
       </java>
@@ -42,7 +42,7 @@
           <property name="customIconImageFiles">
             <add>
               <object class="com.install4j.api.beans.ExternalFile">
-                <string>/Users/searleb/Documents/java/MSRawJava/gui/icon256.png</string>
+                <string>./icon256.png</string>
               </object>
             </add>
           </property>

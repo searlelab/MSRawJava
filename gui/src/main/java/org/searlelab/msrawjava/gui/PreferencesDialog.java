@@ -63,7 +63,7 @@ public class PreferencesDialog extends JDialog {
 	private void buildUi() {
 		JPanel content=new JPanel(new BorderLayout());
 		content.setBorder(BorderFactory.createTitledBorder("Preferences:"));
-		content.setToolTipText("Configure conversion and GUI defaults for MSRawJava.");
+		content.setToolTipText("Configure conversion and GUI defaults for "+ProductBranding.PRODUCT_NAME+".");
 
 		JTabbedPane tabs=new JTabbedPane();
 		tabs.addTab("Processing", buildProcessingTab());

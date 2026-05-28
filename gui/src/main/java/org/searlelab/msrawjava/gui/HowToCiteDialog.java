@@ -29,7 +29,7 @@ public final class HowToCiteDialog {
 	}
 
 	public static void showDialog(java.awt.Frame parent) {
-		JDialog dialog=new JDialog(parent, "How to cite", true);
+		JDialog dialog=new JDialog(parent, "How to cite "+ProductBranding.PRODUCT_NAME, true);
 
 		JPanel content=new JPanel(new BorderLayout());
 		content.setBackground(Color.WHITE);
@@ -41,22 +41,14 @@ public final class HowToCiteDialog {
 
 		content.add(head, BorderLayout.NORTH);
 
-		String message="<html><center><p style=\"font-size:12px; font-family: Helvetica, sans-serif\">"
-				+"MSRawJava is a Searle Lab (searlelab.org) project at the Mayo Clinic "
-				+"(https://www.mayoclinic.org) in the Department of Quantitative Health Sciences."+"</p></center></html>";
+		String message=aboutHtml();
 
 		JEditorPane about=new JEditorPane("text/html", message);
 		about.setEditable(false);
 		about.setBackground(Color.WHITE);
 		content.add(about, BorderLayout.CENTER);
 
-		String citeHtml="<html><p style=\"font-size:10px; font-family: Helvetica, sans-serif\">"+"Please cite the MSRawJava code repository:<br/>"
-				+"<a href=\"https://github.com/searlelab/MSRawJava\">https://github.com/searlelab/MSRawJava</a><br/><br/>"
-				+"Version: "+Version.getVersion()+"<br/>"
-				+"Build date: "+Version.getBuildDate()+"<br/>"
-				+"JVM: "+Version.getJvmName()+" ("+Version.getJvmVersion()+")<br/>"
-				+"Runtime: "+Version.getRuntimeName()+" ("+Version.getRuntimeVersion()+")"
-				+"</p></html>";
+		String citeHtml=citationHtml();
 
 		JEditorPane cite=new JEditorPane("text/html", citeHtml);
 		cite.setEditable(false);
@@ -97,7 +89,7 @@ public final class HowToCiteDialog {
 		JPanel main=new JPanel(new BorderLayout());
 		main.add(content, BorderLayout.CENTER);
 		main.add(buttons, BorderLayout.SOUTH);
-		main.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10), BorderFactory.createTitledBorder("MSRawJava")));
+		main.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10), BorderFactory.createTitledBorder(ProductBranding.PRODUCT_NAME)));
 		main.setBackground(Color.WHITE);
 
 		dialog.getContentPane().add(main, BorderLayout.CENTER);
@@ -105,5 +97,23 @@ public final class HowToCiteDialog {
 		dialog.pack();
 		dialog.setSize(450, 500);
 		dialog.setVisible(true);
+	}
+
+	static String aboutHtml() {
+		return "<html><center><p style=\"font-size:12px; font-family: Helvetica, sans-serif\">"
+				+ProductBranding.PRODUCT_NAME+" is a Searle Lab (searlelab.org) project at the Mayo Clinic "
+				+"(https://www.mayoclinic.org) in the Department of Quantitative Health Sciences. "
+				+ProductBranding.TAGLINE+"</p></center></html>";
+	}
+
+	static String citationHtml() {
+		return "<html><p style=\"font-size:10px; font-family: Helvetica, sans-serif\">"+ProductBranding.PRODUCT_NAME+" is powered by the "
+				+ProductBranding.CORE_NAME+" core library. Please cite the "+ProductBranding.CORE_NAME+" code repository:<br/>"
+				+"<a href=\""+ProductBranding.REPOSITORY_URL+"\">"+ProductBranding.REPOSITORY_URL+"</a><br/><br/>"
+				+"Version: "+Version.getVersion()+"<br/>"
+				+"Build date: "+Version.getBuildDate()+"<br/>"
+				+"JVM: "+Version.getJvmName()+" ("+Version.getJvmVersion()+")<br/>"
+				+"Runtime: "+Version.getRuntimeName()+" ("+Version.getRuntimeVersion()+")"
+				+"</p></html>";
 	}
 }

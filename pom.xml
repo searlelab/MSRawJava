@@ -10,7 +10,7 @@
   <name>msrawjava (parent)</name>
 
   <properties>
-    <revision>26.5.20</revision>
+    <revision>26.5.28</revision>
     <maven.build.timestamp.format>yyyy-MM-dd</maven.build.timestamp.format>
   </properties>
 

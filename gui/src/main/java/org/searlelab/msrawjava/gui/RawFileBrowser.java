@@ -84,7 +84,7 @@ public class RawFileBrowser extends JFrame {
 	private boolean programmaticSelection=false;
 
 	public RawFileBrowser(ProcessingThreadPool pool) {
-		super("Raw File Browser");
+		super(ProductBranding.PRODUCT_NAME);
 		windowMenuController=new WindowMenuController(this);
 
 		treeModel=new DirectoryTreeModel(fsv);

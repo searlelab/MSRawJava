@@ -116,7 +116,7 @@ public final class MenuManager {
 		JMenu help=new JMenu("Help");
 		help.setToolTipText("Help, citation, and educational resources.");
 		JMenuItem cite=new JMenuItem("How to Cite");
-		cite.setToolTipText("Show citation information for MSRawJava.");
+		cite.setToolTipText("Show citation information for "+ProductBranding.PRODUCT_NAME+".");
 		cite.addActionListener(e -> HowToCiteDialog.showDialog(ownerFrame));
 		JMenuItem demos=new JMenuItem("Educational Demos");
 		demos.setToolTipText("Open interactive educational loading-panel demos.");
@@ -166,7 +166,7 @@ public final class MenuManager {
 		window.setText("Window");
 		window.setToolTipText("Switch between the main browser and open raw-file visualization windows.");
 
-		JMenuItem browserItem=new JMenuItem("Bring Raw File Browser to Front");
+		JMenuItem browserItem=new JMenuItem("Bring "+ProductBranding.PRODUCT_NAME+" to Front");
 		browserItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		browserItem.setEnabled(windowMenuModel==null||!windowMenuModel.isBrowserActive());
 		browserItem.addActionListener(e -> {
