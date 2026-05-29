@@ -1,8 +1,11 @@
-# MSForest Manual: Raw File Triage, Visualization, and Conversion
+![MSForest splash image](images/msforest.png)
 
+<br><br><br>
 
-![MSForest splash image](../gui/splash@2x.png)
+# MSForest Manual
+## Raw File Triage, Visualization, and Conversion
 
+<div style="page-break-after: always;"></div>
 
 ## Introduction
 MSForest is a desktop tool for rapid triage of raw files in proteomics. It helps you inspect directories of raw mass spectrometry files before committing to downstream analysis. The goal is to identify errors before database searching and statistical analysis, so you can fix problems or re-run samples before concluding an experiment.
@@ -38,6 +41,8 @@ Supported output types:
 ![MSForest main browser overview](images/main-visualization-layout.png)
 
 **Figure 1. MSForest main browser layout.** The main browser is organized for directory-level triage before conversion. The left panel (a) is the directory browser, the upper table (b) lists raw files detected in the selected directory, the lower panel (c) contains conversion settings, queued tasks, and job details, and the reader status panel (d) reports whether the bundled readers are available.
+
+<div style="page-break-after: always;"></div>
 
 ## Installation
 
@@ -119,6 +124,8 @@ No Linux-specific installer screenshot is included in this manual yet. The Ubunt
 ### First Launch
 
 On first launch, MSForest asks whether the current computer is an instrument computer. Choose **Yes (min processing)** on acquisition computers where conversion should not consume significant CPU resources. Choose **No (max processing)** on analysis workstations where MSForest can use more processing capacity. This can be changed later in **File > Preferences**.
+
+<div style="page-break-after: always;"></div>
 
 ## Main Browser
 
@@ -251,6 +258,8 @@ The main menu provides access to the browser, visualizer, preferences, windows, 
 
 Open **Help > Logging Console** when a conversion or reader problem needs more context than the job details panel shows. The console captures standard output and error messages from the GUI session, including reader startup messages and exceptions that may not fit in a table cell or progress message.
 
+Installed MSForest builds also write install4j launcher logs next to the application launcher. `error.log` captures standard error and is appended across launches, so older startup failures may still be present. `output.log` captures standard output and is rewritten each time MSForest launches. Check both files when MSForest fails before the Logging Console opens.
+
 ![Logging Console dialog](images/main-visualization-console.png)
 
 **Figure 6. Logging Console.** The Logging Console captures diagnostic output from the GUI session. It is most useful when a file has missing metrics, a reader fails to initialize, or a conversion job fails before the job details panel contains enough context.
@@ -272,6 +281,8 @@ The **GUI** tab controls the last directory, look and feel, and saved layout res
 ![Preferences dialog tabs](images/main-visualization-parameters.png)
 
 **Figure 7. MSForest preferences.** Preferences are split into processing controls (a), conversion defaults (b), and GUI layout/appearance settings (c). Processing settings are especially important on instrument computers, where limiting background work can prevent raw-file inspection or conversion from competing with acquisition software.
+
+<div style="page-break-after: always;"></div>
 
 ## File Conversion in the GUI
 
@@ -345,6 +356,8 @@ Select a queue row to inspect:
 - Conversion messages.
 
 Use **Help > Logging Console** when the application needs broader diagnostic context beyond a single job.
+
+<div style="page-break-after: always;"></div>
 
 ## Raw File Visualizer
 
@@ -516,9 +529,11 @@ When the Structure or Global tabs reveal a method-design problem, the Settings t
 
 When opening an older EncyclopeDIA `.dia` file, MSForest may ask whether to upgrade the file schema. Accepting the prompt updates the file so missing schema fields are available to the visualizer. If you need to preserve the original file byte-for-byte, make a copy before opening and upgrading it.
 
+<div style="page-break-after: always;"></div>
+
 ## MSRawJava CLI Interface
 
-![MSRawJava logo](../core/msrawjava.png)
+![MSRawJava logo](images/msrawjava.png)
 
 The MSRawJava CLI is intended for conversion workflows, scripted processing, and batch jobs. Use the GUI when you are still asking whether the data look trustworthy. Use the CLI when the decision has already been made and you need repeatable conversion.
 
@@ -695,6 +710,8 @@ java -jar MSRawJava.jar --no-ansi -f dia /data/raw
 --no-ansi                 Disable ANSI output
 ```
 
+<div style="page-break-after: always;"></div>
+
 ## MSRawJava Library and Building from Source
 
 This chapter is for developers. It is intentionally brief because the main user workflow is MSForest-first triage followed by GUI or CLI conversion. Use the library when you need to ask the same questions programmatically: discover raw files, read metadata and scan summaries, extract spectra, inspect TIC traces, or convert files inside another Java application.
@@ -815,11 +832,15 @@ mvn -pl core -am -Dskip.build.natives=true -Dtest=MainCliArgumentsTest test
 mvn -pl gui -am -Dskip.build.natives=true -Dtest=SomeGuiTest test
 ```
 
+<div style="page-break-after: always;"></div>
+
 ## Scope and Alternatives
 
 MSForest and MSRawJava are intentionally focused. They support a practical set of Thermo, Bruker timsTOF, EncyclopeDIA `.dia`, and `mzML` workflows rather than trying to cover every vendor format and conversion option.
 
 Use MSForest when you need quick visual triage, acquisition-structure inspection, XIC extraction, or a native desktop workflow across macOS, Windows, and Linux. Use the MSRawJava CLI when you need focused, scriptable conversion for supported formats. Use ProteoWizard when you need unsupported vendor formats, non-vendor peak picking, conversion options outside MSRawJava's scope, or the broadest possible file-format compatibility.
+
+<div style="page-break-after: always;"></div>
 
 ## Troubleshooting
 
@@ -879,6 +900,7 @@ Then run it from a terminal so any error message is visible:
 MSForest starts the Thermo reader server automatically. If Thermo files fail to open:
 
 - Open **Help > Logging Console** and look for server startup or port messages.
+- If the GUI did not start cleanly, check the install4j `error.log` and `output.log` files next to the application launcher.
 - Restart MSForest to clear a stale server process.
 - Try a local file path instead of a network-mounted path.
 - Confirm that security software is not blocking the bundled local server executable.
@@ -907,6 +929,8 @@ Demultiplexing is disabled for Bruker `.d` files. It is available for supported 
 ### Older DIA Schema Upgrade
 
 When opening an old `.dia` file, MSForest may offer to upgrade the schema. If preserving the original file is important, make a copy before accepting the upgrade.
+
+<div style="page-break-after: always;"></div>
 
 ## Licenses
 

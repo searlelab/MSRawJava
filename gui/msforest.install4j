@@ -16,6 +16,7 @@
       <dirEntry mountPoint="34" file="../licenses" entryMode="subdir" subDirectory="licenses" />
       <fileEntry mountPoint="34" file="./target/msforest-${compiler:project.version}.jar" />
       <fileEntry mountPoint="34" file="./eula.txt" />
+      <fileEntry mountPoint="34" file="./MANUAL.pdf" />
       <fileEntry mountPoint="34" file="../THIRD-PARTY-NOTICES.txt" />
     </entries>
   </files>

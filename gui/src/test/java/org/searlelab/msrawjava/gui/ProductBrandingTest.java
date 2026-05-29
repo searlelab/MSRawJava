@@ -3,6 +3,8 @@ package org.searlelab.msrawjava.gui;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
+
 import javax.swing.Icon;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -21,12 +23,30 @@ class ProductBrandingTest {
 	@Test
 	void menuUsesMsForestForVisibleGuiBranding() {
 		JMenuBar bar=MenuManager.createMenuBar(null, null, WindowMenuModel.create(true, -1, java.util.List.of()), null);
-		JMenuItem cite=bar.getMenu(3).getItem(0);
+		JMenuItem manual=bar.getMenu(3).getItem(0);
+		JMenuItem cite=bar.getMenu(3).getItem(1);
 		JMenuItem browser=bar.getMenu(2).getItem(0);
 
+		assertEquals("Open Manual", manual.getText());
+		assertTrue(manual.getToolTipText().contains("MSForest"));
 		assertEquals("How to Cite", cite.getText());
 		assertTrue(cite.getToolTipText().contains("MSForest"));
 		assertEquals("Bring MSForest to Front", browser.getText());
+	}
+
+	@Test
+	void manualFile_canBeOverriddenForInstalledManualLookup() {
+		String old=System.getProperty("msforest.manual.path");
+		try {
+			System.setProperty("msforest.manual.path", "/tmp/MSForest-manual.pdf");
+			assertEquals(new File("/tmp/MSForest-manual.pdf"), MenuManager.manualFile());
+		} finally {
+			if (old==null) {
+				System.clearProperty("msforest.manual.path");
+			} else {
+				System.setProperty("msforest.manual.path", old);
+			}
+		}
 	}
 
 	@Test

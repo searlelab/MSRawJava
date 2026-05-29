@@ -7,6 +7,11 @@ import java.awt.Window;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.CodeSource;
 import java.util.List;
 
 import javax.swing.JDialog;
@@ -15,6 +20,7 @@ import javax.swing.JFrame;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.KeyStroke;
 import javax.swing.filechooser.FileFilter;
 
@@ -27,6 +33,8 @@ import org.searlelab.msrawjava.logging.Logger;
  * Builds and wires application menu actions.
  */
 public final class MenuManager {
+	private static final String MANUAL_FILE_NAME="MANUAL.pdf";
+
 	private MenuManager() {
 	}
 
@@ -115,6 +123,9 @@ public final class MenuManager {
 
 		JMenu help=new JMenu("Help");
 		help.setToolTipText("Help, citation, and educational resources.");
+		JMenuItem manual=new JMenuItem("Open Manual");
+		manual.setToolTipText("Open the installed "+ProductBranding.PRODUCT_NAME+" manual.");
+		manual.addActionListener(e -> openManual(ownerFrame));
 		JMenuItem cite=new JMenuItem("How to Cite");
 		cite.setToolTipText("Show citation information for "+ProductBranding.PRODUCT_NAME+".");
 		cite.addActionListener(e -> HowToCiteDialog.showDialog(ownerFrame));
@@ -126,6 +137,7 @@ public final class MenuManager {
 		console.setToolTipText("Show captured standard output and error messages.");
 		console.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		console.addActionListener(e -> LoggingConsoleDialog.showDialog(ownerFrame));
+		help.add(manual);
 		help.add(cite);
 		help.add(demos);
 		help.add(console);
@@ -256,6 +268,62 @@ public final class MenuManager {
 		if (VendorFile.ENCYCLOPEDIA.matchesPath(selected.toPath())) return selected;
 		if (VendorFile.MZML.matchesPath(selected.toPath())) return selected;
 		return null;
+	}
+
+	static File manualFile() {
+		String override=System.getProperty("msforest.manual.path");
+		if (override!=null&&!override.isBlank()) return new File(override);
+
+		File workingDirectoryManual=new File(MANUAL_FILE_NAME);
+		if (workingDirectoryManual.isFile()) return workingDirectoryManual;
+
+		Path appDirectory=applicationDirectory();
+		if (appDirectory!=null) {
+			Path installedManual=appDirectory.resolve(MANUAL_FILE_NAME);
+			if (Files.isRegularFile(installedManual)) return installedManual.toFile();
+
+			Path developmentManual=appDirectory.resolve("../..").normalize().resolve(MANUAL_FILE_NAME);
+			if (Files.isRegularFile(developmentManual)) return developmentManual.toFile();
+		}
+
+		return appDirectory!=null?appDirectory.resolve(MANUAL_FILE_NAME).toFile():workingDirectoryManual;
+	}
+
+	private static Path applicationDirectory() {
+		CodeSource codeSource=MenuManager.class.getProtectionDomain().getCodeSource();
+		if (codeSource==null) return null;
+		URL location=codeSource.getLocation();
+		if (location==null) return null;
+		try {
+			Path path=Path.of(location.toURI());
+			return Files.isDirectory(path)?path:path.getParent();
+		} catch (IllegalArgumentException|URISyntaxException e) {
+			Logger.errorException(e);
+			return null;
+		}
+	}
+
+	private static void openManual(Frame ownerFrame) {
+		File manual=manualFile();
+		if (!manual.isFile()) {
+			showManualError(ownerFrame, "Manual not found:\n"+manual.getAbsolutePath());
+			return;
+		}
+		if (!Desktop.isDesktopSupported()||!Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+			showManualError(ownerFrame, "This system does not support opening the manual automatically.");
+			return;
+		}
+		try {
+			Desktop.getDesktop().open(manual);
+		} catch (Exception e) {
+			Logger.errorException(e);
+			showManualError(ownerFrame, "Could not open the manual:\n"+manual.getAbsolutePath());
+		}
+	}
+
+	private static void showManualError(Frame ownerFrame, String message) {
+		Logger.errorLine(message);
+		JOptionPane.showMessageDialog(ownerFrame, message, ProductBranding.PRODUCT_NAME+" Manual", JOptionPane.ERROR_MESSAGE);
 	}
 
 	private static void installAboutHandler(RawFileBrowser browser) {
