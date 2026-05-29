@@ -26,6 +26,7 @@ import java.text.AttributedString;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.function.Supplier;
 
 import javax.swing.JComponent;
 import javax.swing.JMenuItem;
@@ -44,8 +45,6 @@ import org.jfree.chart.ui.TextAnchor;
 import org.jfree.data.RangeType;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
-import org.jfree.graphics2d.svg.SVGGraphics2D;
-import org.jfree.graphics2d.svg.SVGUtils;
 import com.lowagie.text.Document;
 import com.lowagie.text.FontFactory;
 import com.lowagie.text.Rectangle;
@@ -126,35 +125,18 @@ public class BasicChartGenerator {
 			count++;
 		}
 
-		Color chartBackground=getChartBackground();
-		Color chartForeground=getChartForeground();
-		plot.setBackgroundPaint(chartBackground);
-		plot.setDomainGridlinePaint(chartBackground);
-		plot.setDomainGridlinesVisible(false);
-		plot.setRangeGridlinePaint(chartBackground);
-		plot.setRangeGridlinesVisible(false);
+		applyCommonPlotStyle(plot);
 		JFreeChart chart=new JFreeChart(plot);
-		chart.setBackgroundPaint(chartBackground);
-		chart.setPadding(new RectangleInsets(10, 10, 10, 10));
+		applyCommonChartStyle(chart);
 
 		NumberAxis rangeAxis=(NumberAxis)((XYPlot)plot).getRangeAxis();
 		if (rangeAxis!=null) {
-			rangeAxis.setLabelFont(font2);
-			rangeAxis.setTickLabelFont(font);
-			rangeAxis.setLabelPaint(chartForeground);
-			rangeAxis.setTickLabelPaint(chartForeground);
-			rangeAxis.setAxisLinePaint(chartForeground);
-			rangeAxis.setTickMarkPaint(chartForeground);
+			applyCommonAxisStyle(rangeAxis, font2, font);
 		}
 
 		NumberAxis domainAxis=(NumberAxis)((XYPlot)plot).getDomainAxis();
 		if (domainAxis!=null) {
-			domainAxis.setLabelFont(font2);
-			domainAxis.setTickLabelFont(font);
-			domainAxis.setLabelPaint(chartForeground);
-			domainAxis.setTickLabelPaint(chartForeground);
-			domainAxis.setAxisLinePaint(chartForeground);
-			domainAxis.setTickMarkPaint(chartForeground);
+			applyCommonAxisStyle(domainAxis, font2, font);
 		}
 
 		String name;
@@ -186,12 +168,9 @@ public class BasicChartGenerator {
 				chartPanel.enableLegendDrawer();
 				break;
 		}
-		addSaveMenu(xAxis, chartPanel, traces);
+		installChartActions(xAxis, chartPanel, traces);
 
-		chartPanel.setMinimumDrawWidth(0);
-		chartPanel.setMinimumDrawHeight(0);
-		chartPanel.setMaximumDrawWidth(Integer.MAX_VALUE);
-		chartPanel.setMaximumDrawHeight(Integer.MAX_VALUE);
+		configureChartPanel(chartPanel);
 
 		boolean isSpectrum=false;
 		for (XYTraceInterface trace : traces) {
@@ -466,7 +445,7 @@ public class BasicChartGenerator {
 		return traceData;
 	}
 
-	private static Color getChartBackground() {
+	public static Color getChartBackground() {
 		Color bg=UIManager.getColor("Panel.background");
 		if (bg!=null&&isDarkBackground(bg)) {
 			return bg;
@@ -474,7 +453,7 @@ public class BasicChartGenerator {
 		return Color.WHITE;
 	}
 
-	private static Color getChartForeground() {
+	public static Color getChartForeground() {
 		Color bg=getChartBackground();
 		double brightness=0.2126*bg.getRed()+0.7152*bg.getGreen()+0.0722*bg.getBlue();
 		return (brightness<128.0)?Color.LIGHT_GRAY:Color.BLACK;
@@ -491,7 +470,42 @@ public class BasicChartGenerator {
 		return new Color(fg.getRed()/255.0f, fg.getGreen()/255.0f, fg.getBlue()/255.0f, alpha);
 	}
 
-	private static void addSaveMenu(final String xAxis, final ExtendedChartPanel chartPanel, final XYTraceInterface... traces) {
+	public static void applyCommonChartStyle(JFreeChart chart) {
+		chart.setBackgroundPaint(getChartBackground());
+		chart.setPadding(new RectangleInsets(10, 10, 10, 10));
+	}
+
+	public static void applyCommonPlotStyle(XYPlot plot) {
+		Color chartBackground=getChartBackground();
+		plot.setBackgroundPaint(chartBackground);
+		plot.setDomainGridlinePaint(chartBackground);
+		plot.setDomainGridlinesVisible(false);
+		plot.setRangeGridlinePaint(chartBackground);
+		plot.setRangeGridlinesVisible(false);
+	}
+
+	public static void applyCommonAxisStyle(NumberAxis axis, Font labelFont, Font tickFont) {
+		Color chartForeground=getChartForeground();
+		axis.setLabelFont(labelFont);
+		axis.setTickLabelFont(tickFont);
+		axis.setLabelPaint(chartForeground);
+		axis.setTickLabelPaint(chartForeground);
+		axis.setAxisLinePaint(chartForeground);
+		axis.setTickMarkPaint(chartForeground);
+	}
+
+	public static void configureChartPanel(ExtendedChartPanel panel) {
+		panel.setMinimumDrawWidth(0);
+		panel.setMinimumDrawHeight(0);
+		panel.setMaximumDrawWidth(Integer.MAX_VALUE);
+		panel.setMaximumDrawHeight(Integer.MAX_VALUE);
+	}
+
+	public static void installChartActions(final String xAxis, final ExtendedChartPanel chartPanel, final XYTraceInterface... traces) {
+		installChartActions(chartPanel, () -> buildTraceDataTable(xAxis, traces));
+	}
+
+	public static void installChartActions(final ExtendedChartPanel chartPanel, final Supplier<String> dataSupplier) {
 		JMenuItem savePDF=new JMenuItem("Save as PDF");
 		savePDF.setToolTipText("Export this chart to a PDF file.");
 		chartPanel.getPopupMenu().add(savePDF, 0);
@@ -519,36 +533,9 @@ public class BasicChartGenerator {
 			}
 		});
 
-		JMenuItem saveSVG=new JMenuItem("Save as SVG");
-		saveSVG.setToolTipText("Export this chart to an SVG file.");
-		chartPanel.getPopupMenu().add(saveSVG, 1);
-		saveSVG.addActionListener(new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				FileDialog dialog=new FileDialog((Frame)null, "Save SVG File", FileDialog.SAVE);
-				dialog.setFile(chartPanel.getName()+".svg");
-
-				FilenameFilter svgFilter=(dir, name) -> name.toLowerCase().endsWith(".svg");
-				dialog.setFilenameFilter(svgFilter);
-
-				dialog.setVisible(true);
-				File[] fs=dialog.getFiles();
-
-				if (fs.length>0) {
-					File saveFile=fs[0];
-					if (!saveFile.getName().toLowerCase().endsWith(".svg")) {
-						saveFile=new File(saveFile.getParentFile(), saveFile.getName()+".svg");
-					}
-					Logger.logLine("Writing SVG: "+saveFile.getAbsolutePath());
-					writeAsSVG(chartPanel, saveFile, chartPanel.getSize());
-					Logger.logLine("Finished writing SVG.");
-				}
-			}
-		});
-
 		JMenuItem copyImage=new JMenuItem("Copy as image");
 		copyImage.setToolTipText("Copy this chart as an image to the clipboard.");
-		chartPanel.getPopupMenu().add(copyImage, 2);
+		chartPanel.getPopupMenu().add(copyImage, 1);
 		copyImage.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -567,73 +554,47 @@ public class BasicChartGenerator {
 
 		JMenuItem copyItem=new JMenuItem("Copy data values");
 		copyItem.setToolTipText("Copy plotted data values to the clipboard as tab-delimited text.");
-		chartPanel.getPopupMenu().add(copyItem, 3);
+		chartPanel.getPopupMenu().add(copyItem, 2);
 		copyItem.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				StringBuilder header=new StringBuilder("Row");
-				int length=0;
-				for (XYTraceInterface trace : traces) {
-					if (trace.size()>length) length=trace.size();
-				}
-				StringBuilder[] rows=new StringBuilder[length];
-				for (int i=0; i<rows.length; i++) {
-					rows[i]=new StringBuilder(Integer.toString(i+1));
-				}
-
-				for (XYTraceInterface trace : traces) {
-					header.append("\t"+xAxis+"\t"+trace.getName());
-
-					Pair<double[], double[]> pairs=trace.toArrays();
-					for (int i=0; i<rows.length; i++) {
-						if (pairs.x.length>i) {
-							rows[i].append("\t"+pairs.x[i]+"\t"+pairs.y[i]);
-						} else {
-							rows[i].append("\t\t");
-						}
-					}
-				}
-				StringBuilder sb=new StringBuilder(header.toString());
-				sb.append("\n");
-				for (int i=0; i<rows.length; i++) {
-					sb.append(rows[i]);
-					sb.append("\n");
-				}
-				StringSelection stringSelection=new StringSelection(sb.toString());
+				StringSelection stringSelection=new StringSelection(dataSupplier.get());
 				Clipboard clipboard=Toolkit.getDefaultToolkit().getSystemClipboard();
 				clipboard.setContents(stringSelection, null);
 			}
 		});
 	}
 
-	public static void writeAsSVG(JComponent panel, File f, Dimension d) {
-		try {
-			SVGGraphics2D g2=new SVGGraphics2D(d.width, d.height);
-			Color bg=panel.getBackground()!=null?panel.getBackground():Color.WHITE;
-			g2.setColor(bg);
-			g2.fillRect(0, 0, d.width, d.height);
+	private static String buildTraceDataTable(final String xAxis, final XYTraceInterface... traces) {
+		StringBuilder header=new StringBuilder("Row");
+		int length=0;
+		for (XYTraceInterface trace : traces) {
+			if (trace.size()>length) length=trace.size();
+		}
+		StringBuilder[] rows=new StringBuilder[length];
+		for (int i=0; i<rows.length; i++) {
+			rows[i]=new StringBuilder(Integer.toString(i+1));
+		}
 
-			if (panel instanceof ExtendedChartPanel&&((ExtendedChartPanel)panel).getChart()!=null) {
-				ExtendedChartPanel chartPanel=(ExtendedChartPanel)panel;
-				chartPanel.getChart().draw(g2, new Rectangle2D.Double(0, 0, d.width, d.height));
-			} else {
-				RepaintManager rm=RepaintManager.currentManager(panel);
-				boolean oldDB=rm.isDoubleBufferingEnabled();
-				Dimension oldSize=panel.getSize();
-				try {
-					rm.setDoubleBufferingEnabled(false);
-					panel.doLayout();
-					panel.printAll(g2);
-				} finally {
-					panel.setSize(oldSize);
-					rm.setDoubleBufferingEnabled(oldDB);
+		for (XYTraceInterface trace : traces) {
+			header.append("\t"+xAxis+"\t"+trace.getName());
+
+			Pair<double[], double[]> pairs=trace.toArrays();
+			for (int i=0; i<rows.length; i++) {
+				if (pairs.x.length>i) {
+					rows[i].append("\t"+pairs.x[i]+"\t"+pairs.y[i]);
+				} else {
+					rows[i].append("\t\t");
 				}
 			}
-
-			SVGUtils.writeToSVG(f, g2.getSVGElement());
-		} catch (Exception e) {
-			Logger.errorException(e);
 		}
+		StringBuilder sb=new StringBuilder(header.toString());
+		sb.append("\n");
+		for (int i=0; i<rows.length; i++) {
+			sb.append(rows[i]);
+			sb.append("\n");
+		}
+		return sb.toString();
 	}
 
 	private static final double dpi=72.0;

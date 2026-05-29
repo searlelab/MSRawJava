@@ -5,15 +5,13 @@ import java.awt.Font;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
 import java.util.List;
-
-import javax.swing.UIManager;
+import java.util.function.Supplier;
 
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.annotations.XYShapeAnnotation;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
-import org.jfree.chart.ui.RectangleInsets;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
@@ -27,6 +25,11 @@ public final class VisualizationCharts {
 
 	public static ExtendedChartPanel getShapeChart(String title, String xAxisLabel, String yAxisLabel, List<XYShapeAnnotation> shapes, List<Point2D> points,
 			boolean requireIncludesZero) {
+		return getShapeChart(title, xAxisLabel, yAxisLabel, shapes, points, requireIncludesZero, () -> buildPointDataTable(xAxisLabel, yAxisLabel, points));
+	}
+
+	public static ExtendedChartPanel getShapeChart(String title, String xAxisLabel, String yAxisLabel, List<XYShapeAnnotation> shapes, List<Point2D> points,
+			boolean requireIncludesZero, Supplier<String> dataSupplier) {
 		XYSeriesCollection dataset=new XYSeriesCollection();
 		XYSeries series=new XYSeries("Shapes");
 		if (points!=null) {
@@ -56,51 +59,36 @@ public final class VisualizationCharts {
 		XYPlot plot=new XYPlot(dataset, xAxis, yAxis, renderer);
 
 		Font axisFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
-		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 10);
+		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
 
-		Color axisPaint=getChartForeground();
-		xAxis.setLabelFont(axisFont);
-		xAxis.setTickLabelFont(tickFont);
-		xAxis.setLabelPaint(axisPaint);
-		xAxis.setTickLabelPaint(axisPaint);
-		xAxis.setAxisLinePaint(axisPaint);
-		xAxis.setTickMarkPaint(axisPaint);
-		yAxis.setLabelFont(axisFont);
-		yAxis.setTickLabelFont(tickFont);
-		yAxis.setLabelPaint(axisPaint);
-		yAxis.setTickLabelPaint(axisPaint);
-		yAxis.setAxisLinePaint(axisPaint);
-		yAxis.setTickMarkPaint(axisPaint);
-
-		Color chartBackground=getChartBackground();
-		plot.setBackgroundPaint(chartBackground);
-		plot.setDomainGridlinePaint(chartBackground);
-		plot.setDomainGridlinesVisible(false);
-		plot.setRangeGridlinePaint(chartBackground);
-		plot.setRangeGridlinesVisible(false);
+		BasicChartGenerator.applyCommonAxisStyle(xAxis, axisFont, tickFont);
+		BasicChartGenerator.applyCommonAxisStyle(yAxis, axisFont, tickFont);
+		BasicChartGenerator.applyCommonPlotStyle(plot);
 
 		JFreeChart chart=new JFreeChart(title, axisFont, plot, true);
-		chart.setBackgroundPaint(chartBackground);
-		chart.setPadding(new RectangleInsets(10, 10, 10, 10));
+		BasicChartGenerator.applyCommonChartStyle(chart);
 		if (chart.getLegend()!=null) chart.removeLegend();
 
 		String name=(title==null||title.isBlank())?"shape":title;
 		ExtendedChartPanel panel=new ExtendedChartPanel(chart, name, false, 1f);
-		panel.setMinimumDrawWidth(0);
-		panel.setMinimumDrawHeight(0);
-		panel.setMaximumDrawWidth(Integer.MAX_VALUE);
-		panel.setMaximumDrawHeight(Integer.MAX_VALUE);
+		BasicChartGenerator.installChartActions(panel, dataSupplier);
+		BasicChartGenerator.configureChartPanel(panel);
 		return panel;
 	}
 
-	private static Color getChartBackground() {
-		Color bg=UIManager.getColor("Panel.background");
-		return (bg!=null)?bg:Color.WHITE;
-	}
-
-	private static Color getChartForeground() {
-		Color bg=getChartBackground();
-		double brightness=0.2126*bg.getRed()+0.7152*bg.getGreen()+0.0722*bg.getBlue();
-		return (brightness<128.0)?Color.LIGHT_GRAY:Color.BLACK;
+	private static String buildPointDataTable(String xAxisLabel, String yAxisLabel, List<Point2D> points) {
+		StringBuilder sb=new StringBuilder(xAxisLabel);
+		sb.append("\t");
+		sb.append(yAxisLabel);
+		sb.append("\n");
+		if (points!=null) {
+			for (Point2D point : points) {
+				sb.append(point.getX());
+				sb.append("\t");
+				sb.append(point.getY());
+				sb.append("\n");
+			}
+		}
+		return sb.toString();
 	}
 }

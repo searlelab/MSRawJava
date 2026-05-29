@@ -7,15 +7,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import javax.swing.UIManager;
-
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.CategoryAxis;
 import org.jfree.chart.axis.CategoryLabelPositions;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
-import org.jfree.chart.ui.RectangleInsets;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.statistics.DefaultBoxAndWhiskerCategoryDataset;
 
@@ -82,16 +79,16 @@ public class BoxPlotGenerator {
 		CategoryPlot plot=new CategoryPlot(dataset, xAxis, yAxis, renderer);
 
 		Font axisFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
-		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 10);
+		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
 
-		Color chartBackground=getChartBackground();
+		Color chartBackground=BasicChartGenerator.getChartBackground();
 		plot.setBackgroundPaint(chartBackground);
 		plot.setDomainGridlinePaint(chartBackground);
 		plot.setDomainGridlinesVisible(false);
 		plot.setRangeGridlinePaint(chartBackground);
 		plot.setRangeGridlinesVisible(false);
 
-		Color axisPaint=getChartForeground();
+		Color axisPaint=BasicChartGenerator.getChartForeground();
 		xAxis.setLabelFont(axisFont);
 		xAxis.setTickLabelFont(tickFont);
 		xAxis.setLabelPaint(axisPaint);
@@ -110,16 +107,13 @@ public class BoxPlotGenerator {
 		yAxis.setTickMarkPaint(axisPaint);
 
 		JFreeChart chart=new JFreeChart(title, axisFont, plot, true);
-		chart.setBackgroundPaint(chartBackground);
-		chart.setPadding(new RectangleInsets(10, 10, 10, 10));
+		BasicChartGenerator.applyCommonChartStyle(chart);
 		if (chart.getLegend()!=null) chart.removeLegend();
 
 		String name=(title==null||title.isBlank())?"boxplot":title;
 		ExtendedChartPanel panel=new ExtendedChartPanel(chart, name, false, 1f);
-		panel.setMinimumDrawWidth(0);
-		panel.setMinimumDrawHeight(0);
-		panel.setMaximumDrawWidth(Integer.MAX_VALUE);
-		panel.setMaximumDrawHeight(Integer.MAX_VALUE);
+		BasicChartGenerator.installChartActions(panel, () -> buildBoxplotDataTable(xAxisLabel, yAxisLabel, map));
+		BasicChartGenerator.configureChartPanel(panel);
 		return panel;
 	}
 
@@ -129,8 +123,14 @@ public class BoxPlotGenerator {
 		CategoryPlot plot=new CategoryPlot(dataset, xAxis, yAxis, null);
 
 		Font axisFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
-		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 10);
-		Color axisPaint=getChartForeground();
+		Font tickFont=new Font(BasicChartGenerator.BASE_FONT_NAME, Font.PLAIN, 14);
+		Color chartBackground=BasicChartGenerator.getChartBackground();
+		plot.setBackgroundPaint(chartBackground);
+		plot.setDomainGridlinePaint(chartBackground);
+		plot.setDomainGridlinesVisible(false);
+		plot.setRangeGridlinePaint(chartBackground);
+		plot.setRangeGridlinesVisible(false);
+		Color axisPaint=BasicChartGenerator.getChartForeground();
 		xAxis.setLabelFont(axisFont);
 		xAxis.setTickLabelFont(tickFont);
 		xAxis.setLabelPaint(axisPaint);
@@ -145,20 +145,42 @@ public class BoxPlotGenerator {
 		yAxis.setTickMarkPaint(axisPaint);
 
 		JFreeChart chart=new JFreeChart(title, axisFont, plot, false);
-		chart.setBackgroundPaint(getChartBackground());
+		BasicChartGenerator.applyCommonChartStyle(chart);
 		String name=(title==null||title.isBlank())?"empty":title;
 		ExtendedChartPanel panel=new ExtendedChartPanel(chart, name, false, 1f);
+		BasicChartGenerator.installChartActions(panel, () -> buildBoxplotDataTable(xAxisLabel, yAxisLabel, Map.of()));
+		BasicChartGenerator.configureChartPanel(panel);
 		return panel;
 	}
 
-	private static Color getChartBackground() {
-		Color bg=UIManager.getColor("Panel.background");
-		return (bg!=null)?bg:Color.WHITE;
-	}
-
-	private static Color getChartForeground() {
-		Color bg=getChartBackground();
-		double brightness=0.2126*bg.getRed()+0.7152*bg.getGreen()+0.0722*bg.getBlue();
-		return (brightness<128.0)?Color.LIGHT_GRAY:Color.BLACK;
+	private static String buildBoxplotDataTable(String xAxisLabel, String yAxisLabel, Map<Comparable<?>, TFloatArrayList> map) {
+		StringBuilder sb=new StringBuilder(xAxisLabel);
+		sb.append("\t");
+		sb.append(yAxisLabel);
+		sb.append("\n");
+		if (map==null||map.isEmpty()) return sb.toString();
+		ArrayList<Comparable<?>> keys=new ArrayList<>(map.keySet());
+		keys.sort((a, b) -> {
+			if (a==null&&b==null) return 0;
+			if (a==null) return -1;
+			if (b==null) return 1;
+			@SuppressWarnings("unchecked")
+			Comparable<Object> left=(Comparable<Object>)a;
+			return left.compareTo(b);
+		});
+		for (Comparable<?> key : keys) {
+			TFloatArrayList values=map.get(key);
+			if (values==null) continue;
+			float[] arr=values.toArray();
+			for (float value : arr) {
+				if (Float.isFinite(value)&&value>0f) {
+					sb.append(key);
+					sb.append("\t");
+					sb.append(value);
+					sb.append("\n");
+				}
+			}
+		}
+		return sb.toString();
 	}
 }

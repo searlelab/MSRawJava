@@ -171,6 +171,35 @@ public final class StructureChartBuilder {
 		bounds.add(new Point2D.Double(minMz, maxRT));
 		bounds.add(new Point2D.Double(minMz, floorRt));
 
-		return VisualizationCharts.getShapeChart(null, "m/z", "Retention Time (min)", shapes, bounds, false);
+		return VisualizationCharts.getShapeChart(null, "m/z", "Retention Time (min)", shapes, bounds, false, () -> buildGlobalStructureDataTable(sorted));
+	}
+
+	private static String buildGlobalStructureDataTable(Map<Range, WindowData> ranges) {
+		StringBuilder sb=new StringBuilder("m/z start\tm/z stop\tretention time start (min)\tretention time stop (min)\taverage duty cycle (sec)\tMS/MS scans\n");
+		if (ranges==null||ranges.isEmpty()) return sb.toString();
+		for (Map.Entry<Range, WindowData> entry : ranges.entrySet()) {
+			Range range=entry.getKey();
+			WindowData data=entry.getValue();
+			double rtStartMin=0.0;
+			double rtStopMin=Math.max(0.0, data.getAverageDutyCycle()*data.getNumberOfMSMS()/60.0);
+			if (data.getRtRange().isPresent()) {
+				Range rtRange=data.getRtRange().get();
+				rtStartMin=Math.max(0.0, Math.min(rtRange.getStart(), rtRange.getStop())/60.0);
+				rtStopMin=Math.max(0.0, Math.max(rtRange.getStart(), rtRange.getStop())/60.0);
+			}
+			sb.append(range.getStart());
+			sb.append("\t");
+			sb.append(range.getStop());
+			sb.append("\t");
+			sb.append(rtStartMin);
+			sb.append("\t");
+			sb.append(rtStopMin);
+			sb.append("\t");
+			sb.append(data.getAverageDutyCycle());
+			sb.append("\t");
+			sb.append(data.getNumberOfMSMS());
+			sb.append("\n");
+		}
+		return sb.toString();
 	}
 }

@@ -1,25 +1,26 @@
-# MSForest and MSRawJava
+# MSForest Manual: Raw File Triage, Visualization, and Conversion
+
+
+![MSForest splash image](../gui/splash@2x.png)
+
 
 ## Introduction
+MSForest is a desktop tool for rapid triage of raw files in proteomics. It helps you inspect directories of raw mass spectrometry files before committing to downstream analysis. The goal is to identify errors before database searching and statistical analysis, so you can fix problems or re-run samples before concluding an experiment.
 
-MSForest and MSRawJava are tools for reading, converting, and inspecting mass spectrometry raw files from Thermo and Bruker timsTOF instruments on macOS, Windows, and Linux. MSForest is the graphical application. MSRawJava is the command-line tool and Java library underneath it.
+At each stage, MSForest is designed to help you see the forest through the trees. Instead of opening one spectrum at a time, MSForest first shows the batch: which files were written correctly, which injections produced a chromatographic signal, which runs look unlike their neighbors, and which files need closer inspection. When the batch view raises a question, the individual raw file visualizer is designed to show you the complete structure first, rather than the acquired spectra first. It gives you tools to drill into the file with TIC views, targeted XICs, acquisition structure, ion injection time summaries, and method metadata.
 
-The project is built around a practical problem in everyday proteomics: raw files are usually inspected only after conversion or downstream analysis, even though many acquisition problems are visible immediately in the raw data. MSForest is designed for acquisition triage. It shows whole directories of files, highlights run-level trends such as total ion current, exposes acquisition structure and isolation windows, and lets users extract chromatograms without setting up a larger analysis project.
-
-MSRawJava is intentionally smaller than ProteoWizard. It supports a focused set of inputs and outputs rather than trying to cover every vendor format and conversion option. In exchange, it provides a straightforward cross-platform path for common Thermo and Bruker workflows, inline staggered-window demultiplexing for supported data, deterministic outputs, and a single vendor-neutral Java model shared by the GUI, CLI, and library interfaces.
-
-This manual is written for MSForest/MSRawJava version `v26.5.28`. Project versions are date-based and are updated from the build date, so a later release may have a different version number while keeping the same general workflow.
+MSForest is built on MSRawJava, a lightweight Java library and command-line interface for supported Thermo, Bruker timsTOF, EncyclopeDIA `.dia`, and `mzML` workflows. Most users interact with MSForest, but the MSRawJava CLI and library are covered later for scripted conversion and developer integration. This manual is written for MSForest/MSRawJava version `v26.5.28`. Project versions are date-based and are updated from the build date, so a later release may have a different version number while keeping the same general workflow.
 
 The guide is organized around questions an analyst can ask immediately after or during acquisition. The most important habit is to start broad and only then drill down:
 
-- **Did every file finish writing correctly?** A missing or failed sparkline often points to truncation, save errors, unsupported files, or files that cannot be parsed.
+- **Did every file finish writing correctly?** A missing or failed sparkline can flag truncation, save errors, unsupported files, or files that cannot be parsed.
 - **Did material actually enter the instrument?** An empty or extremely low TIC trace can indicate no sample in the vial, a depleted sample, injection failure, or a blocked flow path.
-- **Did the spray stay stable across the gradient?** Abrupt gaps or flat sections in TIC traces point toward spray dropout, LC interruptions, or acquisition pauses.
-- **Do replicates look like replicates?** Neighboring injections from the same method and sample class should show similar rough sparkline shapes, even if absolute intensity differs.
-- **Are contaminants dominating the run?** PEGs, polysiloxanes, plasticizers such as PGG-like series, detergents, and other background ions often show strong late-gradient features or repeated mass-series patterns.
+- **Does one sample look unlike its neighbors?** Related injections should show similar rough TIC shapes. A single outlier can flag sample handling, matrix, or preparation problems that deserve follow-up.
+- **Did the spray stay stable across the gradient?** Use the raw file visualizer's TIC or Global view to localize dropouts, flat regions, LC interruptions, or acquisition pauses.
+- **Are contaminants present?** Use targeted XICs in the single-file visualizer to test PEGs, polysiloxanes, detergents, and contaminant peptides from proteins like keratins or trypsin.
 - **Did the method match the intended design?** The Structure, Global, Range Statistics, and Settings views help answer whether isolation windows, AGC/IIT settings, and Thermo instrument methods are what you expected.
 
-The feature descriptions below are written in that order: first directory-level triage, then targeted visualization, then conversion and automation.
+The feature descriptions below follow that workflow: install MSForest, screen a directory, investigate suspicious files, convert files after triage, and use MSRawJava directly only when you need scripted conversion or developer access.
 
 Supported input types:
 
@@ -117,9 +118,7 @@ No Linux-specific installer screenshot is included in this manual yet. The Ubunt
 
 ### First Launch
 
-On first launch, MSForest may ask whether the current computer is an instrument computer. Choose **Yes (min processing)** on acquisition computers where conversion should not consume all CPU resources. Choose **No (max processing)** on analysis workstations where MSForest can use more processing capacity. This can be changed later in **File > Preferences**.
-
-The Thermo reader server is started in the background when the GUI starts. The server is managed by MSForest and shut down when the application exits.
+On first launch, MSForest asks whether the current computer is an instrument computer. Choose **Yes (min processing)** on acquisition computers where conversion should not consume significant CPU resources. Choose **No (max processing)** on analysis workstations where MSForest can use more processing capacity. This can be changed later in **File > Preferences**.
 
 ## Main Browser
 
@@ -128,10 +127,10 @@ The main browser is the triage view. Use it before opening individual files. The
 The browser is designed to answer questions like:
 
 - **Did the files write correctly?** Rows with missing metrics or no sparkline may be truncated, still writing, inaccessible, or unparsable.
-- **Are any runs empty?** Very low total TIC and flat sparklines suggest no material reached the instrument.
-- **Did any run drop out mid-gradient?** Missing sections or abrupt gaps in a sparkline suggest spray dropout, LC interruption, or acquisition disruption.
-- **Are replicates consistent?** Replicate injections should have broadly similar TIC shapes. A single odd trace is often the first clue that one injection failed.
-- **Is the directory dominated by late contaminants?** Large late-gradient TIC features can indicate PEGs, polysiloxanes, detergents, or other contaminants that should be confirmed in the visualizer.
+- **Are any runs empty or failed?** Very low total TIC and flat sparklines can flag empty vials, depleted samples, failed injections, failed sample prep, or blocked flow paths.
+- **Are related samples coherent?** Replicate injections and related sample classes should have broadly similar TIC shapes. A single odd trace is often the first clue that one injection needs follow-up.
+- **Does one sample look biologically or chemically unusual?** A urine sample with blood contamination or a plasma extracellular-vesicle preparation with platelet contamination may stand out before you know the cause.
+- **Are late or unusual TIC features worth inspecting?** Browser sparklines can flag features for follow-up, but targeted XICs in the visualizer are needed before naming a contaminant.
 - **Which files should be visualized or queued for conversion?** Use the summary table to select suspicious files for inspection and acceptable files for conversion.
 
 The window has three main areas, shown in Figure 1:
@@ -165,7 +164,24 @@ The table appears quickly with file names and basic file-system information, the
 
 ![Directory summary table with search, vendor filter, metrics, and TIC sparklines](images/main-visualization-tracking-consistency.png)
 
-**Figure 4. Directory-level consistency checking.** The search box (a) filters files by name, the vendor selector (b) narrows the table to a specific raw-file type, and the file list (c) shows run summaries and TIC sparklines. Similar replicate injections should have similar rough sparkline shapes; missing, flat, or abruptly interrupted traces are the first files to inspect in detail.
+**Figure 4. Directory-level consistency checking.** The search box (a) filters files by name, the vendor selector (b) narrows the table to a specific raw-file type, and the file list (c) shows run summaries and TIC sparklines. Similar replicate injections should have similar rough sparkline shapes; missing, flat, or unusual traces are the first files to inspect in detail.
+
+### What the Directory Browser Can and Cannot Tell You
+
+The directory browser screens files. It does not replace single-file inspection.
+
+The browser can:
+
+- Flag empty or failed injections.
+- Flag gross outliers among related samples.
+- Flag missing metrics or failed parsing.
+- Flag late or unusual TIC features for follow-up.
+
+The browser cannot:
+
+- Identify chemical contaminants by itself.
+- Definitively diagnose spray stability by itself.
+- Prove sample identity or biological cause by itself.
 
 ### Reading the Spark Charts
 
@@ -174,10 +190,10 @@ The TIC sparkline is intentionally small. It is not meant to replace the visuali
 Common questions and signals:
 
 - **Did the run fail to parse or save correctly?** A row with no sparkline, missing gradient, or missing total TIC should be treated as suspicious. It may be a truncated file, a file still being copied, a permission problem, or a reader error. Open it in the visualizer or check the Logging Console before trusting it.
-- **Was the vial empty or the sample depleted?** A very low total TIC and nearly flat sparkline suggest an empty injection, failed autosampler draw, depleted vial, or no analyte material. If blanks are expected, compare against actual blanks rather than against sample injections.
-- **Was there spray dropout?** A normal-looking trace followed by a sharp loss of signal, or a trace with a missing middle section, is consistent with spray instability, LC interruption, emitter clogging, or acquisition disruption. Open the file and inspect the Global tab to localize the dropout.
+- **Was the vial empty, depleted, or not injected correctly?** A very low total TIC and nearly flat sparkline suggest an empty injection, failed autosampler draw, depleted vial, failed sample prep, blocked flow path, or little analyte material. If blanks are expected, compare against actual blanks rather than against sample injections.
 - **Do replicates agree?** Replicates rarely match perfectly, but their rough shapes should agree: similar gradient envelope, similar high-intensity regions, and similar late features. A single replicate with a different envelope is worth opening before conversion.
-- **Are contaminants dominating?** Strong late-gradient humps or spikes that appear across samples, blanks, or washes may be contaminants. Use the visualizer XIC tools to test PEG, polysiloxane, detergent, or other suspected series.
+- **Does one sample look unlike its neighbors?** A biological or preparation outlier can show up as a different TIC envelope. Examples include blood contamination in urine or platelet contamination in plasma extracellular-vesicle preparations. The browser can flag the outlier; use the visualizer to test what changed.
+- **Is there a late or unusual TIC feature?** A strong late hump or spike can be worth investigating, especially if it appears in blanks, washes, or only one sample class. Use targeted XICs in the visualizer before calling it PEG, polysiloxane, detergent, plasticizer, carryover, or another contaminant.
 
 Do not over-interpret small sparkline differences. The browser is for prioritization. Use the visualizer when a sparkline asks a concrete follow-up question.
 
@@ -259,7 +275,7 @@ The **GUI** tab controls the last directory, look and feel, and saved layout res
 
 ## File Conversion in the GUI
 
-The conversion panel is attached to the bottom of the main browser. Use it after the browser and visualizer have answered the basic triage questions. Conversion is deliberately downstream of inspection: the point is to avoid spending compute time on files that are empty, truncated, contaminated, or acquired with the wrong method.
+The conversion panel is attached to the bottom of the main browser. Use it after the browser and visualizer have answered the basic triage questions. Conversion is deliberately downstream of inspection: the point is to decide which files are ready for downstream analysis, which files need recollection, and which files should be kept only for troubleshooting or documentation.
 
 The conversion panel answers operational questions:
 
@@ -332,15 +348,16 @@ Use **Help > Logging Console** when the application needs broader diagnostic con
 
 ## Raw File Visualizer
 
-The raw file visualizer is the detailed inspection window. Use it when the main browser raises a specific question, or when you need to confirm an acquisition before conversion. Open it by double-clicking a file in the directory summary table, right-clicking a file and choosing **Visualize**, or choosing **View > Visualize Raw File**.
+Open the visualizer when the directory view raises a question. The raw file visualizer is the detailed inspection window for confirming signal, localizing acquisition problems, extracting targeted chromatograms, and checking whether the method matches the experiment. Open it by double-clicking a file in the directory summary table, right-clicking a file and choosing **Visualize**, or choosing **View > Visualize Raw File**.
 
-The visualizer is not just a spectrum viewer. It is a fast way to ask:
+The visualizer is not just a spectrum viewer. It is a fast way to test hypotheses from triage:
 
-- **Are expected contaminants present?** PEGs, polysiloxanes, PGG-like plasticizer series, detergents, and other background ions can often be confirmed with XICs in seconds.
-- **Are real peptides present?** Extract precursor or MS2 traces for expected peptides to estimate peak width, retention behavior, and points across the peak.
-- **Is the method overfilling or underfilling?** Range Statistics and ion injection time distributions help identify AGC/IIT settings that are too aggressive or too conservative.
-- **Is the isolation-window design complete?** Structure and Global views reveal missing windows, jumping windows, wrong PRM/DIA schedules, and other method design errors.
-- **Did the Thermo method settings match the intended setup?** The Settings tab exposes file metadata and Thermo instrument method text.
+- **The file looked empty:** use Scans and the TIC trace to confirm whether there is real MS1 or MS2 signal.
+- **The signal seemed to drop out:** use the Global view or TIC trace to localize flat regions, unstable spray, LC interruptions, or acquisition pauses.
+- **The file looked chemically odd:** use targeted XICs for PEGs, polysiloxanes, detergents, plasticizers, carryover ions, or lab-specific background ions.
+- **The sample looked unlike neighbors:** compare TIC, XICs, spectra, and method structure against a normal file from the same batch.
+- **The method looked wrong:** use Structure, Global, and Settings to check isolation windows, scheduling, acquisition type, and Thermo instrument method text.
+- **The fill behavior looked odd:** use Range Statistics to compare ion injection time distributions across adjacent isolation windows and retention-time bins.
 
 The visualizer opens in a separate window. Multiple visualizer windows can be open at the same time, and the **Window** menu can switch between them.
 
@@ -410,7 +427,7 @@ The example buttons populate common demonstration targets:
 
 ![Peptide XIC extraction at MS1 and MS2 levels](images/raw-file-peptide-xic.png)
 
-**Figure 10. Peptide XICs for fast signal checks.** The peptide `VATVSLPR` is extracted at the MS1 level (a) and MS2 level (b). Comparing precursor and fragment traces helps confirm that peptide signal is present, estimate chromatographic peak width and points across the peak, and diagnose spray instability, tailing, scheduling, or isolation problems.
+**Figure 10. Peptide XICs for fast signal checks.** The peptide `VATVSLPR` is extracted at the MS1 level (a) and MS2 level (b). Comparing precursor and fragment traces helps confirm that peptide signal is present, estimate chromatographic peak width and points across the peak, and test tailing, scheduling, or isolation hypotheses.
 
 Use XIC extraction to turn a suspicion into a specific answer:
 
@@ -424,19 +441,19 @@ The XIC view is intentionally lightweight. It is for fast forensic confirmation,
 
 ![Small-molecule and polymer contaminant XICs](images/raw-file-small-mol-xic.png)
 
-**Figure 11. Contaminant XICs.** Polysiloxane traces (a) show broad atmospheric/background contamination across the run, while PEG traces (b) show a common polymer contaminant series with related masses and elution patterns. These XICs are useful when late-gradient sparkline features or blank injections suggest chemical background rather than peptide signal.
+**Figure 11. Contaminant XICs.** Polysiloxane traces (a) show broad atmospheric/background contamination across the run, while PEG traces (b) show a common polymer contaminant series with related masses and elution patterns. These XICs are useful when late-gradient sparkline features or blank injections flag a chemical-background question for follow-up.
 
 ### Range Statistics Tab
 
 The **Range Statistics** tab summarizes ion injection time distributions. It shows boxplots grouped by precursor isolation window and by retention-time bin.
 
-Use this tab to ask whether the method is filling the instrument the way you expected. Isolation windows with consistently high ion injection times may be underfilled or set with AGC/IIT limits that are too restrictive for the available signal. Windows with very low or clipped injection times may be overfilled, dominated by high background, or configured with limits that do not match the sample load. Retention-time bins with unusual behavior can point to gradient regions where the method or chromatography is not balanced.
+Use this tab to ask whether the method is filling the instrument the way you expected. High ion injection times usually mean the instrument needed longer to accumulate ions, which can indicate low ion flux, weak signal, or a max-injection-time-limited region. Very low ion injection times usually mean the AGC target was reached quickly, which can reflect abundant analyte, high chemical background, or method settings that differ from neighboring windows. Retention-time bins with unusual behavior can point to gradient regions where the method or chromatography is not balanced.
 
-For DIA and PRM methods, compare ranges that should behave similarly. One window that looks very different from adjacent windows is often more informative than the absolute value alone.
+For DIA and PRM methods, compare ranges that should behave similarly. One window that looks very different from adjacent windows is often more informative than the absolute value alone. Treat Range Statistics as a comparison view, not as a universal good-or-bad threshold for ion injection time.
 
 ![Range Statistics tab with ion injection time boxplots](images/raw-file-iit.png)
 
-**Figure 12. Ion injection time by isolation window and retention time.** Range Statistics summarizes ion injection time distributions for an Orbitrap DIA run. The boxplots show median values and spread for each m/z window and retention-time range, making it easier to identify windows that are consistently underfilled, overfilled, or behaving differently from neighboring windows.
+**Figure 12. Ion injection time by isolation window and retention time.** Range Statistics summarizes ion injection time distributions for an Orbitrap DIA run. The boxplots show median values and spread for each m/z window and retention-time range, making it easier to identify windows that are consistently high, consistently low, max-injection-time-limited, or behaving differently from neighboring windows.
 
 ### Structure Tab
 
@@ -460,13 +477,13 @@ Look for:
 
 The **Global** tab shows run-level signal and acquisition trends. It is intended for quick inspection of whole-run behavior rather than individual spectra.
 
-Use this tab to localize spray instability, signal dropouts, gradient problems, and other run-level anomalies. If the browser sparkline showed a missing section, the Global tab is where you confirm when it happened and whether it affected the whole run or only certain scan types.
+Use this tab to localize spray instability, signal dropouts, gradient problems, and other run-level anomalies. If the browser sparkline flagged a missing or unusual section, the Global tab is where you test when it happened and whether it affected the whole run or only certain scan types.
 
 Questions to ask:
 
 - Does TIC rise and fall with the expected chromatographic envelope?
 - Is there an abrupt loss of signal that suggests spray dropout?
-- Are there late-gradient features consistent with carryover or contaminants?
+- Are there late-gradient features that should be followed up with targeted XICs?
 - Do MS1 and MS2 trends diverge in a way that suggests method timing or isolation problems?
 - Are acquisition summaries stable across the full method duration?
 
@@ -499,7 +516,9 @@ When the Structure or Global tabs reveal a method-design problem, the Settings t
 
 When opening an older EncyclopeDIA `.dia` file, MSForest may ask whether to upgrade the file schema. Accepting the prompt updates the file so missing schema fields are available to the visualizer. If you need to preserve the original file byte-for-byte, make a copy before opening and upgrading it.
 
-## CLI Interface
+## MSRawJava CLI Interface
+
+![MSRawJava logo](../core/msrawjava.png)
 
 The MSRawJava CLI is intended for conversion workflows, scripted processing, and batch jobs. Use the GUI when you are still asking whether the data look trustworthy. Use the CLI when the decision has already been made and you need repeatable conversion.
 
@@ -796,6 +815,12 @@ mvn -pl core -am -Dskip.build.natives=true -Dtest=MainCliArgumentsTest test
 mvn -pl gui -am -Dskip.build.natives=true -Dtest=SomeGuiTest test
 ```
 
+## Scope and Alternatives
+
+MSForest and MSRawJava are intentionally focused. They support a practical set of Thermo, Bruker timsTOF, EncyclopeDIA `.dia`, and `mzML` workflows rather than trying to cover every vendor format and conversion option.
+
+Use MSForest when you need quick visual triage, acquisition-structure inspection, XIC extraction, or a native desktop workflow across macOS, Windows, and Linux. Use the MSRawJava CLI when you need focused, scriptable conversion for supported formats. Use ProteoWizard when you need unsupported vendor formats, non-vendor peak picking, conversion options outside MSRawJava's scope, or the broadest possible file-format compatibility.
+
 ## Troubleshooting
 
 Troubleshooting is easiest if you keep the same question-first workflow. Start with the browser to see whether the problem is visible across a directory, then use the visualizer to isolate the failure mode, then check logs or conversion output.
@@ -804,7 +829,7 @@ Common symptom-to-view mapping:
 
 - **No sparkline or missing metrics**: start with file accessibility, truncation, unsupported format, or reader errors; check the Logging Console.
 - **Flat or tiny TIC**: inspect the Scans tab and XICs for whether sample material is present; consider empty vial, failed injection, or depleted sample.
-- **Sparkline gap or sudden drop**: use the Global tab to localize spray dropout or acquisition interruption.
+- **Sparkline gap or sudden drop**: use the Global tab to test whether there was spray dropout or acquisition interruption.
 - **One replicate looks different**: open the outlier and a normal replicate side by side, then compare Global, Structure, and XIC traces.
 - **Late high-intensity features**: use XIC extraction for PEGs, polysiloxanes, detergents, and other suspected contaminants.
 - **Unexpected isolation behavior**: use Structure for method design and Range Statistics for AGC/IIT behavior.
@@ -825,7 +850,7 @@ In the GUI, select the parent directory of the files. For Bruker data, select or
 
 ### Unsupported File Type
 
-MSForest and MSRawJava do not try to replace ProteoWizard for broad format coverage. Use ProteoWizard when you need unsupported vendor formats, vendor-independent peak picking, or conversion options outside MSRawJava's focused scope.
+MSForest and MSRawJava support a focused set of raw and intermediate file types. Use the scope guidance above when a file type or conversion option is outside that supported set.
 
 ### macOS Blocks the App
 
@@ -883,13 +908,34 @@ Demultiplexing is disabled for Bruker `.d` files. It is available for supported 
 
 When opening an old `.dia` file, MSForest may offer to upgrade the schema. If preserving the original file is important, make a copy before accepting the upgrade.
 
-### When to Use ProteoWizard Instead
+## Licenses
 
-Use ProteoWizard when you need:
+MSForest and MSRawJava are distributed under the Apache License 2.0. This section lists bundled or used third-party components by license family. It is not a copy of the license terms.
 
-- A vendor format MSRawJava does not support.
-- Non-vendor peak picking.
-- A conversion option not exposed by MSRawJava.
-- Broadest possible file-format compatibility.
+### Apache License 2.0
 
-Use MSForest when you need quick visual triage, acquisition-structure inspection, XIC extraction, or a native desktop workflow across macOS, Windows, and Linux. Use MSRawJava CLI when you need focused, scriptable conversion for supported formats.
+adler2, alloc-no-stdlib, alloc-stdlib, anyhow, Apache Arrow crates, atoi, base64, bitflags, brotli, cfg-if, chrono, commons-math3, core-foundation-sys, crc32fast, crossbeam-* crates, displaydoc, either, ejml-all, ejml-cdense, ejml-core, ejml-ddense, ejml-dsparse, ejml-fdense, ejml-fsparse, ejml-simple, ejml-zdense, error_prone_annotations, failureaccess, flatbuffers, flatlaf, flatlaf-extras, flate2, getrandom, Grpc.*, Grpc.AspNetCore, Grpc.AspNetCore.Server.Reflection, grpc-api, grpc-context, grpc-core, grpc-netty-shaded, grpc-protobuf, grpc-protobuf-lite, grpc-stub, grpc-util, guava, hashbrown, hashlink, iana-time-zone, integer-encoding, itoa, j2objc-annotations, libc, libm, listenablefuture, lock_api, lz4_flex, miniz_oxide, num-traits, once_cell, parquet, parking_lot, parking_lot_core, paste, perfmark-api, picocli, proto-google-common-protos, rayon, rayon-core, scopeguard, serde, serde_core, serde_derive, serde_json, seq-macro, smallvec, sqlite-jdbc, static_assertions, thrift, timsrust, twox-hash, zerocopy, zstd, zstd-safe, and zstd-sys.
+
+### MIT License
+
+animal-sniffer-annotations, byteorder, bytes, checker-qual, CommandLineParser, combine, fallible-iterator, fallible-streaming-iterator, jsvg, libsqlite3-sys, linreg, memchr, Microsoft.AspNetCore.* packages, Microsoft.Extensions.* packages, Microsoft .NET runtime components, Newtonsoft.Json, Newtonsoft.Json.Bson, OpenMcdf.Extensions, ordered-float, rusqlite, System.* packages, .NETCore.App Runtime 8.0.25, and AspNetCore.App Runtime 8.0.25.
+
+### BSD-Style Licenses
+
+Google.Protobuf, protobuf-java, ryu, and snap.
+
+### Mozilla Public License 2.0
+
+OpenMcdf and openpdf.
+
+### GNU Lesser General Public License 2.1
+
+jcommon, jfreechart, and trove4j.
+
+### CDDL 1.1
+
+javax.annotation-api.
+
+### Thermo Fisher Scientific Proprietary Licenses
+
+CommonCore BackgroundSubtraction, CommonCore Data, CommonCore MassPrecisionEstimator, CommonCore RandomAccessReaderPlugin, CommonCore RawfileReader, and RawFileReader.
