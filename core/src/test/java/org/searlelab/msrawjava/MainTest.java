@@ -57,6 +57,30 @@ class MainTest {
 		assertTrue(out.contains("--format"), "Should document format flag");
 		assertTrue(out.contains("--demux"), "Should document demux flag");
 		assertTrue(out.contains("--discoverDIAFiles"), "Should document discover DIA flag");
+		assertTrue(out.contains("--about"), "Should document about flag");
+	}
+
+	@Test
+	void aboutFlag_printsAboutTextWithoutPaths() throws Exception {
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.setOut(new java.io.PrintWriter(System.out, true));
+		int exitCode=cmd.execute("--about");
+		String out=stdout();
+		assertEquals(0, exitCode);
+		assertTrue(out.contains("MSRawJava is a command-line tool and Java library"));
+		assertTrue(out.contains("Thermo .raw"));
+		assertTrue(out.contains("Bruker timsTOF .d"));
+		assertTrue(out.contains("RawFileReader reading tool. Copyright \u00a9 2016 by Thermo Fisher Scientific, Inc. All rights reserved."));
+	}
+
+	@Test
+	void noPathsWithoutAbout_reportsMissingPath() throws Exception {
+		CommandLine cmd=new CommandLine(new Main.CliArguments());
+		cmd.setErr(new java.io.PrintWriter(System.err, true));
+		int exitCode=cmd.execute();
+		String err=stderr()+stdout();
+		assertEquals(CommandLine.ExitCode.USAGE, exitCode);
+		assertTrue(err.contains("Missing required parameter: PATHS"));
 	}
 
 	@Test

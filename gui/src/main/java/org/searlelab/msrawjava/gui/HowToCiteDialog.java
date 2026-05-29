@@ -102,12 +102,14 @@ public final class HowToCiteDialog {
 		dialog.getContentPane().add(main, BorderLayout.CENTER);
 		dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
 		dialog.pack();
-		dialog.setSize(450, 500);
+		dialog.setSize(450, 600);
 		dialog.setVisible(true);
 	}
 
 	static String aboutHtml() {
 		return "<html><center><p style=\"font-size:12px; font-family: Helvetica, sans-serif\">"
+				+ProductBranding.PRODUCT_NAME+" is a desktop tool for rapid mass spectrometry raw-file triage. It helps users scan acquisition directories, "
+				+"spot failed or unusual injections, inspect raw files, extract targeted chromatograms, and decide which files are ready for downstream analysis.<br/><br/>"
 				+ProductBranding.PRODUCT_NAME+" is a Searle Lab (searlelab.org) project at the Mayo Clinic "
 				+"(https://www.mayoclinic.org) in the Department of Quantitative Health Sciences. "
 				+ProductBranding.TAGLINE+"</p></center></html>";
@@ -120,7 +122,8 @@ public final class HowToCiteDialog {
 				+"Version: "+Version.getVersion()+"<br/>"
 				+"Build date: "+Version.getBuildDate()+"<br/>"
 				+"JVM: "+Version.getJvmName()+" ("+Version.getJvmVersion()+")<br/>"
-				+"Runtime: "+Version.getRuntimeName()+" ("+Version.getRuntimeVersion()+")"
+				+"Runtime: "+Version.getRuntimeName()+" ("+Version.getRuntimeVersion()+")<br/><br/>"
+				+"RawFileReader reading tool. Copyright &copy; 2016 by Thermo Fisher Scientific, Inc. All rights reserved."
 				+"</p></html>";
 	}
 

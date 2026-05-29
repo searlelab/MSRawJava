@@ -35,10 +35,14 @@ class ProductBrandingTest {
 		String citation=HowToCiteDialog.citationHtml();
 
 		assertTrue(about.contains("MSForest"));
+		assertTrue(about.contains("rapid mass spectrometry raw-file triage"));
+		assertTrue(about.indexOf("rapid mass spectrometry raw-file triage")<about.indexOf("Searle Lab"));
 		assertTrue(about.contains(ProductBranding.TAGLINE));
 		assertTrue(citation.contains("MSForest"));
 		assertTrue(citation.contains("MSRawJava"));
 		assertTrue(citation.contains("https://github.com/searlelab/MSRawJava"));
+		assertTrue(citation.contains("RawFileReader reading tool"));
+		assertTrue(citation.contains("Thermo Fisher Scientific"));
 	}
 
 	@Test

@@ -14,6 +14,7 @@
     <entries>
       <dirEntry mountPoint="34" file="./target/lib" entryMode="subdir" subDirectory="lib" />
       <fileEntry mountPoint="34" file="./target/msforest-${compiler:project.version}.jar" />
+      <fileEntry mountPoint="34" file="./eula.txt" />
     </entries>
   </files>
   <launchers>
@@ -161,6 +162,29 @@ return console.askOkCancel(message, true);
                   <property name="labelText" type="string">${form:footerMessage}</property>
                 </serializedBean>
                 <visibilityScript>!context.isConsole()</visibilityScript>
+              </formComponent>
+            </formComponents>
+          </screen>
+          <screen id="307" beanClass="com.install4j.runtime.beans.screens.LicenseScreen" rollbackBarrierExitCode="0">
+            <formComponents>
+              <formComponent id="308" beanClass="com.install4j.runtime.beans.formcomponents.LicenseComponent">
+                <serializedBean>
+                  <property name="displayedText" type="string">MSForest End User License Agreement
+
+By installing or using MSForest, you agree to the following terms.
+
+MSForest is licensed under the Apache License, Version 2.0. Third-party components included with MSForest are licensed under their respective license terms, which are provided with the software.
+
+MSForest includes Thermo Fisher Scientific RawFileReader/CommonCore components (“Thermo Components”). The Thermo Components are provided solely for use with MSForest. You may not redistribute, sublicense, transfer, extract, separately provide, decompile, disassemble, reverse engineer, use reflection on, or modify the Thermo Components.
+
+RawFileReader reading tool. Copyright © 2016 by Thermo Fisher Scientific, Inc. All rights reserved.
+
+MSForest is not provided by, sponsored by, endorsed by, or affiliated with Thermo Fisher Scientific.
+
+MSForest and all included components are provided “as is,” without warranties of any kind, to the maximum extent permitted by law.</property>
+                  <property name="fillVertical" type="boolean" value="true" />
+                  <property name="textSource" type="enum" class="com.install4j.runtime.beans.screens.components.TextSource" value="DIRECT" />
+                </serializedBean>
               </formComponent>
             </formComponents>
           </screen>

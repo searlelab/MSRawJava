@@ -32,6 +32,9 @@ import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParameterException;
+import picocli.CommandLine.Spec;
+import picocli.CommandLine.Model.CommandSpec;
 
 /**
  * Main is the command-line entry point for MSRawJava. It parses options, discovers vendor inputs via VendorFileFinder,
@@ -39,6 +42,10 @@ import picocli.CommandLine.Parameters;
  * orchestration, logging, and deterministic serialization for reproducible runs.
  */
 public class Main {
+	static final String CLI_ABOUT_TEXT="MSRawJava is a command-line tool and Java library for focused, cross-platform mass spectrometry raw-file reading and conversion. "
+			+"It supports Thermo .raw, Bruker timsTOF .d, EncyclopeDIA .dia, and mzML inputs, with export to .dia, .mgf, and mzML.\n"
+			+"RawFileReader reading tool. Copyright \u00a9 2016 by Thermo Fisher Scientific, Inc. All rights reserved.";
+
 	/** Main CLI entry point for raw file conversion. */
 	public static void main(String[] args) throws Exception {
 		CommandLine cmd=new CommandLine(new CliArguments());
@@ -245,8 +252,14 @@ public class Main {
 
 	@Command(name="msrawjava", mixinStandardHelpOptions=true, description="Convert vendor raw files into analysis-ready formats.", versionProvider=VersionProvider.class)
 	public static class CliArguments implements Callable<Integer> {
-		@Parameters(arity="1..*", paramLabel="PATHS", description="Input files or directories containing Thermo .raw or Bruker .d files (EncyclopeDIA .dia when --discoverDIAFiles is set, mzML when --discoverMzMLFiles is set).")
+		@Spec
+		private CommandSpec spec;
+
+		@Parameters(arity="0..*", paramLabel="PATHS", description="Input files or directories containing Thermo .raw or Bruker .d files (EncyclopeDIA .dia when --discoverDIAFiles is set, mzML when --discoverMzMLFiles is set).")
 		private List<File> paths=new ArrayList<>();
+
+		@Option(names="--about", description="Print a short description and third-party reader notice, then exit.")
+		private boolean about=false;
 
 		@Option(names= {"-f", "--format"}, defaultValue="dia", description="Output format: ${COMPLETION-CANDIDATES}.")
 		private OutputFormat format=OutputFormat.dia;
@@ -298,6 +311,13 @@ public class Main {
 
 		@Override
 		public Integer call() throws Exception {
+			if (about) {
+				spec.commandLine().getOut().println(CLI_ABOUT_TEXT);
+				return 0;
+			}
+			if (paths.isEmpty()) {
+				throw new ParameterException(spec.commandLine(), "Missing required parameter: PATHS");
+			}
 			ConversionParameters params=toParameters();
 			configureLogging(params);
 			if (!params.isSilent()) {
