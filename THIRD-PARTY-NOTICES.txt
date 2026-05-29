@@ -1,0 +1,33 @@
+THIRD-PARTY NOTICES
+
+MSForest and MSRawJava include third-party software components. The components listed below are provided under their respective license terms. Copies of the applicable license texts are included with this distribution in the licenses/ directory.
+
+MSForest and MSRawJava are licensed under the Apache License, Version 2.0.
+
+Apache License 2.0 components: adler2, alloc-no-stdlib, alloc-stdlib, anyhow, Apache Arrow crates, atoi, base64, bitflags, brotli, cfg-if, chrono, commons-math3, core-foundation-sys, crc32fast, crossbeam-* crates, displaydoc, either, ejml-all, ejml-cdense, ejml-core, ejml-ddense, ejml-dsparse, ejml-fdense, ejml-fsparse, ejml-simple, ejml-zdense, error_prone_annotations, failureaccess, flatbuffers, flatlaf, flatlaf-extras, flate2, getrandom, Grpc.*, Grpc.AspNetCore, Grpc.AspNetCore.Server.Reflection, grpc-api, grpc-context, grpc-core, grpc-netty-shaded, grpc-protobuf, grpc-protobuf-lite, grpc-stub, grpc-util, guava, hashbrown, hashlink, iana-time-zone, integer-encoding, itoa, j2objc-annotations, libc, libm, listenablefuture, lock_api, lz4_flex, miniz_oxide, num-traits, once_cell, parquet, parking_lot, parking_lot_core, paste, perfmark-api, picocli, proto-google-common-protos, rayon, rayon-core, scopeguard, serde, serde_core, serde_derive, serde_json, seq-macro, smallvec, sqlite-jdbc, static_assertions, thrift, timsrust, twox-hash, zerocopy, zstd, zstd-safe, and zstd-sys.
+
+MIT License components: animal-sniffer-annotations, byteorder, bytes, checker-qual, CommandLineParser, combine, fallible-iterator, fallible-streaming-iterator, jsvg, libsqlite3-sys, linreg, memchr, Microsoft .NET runtime components, Microsoft.AspNetCore.* packages, Microsoft.Extensions.* packages, Newtonsoft.Json, Newtonsoft.Json.Bson, OpenMcdf.Extensions, ordered-float, rusqlite, System.* packages, .NETCore.App Runtime 8.0.25, and AspNetCore.App Runtime 8.0.25.
+
+BSD-style license components: Google.Protobuf, protobuf-java, ryu, and snap.
+
+Mozilla Public License 2.0 components: OpenMcdf and openpdf.
+
+GNU Lesser General Public License 2.1 components: jcommon, jfreechart, and trove4j.
+
+CDDL 1.1 components: javax.annotation-api.
+
+Thermo Fisher Scientific proprietary-license components: CommonCore BackgroundSubtraction, CommonCore Data, CommonCore MassPrecisionEstimator, CommonCore RandomAccessReaderPlugin, CommonCore RawfileReader, and RawFileReader.
+
+Required Thermo Fisher Scientific notice: RawFileReader reading tool. Copyright © 2016 by Thermo Fisher Scientific, Inc. All rights reserved.
+
+The Thermo Fisher Scientific components are provided solely for use with MSForest and are subject to additional restrictions in the MSForest End User License Agreement. MSForest is not provided by, sponsored by, endorsed by, or affiliated with Thermo Fisher Scientific.
+
+License text files included with this distribution:
+
+licenses/Apache-2.0.txt
+licenses/MIT.txt
+licenses/BSD-style.txt
+licenses/MPL-2.0.txt
+licenses/LGPL-2.1.txt
+licenses/CDDL-1.1.txt
+licenses/Thermo-RawFileReader.txt

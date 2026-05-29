@@ -40,6 +40,8 @@ Note, you need to run scripts/build-all-net.sh before scripts/build-all-rust.sh 
 
 Bruker timsTOF-specific Rust binaries are embedded in the jar under `META-INF/lib/{os-arch}` and `resources/msraw/thermo/bin/{rid}` for the Thermo server. The runtime loaders (`NativeLibraryLoader`, `GrpcServerLauncher`) resolve and launch them automatically.
 
+A license to [Install4j](https://www.ej-technologies.com/install4j) was graciously provided to this project by ej-technologies GmbH. Please contact them directly if you want to build the installer.
+
 
 ## **MS**RawJava CLI usage
 The CLI in `Main.java` accepts files or directories and searches them for Bruker `.d` and Thermo `.raw` files, with optional [EncyclopeDIA](https://bitbucket.org/searleb/encyclopedia/wiki/Home) `.dia` discovery when enabled. Command line options include:
