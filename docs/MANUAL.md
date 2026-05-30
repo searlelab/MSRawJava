@@ -177,18 +177,11 @@ The table appears quickly with file names and basic file-system information, the
 
 The directory browser screens files. It does not replace single-file inspection.
 
-The browser can:
+The browser can help flag obvious failures with micro-visualizations of several files at once. For example, it can:
 
 - Flag empty or failed injections.
 - Flag gross outliers among related samples.
-- Flag missing metrics or failed parsing.
-- Flag late or unusual TIC features for follow-up.
-
-The browser cannot:
-
-- Identify chemical contaminants by itself.
-- Definitively diagnose spray stability by itself.
-- Prove sample identity or biological cause by itself.
+- Flag unusual TIC features (unexpected signal or absence of signal) for follow-up.
 
 ### Reading the Spark Charts
 
@@ -246,6 +239,7 @@ The main menu provides access to the browser, visualizer, preferences, windows, 
 
 **Help**
 
+- **Open Manual** opens this document.
 - **How to Cite** shows citation information.
 - **Educational Demos** opens the built-in loading-panel demos.
 - **Logging Console** shows captured standard output and error messages.
@@ -272,9 +266,9 @@ The **Processing** tab controls processing thread limits and verbose core loggin
 
 The **Conversion** tab controls defaults used by queued GUI conversions:
 
-- Demux tolerance in ppm.
-- Minimum MS1 intensity.
-- Minimum MS2 intensity.
+- Demultiplexing tolerance in ppm.
+- Minimum MS1 intensity for timsTOF extraction.
+- Minimum MS2 intensity for timsTOF extraction.
 
 The **GUI** tab controls the last directory, look and feel, and saved layout resets. You can reset window positions, split pane dimensions, or table parameters if the interface layout becomes inconvenient.
 
