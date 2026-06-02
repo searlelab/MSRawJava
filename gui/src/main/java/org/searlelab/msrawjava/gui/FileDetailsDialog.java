@@ -103,68 +103,70 @@ public class FileDetailsDialog {
 		SwingWorker<StripeResult, String> worker=new SwingWorker<>() {
 			@Override
 			protected StripeResult doInBackground() throws Exception {
-				StripeFileInterface stripe=null;
-				try {
-					VendorFile vendor=VendorFile.fromPath(f.toPath()).orElse(null);
-					if (vendor==VendorFile.BRUKER) {
-						BrukerTIMSFile raw=new BrukerTIMSFile();
-						raw.openFile(f.toPath());
-						stripe=raw;
-						RawBrowserData data=RawBrowserDataLoader.build(raw);
-						return StripeResult.success(raw, data);
-					} else if (vendor==VendorFile.THERMO) {
-						ThermoRawFile raw=new ThermoRawFile();
-						raw.openFile(f.toPath());
-						stripe=raw;
-						RawBrowserData data=RawBrowserDataLoader.build(raw);
-						return StripeResult.success(raw, data);
-					} else if (vendor==VendorFile.ENCYCLOPEDIA) {
-						EncyclopeDIAFile dia=new EncyclopeDIAFile();
-						dia.openFile(f);
-						if (dia.needsSchemaUpgrade()) {
-							final boolean[] upgradeAccepted=new boolean[] {false};
-							SwingUtilities.invokeAndWait(() -> {
-								int choice=JOptionPane.showConfirmDialog(dlg,
-										"This DIA file uses an older schema.\nUpgrade to 0.8.0 now and add missing schema fields?",
-										"Upgrade DIA Schema", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-								upgradeAccepted[0]=choice==JOptionPane.YES_OPTION;
-							});
-							if (upgradeAccepted[0]) {
-								final JDialog[] waitDialog=new JDialog[1];
+				try (AutoCloseable foregroundWork=GuiProcessingActivity.beginForegroundWork()) {
+					StripeFileInterface stripe=null;
+					try {
+						VendorFile vendor=VendorFile.fromPath(f.toPath()).orElse(null);
+						if (vendor==VendorFile.BRUKER) {
+							BrukerTIMSFile raw=new BrukerTIMSFile();
+							raw.openFile(f.toPath());
+							stripe=raw;
+							RawBrowserData data=RawBrowserDataLoader.build(raw);
+							return StripeResult.success(raw, data);
+						} else if (vendor==VendorFile.THERMO) {
+							ThermoRawFile raw=new ThermoRawFile();
+							raw.openFile(f.toPath());
+							stripe=raw;
+							RawBrowserData data=RawBrowserDataLoader.build(raw);
+							return StripeResult.success(raw, data);
+						} else if (vendor==VendorFile.ENCYCLOPEDIA) {
+							EncyclopeDIAFile dia=new EncyclopeDIAFile();
+							dia.openFile(f);
+							if (dia.needsSchemaUpgrade()) {
+								final boolean[] upgradeAccepted=new boolean[] {false};
 								SwingUtilities.invokeAndWait(() -> {
-									waitDialog[0]=createUpgradeWaitDialog(dlg, "Upgrading DIA schema...");
-									SwingUtilities.invokeLater(() -> waitDialog[0].setVisible(true));
+									int choice=JOptionPane.showConfirmDialog(dlg,
+											"This DIA file uses an older schema.\nUpgrade to 0.8.0 now and add missing schema fields?",
+											"Upgrade DIA Schema", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+									upgradeAccepted[0]=choice==JOptionPane.YES_OPTION;
 								});
-								try {
-									dia.upgradeSchemaToV080();
-								} finally {
-									SwingUtilities.invokeLater(() -> {
-										if (waitDialog[0]!=null) waitDialog[0].dispose();
+								if (upgradeAccepted[0]) {
+									final JDialog[] waitDialog=new JDialog[1];
+									SwingUtilities.invokeAndWait(() -> {
+										waitDialog[0]=createUpgradeWaitDialog(dlg, "Upgrading DIA schema...");
+										SwingUtilities.invokeLater(() -> waitDialog[0].setVisible(true));
 									});
+									try {
+										dia.upgradeSchemaToV080();
+									} finally {
+										SwingUtilities.invokeLater(() -> {
+											if (waitDialog[0]!=null) waitDialog[0].dispose();
+										});
+									}
 								}
 							}
+							stripe=dia;
+							RawBrowserData data=RawBrowserDataLoader.build(dia);
+							return StripeResult.success(dia, data);
+						} else if (vendor==VendorFile.MZML) {
+							MzmlFile mzml=new MzmlFile();
+							mzml.openFile(f);
+							stripe=mzml;
+							RawBrowserData data=RawBrowserDataLoader.build(mzml);
+							return StripeResult.success(mzml, data);
+						} else {
+							return StripeResult.error("Unsupported file");
 						}
-						stripe=dia;
-						RawBrowserData data=RawBrowserDataLoader.build(dia);
-						return StripeResult.success(dia, data);
-					} else if (vendor==VendorFile.MZML) {
-						MzmlFile mzml=new MzmlFile();
-						mzml.openFile(f);
-						stripe=mzml;
-						RawBrowserData data=RawBrowserDataLoader.build(mzml);
-						return StripeResult.success(mzml, data);
-					} else {
-						return StripeResult.error("Unsupported file");
-					}
-				} catch (Exception e) {
-					if (stripe!=null) {
-						try {
-							stripe.close();
-						} catch (Throwable ignore) {
-							Logger.errorException(ignore);
+					} catch (Exception e) {
+						if (stripe!=null) {
+							try {
+								stripe.close();
+							} catch (Throwable ignore) {
+								Logger.errorException(ignore);
+							}
 						}
+						throw e;
 					}
-					throw e;
 				}
 			}
 

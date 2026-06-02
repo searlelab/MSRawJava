@@ -61,6 +61,7 @@ import javax.swing.table.TableColumn;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableRowSorter;
 
+import org.searlelab.msrawjava.gui.GuiProcessingActivity;
 import org.searlelab.msrawjava.gui.GUIPreferences;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFiles;
@@ -119,6 +120,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private final java.util.Set<Path> slowBitsStallWarned=ConcurrentHashMap.newKeySet();
 	private final java.util.Set<Path> slowBitsReaderNotReadyWarned=ConcurrentHashMap.newKeySet();
 	private final AtomicBoolean slowBitsDispatchPending=new AtomicBoolean(false);
+	private final Runnable processingActivityListener=this::requestSlowBitsDispatch;
 
 	public DirectorySummaryPanel(VendorFiles files) {
 		super(new BorderLayout());
@@ -513,7 +515,8 @@ public class DirectorySummaryPanel extends JPanel {
 					distanceFromViewport, runningNanos, deprioritized, launchEligible));
 		}
 
-		SlowBitsLaunchPlanner.Plan plan=SlowBitsLaunchPlanner.plan(states, slowBitsWorkerCount, SLOW_BITS_STALL_THRESHOLD_NANOS);
+		SlowBitsLaunchPlanner.Plan plan=SlowBitsLaunchPlanner.plan(states, effectiveSlowBitsWorkerCount(slowBitsWorkerCount),
+				SLOW_BITS_STALL_THRESHOLD_NANOS);
 		for (Integer stalledModelIndex : plan.stalledVisibleModelRows()) {
 			DirectorySummaryRow stalledRow=rowsByModelIndex.get(stalledModelIndex);
 			if (stalledRow==null||stalledRow.path==null) continue;
@@ -587,6 +590,10 @@ public class DirectorySummaryPanel extends JPanel {
 		} catch (IllegalArgumentException ignore) {
 			return -1;
 		}
+	}
+
+	static int effectiveSlowBitsWorkerCount(int normalWorkerCount) {
+		return GuiProcessingActivity.isForegroundWorkActive()?1:Math.max(1, normalWorkerCount);
 	}
 
 	private boolean isReaderReadyForSlowBits(VendorFile vendor) {
@@ -868,6 +875,7 @@ public class DirectorySummaryPanel extends JPanel {
 	public void addNotify() {
 		super.addNotify();
 		closed=false;
+		GuiProcessingActivity.addListener(processingActivityListener);
 		if (loadingTimer!=null) loadingTimer.start();
 		requestSlowBitsDispatch();
 	}
@@ -875,6 +883,7 @@ public class DirectorySummaryPanel extends JPanel {
 	@Override
 	public void removeNotify() {
 		closed=true;
+		GuiProcessingActivity.removeListener(processingActivityListener);
 		if (loadingTimer!=null) loadingTimer.stop();
 		super.removeNotify();
 		slowBitsRunning.clear();

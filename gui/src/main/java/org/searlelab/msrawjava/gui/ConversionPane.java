@@ -669,7 +669,7 @@ public class ConversionPane extends JPanel {
 
 		@Override
 		public void run() {
-			try {
+			try (AutoCloseable foregroundWork=GuiProcessingActivity.beginForegroundWork()) {
 				boolean ok;
 				ConversionParameters.Builder builder=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(demultiplex)
 						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
