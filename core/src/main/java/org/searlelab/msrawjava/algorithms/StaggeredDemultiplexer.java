@@ -41,6 +41,7 @@ import gnu.trove.list.array.TIntArrayList;
 public class StaggeredDemultiplexer {
 
 	private static final boolean PROFILE=Boolean.getBoolean("msrawjava.demux.profile");
+	private static final float MIN_SUB_WINDOW_WIDTH=0.05f;
 
 	private final MassTolerance tolerance;
 	private final DemuxConfig config;
@@ -345,7 +346,7 @@ public class StaggeredDemultiplexer {
 		});
 
 		if (orderedSubWindows.size()>2) {
-			throw new IllegalStateException("Expected at most 2 sub-windows per anchor, found "+orderedSubWindows.size());
+			throw new IllegalStateException("Expected at most 2 sub-windows per anchor, found "+orderedSubWindows.size()+": "+orderedSubWindows.toString());
 		}
 		for (int i=0; i<orderedSubWindows.size(); i++) {
 			int demuxCode=orderedSubWindows.size()==1?0:i;
@@ -670,7 +671,9 @@ public class StaggeredDemultiplexer {
 		for (int i=1; i<boundaries.size(); i++) {
 			float v=boundaries.getQuick(i);
 			if (v-anchor>windowBoundaryTolerance) {
-				subRanges.add(new RangeCounter(new Range(anchor, v)));
+				if (v-anchor>=MIN_SUB_WINDOW_WIDTH) {
+					subRanges.add(new RangeCounter(new Range(anchor, v)));
+				}
 				anchor=v;
 			}
 		}

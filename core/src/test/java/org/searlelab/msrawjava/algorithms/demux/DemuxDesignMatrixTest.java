@@ -33,6 +33,25 @@ class DemuxDesignMatrixTest {
 	}
 
 	@Test
+	void testTinySubWindowsAreExcluded() {
+		ArrayList<Range> windows=new ArrayList<>();
+		windows.add(new Range(388.43, 412.44));
+		windows.add(new Range(400.44, 412.43));
+
+		DemuxDesignMatrix matrix=new DemuxDesignMatrix(windows);
+		DemuxWindow[] subWindows=matrix.getSubWindows();
+
+		assertEquals(2, subWindows.length);
+		assertEquals(388.43, subWindows[0].getLowerMz(), 0.01);
+		assertEquals(400.44, subWindows[0].getUpperMz(), 0.01);
+		assertEquals(400.44, subWindows[1].getLowerMz(), 0.01);
+		assertEquals(412.43, subWindows[1].getUpperMz(), 0.01);
+		for (DemuxWindow subWindow : subWindows) {
+			assertTrue(subWindow.getWidth()>=0.05, "Sub-window should be at least 0.05 m/z: "+subWindow);
+		}
+	}
+
+	@Test
 	void testDesignMatrixStructure() {
 		// Create overlapping windows
 		ArrayList<Range> windows=new ArrayList<>();

@@ -36,6 +36,7 @@ import gnu.trove.list.array.TIntArrayList;
 public class DemuxDesignMatrix {
 
 	private static final float WINDOW_BOUNDARY_TOLERANCE=0.01f;
+	private static final float MIN_SUB_WINDOW_WIDTH=0.05f;
 
 	private final DemuxWindow[] subWindows;
 	private final double[] subWindowCenters;
@@ -265,7 +266,9 @@ public class DemuxDesignMatrix {
 		for (int i=1; i<boundaries.size(); i++) {
 			float v=boundaries.getQuick(i);
 			if (v-anchor>WINDOW_BOUNDARY_TOLERANCE) {
-				subRanges.add(new RangeCounter(new Range(anchor, v)));
+				if (v-anchor>=MIN_SUB_WINDOW_WIDTH) {
+					subRanges.add(new RangeCounter(new Range(anchor, v)));
+				}
 				anchor=v;
 			}
 		}
