@@ -5,7 +5,7 @@
 
 <img align="right" src="gui/splash@2x.png" width=300 style="margin-left: 15px;">
 
-**MS**Forest is the desktop GUI tool built on **MS**RawJava. At each stage, **MS**Forest is designed to help you see the forest through the trees. Instead of opening one spectrum at a time, **MS**Forest first shows the batch: which files were written correctly, which injections produced a chromatographic signal, which runs look unlike their neighbors, and which files need closer inspection. When the batch view raises a question, the individual raw file visualizer is designed to show you the complete structure first, rather than the acquired spectra first. It gives you tools to drill into the file with TIC views, targeted XICs, acquisition structure, ion injection time summaries, and method metadata.
+**MS**Forest is the desktop GUI tool built on **MS**RawJava. At each stage, **MS**Forest is designed to help you see the forest through the trees. Instead of opening one spectrum at a time, **MS**Forest first shows the batch: which files were written correctly, which injections produced a chromatographic signal, which runs look unlike their neighbors, and which files need closer inspection. When the batch view raises a question, the individual raw file visualizer is designed to show you the complete structure first, rather than the acquired spectra first. It gives you tools to drill into the file with TIC views, targeted XICs, acquisition structure, ion injection time summaries, and method metadata. You can read the **MS**Forest manual [here](docs/MANUAL.md).
 
 **MS**Forest and **MS**RawJava are freely distributed under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0.txt).
 
