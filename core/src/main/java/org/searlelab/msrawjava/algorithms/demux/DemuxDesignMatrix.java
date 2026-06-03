@@ -34,9 +34,9 @@ import gnu.trove.list.array.TIntArrayList;
  * efficient NNLS solving.
  */
 public class DemuxDesignMatrix {
-
-	private static final float WINDOW_BOUNDARY_TOLERANCE=0.01f;
-	private static final float MIN_SUB_WINDOW_WIDTH=0.05f;
+	// sometimes we see rounding errors of 0.01 with the Thermo method editor, 
+	// and we don't want to get caught in a floating point rounding issue 
+	public static final float WINDOW_BOUNDARY_TOLERANCE=0.02f; 
 
 	private final DemuxWindow[] subWindows;
 	private final double[] subWindowCenters;
@@ -266,9 +266,7 @@ public class DemuxDesignMatrix {
 		for (int i=1; i<boundaries.size(); i++) {
 			float v=boundaries.getQuick(i);
 			if (v-anchor>WINDOW_BOUNDARY_TOLERANCE) {
-				if (v-anchor>=MIN_SUB_WINDOW_WIDTH) {
-					subRanges.add(new RangeCounter(new Range(anchor, v)));
-				}
+				subRanges.add(new RangeCounter(new Range(anchor, v)));
 				anchor=v;
 			}
 		}
