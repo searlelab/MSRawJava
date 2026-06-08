@@ -20,6 +20,7 @@ import org.searlelab.msrawjava.logging.Logger;
 public final class ThermoServerPool {
 	private static final int MAX_START_ATTEMPTS=3;
 	private static final long RETRY_SLEEP_MS=250L;
+	private static final Duration DEFAULT_START_TIMEOUT=Duration.ofSeconds(180);
 	// Single daemon thread so it won't keep the JVM alive
 	private static final ExecutorService EXEC=Executors.newSingleThreadExecutor(r -> {
 		Thread t=new Thread(r, "thermo-server-launcher");
@@ -76,7 +77,7 @@ public final class ThermoServerPool {
 	/** blocking call with a sensible timeout. */
 	public static int port() throws IOException, InterruptedException {
 		try {
-			return port(Duration.ofSeconds(60));
+			return port(DEFAULT_START_TIMEOUT);
 		} catch (TimeoutException e) {
 			throw new IOException("Timed out waiting for Thermo server to start.", e);
 		}
