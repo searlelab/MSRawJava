@@ -81,6 +81,23 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 				isolationWindowUpper, massArray, intensityArray, ionMobilityArray, charge, scanWindowLower, scanWindowUpper);
 	}
 
+	public FragmentScan withIsolationWindow(double isolationWindowLower, double isolationWindowUpper) {
+		return new FragmentScan(spectrumName, precursorName, spectrumIndex, precursorMz, scanStartTime, fraction, ionInjectionTime, isolationWindowLower,
+				isolationWindowUpper, massArray, intensityArray, ionMobilityArray, charge, scanWindowLower, scanWindowUpper);
+	}
+
+	public FragmentScan trimIsolationWindow(double margin) {
+		if (margin<=0.0) return this;
+		double lower=isolationWindowLower+margin;
+		double upper=isolationWindowUpper-margin;
+		if (lower>upper) {
+			double center=(isolationWindowLower+isolationWindowUpper)/2.0;
+			lower=center;
+			upper=center;
+		}
+		return withIsolationWindow(lower, upper);
+	}
+
 	public FragmentScan sqrt() {
 		float[] sqrtIntensityArray=new float[intensityArray.length];
 		for (int i=0; i<intensityArray.length; i++) {

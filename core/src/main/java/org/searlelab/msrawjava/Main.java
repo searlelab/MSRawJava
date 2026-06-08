@@ -5,6 +5,7 @@ import java.io.PrintStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
@@ -13,6 +14,7 @@ import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.MGFOutputFile;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
+import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.VendorFiles;
@@ -21,6 +23,7 @@ import org.searlelab.msrawjava.io.mzml.MzmlConstants;
 import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.logging.ConsoleStatus;
 import org.searlelab.msrawjava.logging.FileLogRecorder;
 import org.searlelab.msrawjava.logging.Logger;
@@ -88,10 +91,11 @@ public class Main {
 					ThermoRawFile rawFile=new ThermoRawFile();
 					rawFile.openFile(path);
 
-					ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, VendorFile.THERMO);
+					ConversionParameters fileParams=prepareFileParameters(params, rawFile, VendorFile.THERMO);
+					fileParams=maybeOverrideOutput(fileParams, path, outputPath, VendorFile.THERMO);
 					indicator=createIndicator(fileParams);
 					try {
-						if (fileParams.isDemultiplex()) {
+						if (fileParams.getDemultiplex().orElse(false)) {
 							RawFileConverters.writeDemux(pool, rawFile, outputPath, fileParams, indicator);
 						} else {
 							RawFileConverters.writeStandard(pool, rawFile, outputPath, fileParams, indicator);
@@ -115,7 +119,7 @@ public class Main {
 				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
 				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
 
-				if (params.isDemultiplex()) {
+				if (params.getDemultiplex().orElse(false)) {
 					Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()
 							+" files. Processing without demultiplexing.");
 				}
@@ -140,10 +144,11 @@ public class Main {
 				EncyclopeDIAFile dia=new EncyclopeDIAFile();
 				dia.openFile(path.toFile());
 
-				ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, VendorFile.ENCYCLOPEDIA);
+				ConversionParameters fileParams=prepareFileParameters(params, dia, VendorFile.ENCYCLOPEDIA);
+				fileParams=maybeOverrideOutput(fileParams, path, outputPath, VendorFile.ENCYCLOPEDIA);
 				indicator=createIndicator(fileParams);
 				try {
-					if (fileParams.isDemultiplex()) {
+					if (fileParams.getDemultiplex().orElse(false)) {
 						RawFileConverters.writeDemux(pool, dia, outputPath, fileParams, indicator);
 					} else {
 						RawFileConverters.writeStandard(pool, dia, outputPath, fileParams, indicator);
@@ -166,10 +171,11 @@ public class Main {
 				MzmlFile mzml=new MzmlFile();
 				mzml.openFile(path.toFile());
 
-				ConversionParameters fileParams=maybeOverrideOutput(params, path, outputPath, VendorFile.MZML);
+				ConversionParameters fileParams=prepareFileParameters(params, mzml, VendorFile.MZML);
+				fileParams=maybeOverrideOutput(fileParams, path, outputPath, VendorFile.MZML);
 				indicator=createIndicator(fileParams);
 				try {
-					if (fileParams.isDemultiplex()) {
+					if (fileParams.getDemultiplex().orElse(false)) {
 						RawFileConverters.writeDemux(pool, mzml, outputPath, fileParams, indicator);
 					} else {
 						RawFileConverters.writeStandard(pool, mzml, outputPath, fileParams, indicator);
@@ -194,13 +200,30 @@ public class Main {
 		return new LoggingProgressIndicator(LoggingProgressIndicator.Mode.DEFAULT, useAnsi);
 	}
 
+	private static ConversionParameters prepareFileParameters(ConversionParameters base, StripeFileInterface rawFile, VendorFile source) {
+		boolean inferredDemux=source!=VendorFile.BRUKER&&RawFileStructureTools.isStaggered(rawFile.getRanges());
+		boolean demux=base.getDemultiplex().orElse(inferredDemux);
+		if (source==VendorFile.BRUKER&&demux) {
+			demux=false;
+		}
+		if (base.getPrecursorMarginSize().isPresent()) {
+			rawFile.setPrecursorMarginSize(base.getPrecursorMarginSize().get());
+		}
+		double margin=rawFile.getPrecursorMarginSize();
+		if (demux&&margin!=0.0) {
+			throw new IllegalArgumentException("--demux true cannot be used with --precursorMarginSize "+margin
+					+". Use staggered demultiplexing or precursor margins, not both.");
+		}
+		return cloneWithResolvedSettings(base, demux);
+	}
+
 	private static ConversionParameters maybeOverrideOutput(ConversionParameters base, Path inputPath, Path outputDir, VendorFile source) {
 		if (base.getOutputFilePathOverride()!=null) return base;
 		String name=inputPath.getFileName().toString();
 		boolean isDiaInput=VendorFile.ENCYCLOPEDIA.matchesName(name);
 		boolean isMzmlInput=VendorFile.MZML.matchesName(name);
 
-		if (base.isDemultiplex()&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA||source==VendorFile.MZML)) {
+		if (base.getDemultiplex().orElse(false)&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA||source==VendorFile.MZML)) {
 			String baseName=stripExtension(name);
 			String suffix;
 			switch (base.getOutType()) {
@@ -244,10 +267,20 @@ public class Main {
 
 	private static ConversionParameters cloneWithOutputOverride(ConversionParameters base, Path override) {
 		return ConversionParameters.builder().fileList(base.getFileList()).outType(base.getOutType()).outputDirPath(base.getOutputDirPath())
-				.minimumMS1Intensity(base.getMinimumMS1Intensity()).minimumMS2Intensity(base.getMinimumMS2Intensity()).demultiplex(base.isDemultiplex())
-				.demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig()).logFilePath(base.getLogFilePath()).batch(base.isBatch())
-				.silent(base.isSilent()).noAnsi(base.isNoAnsi()).discoverDIAFiles(base.isDiscoverDIAFiles()).discoverMzMLFiles(base.isDiscoverMzMLFiles())
-				.outputFilePathOverride(override).processingThreads(base.getProcessingThreads()).build();
+				.minimumMS1Intensity(base.getMinimumMS1Intensity()).minimumMS2Intensity(base.getMinimumMS2Intensity()).demultiplex(base.getDemultiplex())
+				.precursorMarginSize(base.getPrecursorMarginSize()).demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig())
+				.logFilePath(base.getLogFilePath()).batch(base.isBatch()).silent(base.isSilent()).noAnsi(base.isNoAnsi())
+				.discoverDIAFiles(base.isDiscoverDIAFiles()).discoverMzMLFiles(base.isDiscoverMzMLFiles()).outputFilePathOverride(override)
+				.processingThreads(base.getProcessingThreads()).build();
+	}
+
+	private static ConversionParameters cloneWithResolvedSettings(ConversionParameters base, boolean demux) {
+		return ConversionParameters.builder().fileList(base.getFileList()).outType(base.getOutType()).outputDirPath(base.getOutputDirPath())
+				.minimumMS1Intensity(base.getMinimumMS1Intensity()).minimumMS2Intensity(base.getMinimumMS2Intensity()).demultiplex(demux)
+				.precursorMarginSize(base.getPrecursorMarginSize()).demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig())
+				.logFilePath(base.getLogFilePath()).batch(base.isBatch()).silent(base.isSilent()).noAnsi(base.isNoAnsi())
+				.discoverDIAFiles(base.isDiscoverDIAFiles()).discoverMzMLFiles(base.isDiscoverMzMLFiles())
+				.outputFilePathOverride(base.getOutputFilePathOverride()).processingThreads(base.getProcessingThreads()).build();
 	}
 
 	@Command(name="msrawjava", mixinStandardHelpOptions=true, description="Convert vendor raw files into analysis-ready formats.", versionProvider=VersionProvider.class)
@@ -276,8 +309,11 @@ public class Main {
 		@Option(names="--min-ms2", defaultValue="1.0", description="Minimum MS2 intensity threshold for timsTOF.")
 		private float minimumMS2Intensity=1.0f;
 
-		@Option(names="--demux", defaultValue="false", description="Enable staggered window demultiplexing for Thermo DIA.")
-		private boolean demultiplex=false;
+		@Option(names="--demux", arity="1", description="Enable or disable staggered window demultiplexing for DIA.")
+		private Boolean demultiplex=null;
+
+		@Option(names="--precursorMarginSize", paramLabel="#", description="Trim this many m/z from each side of MS2 isolation windows.")
+		private Double precursorMarginSize=null;
 
 		@Option(names="--demux-k", defaultValue="7", description="Local approximation size for demux (7-9).")
 		private int demuxK=DemuxConfig.DEFAULT_K;
@@ -342,8 +378,9 @@ public class Main {
 
 			return ConversionParameters.builder().fileList(paths).outType(format.toOutputType()).outputDirPath(outputDirPath).logFilePath(logFilePath)
 					.minimumMS1Intensity(minimumMS1Intensity).minimumMS2Intensity(minimumMS2Intensity).demultiplex(demultiplex)
-					.demuxTolerance(new PPMMassTolerance(demuxPpm)).demuxConfig(demuxConfig).batch(batch).silent(silent).noAnsi(noAnsi)
-					.discoverDIAFiles(discoverDIAFiles).discoverMzMLFiles(discoverMzMLFiles).processingThreads(validateThreads()).build();
+					.precursorMarginSize(Optional.ofNullable(precursorMarginSize)).demuxTolerance(new PPMMassTolerance(demuxPpm)).demuxConfig(demuxConfig)
+					.batch(batch).silent(silent).noAnsi(noAnsi).discoverDIAFiles(discoverDIAFiles).discoverMzMLFiles(discoverMzMLFiles)
+					.processingThreads(validateThreads()).build();
 		}
 
 		private Integer validateThreads() {

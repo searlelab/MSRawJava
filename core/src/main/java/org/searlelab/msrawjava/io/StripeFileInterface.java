@@ -29,6 +29,13 @@ public interface StripeFileInterface {
 	 */
 	Map<Range, WindowData> getRanges();
 
+	default double getPrecursorMarginSize() {
+		return 0.0;
+	}
+
+	default void setPrecursorMarginSize(double precursorMarginSize) {
+	}
+
 	/**
 	 * metadata map for experiment
 	 * 

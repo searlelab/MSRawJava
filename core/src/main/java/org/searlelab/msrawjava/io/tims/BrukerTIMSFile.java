@@ -29,7 +29,9 @@ import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
 import org.searlelab.msrawjava.io.mzml.InstrumentId;
+import org.searlelab.msrawjava.io.utils.DataAcquisitionType;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.io.utils.Triplet;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -62,6 +64,9 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 	private volatile boolean open=false;
 	private int ms1Key=0;
 	private int ms2Key=-1; // unknown
+	private DataAcquisitionType dataAcquisitionType=DataAcquisitionType.DDA;
+	private boolean staggered=false;
+	private double precursorMarginSize=0.0;
 
 	private float OneOverK0AcqRangeLower=0;
 	private float OneOverK0AcqRangeUpper=0;
@@ -224,6 +229,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		}
 
 		open=true;
+		determineStructure();
 	}
 
 	public Optional<MzCalibrationParams> readCalibrationParams() {
@@ -263,6 +269,10 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 
 	/** Return DIA stripe boundaries and stats; empty for datasets without DIA. */
 	public Map<Range, WindowData> getRanges() {
+		return RawFileStructureTools.trimRanges(fetchRanges(), precursorMarginSize);
+	}
+
+	private Map<Range, WindowData> fetchRanges() {
 		try {
 			if (!tableExists("DiaFrameMsMsWindows")||!tableExists("DiaFrameMsMsInfo")) {
 				return Collections.emptyMap();
@@ -313,6 +323,29 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 			Logger.errorLine("Error getting ranges:");
 			Logger.errorException(e);
 			throw new RuntimeException(e);
+		}
+	}
+
+	@Override
+	public double getPrecursorMarginSize() {
+		return precursorMarginSize;
+	}
+
+	@Override
+	public void setPrecursorMarginSize(double precursorMarginSize) {
+		this.precursorMarginSize=Math.max(0.0, precursorMarginSize);
+		metadata=null;
+	}
+
+	private void determineStructure() {
+		Map<Range, WindowData> acquisitionRanges=fetchRanges();
+		dataAcquisitionType=RawFileStructureTools.getDataType(acquisitionRanges);
+		if (dataAcquisitionType==DataAcquisitionType.DIA) {
+			staggered=RawFileStructureTools.isStaggered(acquisitionRanges);
+			precursorMarginSize=RawFileStructureTools.getPrecursorMarginSize(acquisitionRanges).orElse(0.0);
+		} else {
+			staggered=false;
+			precursorMarginSize=0.0;
 		}
 	}
 
@@ -554,6 +587,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 				Logger.errorException(sqle);
 			}
 		}
+		out.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
 		metadata=out;
 
 		return out;
@@ -779,13 +813,14 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 							}
 
 							final String name=buildBrukerFrameScanName(frameId, scanLo, scanHi);
+							Range trimmed=RawFileStructureTools.trimRange(new Range(isoLo, isoHi), precursorMarginSize);
 							out.add(new FragmentScan(name, // spectrumName
 									parent, // precursorName from Precursors.Parent
 									precursorID, // spectrumIndex
 									precursorTargetMz, // precursor
 									rt, // scanStartTime
 									0, // fraction
-									accumulationTimeSeconds(acc), isoLo, isoHi, // isolation window bounds
+									accumulationTimeSeconds(acc), trimmed.getStart(), trimmed.getStop(), // isolation window bounds
 									triplet.x, intens, ims, charge, // precursor charge
 									scanWindowLower, scanWindowUpper));
 						} catch (Exception ex) {
@@ -944,6 +979,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 							}
 
 							final String name=buildBrukerFrameScanName(frameId, scanLo, scanHi);
+							Range trimmed=RawFileStructureTools.trimRange(new Range(isoLo, isoHi), precursorMarginSize);
 
 							out.add(new FragmentScan(name, // spectrumName
 									parent, // precursorName from Precursors.Parent
@@ -952,7 +988,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 									rt, // scanStartTime
 									0, // fraction
 									1000f*acc, // IonInjectionTime (sec) = 1000 * AccumulationTime
-									isoLo, isoHi, // isolation window bounds
+									trimmed.getStart(), trimmed.getStop(), // isolation window bounds
 									triplet.x, intens, ims, charge, // precursor charge
 									scanWindowLower, scanWindowUpper));
 						} catch (Exception ex) {
@@ -1026,8 +1062,10 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 						int scanEnd=rs.getInt(8);
 						double lo=center-0.5*width;
 						double hi=center+0.5*width;
+						Range trimmed=RawFileStructureTools.trimRange(new Range(lo, hi), precursorMarginSize);
 						String name=buildBrukerFrameScanName(frameId, scanBegin, scanEnd);
-						out.add(new ScanSummary(name, frameId, rt, 0, tic, center, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, (byte)0));
+						out.add(new ScanSummary(name, frameId, rt, 0, tic, center, false, injTime, trimmed.getStart(), trimmed.getStop(), scanWindowLower,
+								scanWindowUpper, (byte)0));
 					}
 				}
 			}
@@ -1057,9 +1095,11 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 
 						double lo=center-0.5*width;
 						double hi=center+0.5*width;
+						Range trimmed=RawFileStructureTools.trimRange(new Range(lo, hi), precursorMarginSize);
 						String name=buildBrukerFrameScanName(frameId, scanBegin, scanEnd);
 						double summaryMz=targetMz>0.0?targetMz:(center>0.0?center:-1.0);
-						out.add(new ScanSummary(name, precursorId, rt, 0, tic, summaryMz, false, injTime, lo, hi, scanWindowLower, scanWindowUpper, charge));
+						out.add(new ScanSummary(name, precursorId, rt, 0, tic, summaryMz, false, injTime, trimmed.getStart(), trimmed.getStop(), scanWindowLower,
+								scanWindowUpper, charge));
 					}
 				}
 			}
@@ -1173,6 +1213,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 
 				double isoL=realCenter-0.5*w.width;
 				double isoH=realCenter+0.5*w.width;
+				Range trimmed=RawFileStructureTools.trimRange(new Range(isoL, isoH), precursorMarginSize);
 
 				try {
 					Triplet<double[], float[], int[]> triplet=reader.readRawFrameAndCalibrate(m.frameId-1, w.scanLo, w.scanHi, m.t1);
@@ -1183,8 +1224,8 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 
 					final int n=triplet.x==null?0:triplet.x.length;
 					if (n==0) {
-						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), isoL, isoH, new double[0],
-								new float[0], new float[0], (byte)0, scanWindowLower, scanWindowUpper));
+						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), trimmed.getStart(),
+								trimmed.getStop(), new double[0], new float[0], new float[0], (byte)0, scanWindowLower, scanWindowUpper));
 					} else {
 						// Optionally sqrt intensities
 						float[] intens=triplet.y;
@@ -1199,8 +1240,8 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 							ims[i]=getIMSFromScanNumber(triplet.z[i], m.scanMax);
 						}
 
-						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), isoL, isoH, triplet.x, intens,
-								ims, (byte)0, scanWindowLower, scanWindowUpper));
+						out.add(new FragmentScan(name, name, scanID, realCenter, (float)m.rt, 0, accumulationTimeSeconds(m.acc), trimmed.getStart(),
+								trimmed.getStop(), triplet.x, intens, ims, (byte)0, scanWindowLower, scanWindowUpper));
 					}
 				} catch (Exception ex) {
 					// propagate after closing iterator

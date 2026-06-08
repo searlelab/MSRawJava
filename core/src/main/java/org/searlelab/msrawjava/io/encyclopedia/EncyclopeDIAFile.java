@@ -33,7 +33,9 @@ import org.searlelab.msrawjava.Version;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.OutputSpectrumFile;
 import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.utils.DataAcquisitionType;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -85,6 +87,9 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	private boolean readOnly=false;
 
 	private final HashMap<Range, WindowData> ranges=new HashMap<Range, WindowData>();
+	private DataAcquisitionType dataAcquisitionType=DataAcquisitionType.DDA;
+	private boolean staggered=false;
+	private double precursorMarginSize=0.0;
 
 	private final TIntObjectHashMap<String> fractionNames=new TIntObjectHashMap<String>();
 
@@ -104,6 +109,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 	public void setRanges(HashMap<Range, WindowData> ranges) {
 		this.ranges.clear();
 		this.ranges.putAll(ranges);
+		determineStructure();
 	}
 
 	public void setFractionNames(TIntObjectHashMap<String> fractionNames) {
@@ -163,6 +169,18 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		} finally {
 			c.close();
 		}
+		determineStructure();
+	}
+
+	private void determineStructure() {
+		dataAcquisitionType=RawFileStructureTools.getDataType(ranges);
+		if (dataAcquisitionType==DataAcquisitionType.DIA) {
+			staggered=RawFileStructureTools.isStaggered(ranges);
+			precursorMarginSize=RawFileStructureTools.getPrecursorMarginSize(ranges).orElse(0.0);
+		} else {
+			staggered=false;
+			precursorMarginSize=0.0;
+		}
 	}
 
 	public void writeFractionNames() throws IOException, SQLException {
@@ -215,7 +233,6 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		this.tempFile=null;
 		this.readOnly=true;
 
-		getMetadata();
 		loadRanges();
 		loadFractionNames();
 	}
@@ -269,6 +286,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		} finally {
 			c.close();
 		}
+		determineStructure();
 	}
 
 	public void loadFractionNames() throws IOException, SQLException {
@@ -300,7 +318,17 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 
 	@Override
 	public Map<Range, WindowData> getRanges() {
-		return ranges;
+		return RawFileStructureTools.trimRanges(ranges, precursorMarginSize);
+	}
+
+	@Override
+	public double getPrecursorMarginSize() {
+		return precursorMarginSize;
+	}
+
+	@Override
+	public void setPrecursorMarginSize(double precursorMarginSize) {
+		this.precursorMarginSize=Math.max(0.0, precursorMarginSize);
 	}
 
 	@Override
@@ -473,8 +501,9 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		if (nullableIonMobilityEncodedLength!=null&&nullableIonMobilityEncodedLength>0) {
 			ionMobilityArray=ByteConverter.toFloatArray(CompressionUtils.decompress(ionMobilityArrayBytes, nullableIonMobilityEncodedLength));
 		}
+		Range trimmed=RawFileStructureTools.trimRange(new Range(isolationWindowLower, isolationWindowUpper), precursorMarginSize);
 		return new FragmentScan(spectrumName, precursorName, spectrumIndex, (isolationWindowUpper+isolationWindowLower)/2.0, scanStartTime, fraction,
-				ionInjectionTime, isolationWindowLower, isolationWindowUpper, massArray, intensityArray, ionMobilityArray, (byte)precursorCharge, 0.0,
+				ionInjectionTime, trimmed.getStart(), trimmed.getStop(), massArray, intensityArray, ionMobilityArray, (byte)precursorCharge, 0.0,
 				MatrixMath.max(massArray));
 	}
 
@@ -754,12 +783,14 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					map.put(key, value);
 				}
 
+				map.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
 				return map;
 				} catch (SQLException sqle) {
 					String key=String.valueOf(getFile());
 					if (METADATA_WARNING_LOGGED.add(key)) {
 						Logger.errorLine("Unexpected error reading metadata from "+getFile()+", suggests potential file corruption!");
 					}
+					map.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
 					return map;
 				} finally {
 					s.close();
@@ -1234,6 +1265,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 					double isoLo=rs.getDouble(5);
 					double isoHi=rs.getDouble(6);
 					double center=rs.getDouble(7);
+					Range trimmed=RawFileStructureTools.trimRange(new Range(isoLo, isoHi), precursorMarginSize);
 					byte charge=(byte)rs.getInt(8);
 					double scanLo=rs.getDouble(9);
 					double scanHi=rs.getDouble(10);
@@ -1254,7 +1286,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 							}
 						}
 					}
-					out.add(new ScanSummary(name, index, rt, 0, tic, center, false, iit, isoLo, isoHi, scanLo, scanHi, charge));
+					out.add(new ScanSummary(name, index, rt, 0, tic, center, false, iit, trimmed.getStart(), trimmed.getStop(), scanLo, scanHi, charge));
 				}
 				rs.close();
 			} finally {

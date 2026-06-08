@@ -25,7 +25,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
 import org.searlelab.msrawjava.io.mzml.InstrumentId;
+import org.searlelab.msrawjava.io.utils.DataAcquisitionType;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
@@ -321,6 +323,45 @@ class MzmlFileTest {
 		Range r2=new Range(590.0, 610.0);
 		assertTrue(ranges.containsKey(r2));
 		assertEquals(1, ranges.get(r2).getNumberOfMSMS());
+
+		reader.close();
+	}
+
+	@Test
+	void structureMetadataAndExplicitMarginTrimPublicMs2Windows() throws Exception {
+		double[] mz= {200.0};
+		float[] inten= {10.0f};
+		StringBuilder xml=new StringBuilder(mzmlHeader());
+		int index=0;
+		for (int cycle=0; cycle<5; cycle++) {
+			xml.append(ms2Spectrum(index++, 10.0f+cycle, 501.0, 1.5, 501.0, (byte)2, mz, inten, false));
+			xml.append(ms2Spectrum(index++, 10.1f+cycle, 503.0, 1.5, 503.0, (byte)2, mz, inten, false));
+			xml.append(ms2Spectrum(index++, 10.2f+cycle, 505.0, 1.5, 505.0, (byte)2, mz, inten, false));
+		}
+		xml.append(mzmlFooter());
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml.toString()));
+		assertEquals(DataAcquisitionType.DIA.name(), reader.getMetadata().get(RawFileStructureTools.METADATA_DATA_ACQUISITION_TYPE));
+		assertEquals("false", reader.getMetadata().get(RawFileStructureTools.METADATA_IS_STAGGERED));
+		assertEquals(0.5, Double.parseDouble(reader.getMetadata().get(RawFileStructureTools.METADATA_PRECURSOR_MARGIN_SIZE)), 1e-6);
+
+		reader.setPrecursorMarginSize(0.25);
+		Map<Range, WindowData> ranges=reader.getRanges();
+		assertTrue(ranges.containsKey(new Range(499.75, 502.25)));
+
+		ArrayList<ScanSummary> summaries=reader.getScanSummaries(0, 60);
+		ScanSummary first=summaries.get(0);
+		assertEquals(499.75, first.getIsolationWindowLower(), 1e-6);
+		assertEquals(502.25, first.getIsolationWindowUpper(), 1e-6);
+
+		ArrayList<FragmentScan> fragments=reader.getStripes(new Range(0.0, Float.MAX_VALUE), 0, 60, false);
+		assertEquals(499.75, fragments.get(0).getIsolationWindowLower(), 1e-6);
+		assertEquals(502.25, fragments.get(0).getIsolationWindowUpper(), 1e-6);
+
+		FragmentScan spectrum=(FragmentScan)reader.getSpectrum(first);
+		assertEquals(499.75, spectrum.getIsolationWindowLower(), 1e-6);
+		assertEquals(502.25, spectrum.getIsolationWindowUpper(), 1e-6);
 
 		reader.close();
 	}

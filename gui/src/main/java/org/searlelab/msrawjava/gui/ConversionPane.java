@@ -12,6 +12,7 @@ import java.awt.event.MouseEvent;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,7 +25,6 @@ import java.util.prefs.Preferences;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -48,14 +48,19 @@ import org.searlelab.msrawjava.gui.utils.PathDisplayNames;
 import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
+import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
+
+import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
+import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox.State;
 
 /**
  * Owns the conversion parameter bar, queue, dispatcher and details console.
@@ -87,9 +92,9 @@ public class ConversionPane extends JPanel {
 
 	// ---- parameter bar widgets ----
 	private final JComboBox<OutputType> outTypeBox=new JComboBox<>(OutputType.values());
-	private final JCheckBox demultiplexBox=new JCheckBox("Demux");
+	private final FlatTriStateCheckBox demultiplexBox=new FlatTriStateCheckBox("Demux", State.INDETERMINATE);
 	private JSpinner threadSpinner;
-	private boolean lastDemuxSelection=false;
+	private State lastDemuxState=State.INDETERMINATE;
 	private boolean suppressDemuxChange=false;
 
 	// ---- queue UI ----
@@ -173,11 +178,11 @@ public class ConversionPane extends JPanel {
 		}
 		if (hasBruker) {
 			if (demultiplexBox.isEnabled()) {
-				lastDemuxSelection=demultiplexBox.isSelected();
+				lastDemuxState=demultiplexBox.getState();
 			}
 			suppressDemuxChange=true;
 			try {
-				demultiplexBox.setSelected(false);
+				demultiplexBox.setState(State.UNSELECTED);
 				demultiplexBox.setEnabled(false);
 			} finally {
 				suppressDemuxChange=false;
@@ -186,7 +191,7 @@ public class ConversionPane extends JPanel {
 			suppressDemuxChange=true;
 			try {
 				demultiplexBox.setEnabled(true);
-				demultiplexBox.setSelected(lastDemuxSelection);
+				demultiplexBox.setState(lastDemuxState);
 			} finally {
 				suppressDemuxChange=false;
 			}
@@ -215,14 +220,14 @@ public class ConversionPane extends JPanel {
 		});
 		outTypeBox.setToolTipText("Select the output file format used for queued conversions.");
 
-		boolean savedDemux=prefs.getBoolean(PREF_DEMULTIPLEX, false);
-		demultiplexBox.setSelected(savedDemux);
-		demultiplexBox.setToolTipText("Enable staggered-window demultiplexing for supported files.");
-		lastDemuxSelection=savedDemux;
+		State savedDemux=parseDemuxState(prefs.get(PREF_DEMULTIPLEX, State.INDETERMINATE.name()));
+		demultiplexBox.setState(savedDemux);
+		demultiplexBox.setToolTipText("Enable staggered-window demultiplexing for supported files (\"-\" means auto-determine).");
+		lastDemuxState=savedDemux;
 		demultiplexBox.addActionListener(e -> {
 			if (suppressDemuxChange) return;
-			lastDemuxSelection=demultiplexBox.isSelected();
-			prefs.putBoolean(PREF_DEMULTIPLEX, lastDemuxSelection);
+			lastDemuxState=demultiplexBox.getState();
+			prefs.put(PREF_DEMULTIPLEX, lastDemuxState.name());
 		});
 
 		int defaultThreads=Math.max(1, Runtime.getRuntime().availableProcessors()-1);
@@ -282,6 +287,20 @@ public class ConversionPane extends JPanel {
 		tools.add(restart);
 		tools.add(clear);
 		return tools;
+	}
+
+	private static State parseDemuxState(String stateName) {
+		try {
+			return State.valueOf(stateName);
+		} catch (Exception e) {
+			return State.INDETERMINATE;
+		}
+	}
+
+	private static Optional<Boolean> demuxOptional(State state) {
+		if (state==State.SELECTED) return Optional.of(Boolean.TRUE);
+		if (state==State.UNSELECTED) return Optional.of(Boolean.FALSE);
+		return Optional.empty();
 	}
 
 	private void installQueueHeaderTooltips() {
@@ -405,7 +424,7 @@ public class ConversionPane extends JPanel {
 			if (vendor==null) continue;
 
 			Path outDir=(p.getParent()!=null)?p.getParent():p;
-			boolean demux=demultiplexBox.isSelected();
+			Optional<Boolean> demux=demuxOptional(demultiplexBox.getState());
 			ConversionJob job=new ConversionJob(p, outDir, outType, demux, vendor);
 			queueModel.enqueue(job);
 		}
@@ -631,7 +650,7 @@ public class ConversionPane extends JPanel {
 		final Path input;
 		final Path outputDir;
 		final OutputType outType;
-		final boolean demultiplex;
+		final Optional<Boolean> demultiplex;
 		final VendorFile vendor;
 
 		volatile JobState state=JobState.QUEUED;
@@ -642,11 +661,11 @@ public class ConversionPane extends JPanel {
 		volatile boolean cancelRequested=false;
 		volatile Future<?> future;
 
-		ConversionJob(Path input, Path outputDir, OutputType outType, boolean demultiplex, VendorFile vendor) {
+		ConversionJob(Path input, Path outputDir, OutputType outType, Optional<Boolean> demultiplex, VendorFile vendor) {
 			this.input=input;
 			this.outputDir=outputDir;
 			this.outType=outType;
-			this.demultiplex=demultiplex;
+			this.demultiplex=demultiplex==null?Optional.empty():demultiplex;
 			this.vendor=vendor;
 		}
 
@@ -674,12 +693,13 @@ public class ConversionPane extends JPanel {
 				ConversionParameters.Builder builder=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(demultiplex)
 						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
 						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity());
-				builder.outputFilePathOverride(resolveOutputOverride(vendor, input, outputDir, outType, demultiplex));
 				ConversionParameters params=builder.build();
 				if (vendor==VendorFile.THERMO) {
 					ThermoRawFile rawFile=new ThermoRawFile();
 					rawFile.openFile(input);
-					if (demultiplex) {
+					params=prepareFileParameters(params, rawFile, vendor);
+					params=withOutputOverride(params, resolveOutputOverride(vendor, input, outputDir, outType, params.getDemultiplex().orElse(false)));
+					if (params.getDemultiplex().orElse(false)) {
 						ok=RawFileConverters.writeDemux(pool, rawFile, outputDir, params, this);
 					} else {
 						ok=RawFileConverters.writeStandard(pool, rawFile, outputDir, params, this);
@@ -687,7 +707,9 @@ public class ConversionPane extends JPanel {
 				} else if (vendor==VendorFile.ENCYCLOPEDIA) {
 					EncyclopeDIAFile dia=new EncyclopeDIAFile();
 					dia.openFile(input.toFile());
-					if (demultiplex) {
+					params=prepareFileParameters(params, dia, vendor);
+					params=withOutputOverride(params, resolveOutputOverride(vendor, input, outputDir, outType, params.getDemultiplex().orElse(false)));
+					if (params.getDemultiplex().orElse(false)) {
 						ok=RawFileConverters.writeDemux(pool, dia, outputDir, params, this);
 					} else {
 						ok=RawFileConverters.writeStandard(pool, dia, outputDir, params, this);
@@ -695,15 +717,22 @@ public class ConversionPane extends JPanel {
 				} else if (vendor==VendorFile.MZML) {
 					MzmlFile mzml=new MzmlFile();
 					mzml.openFile(input.toFile());
-					if (demultiplex) {
+					params=prepareFileParameters(params, mzml, vendor);
+					params=withOutputOverride(params, resolveOutputOverride(vendor, input, outputDir, outType, params.getDemultiplex().orElse(false)));
+					if (params.getDemultiplex().orElse(false)) {
 						ok=RawFileConverters.writeDemux(pool, mzml, outputDir, params, this);
 					} else {
 						ok=RawFileConverters.writeStandard(pool, mzml, outputDir, params, this);
 					}
 				} else {
-					if (demultiplex) {
+					boolean requestedDemux=params.getDemultiplex().orElse(false);
+					if (requestedDemux) {
 						Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()+" files");
 					}
+					params=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(false)
+							.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
+							.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity())
+							.build();
 					ok=RawFileConverters.writeTims(pool, input, outputDir, params, this);
 				}
 				if (cancelRequested) {
@@ -727,6 +756,26 @@ public class ConversionPane extends JPanel {
 			} finally {
 				queueModel.jobUpdated(this);
 			}
+		}
+
+		private ConversionParameters prepareFileParameters(ConversionParameters base, StripeFileInterface rawFile, VendorFile source) {
+			boolean inferredDemux=source!=VendorFile.BRUKER&&RawFileStructureTools.isStaggered(rawFile.getRanges());
+			boolean demux=base.getDemultiplex().orElse(inferredDemux);
+			if (source==VendorFile.BRUKER&&demux) demux=false;
+			double margin=rawFile.getPrecursorMarginSize();
+			if (demux&&margin!=0.0) {
+				throw new IllegalArgumentException("Demux cannot be used with precursorMarginSize "+margin+". Use staggered demultiplexing or precursor margins, not both.");
+			}
+			return ConversionParameters.builder().outType(base.getOutType()).outputDirPath(base.getOutputDirPath()).demultiplex(demux)
+					.demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig()).minimumMS1Intensity(base.getMinimumMS1Intensity())
+					.minimumMS2Intensity(base.getMinimumMS2Intensity()).build();
+		}
+
+		private ConversionParameters withOutputOverride(ConversionParameters base, Path outputOverride) {
+			return ConversionParameters.builder().outType(base.getOutType()).outputDirPath(base.getOutputDirPath()).demultiplex(base.getDemultiplex())
+					.precursorMarginSize(base.getPrecursorMarginSize()).demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig())
+					.minimumMS1Intensity(base.getMinimumMS1Intensity()).minimumMS2Intensity(base.getMinimumMS2Intensity())
+					.outputFilePathOverride(outputOverride).build();
 		}
 
 		private java.nio.file.Path resolveOutputOverride(VendorFile source, Path input, Path outputDir, OutputType outType, boolean demultiplex) {

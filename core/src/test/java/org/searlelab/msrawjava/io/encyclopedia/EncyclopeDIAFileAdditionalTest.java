@@ -7,17 +7,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.searlelab.msrawjava.io.utils.DataAcquisitionType;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
@@ -30,6 +34,22 @@ class EncyclopeDIAFileAdditionalTest {
 
 	@TempDir
 	Path tmp;
+
+	@Test
+	void openFileDeterminesStructureAfterLoadingRanges() throws Exception {
+		Path diaFile=Path.of("src", "test", "resources", "rawdata", "HeLa_16mzst_demux.dia");
+		Assumptions.assumeTrue(Files.exists(diaFile), "Fixture missing: "+diaFile);
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile(diaFile.toFile());
+		try {
+			HashMap<String, String> metadata=dia.getMetadata();
+			assertEquals(DataAcquisitionType.DIA.name(), metadata.get(RawFileStructureTools.METADATA_DATA_ACQUISITION_TYPE));
+			assertEquals("false", metadata.get(RawFileStructureTools.METADATA_IS_STAGGERED));
+		} finally {
+			dia.close();
+		}
+	}
 
 	@Test
 	void writesAndReloadsRangesFractionsAndIonMobility() throws Exception {

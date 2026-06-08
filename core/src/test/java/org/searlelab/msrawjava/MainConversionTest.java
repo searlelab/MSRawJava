@@ -26,7 +26,7 @@ class MainConversionTest {
 		ConversionParameters params=ConversionParameters.builder().addFile(dia.toFile()).outType(OutputType.mgf).outputDirPath(tempDir).build();
 		Main.convertKnownFiles(params);
 
-		Path expected=tempDir.resolve("HeLa_16mzst_29to31min.mgf");
+		Path expected=tempDir.resolve("HeLa_16mzst_29to31min.demux.mgf");
 		assertTrue(Files.exists(expected), "Expected output file at "+expected);
 	}
 
@@ -41,6 +41,20 @@ class MainConversionTest {
 
 		Path expected=tempDir.resolve("HeLa_16mzst_29to31min.demux.mgf");
 		assertTrue(Files.exists(expected), "Expected demux output file at "+expected);
+	}
+
+	@Test
+	void convertKnownFiles_autoDemuxDoesNotRedemuxAlreadyDemuxedDia(@TempDir Path tempDir) throws Exception {
+		Path dia=Path.of("src", "test", "resources", "rawdata", "HeLa_16mzst_demux.dia");
+		Assumptions.assumeTrue(Files.exists(dia), "Fixture missing: "+dia);
+
+		ConversionParameters params=ConversionParameters.builder().addFile(dia.toFile()).outType(OutputType.mgf).outputDirPath(tempDir).build();
+		Main.convertKnownFiles(params);
+
+		Path expected=tempDir.resolve("HeLa_16mzst_demux.mgf");
+		Path redemuxed=tempDir.resolve("HeLa_16mzst_demux.demux.mgf");
+		assertTrue(Files.exists(expected), "Expected already-demuxed DIA output file at "+expected);
+		assertTrue(Files.notExists(redemuxed), "Auto demux should not demux an already-demuxed DIA file at "+redemuxed);
 	}
 
 	@Test
@@ -81,7 +95,7 @@ class MainConversionTest {
 				.build();
 		Main.convertKnownFiles(params);
 
-		Path expected=tempDir.resolve("HeLa_16mzst_29to31min.mgf");
+		Path expected=tempDir.resolve("HeLa_16mzst_29to31min.demux.mgf");
 		assertTrue(Files.exists(expected), "Expected mzML output file at "+expected);
 	}
 
@@ -108,7 +122,7 @@ class MainConversionTest {
 		ConversionParameters params=ConversionParameters.builder().addFile(local.toFile()).outType(OutputType.mzML).discoverMzMLFiles(true).build();
 		Main.convertKnownFiles(params);
 
-		Path expected=tempDir.resolve("local.2.mzML");
+		Path expected=tempDir.resolve("local.demux.mzML");
 		assertTrue(Files.exists(expected), "Expected no-overwrite mzML output file at "+expected);
 	}
 
@@ -122,7 +136,7 @@ class MainConversionTest {
 		ConversionParameters params=ConversionParameters.builder().addFile(local.toFile()).outType(OutputType.EncyclopeDIA).discoverDIAFiles(true).build();
 		Main.convertKnownFiles(params);
 
-		Path expected=tempDir.resolve("local.2.dia");
+		Path expected=tempDir.resolve("local.demux.dia");
 		assertTrue(Files.exists(expected), "Expected no-overwrite DIA output file at "+expected);
 	}
 

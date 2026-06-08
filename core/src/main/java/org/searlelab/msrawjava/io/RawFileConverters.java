@@ -407,6 +407,13 @@ public class RawFileConverters {
 		float minimumMS2Intensity=params.getMinimumMS2Intensity();
 		BrukerTIMSFile timsFile=new BrukerTIMSFile();
 		timsFile.openFile(timsFilePath);
+		if (params.getPrecursorMarginSize().isPresent()) {
+			timsFile.setPrecursorMarginSize(params.getPrecursorMarginSize().get());
+		}
+		if (params.getDemultiplex().orElse(false)&&timsFile.getPrecursorMarginSize()!=0.0) {
+			throw new IllegalArgumentException("--demux true cannot be used with --precursorMarginSize "+timsFile.getPrecursorMarginSize()
+					+". Use staggered demultiplexing or precursor margins, not both.");
+		}
 
 		String originalFileName=timsFilePath.getFileName().toString();
 		progress.update("Started converting "+originalFileName+"...", 0.0f);
@@ -673,7 +680,8 @@ public class RawFileConverters {
 		}
 		HashMap<String, String> metadata=new HashMap<String, String>();
 		metadata.put("conversion.outputType", String.valueOf(params.getOutType()));
-		metadata.put("conversion.demultiplex", Boolean.toString(params.isDemultiplex()));
+		metadata.put("conversion.demultiplex", Boolean.toString(params.getDemultiplex().orElse(false)));
+		params.getPrecursorMarginSize().ifPresent(value -> metadata.put("conversion.precursorMarginSize", Double.toString(value)));
 		metadata.put("conversion.timsTOF.minimumMS1Intensity", Float.toString(params.getMinimumMS1Intensity()));
 		metadata.put("conversion.timsTOF.minimumMS2Intensity", Float.toString(params.getMinimumMS2Intensity()));
 

@@ -6,6 +6,7 @@ import java.util.Arrays;
 import org.ejml.data.DMatrixRMaj;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.algorithms.RangeCounter;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.Range;
 
@@ -34,9 +35,6 @@ import gnu.trove.list.array.TIntArrayList;
  * efficient NNLS solving.
  */
 public class DemuxDesignMatrix {
-	// sometimes we see rounding errors of 0.01 with the Thermo method editor, 
-	// and we don't want to get caught in a floating point rounding issue 
-	public static final float WINDOW_BOUNDARY_TOLERANCE=0.02f; 
 
 	private final DemuxWindow[] subWindows;
 	private final double[] subWindowCenters;
@@ -265,7 +263,7 @@ public class DemuxDesignMatrix {
 
 		for (int i=1; i<boundaries.size(); i++) {
 			float v=boundaries.getQuick(i);
-			if (v-anchor>WINDOW_BOUNDARY_TOLERANCE) {
+			if (v-anchor>RawFileStructureTools.WINDOW_BOUNDARY_TOLERANCE) {
 				subRanges.add(new RangeCounter(new Range(anchor, v)));
 				anchor=v;
 			}

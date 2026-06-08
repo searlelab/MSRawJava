@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -40,7 +41,8 @@ class ConversionParametersTest {
 		assertEquals(out, p.getOutputDirPath());
 		assertEquals(ms1, p.getMinimumMS1Intensity());
 		assertEquals(ms2, p.getMinimumMS2Intensity());
-		assertTrue(p.isDemultiplex());
+		assertEquals(Optional.of(true), p.getDemultiplex());
+		assertTrue(p.getPrecursorMarginSize().isEmpty());
 		assertEquals(tol, p.getDemuxTolerance());
 		assertEquals(demux, p.getDemuxConfig());
 		assertEquals(tmp.resolve("log.txt"), p.getLogFilePath());
@@ -50,7 +52,7 @@ class ConversionParametersTest {
 
 		ConversionParameters p2=new ConversionParameters(files, type, null, ms1, ms2, false, tol, demux, null, false, true, false, false, false, null);
 		assertNull(p2.getOutputDirPath(), "null output directory should be allowed");
-		assertFalse(p2.isDemultiplex());
+		assertEquals(Optional.of(false), p2.getDemultiplex());
 		assertTrue(p2.isSilent());
 	}
 
@@ -60,12 +62,13 @@ class ConversionParametersTest {
 		assertEquals(OutputType.EncyclopeDIA, params.getOutType());
 		assertEquals(3.0f, params.getMinimumMS1Intensity());
 		assertEquals(1.0f, params.getMinimumMS2Intensity());
-		assertFalse(params.isDemultiplex());
+		assertTrue(params.getDemultiplex().isEmpty());
 		assertFalse(params.isBatch());
 		assertFalse(params.isSilent());
 		assertFalse(params.isNoAnsi());
 		assertFalse(params.isDiscoverDIAFiles());
 		assertNull(params.getOutputFilePathOverride());
+		assertTrue(params.getPrecursorMarginSize().isEmpty());
 
 		String text=params.toString();
 		assertTrue(text.contains("outType=EncyclopeDIA"));

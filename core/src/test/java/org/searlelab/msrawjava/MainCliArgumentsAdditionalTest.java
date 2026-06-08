@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
@@ -20,12 +21,12 @@ class MainCliArgumentsAdditionalTest {
 	@Test
 	void parsesDemuxFlagsAndLoggingOptions() throws Exception {
 		CommandLine cmd=new CommandLine(new Main.CliArguments());
-		cmd.parseArgs("--demux", "--demux-k", "9", "--demux-interp", "logquadratic", "--demux-exclude-edges", "--demux-ppm", "12.5", "--batch", "--silent",
-				"--no-ansi", "--log-file", "run.log", "--min-ms1", "7.5", "--min-ms2", "2.5", "input.raw");
+		cmd.parseArgs("--demux", "true", "--demux-k", "9", "--demux-interp", "logquadratic", "--demux-exclude-edges", "--demux-ppm", "12.5", "--batch",
+				"--silent", "--no-ansi", "--log-file", "run.log", "--min-ms1", "7.5", "--min-ms2", "2.5", "input.raw");
 		Main.CliArguments args=(Main.CliArguments)cmd.getCommand();
 		ConversionParameters params=args.toParameters();
 
-		assertTrue(params.isDemultiplex());
+		assertEquals(Optional.of(true), params.getDemultiplex());
 		assertTrue(params.isBatch());
 		assertTrue(params.isSilent());
 		assertTrue(params.isNoAnsi());
@@ -49,6 +50,17 @@ class MainCliArgumentsAdditionalTest {
 		assertEquals(OutputType.EncyclopeDIA, Main.OutputFormat.dia.toOutputType());
 		assertEquals(OutputType.mgf, Main.OutputFormat.mgf.toOutputType());
 		assertEquals(OutputType.mzML, Main.OutputFormat.mzml.toOutputType());
+	}
+
+	@Test
+	void demuxFalseAndOmittedDemuxAreDistinct() {
+		Main.CliArguments falseArgs=new Main.CliArguments();
+		new CommandLine(falseArgs).parseArgs("--demux", "false", "input.raw");
+		assertEquals(Optional.of(false), falseArgs.toParameters().getDemultiplex());
+
+		Main.CliArguments omittedArgs=new Main.CliArguments();
+		new CommandLine(omittedArgs).parseArgs("input.raw");
+		assertTrue(omittedArgs.toParameters().getDemultiplex().isEmpty());
 	}
 
 	@Test

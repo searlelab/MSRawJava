@@ -82,6 +82,19 @@ public final class ScanSummary {
 		return isolationWindowUpper;
 	}
 
+	public ScanSummary trimIsolationWindow(double margin) {
+		if (margin<=0.0||precursor) return this;
+		double lower=isolationWindowLower+margin;
+		double upper=isolationWindowUpper-margin;
+		if (lower>upper) {
+			double center=(isolationWindowLower+isolationWindowUpper)/2.0;
+			lower=center;
+			upper=center;
+		}
+		return new ScanSummary(spectrumName, spectrumIndex, scanStartTime, fraction, tic, precursorMz, precursor, ionInjectionTime, lower, upper,
+				scanWindowLower, scanWindowUpper, charge);
+	}
+
 	public double getScanWindowLower() {
 		return scanWindowLower;
 	}

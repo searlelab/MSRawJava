@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
 import org.searlelab.msrawjava.model.MassTolerance;
@@ -19,7 +20,8 @@ public class ConversionParameters {
 	private final Path outputDirPath;
 	private final float minimumMS1Intensity;
 	private final float minimumMS2Intensity;
-	private final boolean demultiplex;
+	private final Optional<Boolean> demultiplex;
+	private final Optional<Double> precursorMarginSize;
 	private final MassTolerance demuxTolerance;
 	private final DemuxConfig demuxConfig;
 	private final Path logFilePath;
@@ -34,19 +36,28 @@ public class ConversionParameters {
 	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity, float minimumMS2Intensity,
 			boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi,
 			boolean discoverDIAFiles, boolean discoverMzMLFiles, Path outputFilePathOverride) {
-		this(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance, demuxConfig, logFilePath, batch,
-				silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride, null);
+		this(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, Optional.of(demultiplex), Optional.empty(), demuxTolerance,
+				demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride, null);
 	}
 
 	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity, float minimumMS2Intensity,
 			boolean demultiplex, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath, boolean batch, boolean silent, boolean noAnsi,
 			boolean discoverDIAFiles, boolean discoverMzMLFiles, Path outputFilePathOverride, Integer processingThreads) {
+		this(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, Optional.of(demultiplex), Optional.empty(), demuxTolerance,
+				demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride, processingThreads);
+	}
+
+	public ConversionParameters(List<File> fileList, OutputType outType, Path outputDirPath, float minimumMS1Intensity, float minimumMS2Intensity,
+			Optional<Boolean> demultiplex, Optional<Double> precursorMarginSize, MassTolerance demuxTolerance, DemuxConfig demuxConfig, Path logFilePath,
+			boolean batch, boolean silent, boolean noAnsi, boolean discoverDIAFiles, boolean discoverMzMLFiles, Path outputFilePathOverride,
+			Integer processingThreads) {
 		this.fileList=new ArrayList<>(fileList==null?Collections.emptyList():fileList);
 		this.outType=outType;
 		this.outputDirPath=outputDirPath;
 		this.minimumMS1Intensity=minimumMS1Intensity;
 		this.minimumMS2Intensity=minimumMS2Intensity;
-		this.demultiplex=demultiplex;
+		this.demultiplex=demultiplex==null?Optional.empty():demultiplex;
+		this.precursorMarginSize=precursorMarginSize==null?Optional.empty():precursorMarginSize;
 		this.demuxTolerance=demuxTolerance;
 		this.demuxConfig=demuxConfig;
 		this.logFilePath=logFilePath;
@@ -79,8 +90,12 @@ public class ConversionParameters {
 		return minimumMS2Intensity;
 	}
 
-	public boolean isDemultiplex() {
+	public Optional<Boolean> getDemultiplex() {
 		return demultiplex;
+	}
+
+	public Optional<Double> getPrecursorMarginSize() {
+		return precursorMarginSize;
 	}
 
 	public MassTolerance getDemuxTolerance() {
@@ -126,9 +141,9 @@ public class ConversionParameters {
 	@Override
 	public String toString() {
 		return "ConversionParameters[outType="+outType+", outputDirPath="+outputDirPath+", minMS1="+minimumMS1Intensity+", minMS2="+minimumMS2Intensity
-				+", demux="+demultiplex+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig+", logFilePath="+logFilePath+", batch="+batch
-				+", silent="+silent+", noAnsi="+noAnsi+", discoverDIAFiles="+discoverDIAFiles+", discoverMzMLFiles="+discoverMzMLFiles
-				+", outputFilePathOverride="+outputFilePathOverride+", processingThreads="+processingThreads+"]";
+				+", demux="+demultiplex+", precursorMarginSize="+precursorMarginSize+", demuxTolerance="+demuxTolerance+", demuxConfig="+demuxConfig
+				+", logFilePath="+logFilePath+", batch="+batch+", silent="+silent+", noAnsi="+noAnsi+", discoverDIAFiles="+discoverDIAFiles
+				+", discoverMzMLFiles="+discoverMzMLFiles+", outputFilePathOverride="+outputFilePathOverride+", processingThreads="+processingThreads+"]";
 	}
 
 	public static Builder builder() {
@@ -141,7 +156,8 @@ public class ConversionParameters {
 		private Path outputDirPath=null;
 		private float minimumMS1Intensity=3.0f;
 		private float minimumMS2Intensity=1.0f;
-		private boolean demultiplex=false;
+		private Optional<Boolean> demultiplex=Optional.empty();
+		private Optional<Double> precursorMarginSize=Optional.empty();
 		private MassTolerance demuxTolerance=new PPMMassTolerance(10.0);
 		private DemuxConfig demuxConfig=new DemuxConfig();
 		private Path logFilePath=null;
@@ -184,7 +200,27 @@ public class ConversionParameters {
 		}
 
 		public Builder demultiplex(boolean demultiplex) {
-			this.demultiplex=demultiplex;
+			this.demultiplex=Optional.of(demultiplex);
+			return this;
+		}
+
+		public Builder demultiplex(Boolean demultiplex) {
+			this.demultiplex=demultiplex==null?Optional.empty():Optional.of(demultiplex);
+			return this;
+		}
+
+		public Builder demultiplex(Optional<Boolean> demultiplex) {
+			this.demultiplex=demultiplex==null?Optional.empty():demultiplex;
+			return this;
+		}
+
+		public Builder precursorMarginSize(double precursorMarginSize) {
+			this.precursorMarginSize=Optional.of(precursorMarginSize);
+			return this;
+		}
+
+		public Builder precursorMarginSize(Optional<Double> precursorMarginSize) {
+			this.precursorMarginSize=precursorMarginSize==null?Optional.empty():precursorMarginSize;
 			return this;
 		}
 
@@ -239,8 +275,9 @@ public class ConversionParameters {
 		}
 
 		public ConversionParameters build() {
-			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, demuxTolerance,
-					demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride, processingThreads);
+			return new ConversionParameters(fileList, outType, outputDirPath, minimumMS1Intensity, minimumMS2Intensity, demultiplex, precursorMarginSize,
+					demuxTolerance, demuxConfig, logFilePath, batch, silent, noAnsi, discoverDIAFiles, discoverMzMLFiles, outputFilePathOverride,
+					processingThreads);
 		}
 	}
 }

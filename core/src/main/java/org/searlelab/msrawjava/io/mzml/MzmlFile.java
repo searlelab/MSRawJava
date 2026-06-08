@@ -32,6 +32,8 @@ import javax.xml.stream.XMLStreamReader;
 import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.utils.DataAcquisitionType;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -75,6 +77,9 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 	private final ArrayList<Float> ms1Rts=new ArrayList<>();
 	private final ArrayList<Float> ms1Tics=new ArrayList<>();
 	private final HashMap<Integer, MzmlScanEntry> indexBySpectrumIndex=new HashMap<>();
+	private DataAcquisitionType dataAcquisitionType=DataAcquisitionType.DDA;
+	private boolean staggered=false;
+	private double precursorMarginSize=0.0;
 	private Optional<Date> runStartTime=Optional.empty();
 	private Multimap<String, String> softwareAccessionIdToVersion=ImmutableMultimap.of();
 	private ImmutableMultimap<InstrumentId, InstrumentComponent> instrumentConfigurations=ImmutableMultimap.of();
@@ -108,6 +113,9 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 		ms1Tics.clear();
 		indexBySpectrumIndex.clear();
 		spectrumCache.clear();
+		dataAcquisitionType=DataAcquisitionType.DDA;
+		staggered=false;
+		precursorMarginSize=0.0;
 		runStartTime=Optional.empty();
 		softwareAccessionIdToVersion=ImmutableMultimap.of();
 		instrumentConfigurations=ImmutableMultimap.of();
@@ -119,6 +127,7 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 			throw new IOException("Error parsing mzML: "+e.getMessage(), e);
 		}
 		computeRanges();
+		determineStructure();
 		open=true;
 	}
 
@@ -457,12 +466,25 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 
 	@Override
 	public Map<Range, WindowData> getRanges() {
-		return ranges;
+		return RawFileStructureTools.trimRanges(ranges, precursorMarginSize);
 	}
 
 	@Override
 	public Map<String, String> getMetadata() {
-		return metadata;
+		LinkedHashMap<String, String> out=new LinkedHashMap<>(metadata);
+		out.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
+		return out;
+	}
+
+	@Override
+	public double getPrecursorMarginSize() {
+		return precursorMarginSize;
+	}
+
+	@Override
+	public void setPrecursorMarginSize(double precursorMarginSize) {
+		this.precursorMarginSize=Math.max(0.0, precursorMarginSize);
+		spectrumCache.clear();
 	}
 
 	@Override
@@ -561,6 +583,11 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 				double precursorMz=isPrecursor?-1.0:entry.precursorMz;
 				double isoLower=entry.getIsolationWindowLower();
 				double isoUpper=entry.getIsolationWindowUpper();
+				if (!isPrecursor&&precursorMarginSize>0.0) {
+					Range trimmed=RawFileStructureTools.trimRange(new Range(isoLower, isoUpper), precursorMarginSize);
+					isoLower=trimmed.getStart();
+					isoUpper=trimmed.getStop();
+				}
 				double scanLower=entry.scanWindowLower;
 				double scanUpper=entry.scanWindowUpper;
 				if (scanLower==0&&scanUpper==0) {
@@ -690,7 +717,20 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 			throw new IOException("mzML file is not open");
 		}
 		Objects.requireNonNull(consumer, "consumer");
-		new MzmlSaxSpectrumStreamer(userFile, index, consumer).stream();
+		new MzmlSaxSpectrumStreamer(userFile, index, (precursor, fragment) -> {
+			consumer.accept(precursor, fragment==null?null:fragment.trimIsolationWindow(precursorMarginSize));
+		}).stream();
+	}
+
+	private void determineStructure() {
+		dataAcquisitionType=RawFileStructureTools.getDataType(ranges);
+		if (dataAcquisitionType==DataAcquisitionType.DIA) {
+			staggered=RawFileStructureTools.isStaggered(ranges);
+			precursorMarginSize=RawFileStructureTools.getPrecursorMarginSize(ranges).orElse(0.0);
+		} else {
+			staggered=false;
+			precursorMarginSize=0.0;
+		}
 	}
 
 	/** Number of spectra indexed during openFile(), used for progress reporting. */
@@ -1100,6 +1140,9 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 			if (fragments!=null) {
 				double isoLower=entry.getIsolationWindowLower();
 				double isoUpper=entry.getIsolationWindowUpper();
+				Range trimmed=RawFileStructureTools.trimRange(new Range(isoLower, isoUpper), precursorMarginSize);
+				isoLower=trimmed.getStart();
+				isoUpper=trimmed.getStop();
 				double precMz=entry.precursorMz;
 				if (precMz==0) precMz=(isoLower+isoUpper)/2.0;
 				double scanLower=entry.scanWindowLower;

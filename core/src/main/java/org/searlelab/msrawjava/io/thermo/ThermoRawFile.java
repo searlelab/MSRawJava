@@ -39,7 +39,9 @@ import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
 import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.TicRequest;
 import org.searlelab.msrawjava.io.thermo.rpc.WindowRange;
+import org.searlelab.msrawjava.io.utils.DataAcquisitionType;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -69,6 +71,10 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 	private ManagedChannel channel=null;
 	private ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=null;
 	private String sessionId=null;
+	private Map<Range, WindowData> acquisitionRanges=new LinkedHashMap<Range, WindowData>();
+	private DataAcquisitionType dataAcquisitionType=DataAcquisitionType.DDA;
+	private boolean staggered=false;
+	private double precursorMarginSize=0.0;
 	private Optional<Date> runStartTime=Optional.empty();
 
 	public ThermoRawFile() {
@@ -121,6 +127,8 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			} catch (Exception ignored) {
 				runStartTime=Optional.empty();
 			}
+			acquisitionRanges=fetchRanges();
+			determineStructure();
 		} catch (StatusRuntimeException e) {
 			String detail=e.getStatus()!=null?e.getStatus().getDescription():e.getMessage();
 			if (detail!=null&&detail.toLowerCase(Locale.ROOT).contains(INVALID_INSTRUMENT_INDEX_TEXT)) {
@@ -132,9 +140,12 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 	}
 
 	public Map<String, String> getMetadata() throws IOException, SQLException {
+		ensureStructureDetermined();
 		Session req=Session.newBuilder().setSessionId(sessionId).build();
 		MetadataReply reply=stub.getMetadata(req);
-		return reply.getKvMap();
+		LinkedHashMap<String, String> out=new LinkedHashMap<>(reply.getKvMap());
+		out.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
+		return out;
 	}
 
 	@Override
@@ -205,6 +216,18 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 
 	@Override
 	public Map<Range, WindowData> getRanges() {
+		ensureStructureDetermined();
+		return RawFileStructureTools.trimRanges(acquisitionRanges, precursorMarginSize);
+	}
+
+	private void ensureStructureDetermined() {
+		if (acquisitionRanges==null||acquisitionRanges.isEmpty()) {
+			acquisitionRanges=fetchRanges();
+			determineStructure();
+		}
+	}
+
+	private Map<Range, WindowData> fetchRanges() {
 		Session req=Session.newBuilder().setSessionId(sessionId).build();
 		RangesReply resp=stub.getRanges(req);
 
@@ -219,6 +242,27 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			out.put(key, val);
 		}
 		return out;
+	}
+
+	@Override
+	public double getPrecursorMarginSize() {
+		return precursorMarginSize;
+	}
+
+	@Override
+	public void setPrecursorMarginSize(double precursorMarginSize) {
+		this.precursorMarginSize=Math.max(0.0, precursorMarginSize);
+	}
+
+	private void determineStructure() {
+		dataAcquisitionType=RawFileStructureTools.getDataType(acquisitionRanges);
+		if (dataAcquisitionType==DataAcquisitionType.DIA) {
+			staggered=RawFileStructureTools.isStaggered(acquisitionRanges);
+			precursorMarginSize=RawFileStructureTools.getPrecursorMarginSize(acquisitionRanges).orElse(0.0);
+		} else {
+			staggered=false;
+			precursorMarginSize=0.0;
+		}
 	}
 
 	@Override
@@ -286,9 +330,10 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			}
 			double precursorMz=(s.getIsoLower()+s.getIsoUpper())/2.0; // FIXME // works most of the time but not always if there were an offset
 			String spectrumName=buildDefaultSpectrumName(s.getScanNumber());
+			Range trimmed=RawFileStructureTools.trimRange(new Range(s.getIsoLower(), s.getIsoUpper()), precursorMarginSize);
 			out.add(new FragmentScan(spectrumName, s.getPrecursorName(), s.getScanNumber(), precursorMz, (float)s.getRtSeconds(), 0,
-					(float)s.getIonInjectionTimeS(), s.getIsoLower(), s.getIsoUpper(), mz, intensity, null, (byte)s.getCharge(), s.getScanWindowLower(),
-					s.getScanWindowUpper()));
+					(float)s.getIonInjectionTimeS(), trimmed.getStart(), trimmed.getStop(), mz, intensity, null, (byte)s.getCharge(),
+					s.getScanWindowLower(), s.getScanWindowUpper()));
 			consumePendingThermoSpectrumFields(rawOvFtT);
 		}
 		out.sort(Comparator.comparingDouble(FragmentScan::getScanStartTime));
@@ -310,8 +355,10 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			double rawOvFtT=s.getRawOvFtt();
 			boolean precursor=s.getMsLevel()==1;
 			String spectrumName=buildDefaultSpectrumName(s.getScanNumber());
+			Range window=precursor?new Range(s.getIsoLower(), s.getIsoUpper())
+					:RawFileStructureTools.trimRange(new Range(s.getIsoLower(), s.getIsoUpper()), precursorMarginSize);
 			out.add(new ScanSummary(spectrumName, s.getScanNumber(), (float)s.getRtSeconds(), 0, (float)s.getTic(),
-					precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0, precursor, (float)s.getIonInjectionTimeS(), s.getIsoLower(), s.getIsoUpper(),
+					precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0, precursor, (float)s.getIonInjectionTimeS(), window.getStart(), window.getStop(),
 					s.getScanWindowLower(), s.getScanWindowUpper(), (byte)s.getCharge()));
 			consumePendingThermoSpectrumFields(rawOvFtT);
 		}

@@ -54,7 +54,8 @@ The CLI in `Main.java` accepts files or directories and searches them for Bruker
   --log-file [path]         Write log output to a file (overwrites on each run)
   --min-ms1 [#]             Minimum MS1 intensity threshold for timsTOF (default 3.0)
   --min-ms2 [#]             Minimum MS2 intensity threshold for timsTOF (default 1.0)
-  --demux                   Enable staggered window demultiplexing for Thermo DIA
+  --demux [true|false]      Set staggered window demultiplexing for DIA (default auto)
+  --precursorMarginSize [#] Trim this many m/z from each side of MS2 isolation windows (default auto)
   --demux-k [#]             Local approximation size for demux (7-9, default 7)
   --demux-interp [method]   Interpolation: cubic|logquadratic (default cubic)
   --demux-exclude-edges     Exclude edge sub-windows from demux output
@@ -73,7 +74,7 @@ Examples:
 java -jar MSRawJava path/to/raws/
 java -jar MSRawJava -f mgf ../../path/to/raws/
 java -jar MSRawJava -f mzml /mnt/vol1/path/to/raws/ --min-ms1 10.0 --min-ms2 5.0
-java -jar MSRawJava -f dia --demux --demux-ppm 10.0 /mnt/vol1/path/to/raws/
+java -jar MSRawJava -f dia --demux true --demux-ppm 10.0 /mnt/vol1/path/to/raws/
 java -jar MSRawJava -f dia --log-file run.log /mnt/vol1/path/to/raws/
-java -jar MSRawJava --discoverDIAFiles -f dia --demux /mnt/vol1/path/to/dia/
+java -jar MSRawJava --discoverDIAFiles -f dia --demux true /mnt/vol1/path/to/dia/
 ```
