@@ -960,6 +960,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         {
             var trailers = raw.GetTrailerExtraInformation(scan); // ILogEntryAccess with Labels/Values
             int n = trailers.Length;
+            int masterScanNumber = 0;
+            int masterIndex = 0;
             for (int i = 0; i < n; i++)
             {
                 string label = trailers.Labels?[i] ?? string.Empty;
@@ -975,11 +977,15 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
                     if (int.TryParse(ExtractInteger(value), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ch))
                         charge = ch;
                 }
-                if (precursorScan == 0 && (label.IndexOf("Master Scan Number", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                         label.IndexOf("Master Index", StringComparison.OrdinalIgnoreCase) >= 0))
+                if (masterScanNumber == 0 && label.IndexOf("Master Scan Number", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     if (int.TryParse(ExtractInteger(value), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ps))
-                        precursorScan = ps;
+                        masterScanNumber = ps;
+                }
+                if (masterIndex == 0 && label.IndexOf("Master Index", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (int.TryParse(ExtractInteger(value), NumberStyles.Integer, CultureInfo.InvariantCulture, out var ps))
+                        masterIndex = ps;
                 }
                 if (rawOvFtT == 0 && label.IndexOf("RawOvFtT", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
@@ -997,6 +1003,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
                         isolationOffset = parsedIsolationOffset;
                 }
             }
+            precursorScan = masterScanNumber > 0 ? masterScanNumber : masterIndex;
         }
         catch { }
     }
