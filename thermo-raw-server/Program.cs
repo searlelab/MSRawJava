@@ -213,8 +213,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        SelectMsInstrument(raw);
 	
 	        string model = raw.GetInstrumentData().Model ?? string.Empty;
-	        int first = raw.RunHeaderEx.FirstSpectrum;
-	        int last  = raw.RunHeaderEx.LastSpectrum;
+	        int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
+	        int last = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum : raw.RunHeader.LastSpectrum;
 	        double rtFirst = raw.RetentionTimeFromScanNumber(first);
 	        double rtLast  = raw.RetentionTimeFromScanNumber(last);
 	
@@ -385,7 +385,6 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 			int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
 			int last  = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum  : raw.RunHeader.LastSpectrum;
 	
-	        // key: tuple(lo, hi) after rounding to stabilize buckets
 	        var buckets = new Dictionary<(double lo, double hi), List<double>>();
 	
 	        for (int scan = first; scan <= last; scan++)
@@ -404,34 +403,17 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            try { evt = raw.GetScanEventForScanNumber(scan); } catch { continue; }
 	            if (evt == null) continue;
 	
-	            // Some DIA modes multiplex multiple windows in one scan
-	            int rxnCount = GetReactionCount(evt);
-	
 	            var rtSec = raw.RetentionTimeFromScanNumber(scan) * 60.0;
 	
-	            if (rxnCount > 0)
+	            foreach (var isolation in GetMs2IsolationWindows(raw, scan, evt))
 	            {
-	                for (int i = 0; i < rxnCount; i++)
+	                var key = (isolation.Lower, isolation.Upper);
+	                if (!buckets.TryGetValue(key, out var times))
 	                {
-	                    var isolation = GetMs2IsolationWindow(raw, scan, evt, i);
-	                    if (!isolation.IsUsable)
-	                        continue;
-	
-	                    var key = (isolation.Lower, isolation.Upper);
-	                    if (!buckets.TryGetValue(key, out var times))
-	                    {
-	                        times = new List<double>(64);
-	                        buckets[key] = times;
-	                    }
-	                    times.Add(rtSec);
+	                    times = new List<double>(64);
+	                    buckets[key] = times;
 	                }
-	            }
-	            else
-	            {
-	                // If no reactions are reported, some instruments bake isolation in the filter text,
-	                // but this varies. You can parse flt.ToString() here if needed.
-	                // For now we skip to avoid false positives.
-	                continue;
+	                times.Add(rtSec);
 	            }
 	        }
 	
@@ -464,7 +446,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        }
 	
 	        return Task.FromResult(reply);
-        	    }
+	    }
 	    catch (RpcException) { throw; } // preserve explicit statuses
 	    catch (Exception ex)
 	    {
@@ -498,6 +480,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
 	            double isoLo = double.PositiveInfinity;
 	            double isoHi = double.NegativeInfinity;
+	            double isoTarget = 0.0;
 
 	            IScanEvent? evt = null;
 	            try { evt = raw.GetScanEventForScanNumber(scan); } catch { }
@@ -523,24 +506,22 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	                        isoHi = double.PositiveInfinity;
 	                    }
 	                }
-	                else
+	                else if (TryGetMs2IsolationSuperset(raw, scan, evt, out var isolation))
 	                {
-	                    var isolation = GetMs2IsolationWindow(raw, scan, evt, 0);
 	                    isoLo = isolation.Lower;
 	                    isoHi = isolation.Upper;
+	                    isoTarget = isolation.Target;
 	                }
 	            }
 	            if (!(isoHi > isoLo) || !double.IsFinite(isoLo) || !double.IsFinite(isoHi))
 	            {
 	                isoLo = 0.0;
 	                isoHi = double.PositiveInfinity;
+	                isoTarget = 0.0;
 	            }
-
-	            double isoTarget = double.IsFinite(isoLo) && double.IsFinite(isoHi) ? (isoLo + isoHi) / 2.0 : 0.0;
-	            if (evt != null && msLevel != 1)
+	            else if (!(isoTarget > 0.0 && double.IsFinite(isoTarget)))
 	            {
-	                var isolation = GetMs2IsolationWindow(raw, scan, evt, 0);
-	                if (isolation.IsUsable) isoTarget = isolation.Target;
+	                isoTarget = (isoLo + isoHi) / 2.0;
 	            }
 
 	            double injS;
@@ -719,15 +700,16 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            if (filter.MSOrder != MSOrderType.Ms2) continue;
 	
 	            var evt = raw.GetScanEventForScanNumber(scan);
-	            var isolation = GetMs2IsolationWindow(raw, scan, evt, 0);
-	            if (!isolation.IsUsable) continue;
-	            double lo = isolation.Lower;
-	            double hi = isolation.Upper;
+	            foreach (var isolation in GetMs2IsolationWindows(raw, scan, evt))
+	            {
+	                double lo = isolation.Lower;
+	                double hi = isolation.Upper;
 	
-	            if (!(lo < req.MzHi && hi > req.MzLo)) continue;
+	                if (!(lo < req.MzHi && hi > req.MzLo)) continue;
 	
-	            var spec = BuildSpectrum(raw, scan, isMs1: false, isoLo: lo, isoTarget: isolation.Target, isoHi: hi);
-	            await stream.WriteAsync(spec);
+	                var spec = BuildSpectrum(raw, scan, isMs1: false, isoLo: lo, isoTarget: isolation.Target, isoHi: hi);
+	                await stream.WriteAsync(spec);
+	            }
 	        }
         }
 	    catch (RpcException) { throw; } // preserve explicit statuses
@@ -746,7 +728,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     private static IEnumerable<int> ScansInRt(IRawDataPlus raw, double rtMin, double rtMax)
     {
-        int first = raw.RunHeaderEx.FirstSpectrum, last = raw.RunHeaderEx.LastSpectrum;
+        int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
+        int last = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum : raw.RunHeader.LastSpectrum;
         for (int scan = first; scan <= last; scan++)
         {
             double rt = raw.RetentionTimeFromScanNumber(scan);
@@ -839,6 +822,52 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         double target = center;
         double offset = double.IsFinite(trailerOffset) ? trailerOffset : 0.0;
         return new IsolationWindowInfo(target - 0.5 * width + offset, target, target + 0.5 * width + offset);
+    }
+
+    private static List<IsolationWindowInfo> GetMs2IsolationWindows(IRawDataPlus raw, int scan, IScanEvent evt)
+    {
+        var windows = new List<IsolationWindowInfo>();
+        int rxnCount = GetReactionCount(evt);
+        if (rxnCount <= 0)
+        {
+            // If no reactions are reported, some instruments bake isolation in the filter text,
+            // but this varies. Keep the old reaction-0 fallback for APIs that can still resolve it.
+            var fallback = GetMs2IsolationWindow(raw, scan, evt, 0);
+            if (fallback.IsUsable) windows.Add(fallback);
+            return windows;
+        }
+
+        for (int i = 0; i < rxnCount; i++)
+        {
+            var isolation = GetMs2IsolationWindow(raw, scan, evt, i);
+            if (isolation.IsUsable) windows.Add(isolation);
+        }
+        return windows;
+    }
+
+    private static bool TryGetMs2IsolationSuperset(IRawDataPlus raw, int scan, IScanEvent evt, out IsolationWindowInfo superset)
+    {
+        var windows = GetMs2IsolationWindows(raw, scan, evt);
+        if (windows.Count == 0)
+        {
+            superset = new IsolationWindowInfo(0.0, 0.0, double.PositiveInfinity);
+            return false;
+        }
+        if (windows.Count == 1)
+        {
+            superset = windows[0];
+            return true;
+        }
+
+        double lo = double.PositiveInfinity;
+        double hi = double.NegativeInfinity;
+        foreach (var window in windows)
+        {
+            if (window.Lower < lo) lo = window.Lower;
+            if (window.Upper > hi) hi = window.Upper;
+        }
+        superset = new IsolationWindowInfo(lo, (lo + hi) / 2.0, hi);
+        return true;
     }
 
     private static Spectrum BuildSpectrum(IRawDataPlus raw, int scan, bool isMs1, double isoLo, double isoTarget, double isoHi)
