@@ -30,7 +30,7 @@ class ThermoRawFileSummaryTest {
 
 	@Test
 	void getScanSummaries_mapsAndSorts() throws Exception {
-		SummariesReply reply=SummariesReply.newBuilder().addSummaries(summary(2, 5.0, 2, 400.0, 500.0, 2, "ms2"))
+		SummariesReply reply=SummariesReply.newBuilder().addSummaries(summary(2, 5.0, 2, 400.0, 455.0, 500.0, 2, "ms2"))
 				.addSummaries(summary(1, 1.0, 1, 300.0, 400.0, 0, "ms1")).build();
 
 		ThermoRawFile file=buildFile(reply, List.of(), List.of());
@@ -49,7 +49,7 @@ class ThermoRawFileSummaryTest {
 		ScanSummary ms2=summaries.get(1);
 		assertEquals(2, ms2.getSpectrumIndex());
 		assertEquals("scan=2", ms2.getSpectrumName());
-		assertEquals(450.0, ms2.getPrecursorMz(), 1e-6);
+		assertEquals(455.0, ms2.getPrecursorMz(), 1e-6);
 		assertEquals(400.0, ms2.getIsolationWindowLower(), 1e-6);
 		assertEquals(500.0, ms2.getIsolationWindowUpper(), 1e-6);
 		assertEquals(2, ms2.getCharge());
@@ -62,8 +62,8 @@ class ThermoRawFileSummaryTest {
 		precursors.add(spectrum("p2", 11, 2.0, 0.0, 0.0, 0, 100.0, 900.0));
 
 		List<Spectrum> stripes=new ArrayList<>();
-		stripes.add(spectrum("f1", 20, 3.0, 400.0, 500.0, 2, 400.0, 500.0));
-		stripes.add(spectrum("f2", 21, 4.0, 400.0, 500.0, 2, 400.0, 500.0));
+		stripes.add(spectrum("f1", 20, 3.0, 400.0, 455.0, 500.0, 2, 400.0, 500.0));
+		stripes.add(spectrum("f2", 21, 4.0, 400.0, 455.0, 500.0, 2, 400.0, 500.0));
 
 		ThermoRawFile file=buildFile(SummariesReply.newBuilder().build(), precursors, stripes);
 
@@ -78,6 +78,7 @@ class ThermoRawFileSummaryTest {
 		assertNotNull(fragment);
 		assertEquals(21, fragment.getSpectrumIndex());
 		assertEquals(FragmentScan.class, fragment.getClass());
+		assertEquals(455.0, ((FragmentScan)fragment).getIsolationWindowTarget(), 1e-6);
 	}
 
 	@Test
@@ -120,13 +121,24 @@ class ThermoRawFileSummaryTest {
 	}
 
 	private static SpectrumSummary summary(int scanNumber, double rtSeconds, int msLevel, double isoLo, double isoHi, int charge, String name) {
+		return summary(scanNumber, rtSeconds, msLevel, isoLo, (isoLo+isoHi)/2.0, isoHi, charge, name);
+	}
+
+	private static SpectrumSummary summary(int scanNumber, double rtSeconds, int msLevel, double isoLo, double isoTarget, double isoHi, int charge,
+			String name) {
 		return SpectrumSummary.newBuilder().setScanNumber(scanNumber).setRtSeconds(rtSeconds).setMsLevel(msLevel).setIsoLower(isoLo).setIsoUpper(isoHi)
-				.setCharge(charge).setSpectrumName(name).setIonInjectionTimeS(0.01).setScanWindowLower(isoLo).setScanWindowUpper(isoHi).build();
+				.setIsoTarget(isoTarget).setCharge(charge).setSpectrumName(name).setIonInjectionTimeS(0.01).setScanWindowLower(isoLo)
+				.setScanWindowUpper(isoHi).build();
 	}
 
 	private static Spectrum spectrum(String name, int scanNumber, double rtSeconds, double isoLo, double isoHi, int charge, double scanLo, double scanHi) {
+		return spectrum(name, scanNumber, rtSeconds, isoLo, (isoLo+isoHi)/2.0, isoHi, charge, scanLo, scanHi);
+	}
+
+	private static Spectrum spectrum(String name, int scanNumber, double rtSeconds, double isoLo, double isoTarget, double isoHi, int charge, double scanLo,
+			double scanHi) {
 		return Spectrum.newBuilder().setSpectrumName(name).setScanNumber(scanNumber).setRtSeconds(rtSeconds).setIsoLower(isoLo).setIsoUpper(isoHi)
-				.setCharge(charge).setScanWindowLower(scanLo).setScanWindowUpper(scanHi).addMz(100.0).addIntensity(10.0f).build();
+				.setIsoTarget(isoTarget).setCharge(charge).setScanWindowLower(scanLo).setScanWindowUpper(scanHi).addMz(100.0).addIntensity(10.0f).build();
 	}
 
 	private static ThermoRawFile buildFile(SummariesReply summaries, List<Spectrum> precursors, List<Spectrum> stripes) throws Exception {

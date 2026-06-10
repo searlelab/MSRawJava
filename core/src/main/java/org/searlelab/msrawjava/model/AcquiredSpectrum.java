@@ -49,6 +49,6 @@ public interface AcquiredSpectrum extends Spectrum {
 	/** Total ion current (sum of non-negative intensities). */
 	float getTIC();
 
-	/** Precursor m/z for MS2; -1 for MS1 (DIA uses the isolation-window center). */
+	/** Precursor/target m/z for MS2; -1 for MS1. */
 	public double getPrecursorMZ();
 }

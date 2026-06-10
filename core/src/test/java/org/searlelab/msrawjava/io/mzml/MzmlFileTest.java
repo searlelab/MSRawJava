@@ -117,6 +117,11 @@ class MzmlFileTest {
 
 	private static String ms2Spectrum(int index, float rtSeconds, double isoTarget, double isoOffset, double precMz, byte charge, double[] mz,
 			float[] intensity, boolean zlib) {
+		return ms2Spectrum(index, rtSeconds, isoTarget, isoOffset, isoOffset, precMz, charge, mz, intensity, zlib);
+	}
+
+	private static String ms2Spectrum(int index, float rtSeconds, double isoTarget, double isoLowerOffset, double isoUpperOffset, double precMz, byte charge,
+			double[] mz, float[] intensity, boolean zlib) {
 		String mzBin=zlib?encode64DoubleZlib(mz):encode64Double(mz);
 		String intBin=zlib?encode32FloatZlib(intensity):encode32Float(intensity);
 		String compAcc=zlib?"MS:1000574":"MS:1000576";
@@ -128,8 +133,8 @@ class MzmlFileTest {
 				+"\" unitCvRef=\"UO\" unitAccession=\"UO:0000010\" unitName=\"second\"/>\n"+"          </scan>\n"+"        </scanList>\n"
 				+"        <precursorList count=\"1\">\n"+"          <precursor>\n"+"            <isolationWindow>\n"
 				+"              <cvParam cvRef=\"MS\" accession=\"MS:1000827\" value=\""+isoTarget+"\"/>\n"
-				+"              <cvParam cvRef=\"MS\" accession=\"MS:1000828\" value=\""+isoOffset+"\"/>\n"
-				+"              <cvParam cvRef=\"MS\" accession=\"MS:1000829\" value=\""+isoOffset+"\"/>\n"+"            </isolationWindow>\n"
+				+"              <cvParam cvRef=\"MS\" accession=\"MS:1000828\" value=\""+isoLowerOffset+"\"/>\n"
+				+"              <cvParam cvRef=\"MS\" accession=\"MS:1000829\" value=\""+isoUpperOffset+"\"/>\n"+"            </isolationWindow>\n"
 				+"            <selectedIonList count=\"1\">\n"+"              <selectedIon>\n"
 				+"                <cvParam cvRef=\"MS\" accession=\"MS:1000744\" value=\""+precMz+"\"/>\n"
 				+"                <cvParam cvRef=\"MS\" accession=\"MS:1000041\" value=\""+charge+"\"/>\n"+"              </selectedIon>\n"
@@ -261,6 +266,26 @@ class MzmlFileTest {
 		assertEquals(512.5, scan.getIsolationWindowUpper(), 0.01);
 		assertEquals(2, scan.getCharge());
 		assertEquals(2, scan.getMassArray().length);
+
+		reader.close();
+	}
+
+	@Test
+	void parsesMS2SpectrumWithAsymmetricIsolationWindowTarget() throws Exception {
+		double[] mz= {200.0, 400.0};
+		float[] inten= {100.0f, 200.0f};
+		String xml=mzmlHeader()+ms2Spectrum(0, 45.0f, 784.6066, 8.0, 10.0, 784.6066, (byte)2, mz, inten, false)+mzmlFooter();
+
+		MzmlFile reader=new MzmlFile();
+		reader.openFile(writeMzml(xml));
+
+		ArrayList<FragmentScan> stripes=reader.getStripes(784.0, 0, 90, false);
+		assertEquals(1, stripes.size());
+
+		FragmentScan scan=stripes.get(0);
+		assertEquals(776.6066, scan.getIsolationWindowLower(), 0.0001);
+		assertEquals(784.6066, scan.getIsolationWindowTarget(), 0.0001);
+		assertEquals(794.6066, scan.getIsolationWindowUpper(), 0.0001);
 
 		reader.close();
 	}

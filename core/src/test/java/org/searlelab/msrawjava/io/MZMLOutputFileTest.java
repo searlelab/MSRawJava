@@ -108,6 +108,29 @@ class MZMLOutputFileTest {
 	}
 
 	@Test
+	void writesAsymmetricIsolationWindowOffsetsFromTarget() throws Exception {
+		MZMLOutputFile writer=new MZMLOutputFile();
+		writer.openFile();
+		writer.setFileName("offset_run", "/data/offset_run");
+
+		ArrayList<FragmentScan> ms2s=new ArrayList<>();
+		ms2s.add(new FragmentScan("ms2-2", "prec", 2, 784.6066, 2.0f, 0, null, 776.6066, 784.6066, 794.6066, new double[] {150.0},
+				new float[] {5.0f}, null, (byte)2, 0.0, 3000.0));
+
+		writer.addSpectra(new ArrayList<>(), ms2s);
+
+		Path out=tmp.resolve("offset.mzML");
+		writer.saveAsFile(out.toFile());
+		writer.close();
+
+		String xml=Files.readString(out, StandardCharsets.UTF_8);
+
+		assertTrue(xml.contains("accession=\"MS:1000827\" name=\"isolation window target m/z\" value=\"784.606600\""));
+		assertTrue(xml.contains("accession=\"MS:1000828\" name=\"isolation window lower offset\" value=\"8.000000\""));
+		assertTrue(xml.contains("accession=\"MS:1000829\" name=\"isolation window upper offset\" value=\"10.000000\""));
+	}
+
+	@Test
 	void handlesNullSourcePathWhenWritingHeader() throws Exception {
 		MZMLOutputFile writer=new MZMLOutputFile();
 		writer.openFile();

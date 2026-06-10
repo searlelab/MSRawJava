@@ -396,14 +396,15 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("        <precursorList count=\"1\">\n");
 		out.write("          <precursor>\n");
 		out.write("              <isolationWindow>\n");
-		double isolationCenter=(scan.getIsolationWindowUpper()+scan.getIsolationWindowLower())/2.0;
-		double isolationOffset=(scan.getIsolationWindowUpper()-scan.getIsolationWindowLower())/2.0;
+		double isolationTarget=scan.getIsolationWindowTarget();
+		double isolationLowerOffset=isolationTarget-scan.getIsolationWindowLower();
+		double isolationUpperOffset=scan.getIsolationWindowUpper()-isolationTarget;
 
-		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_TARGET_MZ+"\" name=\"isolation window target m/z\" value=\""+fmtMz(isolationCenter)
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_TARGET_MZ+"\" name=\"isolation window target m/z\" value=\""+fmtMz(isolationTarget)
 				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
-		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_LOWER_OFFSET+"\" name=\"isolation window lower offset\" value=\""+fmtMz(isolationOffset)
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_LOWER_OFFSET+"\" name=\"isolation window lower offset\" value=\""+fmtMz(isolationLowerOffset)
 				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
-		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_UPPER_OFFSET+"\" name=\"isolation window upper offset\" value=\""+fmtMz(isolationOffset)
+		out.write("                <cvParam cvRef=\"MS\" accession=\""+CV_ISOLATION_WINDOW_UPPER_OFFSET+"\" name=\"isolation window upper offset\" value=\""+fmtMz(isolationUpperOffset)
 				+"\" unitCvRef=\"MS\" unitAccession=\""+CV_MZ_UNIT+"\" unitName=\"m/z\"/>\n");
 		out.write("              </isolationWindow>\n");
 

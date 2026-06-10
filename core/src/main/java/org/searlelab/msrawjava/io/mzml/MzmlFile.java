@@ -364,6 +364,7 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 			case CV_ISOLATION_WINDOW_TARGET_MZ:
 				if (value!=null&&inIsolationWindow) {
 					entry.isolationTarget=Double.parseDouble(value);
+					entry.hasIsolationTarget=true;
 				}
 				break;
 			case CV_ISOLATION_WINDOW_LOWER_OFFSET:
@@ -580,7 +581,7 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 		for (MzmlScanEntry entry : index) {
 			if (entry.scanStartTime>=minRT&&entry.scanStartTime<=maxRT) {
 				boolean isPrecursor=(entry.msLevel==1);
-				double precursorMz=isPrecursor?-1.0:entry.precursorMz;
+				double precursorMz=isPrecursor?-1.0:entry.getPrecursorMzOrIsolationTarget();
 				double isoLower=entry.getIsolationWindowLower();
 				double isoUpper=entry.getIsolationWindowUpper();
 				if (!isPrecursor&&precursorMarginSize>0.0) {
@@ -1140,19 +1141,19 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 			if (fragments!=null) {
 				double isoLower=entry.getIsolationWindowLower();
 				double isoUpper=entry.getIsolationWindowUpper();
+				double isoTarget=entry.getIsolationWindowTarget();
 				Range trimmed=RawFileStructureTools.trimRange(new Range(isoLower, isoUpper), precursorMarginSize);
 				isoLower=trimmed.getStart();
 				isoUpper=trimmed.getStop();
-				double precMz=entry.precursorMz;
-				if (precMz==0) precMz=(isoLower+isoUpper)/2.0;
+				double precMz=entry.getPrecursorMzOrIsolationTarget();
 				double scanLower=entry.scanWindowLower;
 				double scanUpper=entry.scanWindowUpper;
 				if (scanLower==0&&scanUpper==0) {
 					scanLower=isoLower;
 					scanUpper=isoUpper;
 				}
-				fragments.add(new FragmentScan(entry.spectrumId, "", entry.index, precMz, entry.scanStartTime, 0, entry.ionInjectionTime, isoLower, isoUpper,
-						mzArray, intensityArray, null, entry.charge, scanLower, scanUpper));
+				fragments.add(new FragmentScan(entry.spectrumId, "", entry.index, precMz, entry.scanStartTime, 0, entry.ionInjectionTime, isoLower,
+						isoTarget, isoUpper, mzArray, intensityArray, null, entry.charge, scanLower, scanUpper));
 			}
 		}
 	}
@@ -1171,6 +1172,7 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 
 		// isolation window (offsets from target)
 		double isolationTarget=0;
+		boolean hasIsolationTarget=false;
 		double isolationLowerOffset=0;
 		double isolationUpperOffset=0;
 
@@ -1188,6 +1190,15 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 
 		double getIsolationWindowUpper() {
 			return isolationTarget+isolationUpperOffset;
+		}
+
+		double getIsolationWindowTarget() {
+			if (hasIsolationTarget) return isolationTarget;
+			return (getIsolationWindowLower()+getIsolationWindowUpper())/2.0;
+		}
+
+		double getPrecursorMzOrIsolationTarget() {
+			return precursorMz==0?getIsolationWindowTarget():precursorMz;
 		}
 
 		Range getIsolationRange() {

@@ -10,7 +10,7 @@ public final class ScanSummary {
 	private final float scanStartTime;
 	private final int fraction;
 	private final float tic;
-	private final double precursorMz;
+	private final double targetMz;
 	private final boolean precursor;
 	private final Float ionInjectionTime;
 	private final double isolationWindowLower;
@@ -19,20 +19,20 @@ public final class ScanSummary {
 	private final double scanWindowUpper;
 	private final byte charge;
 
-	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double precursorMz, boolean precursor, Float ionInjectionTime,
+	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double targetMz, boolean precursor, Float ionInjectionTime,
 			double isolationWindowLower, double isolationWindowUpper, double scanWindowLower, double scanWindowUpper, byte charge) {
-		this(spectrumName, spectrumIndex, scanStartTime, fraction, Float.NaN, precursorMz, precursor, ionInjectionTime, isolationWindowLower,
+		this(spectrumName, spectrumIndex, scanStartTime, fraction, Float.NaN, targetMz, precursor, ionInjectionTime, isolationWindowLower,
 				isolationWindowUpper, scanWindowLower, scanWindowUpper, charge);
 	}
 
-	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, float tic, double precursorMz, boolean precursor,
+	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, float tic, double targetMz, boolean precursor,
 			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double scanWindowLower, double scanWindowUpper, byte charge) {
 		this.spectrumName=spectrumName;
 		this.spectrumIndex=spectrumIndex;
 		this.scanStartTime=scanStartTime;
 		this.fraction=fraction;
 		this.tic=tic;
-		this.precursorMz=precursorMz;
+		this.targetMz=targetMz;
 		this.precursor=precursor;
 		this.ionInjectionTime=ionInjectionTime;
 		this.isolationWindowLower=isolationWindowLower;
@@ -63,7 +63,11 @@ public final class ScanSummary {
 	}
 
 	public double getPrecursorMz() {
-		return precursorMz;
+		return targetMz;
+	}
+
+	public double getTargetMz() {
+		return targetMz;
 	}
 
 	public boolean isPrecursor() {
@@ -91,7 +95,7 @@ public final class ScanSummary {
 			lower=center;
 			upper=center;
 		}
-		return new ScanSummary(spectrumName, spectrumIndex, scanStartTime, fraction, tic, precursorMz, precursor, ionInjectionTime, lower, upper,
+		return new ScanSummary(spectrumName, spectrumIndex, scanStartTime, fraction, tic, targetMz, precursor, ionInjectionTime, lower, upper,
 				scanWindowLower, scanWindowUpper, charge);
 	}
 

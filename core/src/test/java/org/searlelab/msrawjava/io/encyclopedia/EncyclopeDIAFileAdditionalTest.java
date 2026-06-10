@@ -203,10 +203,10 @@ class EncyclopeDIAFileAdditionalTest {
 				Statement s=c.createStatement()) {
 			s.execute("ALTER TABLE spectra RENAME TO spectra_old");
 			s.execute(
-					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
+					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowTarget float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
 			s.execute(
-					"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray) "
-							+"select Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray from spectra_old");
+					"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowTarget, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray) "
+							+"select Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowTarget, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray from spectra_old");
 			s.execute("drop table spectra_old");
 		}
 	}

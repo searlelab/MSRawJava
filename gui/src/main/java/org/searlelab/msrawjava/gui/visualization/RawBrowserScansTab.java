@@ -94,7 +94,20 @@ class RawBrowserScansTab extends JPanel {
 
 	private void initUi() {
 		model=new RawScanTableModel();
-		table=new JTable(model);
+		table=new JTable(model) {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public String getToolTipText(MouseEvent event) {
+				int viewRow=rowAtPoint(event.getPoint());
+				int viewColumn=columnAtPoint(event.getPoint());
+				if (viewRow<0||viewColumn<0) return super.getToolTipText(event);
+				int modelColumn=convertColumnIndexToModel(viewColumn);
+				if (modelColumn!=RawScanTableModel.TARGET_MZ_COLUMN) return super.getToolTipText(event);
+				int modelRow=convertRowIndexToModel(viewRow);
+				return getTargetMzTooltip(model.getSelectedRow(modelRow));
+			}
+		};
 		table.setToolTipText("Lists scans from the opened file. Select one or more rows to update the charts.");
 		RawBrowserNavigation.installHorizontalRowNavigation(table);
 		rowSorter=new TableRowSorter<>(table.getModel());
@@ -228,6 +241,21 @@ class RawBrowserScansTab extends JPanel {
 	}
 
 	private void installScanCellRenderers() {
+		DefaultTableCellRenderer targetMzRenderer=new DefaultTableCellRenderer() {
+			private static final long serialVersionUID=1L;
+
+			@Override
+			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+				super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+				setHorizontalAlignment(SwingConstants.RIGHT);
+				if (value instanceof Number) {
+					setText(formatMz(((Number)value).doubleValue()));
+				} else {
+					setText("");
+				}
+				return this;
+			}
+		};
 		DefaultTableCellRenderer scientificRenderer=new DefaultTableCellRenderer() {
 			private static final long serialVersionUID=1L;
 
@@ -243,6 +271,7 @@ class RawBrowserScansTab extends JPanel {
 				return this;
 			}
 		};
+		table.getColumnModel().getColumn(RawScanTableModel.TARGET_MZ_COLUMN).setCellRenderer(targetMzRenderer);
 		table.getColumnModel().getColumn(4).setCellRenderer(scientificRenderer);
 	}
 
@@ -255,12 +284,22 @@ class RawBrowserScansTab extends JPanel {
 			case 2:
 				return "The scan start time in minutes.";
 			case 3:
-				return "The precursor m/z for this scan (blank for MS1).";
+				return "The target m/z for this scan (blank for MS1).";
 			case 4:
 				return "Total ion current for this scan.";
 			default:
 				return null;
 		}
+	}
+
+	static String getTargetMzTooltip(ScanSummary summary) {
+		if (summary==null||summary.isPrecursor()||summary.getTargetMz()<0.0) return null;
+		return formatMz(summary.getIsolationWindowLower())+" \u2192 "+formatMz(summary.getTargetMz())+" \u2190 "
+				+formatMz(summary.getIsolationWindowUpper());
+	}
+
+	private static String formatMz(double mz) {
+		return String.format(Locale.ROOT, "%.3f", mz);
 	}
 
 	private void initializeScanTypeFilter() {

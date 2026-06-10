@@ -248,6 +248,84 @@ class EncyclopeDIAFileTest {
 	}
 
 	@Test
+	void getStripes_preservesStoredIsolationWindowTarget() throws Exception {
+		ArrayList<FragmentScan> fragments=new ArrayList<>();
+		fragments.add(new FragmentScan("ms2-offset", "prec", 2, 455.0, 1.5f, 0, null, 400.0, 455.0, 500.0, new double[] {450.0},
+				new float[] {100.0f}, null, (byte)2, 0.0, 3000.0));
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile();
+		dia.setFileName("offset_run", "/data/offset");
+		dia.addSpectra(new ArrayList<>(), fragments);
+
+		Path out=tmp.resolve("offset_target.dia");
+		dia.saveAsFile(out.toFile());
+		dia.close();
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+out.toString()); Statement s=c.createStatement();
+				ResultSet rs=s.executeQuery("select IsolationWindowTarget from spectra where SpectrumIndex=2")) {
+			assertTrue(rs.next());
+			assertEquals(455.0, rs.getDouble(1), 1e-6);
+		}
+
+		dia=new EncyclopeDIAFile();
+		dia.openFile(out.toFile());
+		ArrayList<FragmentScan> byTarget=dia.getStripes(450.0, 0.0f, 10.0f, false);
+		ArrayList<FragmentScan> byRange=dia.getStripes(new Range(450.0, 451.0), 0.0f, 10.0f, false);
+
+		assertEquals(1, byTarget.size());
+		assertEquals(455.0, byTarget.get(0).getIsolationWindowTarget(), 1e-6);
+		assertEquals(1, byRange.size());
+		assertEquals(455.0, byRange.get(0).getIsolationWindowTarget(), 1e-6);
+		dia.close();
+	}
+
+	@Test
+	void getStripes_legacyFileWithoutIsolationWindowTargetFallsBackToMidpoint() throws Exception {
+		Path legacyPath=tmp.resolve("legacy_no_target.dia");
+		double[] masses=new double[] {450.0};
+		float[] intensities=new float[] {100.0f};
+		byte[] massBytes=ByteConverter.toByteArray(masses);
+		byte[] intensityBytes=ByteConverter.toByteArray(intensities);
+
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString()); Statement s=c.createStatement()) {
+			s.execute("create table metadata ( Key varchar(255), Value text not null, PRIMARY KEY (Key) )");
+			s.execute("create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, "
+					+"ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, "
+					+"PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, "
+					+"IntensityArray blob not null, primary key (SpectrumIndex) )");
+			s.execute("create table precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, "
+					+"IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, "
+					+"MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, primary key (SpectrumIndex) )");
+		}
+		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString());
+				PreparedStatement prep=c.prepareStatement(
+						"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+			prep.setInt(1, 0);
+			prep.setString(2, "ms2-legacy");
+			prep.setString(3, "prec");
+			prep.setInt(4, 2);
+			prep.setFloat(5, 1.5f);
+			prep.setNull(6, java.sql.Types.FLOAT);
+			prep.setDouble(7, 400.0);
+			prep.setDouble(8, 500.0);
+			prep.setInt(9, 2);
+			prep.setInt(10, massBytes.length);
+			prep.setBytes(11, CompressionUtils.compress(massBytes));
+			prep.setInt(12, intensityBytes.length);
+			prep.setBytes(13, CompressionUtils.compress(intensityBytes));
+			prep.executeUpdate();
+		}
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		dia.openFile(legacyPath.toFile());
+		ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 0.0f, 10.0f, false);
+		assertEquals(1, stripes.size());
+		assertEquals(450.0, stripes.get(0).getIsolationWindowTarget(), 1e-6);
+		dia.close();
+	}
+
+	@Test
 	void getStripes_withTargetMz_filtersRTRange() throws Exception {
 		File diaFile=createTestDiaFile();
 
@@ -456,7 +534,7 @@ class EncyclopeDIAFileTest {
 			s.execute(
 					"create table precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, TIC float, primary key (SpectrumIndex) )");
 			s.execute(
-					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, primary key (SpectrumIndex) )");
+					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowTarget float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, primary key (SpectrumIndex) )");
 			s.execute("insert into metadata (Key, Value) values ('filename', 'legacy_spectra_no_charge.dia')");
 			s.execute("insert into ranges (Start, Stop, DutyCycle, NumWindows) values (400.0, 500.0, 0.5, 1)");
 		}
@@ -479,7 +557,7 @@ class EncyclopeDIAFileTest {
 				prep.executeUpdate();
 			}
 			try (PreparedStatement prep=c.prepareStatement(
-					"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+					"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowTarget, IsolationWindowUpper, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
 				prep.setInt(1, 0);
 				prep.setString(2, "ms2-1");
 				prep.setString(3, "prec");
@@ -536,7 +614,7 @@ class EncyclopeDIAFileTest {
 			s.execute(
 					"create table precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, TIC float, primary key (SpectrumIndex) )");
 			s.execute(
-					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, primary key (SpectrumIndex) )");
+					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowTarget float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, primary key (SpectrumIndex) )");
 			s.execute("insert into metadata (Key, Value) values ('filename', 'legacy_upgrade_070.dia')");
 			s.execute("insert into metadata (Key, Value) values ('version', '0.7.0')");
 			s.execute("insert into ranges (Start, Stop, DutyCycle, NumWindows) values (400.0, 500.0, 0.5, 1)");
@@ -544,7 +622,7 @@ class EncyclopeDIAFileTest {
 
 		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString());
 				PreparedStatement prep=c.prepareStatement(
-						"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+						"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowTarget, IsolationWindowUpper, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
 			prep.setInt(1, 0);
 			prep.setString(2, "ms2-1");
 			prep.setString(3, "prec");
@@ -596,7 +674,7 @@ class EncyclopeDIAFileTest {
 			s.execute(
 					"create table precursor ( Fraction int not null, SpectrumName string not null, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowUpper float not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, TIC float, primary key (SpectrumIndex) )");
 			s.execute(
-					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowCenter float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
+					"create table spectra ( Fraction int not null, SpectrumName string not null, PrecursorName string, SpectrumIndex int not null, ScanStartTime float not null, IonInjectionTime float, IsolationWindowLower float not null, IsolationWindowTarget float not null, IsolationWindowUpper float not null, PrecursorCharge int not null, MassEncodedLength int not null, MassArray blob not null, IntensityEncodedLength int not null, IntensityArray blob not null, IonMobilityArrayEncodedLength int, IonMobilityArray blob, primary key (SpectrumIndex) )");
 			s.execute("insert into metadata (Key, Value) values ('filename', 'legacy_060_missing_rt_ranges.dia')");
 			s.execute("insert into metadata (Key, Value) values ('sourcename', 'legacy_060_missing_rt_ranges.raw')");
 			s.execute("insert into metadata (Key, Value) values ('version', '0.6.0')");
@@ -605,7 +683,7 @@ class EncyclopeDIAFileTest {
 
 		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+legacyPath.toString());
 				PreparedStatement prep=c.prepareStatement(
-						"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowCenter, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
+						"insert into spectra (Fraction, SpectrumName, PrecursorName, SpectrumIndex, ScanStartTime, IonInjectionTime, IsolationWindowLower, IsolationWindowTarget, IsolationWindowUpper, PrecursorCharge, MassEncodedLength, MassArray, IntensityEncodedLength, IntensityArray, IonMobilityArrayEncodedLength, IonMobilityArray) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")) {
 			prep.setInt(1, 0);
 			prep.setString(2, "ms2-1");
 			prep.setString(3, "prec");

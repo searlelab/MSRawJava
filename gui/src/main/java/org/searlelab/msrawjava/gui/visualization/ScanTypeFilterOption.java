@@ -41,12 +41,12 @@ final class ScanTypeFilterOption {
 		switch (kind) {
 			case ALL:
 				return true;
-			case MS1:
-				return summary.isPrecursor();
-			case MS2_RANGE:
-				return !summary.isPrecursor()&&range!=null&&range.contains(summary.getPrecursorMz());
-			default:
-				return false;
+				case MS1:
+					return summary.isPrecursor();
+				case MS2_RANGE:
+					return !summary.isPrecursor()&&range!=null&&range.contains(summary.getTargetMz());
+				default:
+					return false;
 		}
 	}
 

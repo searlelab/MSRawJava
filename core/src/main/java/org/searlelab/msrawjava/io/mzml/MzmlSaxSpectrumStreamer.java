@@ -244,8 +244,8 @@ final class MzmlSaxSpectrumStreamer extends DefaultHandler {
 
 			double isolationLower=entry.getIsolationWindowLower();
 			double isolationUpper=entry.getIsolationWindowUpper();
-			double precursorMz=entry.precursorMz;
-			if (precursorMz==0) precursorMz=(isolationLower+isolationUpper)/2.0;
+			double isolationTarget=entry.getIsolationWindowTarget();
+			double precursorMz=entry.getPrecursorMzOrIsolationTarget();
 			double scanLower=entry.scanWindowLower;
 			double scanUpper=entry.scanWindowUpper;
 			if (scanLower==0&&scanUpper==0) {
@@ -253,8 +253,8 @@ final class MzmlSaxSpectrumStreamer extends DefaultHandler {
 				scanUpper=isolationUpper;
 			}
 			consumer.accept(null,
-					new FragmentScan(entry.spectrumId, "", entry.index, precursorMz, entry.scanStartTime, 0, entry.ionInjectionTime, isolationLower, isolationUpper,
-							mass, intensity, null, entry.charge, scanLower, scanUpper));
+					new FragmentScan(entry.spectrumId, "", entry.index, precursorMz, entry.scanStartTime, 0, entry.ionInjectionTime, isolationLower,
+							isolationTarget, isolationUpper, mass, intensity, null, entry.charge, scanLower, scanUpper));
 		} catch (RuntimeException e) {
 			throw e;
 		} catch (Exception e) {

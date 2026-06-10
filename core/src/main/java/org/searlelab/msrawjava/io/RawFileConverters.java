@@ -730,8 +730,9 @@ public class RawFileConverters {
 
 	private static FragmentScan copyFragmentWithName(FragmentScan scan, String spectrumName) {
 		return new FragmentScan(spectrumName, scan.getPrecursorName(), scan.getSpectrumIndex(), scan.getPrecursorMZ(), scan.getScanStartTime(),
-				scan.getFraction(), scan.getIonInjectionTime(), scan.getIsolationWindowLower(), scan.getIsolationWindowUpper(), scan.getMassArray(),
-				scan.getIntensityArray(), scan.getIonMobilityArray().orElse(null), scan.getCharge(), scan.getScanWindowLower(), scan.getScanWindowUpper());
+				scan.getFraction(), scan.getIonInjectionTime(), scan.getIsolationWindowLower(), scan.getIsolationWindowTarget(),
+				scan.getIsolationWindowUpper(), scan.getMassArray(), scan.getIntensityArray(), scan.getIonMobilityArray().orElse(null), scan.getCharge(),
+				scan.getScanWindowLower(), scan.getScanWindowUpper());
 	}
 
 	// Use non-overlapping section query windows while keeping the section progression unchanged.

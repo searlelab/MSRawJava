@@ -413,29 +413,11 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            {
 	                for (int i = 0; i < rxnCount; i++)
 	                {
-	                    double center = double.NaN, width = double.NaN;
-	
-	                    try { center = evt.GetReaction(i)?.PrecursorMass ?? double.NaN; } catch { }
-	                    // Try to get width via API first
-	                    try
-	                    {
-	                        width = evt.GetIsolationWidth(i);
-	                        if (!(width > 0 && double.IsFinite(width))) width = double.NaN;
-	                    } catch { }
-	
-	                    // Fallback: some builds expose width on the reaction object
-	                    if (!(width > 0 && double.IsFinite(width)))
-	                    {
-	                        try { width = evt.GetReaction(i)?.IsolationWidth ?? double.NaN; } catch { }
-	                    }
-	
-	                    if (!(center > 0 && double.IsFinite(center) && width > 0 && double.IsFinite(width)))
+	                    var isolation = GetMs2IsolationWindow(raw, scan, evt, i);
+	                    if (!isolation.IsUsable)
 	                        continue;
 	
-	                    var lo = center - width / 2.0;
-	                    var hi = center + width / 2.0;
-	
-	                    var key = (lo, hi);
+	                    var key = (isolation.Lower, isolation.Upper);
 	                    if (!buckets.TryGetValue(key, out var times))
 	                    {
 	                        times = new List<double>(64);
@@ -543,16 +525,22 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	                }
 	                else
 	                {
-	                    double center = evt.GetMass(0);
-	                    double width = evt.GetIsolationWidth(0);
-	                    isoLo = center - 0.5 * width;
-	                    isoHi = center + 0.5 * width;
+	                    var isolation = GetMs2IsolationWindow(raw, scan, evt, 0);
+	                    isoLo = isolation.Lower;
+	                    isoHi = isolation.Upper;
 	                }
 	            }
 	            if (!(isoHi > isoLo) || !double.IsFinite(isoLo) || !double.IsFinite(isoHi))
 	            {
 	                isoLo = 0.0;
 	                isoHi = double.PositiveInfinity;
+	            }
+
+	            double isoTarget = double.IsFinite(isoLo) && double.IsFinite(isoHi) ? (isoLo + isoHi) / 2.0 : 0.0;
+	            if (evt != null && msLevel != 1)
+	            {
+	                var isolation = GetMs2IsolationWindow(raw, scan, evt, 0);
+	                if (isolation.IsUsable) isoTarget = isolation.Target;
 	            }
 
 	            double injS;
@@ -585,7 +573,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	                ScanWindowLower = swLo,
 	                ScanWindowUpper = swHi,
 	                Tic = tic,
-	                RawOvFtt = rawOvFtT
+	                RawOvFtt = rawOvFtT,
+	                IsoTarget = isoTarget
 	            };
 	            reply.Summaries.Add(summary);
 	        }
@@ -706,7 +695,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 					lo=0;
 					hi=Double.PositiveInfinity;
 				}
-	            var spec = BuildSpectrum(raw, scan, isMs1: true, isoLo: lo, isoHi: hi);
+	            var spec = BuildSpectrum(raw, scan, isMs1: true, isoLo: lo, isoTarget: (lo + hi) / 2.0, isoHi: hi);
 	            await stream.WriteAsync(spec);
 	        }
         }
@@ -730,14 +719,14 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	            if (filter.MSOrder != MSOrderType.Ms2) continue;
 	
 	            var evt = raw.GetScanEventForScanNumber(scan);
-	            double center = evt.GetMass(0);
-	            double width  = evt.GetIsolationWidth(0);
-	            double lo = center - 0.5 * width;
-	            double hi = center + 0.5 * width;
+	            var isolation = GetMs2IsolationWindow(raw, scan, evt, 0);
+	            if (!isolation.IsUsable) continue;
+	            double lo = isolation.Lower;
+	            double hi = isolation.Upper;
 	
 	            if (!(lo < req.MzHi && hi > req.MzLo)) continue;
 	
-	            var spec = BuildSpectrum(raw, scan, isMs1: false, isoLo: lo, isoHi: hi);
+	            var spec = BuildSpectrum(raw, scan, isMs1: false, isoLo: lo, isoTarget: isolation.Target, isoHi: hi);
 	            await stream.WriteAsync(spec);
 	        }
         }
@@ -797,7 +786,62 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    intensity = Array.Empty<float>();
 	}
 
-    private static Spectrum BuildSpectrum(IRawDataPlus raw, int scan, bool isMs1, double isoLo, double isoHi)
+    private readonly struct IsolationWindowInfo
+    {
+        public readonly double Lower;
+        public readonly double Target;
+        public readonly double Upper;
+
+        public IsolationWindowInfo(double lower, double target, double upper)
+        {
+            Lower = lower;
+            Target = target;
+            Upper = upper;
+        }
+
+        public bool IsUsable =>
+            Target > 0 && Upper > Lower && double.IsFinite(Lower) && double.IsFinite(Target) && double.IsFinite(Upper);
+    }
+
+    private static IsolationWindowInfo GetMs2IsolationWindow(IRawDataPlus raw, int scan, IScanEvent evt, int reactionIndex)
+    {
+        double center = double.NaN;
+        double width = double.NaN;
+
+        try { center = evt.GetReaction(reactionIndex)?.PrecursorMass ?? double.NaN; } catch { }
+        if (!(center > 0 && double.IsFinite(center)))
+        {
+            try { center = evt.GetMass(reactionIndex); } catch { }
+        }
+
+        try
+        {
+            width = evt.GetIsolationWidth(reactionIndex);
+            if (!(width > 0 && double.IsFinite(width))) width = double.NaN;
+        } catch { }
+
+        if (!(width > 0 && double.IsFinite(width)))
+        {
+            try { width = evt.GetReaction(reactionIndex)?.IsolationWidth ?? double.NaN; } catch { }
+        }
+
+        ExtractTrailerInfo(raw, scan, out _, out _, out _, out _, out var trailerWidth, out var trailerOffset);
+        if (trailerWidth > 0 && double.IsFinite(trailerWidth))
+        {
+            width = trailerWidth;
+        }
+
+        if (!(center > 0 && double.IsFinite(center) && width > 0 && double.IsFinite(width)))
+        {
+            return new IsolationWindowInfo(0.0, 0.0, double.PositiveInfinity);
+        }
+
+        double target = center;
+        double offset = double.IsFinite(trailerOffset) ? trailerOffset : 0.0;
+        return new IsolationWindowInfo(target - 0.5 * width + offset, target, target + 0.5 * width + offset);
+    }
+
+    private static Spectrum BuildSpectrum(IRawDataPlus raw, int scan, bool isMs1, double isoLo, double isoTarget, double isoHi)
     {
         var cs = raw.GetCentroidStream(scan, false);
         ReadMzAndIntensity(raw, scan, out var mz, out var intensF);
@@ -818,6 +862,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             MsLevel    = isMs1 ? 1 : 2,
             IsoLower   = isoLo,
             IsoUpper   = isoHi,
+            IsoTarget  = isoTarget,
             Charge     = charge,
             SpectrumName    = scan.ToString(CultureInfo.InvariantCulture),
             PrecursorName   = precursorScan.ToString(CultureInfo.InvariantCulture),
@@ -870,10 +915,18 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     private static void ExtractTrailerInfo(IRawDataPlus raw, int scan, out double injS, out int charge, out int precursorScan, out double rawOvFtT)
     {
+        ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan, out rawOvFtT, out _, out _);
+    }
+
+    private static void ExtractTrailerInfo(IRawDataPlus raw, int scan, out double injS, out int charge, out int precursorScan, out double rawOvFtT,
+        out double isolationWidth, out double isolationOffset)
+    {
         injS = 0;
         charge = 0;
         precursorScan = 0;
         rawOvFtT = 0;
+        isolationWidth = double.NaN;
+        isolationOffset = double.NaN;
         try
         {
             var trailers = raw.GetTrailerExtraInformation(scan); // ILogEntryAccess with Labels/Values
@@ -903,6 +956,16 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
                 {
                     if (TryParseNumber(value, out var parsedRawOvFtT))
                         rawOvFtT = parsedRawOvFtT;
+                }
+                if (!(isolationWidth > 0) && label.IndexOf("Isolation Width", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (TryParseNumber(value, out var parsedIsolationWidth))
+                        isolationWidth = parsedIsolationWidth;
+                }
+                if (!double.IsFinite(isolationOffset) && label.IndexOf("Isolation Offset", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    if (TryParseNumber(value, out var parsedIsolationOffset))
+                        isolationOffset = parsedIsolationOffset;
                 }
             }
         }

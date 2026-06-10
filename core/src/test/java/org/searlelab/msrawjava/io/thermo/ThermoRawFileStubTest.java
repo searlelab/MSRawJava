@@ -96,6 +96,7 @@ class ThermoRawFileStubTest {
 		List<FragmentScan> stripes=rawFile.getStripes(new Range(400.0, 402.0), 0, 100, true);
 		assertEquals(2, stripes.size());
 		assertEquals("scan=3", stripes.get(0).getSpectrumName());
+		assertEquals(400.75, stripes.get(0).getIsolationWindowTarget(), 1e-6);
 		assertEquals(0.0f, stripes.get(0).getIntensityArray()[0], 1e-6f);
 		assertEquals((float)Math.sqrt(9.0f), stripes.get(1).getIntensityArray()[0], 1e-6f);
 
@@ -341,11 +342,11 @@ class ThermoRawFileStubTest {
 			}
 			if (name.endsWith("/GetStripes")) {
 				Spectrum s1=Spectrum.newBuilder().addMz(400.5).addIntensity(-4.0f).setScanNumber(3).setRtSeconds(20.0).setIsoLower(400.0).setIsoUpper(401.0)
-						.setCharge(2).setSpectrumName("f1").setPrecursorName("p1").setIonInjectionTimeS(0.3).setScanWindowLower(399.5).setScanWindowUpper(401.5)
-						.setRawOvFtt(345.6).build();
+						.setIsoTarget(400.75).setCharge(2).setSpectrumName("f1").setPrecursorName("p1").setIonInjectionTimeS(0.3).setScanWindowLower(399.5)
+						.setScanWindowUpper(401.5).setRawOvFtt(345.6).build();
 				Spectrum s2=Spectrum.newBuilder().addMz(401.5).addIntensity(9.0f).setScanNumber(4).setRtSeconds(25.0).setIsoLower(401.0).setIsoUpper(402.0)
-						.setCharge(2).setSpectrumName("f2").setPrecursorName("p2").setIonInjectionTimeS(0.4).setScanWindowLower(400.5).setScanWindowUpper(402.5)
-						.setRawOvFtt(456.7).build();
+						.setIsoTarget(401.75).setCharge(2).setSpectrumName("f2").setPrecursorName("p2").setIonInjectionTimeS(0.4).setScanWindowLower(400.5)
+						.setScanWindowUpper(402.5).setRawOvFtt(456.7).build();
 				return new FakeClientCall<>(List.of((RespT)s1, (RespT)s2));
 			}
 			throw new IllegalArgumentException("Unhandled method: "+name);

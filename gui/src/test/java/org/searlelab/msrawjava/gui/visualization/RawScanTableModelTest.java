@@ -15,10 +15,17 @@ class RawScanTableModelTest {
 		RawScanTableModel model=new RawScanTableModel();
 		model.updateEntries(List.of(ms1Summary(), ms2Summary()));
 
+		assertEquals("Target m/z", model.getColumnName(RawScanTableModel.TARGET_MZ_COLUMN));
 		assertNull(model.getValueAt(0, 3));
 		assertEquals(508.5123, (Double)model.getValueAt(1, 3), 1e-6);
 		assertEquals(1111.5f, (Float)model.getValueAt(0, 4), 1e-6f);
 		assertEquals(2222.25f, (Float)model.getValueAt(1, 4), 1e-6f);
+	}
+
+	@Test
+	void targetMzTooltipShowsIsolationBoundsAndTarget() {
+		assertNull(RawBrowserScansTab.getTargetMzTooltip(ms1Summary()));
+		assertEquals("500.000 \u2192 508.512 \u2190 517.000", RawBrowserScansTab.getTargetMzTooltip(ms2Summary()));
 	}
 
 	private static ScanSummary ms1Summary() {

@@ -328,11 +328,12 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 				float v=s.getIntensity(i);
 				intensity[i]=sqrt?(float)Math.sqrt(Math.max(0f, v)):v;
 			}
-			double precursorMz=(s.getIsoLower()+s.getIsoUpper())/2.0; // FIXME // works most of the time but not always if there were an offset
+			double isolationWindowTarget=getIsolationWindowTarget(s);
+			double precursorMz=isolationWindowTarget;
 			String spectrumName=buildDefaultSpectrumName(s.getScanNumber());
 			Range trimmed=RawFileStructureTools.trimRange(new Range(s.getIsoLower(), s.getIsoUpper()), precursorMarginSize);
 			out.add(new FragmentScan(spectrumName, s.getPrecursorName(), s.getScanNumber(), precursorMz, (float)s.getRtSeconds(), 0,
-					(float)s.getIonInjectionTimeS(), trimmed.getStart(), trimmed.getStop(), mz, intensity, null, (byte)s.getCharge(),
+					(float)s.getIonInjectionTimeS(), trimmed.getStart(), isolationWindowTarget, trimmed.getStop(), mz, intensity, null, (byte)s.getCharge(),
 					s.getScanWindowLower(), s.getScanWindowUpper()));
 			consumePendingThermoSpectrumFields(rawOvFtT);
 		}
@@ -358,7 +359,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			Range window=precursor?new Range(s.getIsoLower(), s.getIsoUpper())
 					:RawFileStructureTools.trimRange(new Range(s.getIsoLower(), s.getIsoUpper()), precursorMarginSize);
 			out.add(new ScanSummary(spectrumName, s.getScanNumber(), (float)s.getRtSeconds(), 0, (float)s.getTic(),
-					precursor?-1.0:(s.getIsoLower()+s.getIsoUpper())/2.0, precursor, (float)s.getIonInjectionTimeS(), window.getStart(), window.getStop(),
+					precursor?-1.0:getIsolationWindowTarget(s), precursor, (float)s.getIonInjectionTimeS(), window.getStart(), window.getStop(),
 					s.getScanWindowLower(), s.getScanWindowUpper(), (byte)s.getCharge()));
 			consumePendingThermoSpectrumFields(rawOvFtT);
 		}
@@ -430,6 +431,18 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		} finally {
 			shutdownChannel(channelToClose);
 		}
+	}
+
+	private static double getIsolationWindowTarget(Spectrum s) {
+		double target=s.getIsoTarget();
+		if (target>0.0&&Double.isFinite(target)) return target;
+		return (s.getIsoLower()+s.getIsoUpper())/2.0;
+	}
+
+	private static double getIsolationWindowTarget(SpectrumSummary s) {
+		double target=s.getIsoTarget();
+		if (target>0.0&&Double.isFinite(target)) return target;
+		return (s.getIsoLower()+s.getIsoUpper())/2.0;
 	}
 
 	private static void sendCloseBestEffort(ManagedChannel channel, String sessionId) {

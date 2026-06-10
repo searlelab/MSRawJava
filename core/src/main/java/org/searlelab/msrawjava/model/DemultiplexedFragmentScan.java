@@ -10,16 +10,25 @@ public class DemultiplexedFragmentScan extends FragmentScan {
 
 	public DemultiplexedFragmentScan(FragmentScan source, int originalSpectrumIndex, int demuxCode) {
 		this(source.getSpectrumName(), source.getPrecursorName(), source.getSpectrumIndex(), source.getPrecursorMZ(), source.getScanStartTime(),
-				source.getFraction(), source.getIonInjectionTime(), source.getIsolationWindowLower(), source.getIsolationWindowUpper(), source.getMassArray(),
-				source.getIntensityArray(), source.getIonMobilityArray().orElse(null), source.getCharge(), source.getScanWindowLower(),
-				source.getScanWindowUpper(), originalSpectrumIndex, demuxCode);
+				source.getFraction(), source.getIonInjectionTime(), source.getIsolationWindowLower(), source.getIsolationWindowTarget(),
+				source.getIsolationWindowUpper(), source.getMassArray(), source.getIntensityArray(), source.getIonMobilityArray().orElse(null),
+				source.getCharge(), source.getScanWindowLower(), source.getScanWindowUpper(), originalSpectrumIndex, demuxCode);
 	}
 
 	public DemultiplexedFragmentScan(String spectrumName, String precursorName, int spectrumIndex, double precursorMz, float scanStartTime, int fraction,
 			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double[] massArray, float[] intensityArray,
 			float[] ionMobilityArray, byte charge, double scanWindowLower, double scanWindowUpper, int originalSpectrumIndex, int demuxCode) {
-		super(spectrumName, precursorName, spectrumIndex, precursorMz, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowUpper,
-				massArray, intensityArray, ionMobilityArray, charge, scanWindowLower, scanWindowUpper);
+		this(spectrumName, precursorName, spectrumIndex, precursorMz, scanStartTime, fraction, ionInjectionTime, isolationWindowLower,
+				(isolationWindowLower+isolationWindowUpper)/2.0, isolationWindowUpper, massArray, intensityArray, ionMobilityArray, charge, scanWindowLower,
+				scanWindowUpper, originalSpectrumIndex, demuxCode);
+	}
+
+	public DemultiplexedFragmentScan(String spectrumName, String precursorName, int spectrumIndex, double precursorMz, float scanStartTime, int fraction,
+			Float ionInjectionTime, double isolationWindowLower, double isolationWindowTarget, double isolationWindowUpper, double[] massArray,
+			float[] intensityArray, float[] ionMobilityArray, byte charge, double scanWindowLower, double scanWindowUpper, int originalSpectrumIndex,
+			int demuxCode) {
+		super(spectrumName, precursorName, spectrumIndex, precursorMz, scanStartTime, fraction, ionInjectionTime, isolationWindowLower, isolationWindowTarget,
+				isolationWindowUpper, massArray, intensityArray, ionMobilityArray, charge, scanWindowLower, scanWindowUpper);
 		if (demuxCode!=0&&demuxCode!=1) {
 			throw new IllegalArgumentException("demuxCode must be 0 or 1, but was "+demuxCode);
 		}
@@ -43,8 +52,9 @@ public class DemultiplexedFragmentScan extends FragmentScan {
 	@Override
 	public DemultiplexedFragmentScan renumber(int newSpectrumIndex) {
 		return new DemultiplexedFragmentScan(super.getSpectrumName(), getPrecursorName(), newSpectrumIndex, getPrecursorMZ(), getScanStartTime(),
-				getFraction(), getIonInjectionTime(), getIsolationWindowLower(), getIsolationWindowUpper(), getMassArray(), getIntensityArray(),
-				getIonMobilityArray().orElse(null), getCharge(), getScanWindowLower(), getScanWindowUpper(), originalSpectrumIndex, demuxCode);
+				getFraction(), getIonInjectionTime(), getIsolationWindowLower(), getIsolationWindowTarget(), getIsolationWindowUpper(), getMassArray(),
+				getIntensityArray(), getIonMobilityArray().orElse(null), getCharge(), getScanWindowLower(), getScanWindowUpper(), originalSpectrumIndex,
+				demuxCode);
 	}
 
 	public static String buildCanonicalSpectrumName(int originalSpectrumIndex, int demuxCode, int spectrumIndex) {

@@ -106,6 +106,7 @@ message Spectrum {
   double scan_window_lower = 19;
   double scan_window_upper = 20;
   double raw_ov_ftt = 21;
+  double iso_target  = 22;
 }
 
 message SpectrumSummary {
@@ -122,6 +123,7 @@ message SpectrumSummary {
   double scan_window_upper = 11;
   double tic = 12;
   double raw_ov_ftt = 13;
+  double iso_target  = 14;
 }
 
 message SummariesReply {

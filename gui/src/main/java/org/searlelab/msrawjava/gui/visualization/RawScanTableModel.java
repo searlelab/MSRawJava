@@ -12,8 +12,9 @@ import org.searlelab.msrawjava.model.ScanSummary;
  */
 public class RawScanTableModel extends AbstractTableModel {
 	private static final long serialVersionUID=1L;
+	static final int TARGET_MZ_COLUMN=3;
 
-	private static final String[] COLUMNS=new String[] {"#", "Spectrum Name", "Scan Start Time (min)", "Precursor m/z", "TIC"};
+	private static final String[] COLUMNS=new String[] {"#", "Spectrum Name", "Scan Start Time (min)", "Target m/z", "TIC"};
 	private final ArrayList<ScanSummary> entries=new ArrayList<>();
 
 	public void updateEntries(List<? extends ScanSummary> newEntries) {
@@ -50,7 +51,7 @@ public class RawScanTableModel extends AbstractTableModel {
 				return String.class;
 			case 2:
 				return Float.class;
-			case 3:
+			case TARGET_MZ_COLUMN:
 				return Double.class;
 			case 4:
 				return Float.class;
@@ -67,13 +68,13 @@ public class RawScanTableModel extends AbstractTableModel {
 				return rowIndex+1;
 			case 1:
 				return entry.getSpectrumName();
-			case 2:
-				return entry.getScanStartTime()/60f;
-			case 3:
-				double precursorMz=entry.getPrecursorMz();
-				return precursorMz<0.0?null:precursorMz;
-			case 4:
-				float tic=entry.getTic();
+				case 2:
+					return entry.getScanStartTime()/60f;
+				case TARGET_MZ_COLUMN:
+					double targetMz=entry.getTargetMz();
+					return targetMz<0.0?null:targetMz;
+				case 4:
+					float tic=entry.getTic();
 				return Float.isFinite(tic)?tic:null;
 			default:
 				return null;

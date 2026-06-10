@@ -106,8 +106,28 @@ class FragmentScanTest {
 	@Test
 	void compatibilityHelpersExposeLegacySurface() {
 		assertEquals(500.0, scan.getIsolationWindowCenter(), 1e-9);
+		assertEquals(500.0, scan.getIsolationWindowTarget(), 1e-9);
 		assertEquals((byte)2, scan.getPrecursorCharge());
 		assertEquals(scan.getPrecursorRange(), scan.getRange());
+	}
+
+	@Test
+	void explicitIsolationWindowTargetCanDifferFromMidpointAndSurvivesCopies() {
+		FragmentScan offsetScan=new FragmentScan("offset", "precursor", 5, 500.25, 120.5f, 0, 50.0f, 490.0, 502.5, 510.0, new double[] {100.0},
+				new float[] {1000.0f}, null, (byte)2, 100.0, 1000.0);
+
+		assertEquals(500.0, offsetScan.getIsolationWindowCenter(), 1e-9);
+		assertEquals(502.5, offsetScan.getIsolationWindowTarget(), 1e-9);
+		assertEquals(502.5, offsetScan.renumber(6).getIsolationWindowTarget(), 1e-9);
+		assertEquals(502.5, offsetScan.shallowClone(1, 7).getIsolationWindowTarget(), 1e-9);
+		assertEquals(502.5, offsetScan.withIsolationWindow(491.0, 509.0).getIsolationWindowTarget(), 1e-9);
+		assertEquals(502.5, offsetScan.trimIsolationWindow(1.0).getIsolationWindowTarget(), 1e-9);
+		assertEquals(502.5, offsetScan.sqrt().getIsolationWindowTarget(), 1e-9);
+		assertEquals(502.5, offsetScan.trimMasses(new Range(50.0, 150.0)).getIsolationWindowTarget(), 1e-9);
+
+		ArrayList<PeakInterface> peaks=new ArrayList<>();
+		peaks.add(new Peak(100.0, 10.0f));
+		assertEquals(502.5, offsetScan.rebuild(8, 130.0f, peaks, 492.0, 508.0).getIsolationWindowTarget(), 1e-9);
 	}
 
 	@Test
