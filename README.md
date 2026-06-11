@@ -12,6 +12,8 @@
 ## What **MS**RawJava and **MS**Forest are and are not
 **MS**RawJava is not a [ProteoWizard](https://proteowizard.sourceforge.io/) replacement. **MS**RawJava has a significantly smaller surface area than ProteoWizard, supporting only a narrow set of vendor files and output formats. Additionally, there are very limited options for processing raw files and no options for non-vendor peak picking. In exchange, **MS**RawJava offers higher conversion speed and a more straightforward interface for daily work at the command line and via programmatic interfaces. **MS**Forest adds the GUI workflow and rich, integrated raw-file visualization with a forensic focus to catch mistakes in data acquisition. Lastly, the project offers high (>90%) test coverage in the core code and first-class support for Apple computers as well as Linux and Windows. Use ProteoWizard for completeness, **MS**RawJava for core conversion, and **MS**Forest for visual daily work.
 
+Known issues include lack of support for MS3 (and higher) fragmentation, and lack of support for negative ion mode. For both cases, you should use [ProteoWizard](https://proteowizard.sourceforge.io/) for visualization and conversion.
+
 ## Architecture and code structure
 <img align="right" src="gui/splash_vert@2x.png" width=100 style="margin-left: 15px;">
 
