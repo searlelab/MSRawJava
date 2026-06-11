@@ -286,7 +286,7 @@ The conversion panel answers operational questions:
 
 - **Which inspected files are ready for downstream analysis?** Select only the files you want to convert.
 - **Which output format does the next tool need?** Choose `.dia`, `.mgf`, or `mzML`.
-- **Does this dataset need demultiplexing?** Enable demux only for supported staggered-window workflows.
+- **Does this dataset need demultiplexing?** Leave demux on automatic for routine conversion, or override it only when you know the acquisition structure needs a specific setting.
 - **Can this computer handle parallel conversion right now?** Adjust GUI thread count based on whether this is an instrument computer or an analysis workstation.
 
 The conversion controls are shown in the lower main-browser region in Figure 1c.
@@ -303,7 +303,7 @@ The conversion toolbar includes:
 The parameter controls include:
 
 - **Output**: output format, using the available `OutputType` values.
-- **Demux**: enables staggered-window demultiplexing when supported.
+- **Demux**: controls staggered-window demultiplexing when supported. The indeterminate `-` state means automatic.
 - **Threads**: number of files that can be converted in parallel by the GUI queue.
 
 Select a job in the queue to view details and per-job log messages in the details console.
@@ -320,7 +320,9 @@ Output files are written to the same directory as the input file unless the work
 
 ### Demultiplexing
 
-The **Demux** checkbox enables staggered-window demultiplexing for supported inputs. It is intended for Thermo, EncyclopeDIA `.dia`, and `mzML` sources where the acquisition structure supports staggered-window demultiplexing.
+The **Demux** checkbox has three states. The default indeterminate `-` state lets MSForest inspect the file structure and choose automatically. A checked box forces staggered-window demultiplexing when the input type supports it. An unchecked box disables demultiplexing even if the acquisition pattern looks staggered.
+
+During automatic conversion, MSForest/MSRawJava reads the isolation-window summary and classifies the method as DDA, PRM, or DIA. DIA files with a consistent half-overlap staggered pattern are treated as staggered-window DIA and are demultiplexed for supported Thermo, EncyclopeDIA `.dia`, and `mzML` inputs. Non-staggered DIA files are converted without demultiplexing. If adjacent non-staggered DIA windows overlap by a small, consistent amount, MSForest treats that overlap as an instrument-method margin and trims half of the overlap from each side of each MS2 isolation window before writing output. For example, neighboring 3 m/z windows spaced every 2 m/z have a 1 m/z overlap, so MSForest records a 0.5 m/z precursor margin. Demultiplexing and precursor-margin trimming are mutually exclusive; if both are explicitly requested for the same file, conversion fails rather than guessing which correction to apply.
 
 Bruker `.d` files do not support staggered demultiplexing in MSForest. When Bruker files are selected, the GUI disables the checkbox and conversion proceeds without demultiplexing.
 
@@ -390,9 +392,12 @@ The scan table columns are:
 - `Name`: vendor-provided scan or spectrum name.
 - `RT`: scan start time in minutes.
 - `Precursor`: precursor m/z, blank for MS1.
+- `Target`: isolation target m/z for MS2 scans when it differs from the isolation-window center.
 - `TIC`: total ion current for the scan.
 
 Use the scan type filter to view all spectra, MS1 scans, or MS2 scans for a specific isolation window. Use the search field to filter the scan table by text.
+
+MSForest records both the isolation-window bounds and the instrument isolation target when the source format provides them. This matters for methods with offset or asymmetric isolation windows: the target is the m/z value requested by the method, while the center is calculated from the lower and upper window bounds. Output writers preserve that distinction where the destination format supports it, and the scan table exposes the target so shifted windows are not mistaken for centered ones.
 
 Selecting a scan updates the spectrum plot. Selecting multiple scans merges them for display using a mass tolerance, which is useful when inspecting a local region of a chromatogram.
 
@@ -580,7 +585,7 @@ java -jar MSRawJava.jar -f mzml -o /path/to/output /path/to/raws/
 Enable staggered-window demultiplexing:
 
 ```bash
-java -jar MSRawJava.jar -f mzml --demux --demux-ppm 10.0 /path/to/raws/
+java -jar MSRawJava.jar -f mzml --demux true --demux-ppm 10.0 /path/to/raws/
 ```
 
 Write a log file:
@@ -648,8 +653,10 @@ Raise these values to reduce low-intensity peaks in Bruker-derived output. The d
 Enable demultiplexing:
 
 ```bash
---demux
+--demux true
 ```
+
+Omit `--demux` to let MSRawJava auto-determine whether a supported DIA input should be demultiplexed. Use `--demux false` to force conversion without demultiplexing.
 
 Configure demultiplexing:
 
@@ -663,7 +670,7 @@ Configure demultiplexing:
 
 `--demux-k` sets the local approximation size. Valid values are 7 through 9. `--demux-interp` selects the interpolation method. `--demux-exclude-edges` omits edge sub-windows with single coverage. `--demux-ppm` sets the ion-matching mass tolerance.
 
-Demultiplexing is not available for Bruker `.d` files. If requested for Bruker input, MSRawJava reports that it will process without demultiplexing.
+MSRawJava also auto-detects repeated small overlaps between adjacent non-staggered DIA windows as precursor margins and trims half of that overlap from each side of MS2 isolation windows. Override this with `--precursorMarginSize #` when you need a specific per-side trim. Demultiplexing is not available for Bruker `.d` files. If requested for Bruker input, MSRawJava reports that it will process without demultiplexing.
 
 ### Logging and Console Behavior
 
@@ -691,7 +698,8 @@ java -jar MSRawJava.jar --no-ansi -f dia /data/raw
 --log-file [path]         Write log output to a file
 --min-ms1 [#]             Minimum MS1 intensity threshold for timsTOF
 --min-ms2 [#]             Minimum MS2 intensity threshold for timsTOF
---demux                   Enable staggered-window demultiplexing
+--demux [true|false]      Set staggered-window demultiplexing, default auto
+--precursorMarginSize [#] Trim this many m/z from each side of MS2 isolation windows, default auto
 --demux-k [#]             Local approximation size for demux, 7-9
 --demux-interp [method]   Interpolation method: cubic|logquadratic
 --demux-exclude-edges     Exclude edge sub-windows from demux output
@@ -766,7 +774,7 @@ try {
 }
 ```
 
-Use `RawFileConverters.writeDemux(...)` instead of `writeStandard(...)` when converting supported staggered-window DIA data with demultiplexing.
+Use `RawFileConverters.writeDemux(...)` instead of `writeStandard(...)` when you have resolved a supported staggered-window DIA input to demultiplexed conversion.
 
 ### Building from Source
 
