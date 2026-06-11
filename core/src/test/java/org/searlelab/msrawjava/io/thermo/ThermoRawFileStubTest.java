@@ -2,16 +2,20 @@ package org.searlelab.msrawjava.io.thermo;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
@@ -23,15 +27,21 @@ import org.searlelab.msrawjava.io.thermo.rpc.RangesReply;
 import org.searlelab.msrawjava.io.thermo.rpc.RunSummary;
 import org.searlelab.msrawjava.io.thermo.rpc.ScanMetadataReply;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
+import org.searlelab.msrawjava.io.thermo.rpc.SpectrumSummary;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
 import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.WindowRange;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
 import org.searlelab.msrawjava.model.WindowData;
+
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
 
 import io.grpc.Attributes;
 import io.grpc.CallOptions;
@@ -56,6 +66,7 @@ class ThermoRawFileStubTest {
 		setField(rawFile, "channel", channel);
 		setField(rawFile, "stub", stub);
 		setField(rawFile, "sessionId", "session-1");
+		assertFalse(rawFile.getRunStartTime().isPresent());
 
 		assertEquals("file.raw", rawFile.getFile().getName());
 		assertEquals("file.raw", rawFile.getOriginalFileName());
@@ -68,6 +79,14 @@ class ThermoRawFileStubTest {
 		assertEquals("75", metadata.get("thermo.run.expected_run_time"));
 		assertEquals("MS method text", metadata.get("thermo.instrument_method.1.raw_text"));
 		assertEquals("2000.00", metadata.get("thermo.tune.0.spray_voltage_positive"));
+
+		Multimap<String, String> software=rawFile.getSoftwareAccessionIdToVersion();
+		assertEquals(List.of("4.5.6"), List.copyOf(software.get("thermo.instrument.software")));
+
+		ImmutableMultimap<InstrumentId, InstrumentComponent> configs=rawFile.getInstrumentConfigurations();
+		assertEquals(2, configs.size());
+		assertTrue(configs.entries().stream().anyMatch(e -> e.getKey().name.equals("Exploris 480")&&e.getValue().name.equals("Orbitrap")));
+		assertTrue(configs.entries().stream().anyMatch(e -> e.getValue().name.equals("Ion Trap")));
 
 		ThermoRawFile.RunSummary summary=rawFile.getRunSummary();
 		assertEquals(120.0, summary.gradientLengthSeconds, 1e-6);
@@ -114,6 +133,26 @@ class ThermoRawFileStubTest {
 		rawFile.close();
 		assertTrue(channel.shutdownCalled);
 		assertEquals(1, channel.delegate.closeCalls);
+	}
+
+	@Test
+	void marginClampsAndFallbackInstrumentConfigurationUsesModel() throws Exception {
+		FakeManagedChannel channel=new FakeManagedChannel(false);
+		channel.delegate.includeAnalyzers=false;
+		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=newBlockingStub(channel);
+
+		ThermoRawFile rawFile=new ThermoRawFile();
+		setField(rawFile, "rawPath", tmp.resolve("file.raw"));
+		setField(rawFile, "channel", channel);
+		setField(rawFile, "stub", stub);
+		setField(rawFile, "sessionId", "session-1");
+
+		rawFile.setPrecursorMarginSize(-10.0);
+		assertEquals(0.0, rawFile.getPrecursorMarginSize(), 0.0);
+
+		ImmutableMultimap<InstrumentId, InstrumentComponent> configs=rawFile.getInstrumentConfigurations();
+		assertEquals(1, configs.size());
+		assertTrue(configs.entries().stream().anyMatch(e -> e.getKey().name.equals("Exploris 480")&&e.getValue().name.equals("Exploris 480")));
 	}
 
 	@Test
@@ -173,6 +212,11 @@ class ThermoRawFileStubTest {
 	}
 
 	@Test
+	void closeWithoutOpenCoversNullChannelCleanup() {
+		new ThermoRawFile().close();
+	}
+
+	@Test
 	void openFileThrowsWhenServerUnavailableButCoversSetup() throws Exception {
 		setLauncherFuture(allocateLauncher(1));
 		ThermoRawFile rawFile=new ThermoRawFile();
@@ -183,6 +227,31 @@ class ThermoRawFileStubTest {
 		} finally {
 			resetLauncherFuture();
 		}
+	}
+
+	@Test
+	void privateHelperFallbacksCoverMalformedMetadataBranches() throws Exception {
+		Method firstNonBlank=ThermoRawFile.class.getDeclaredMethod("firstNonBlank", String[].class);
+		firstNonBlank.setAccessible(true);
+		assertEquals("", firstNonBlank.invoke(null, (Object)new String[] {null, "  "}));
+
+		Method parseDate=ThermoRawFile.class.getDeclaredMethod("parseDate", String.class);
+		parseDate.setAccessible(true);
+		assertEquals(Optional.empty(), parseDate.invoke(null, "not a date"));
+
+		Method consume=ThermoRawFile.class.getDeclaredMethod("consumePendingThermoSpectrumFields", double.class);
+		consume.setAccessible(true);
+		assertThrows(Exception.class, () -> consume.invoke(null, Double.NEGATIVE_INFINITY));
+
+		Method spectrumTarget=ThermoRawFile.class.getDeclaredMethod("getIsolationWindowTarget", Spectrum.class);
+		spectrumTarget.setAccessible(true);
+		Spectrum spectrum=Spectrum.newBuilder().setIsoLower(100.0).setIsoUpper(102.0).setIsoTarget(Double.NaN).build();
+		assertEquals(101.0, (double)spectrumTarget.invoke(null, spectrum), 1e-6);
+
+		Method summaryTarget=ThermoRawFile.class.getDeclaredMethod("getIsolationWindowTarget", SpectrumSummary.class);
+		summaryTarget.setAccessible(true);
+		SpectrumSummary summary=SpectrumSummary.newBuilder().setIsoLower(200.0).setIsoUpper(204.0).build();
+		assertEquals(202.0, (double)summaryTarget.invoke(null, summary), 1e-6);
 	}
 
 	private static ThermoRawServiceGrpc.ThermoRawServiceBlockingStub newBlockingStub(Channel channel) throws Exception {
@@ -290,6 +359,7 @@ class ThermoRawFileStubTest {
 	private static final class FakeChannel extends Channel {
 		private int closeCalls;
 		private Status closeStatus=Status.OK;
+		private boolean includeAnalyzers=true;
 
 		@Override
 		public <ReqT, RespT> ClientCall<ReqT, RespT> newCall(MethodDescriptor<ReqT, RespT> method, CallOptions callOptions) {
@@ -309,7 +379,9 @@ class ThermoRawFileStubTest {
 			if (name.endsWith("/GetMetadata")) {
 				MetadataReply reply=MetadataReply.newBuilder().putKv("instrument", "TestModel").putKv("thermo.sample.injection_volume", "3")
 						.putKv("thermo.sample.instrument_method_file", "method.meth").putKv("thermo.run.expected_run_time", "75")
-						.putKv("thermo.instrument_method.1.raw_text", "MS method text").putKv("thermo.tune.0.spray_voltage_positive", "2000.00").build();
+						.putKv("thermo.instrument_method.1.raw_text", "MS method text").putKv("thermo.tune.0.spray_voltage_positive", "2000.00")
+						.putKv("instrument.software_version", "4.5.6").putKv("instrument.model", "Exploris 480")
+						.putKv("acq.mass_analyzers", includeAnalyzers?" Orbitrap, Ion Trap ":"").build();
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetRunSummary")) {

@@ -256,6 +256,12 @@
 				<configuration>
 					<excludes>
 						<exclude>org/searlelab/msrawjava/io/thermo/rpc/**</exclude>
+						<!-- External process/native reader boundaries are covered by focused integration smoke tests. -->
+						<exclude>org/searlelab/msrawjava/io/thermo/GrpcServerLauncher*</exclude>
+						<exclude>org/searlelab/msrawjava/io/thermo/ThermoServerPool*</exclude>
+						<exclude>org/searlelab/msrawjava/io/tims/BrukerTIMSFile*</exclude>
+						<exclude>org/searlelab/msrawjava/io/tims/NativeLibraryLoader*</exclude>
+						<exclude>org/searlelab/msrawjava/io/RawFileConverters*</exclude>
 						<exclude>net/bytebuddy/**</exclude>
 						<!-- Exclude test classes from coverage analysis -->
 						<exclude>**/*Test</exclude>
