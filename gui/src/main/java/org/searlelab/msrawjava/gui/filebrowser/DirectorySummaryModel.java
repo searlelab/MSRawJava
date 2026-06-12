@@ -1,16 +1,14 @@
 package org.searlelab.msrawjava.gui.filebrowser;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
 
-/** Table model: File | Vendor | Date Modified | Size | Gradient (min) | TIC spark */
+/** Table model for directory-level raw file metadata and preview metrics. */
 final class DirectorySummaryModel extends AbstractTableModel {
-	private static final String[] COLS= {"#", "File", "Vendor", "Date Modified", "Size", "Gradient (min)", "Total TIC", "TIC"};
 	private static final long serialVersionUID=1L;
 
 	private final CopyOnWriteArrayList<DirectorySummaryRow> rows=new CopyOnWriteArrayList<>();
@@ -45,55 +43,44 @@ final class DirectorySummaryModel extends AbstractTableModel {
 
 	@Override
 	public int getColumnCount() {
-		return COLS.length;
+		return DirectorySummaryColumn.values().length;
 	}
 
 	@Override
 	public String getColumnName(int c) {
-		return COLS[c];
+		DirectorySummaryColumn column=DirectorySummaryColumn.byModelIndex(c);
+		return column==null?"":column.label;
 	}
 
 	@Override
 	public Class<?> getColumnClass(int c) {
-		switch (c) {
-			case 0:
-			case 1:
-			case 2:
-				return String.class;
-			case 3:
-				return Date.class;
-			case 4:
-				return Long.class; // SIZE_RENDERER will humanize it
-			case 5:
-				return Float.class; // we format "X.Y min" in renderer
-			case 6:
-				return Float.class; // total TIC
-			case 7:
-				return SparkData.class;
-			default:
-				return Object.class;
-		}
+		DirectorySummaryColumn column=DirectorySummaryColumn.byModelIndex(c);
+		return column==null?Object.class:column.valueClass;
 	}
 
 	@Override
 	public Object getValueAt(int r, int c) {
 		DirectorySummaryRow row=rows.get(r);
-		switch (c) {
-			case 0:
+		DirectorySummaryColumn column=DirectorySummaryColumn.byModelIndex(c);
+		if (column==null) return null;
+		switch (column) {
+			case ROW_NUMBER:
 				return null;
-			case 1:
+			case FILE:
 				return row.fileName;
-			case 2:
+			case VENDOR:
 				return row.vendor.getVendorName();
-			case 3:
+			case DATE_MODIFIED:
 				return row.lastModified;
-			case 4:
+			case DATE_ACQUIRED:
+				return row.acquiredDate;
+			case SIZE:
 				return row.sizeBytes;
-			case 5:
+			case GRADIENT_MIN:
 				return row.gradientMin; // may be null
-			case 6:
+			case TOTAL_TIC:
 				return row.totalTIC; // may be null
-			case 7:
+			case TIC_SPARK:
 				return row.spark; // may be null
 			default:
 				return null;

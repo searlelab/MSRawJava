@@ -12,14 +12,22 @@ import java.awt.Dimension;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -63,6 +71,8 @@ import javax.swing.table.TableRowSorter;
 
 import org.searlelab.msrawjava.gui.GuiProcessingActivity;
 import org.searlelab.msrawjava.gui.GUIPreferences;
+import org.searlelab.msrawjava.gui.GUIPreferences.DirectorySummarySortKeySpec;
+import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -127,28 +137,16 @@ public class DirectorySummaryPanel extends JPanel {
 
 		table=new JTable(model);
 		sorter=new TableRowSorter<>(model);
-		sorter.setSortable(0, false); // "#" not sortable
-		sorter.setComparator(3, Comparator.nullsLast(Comparator.naturalOrder())); // date modified
-		sorter.setComparator(5, Comparator.nullsLast(Float::compareTo)); // gradient
-		sorter.setComparator(6, Comparator.nullsLast(Float::compareTo)); // total tic
-		sorter.setSortable(7, false); // tic spark 
-		List<RowSorter.SortKey> savedSortKeys=GUIPreferences.getDirectorySummarySortKeys();
-		ArrayList<RowSorter.SortKey> validSortKeys=new ArrayList<>(savedSortKeys.size());
-		for (RowSorter.SortKey key : savedSortKeys) {
-			if (key==null) continue;
-			int col=key.getColumn();
-			if (col>=0&&col<model.getColumnCount()) {
-				validSortKeys.add(key);
-			}
-		}
+		configureSorter();
+		List<RowSorter.SortKey> validSortKeys=toSortKeys(GUIPreferences.getDirectorySummarySortKeySpecs());
 		if (!validSortKeys.isEmpty()) {
 			sorter.setSortKeys(validSortKeys);
 		} else {
-			sorter.setSortKeys(List.of(new RowSorter.SortKey(3, SortOrder.DESCENDING)));
+			sorter.setSortKeys(List.of(new RowSorter.SortKey(DirectorySummaryColumn.DATE_MODIFIED.modelIndex(), SortOrder.DESCENDING)));
 		}
 		sorter.addRowSorterListener(e -> {
 			RowSorter<?> src=(RowSorter<?>)e.getSource();
-			GUIPreferences.setDirectorySummarySortKeys(src.getSortKeys());
+			GUIPreferences.setDirectorySummarySortKeySpecs(toSortKeySpecs(src.getSortKeys()));
 			requestSlowBitsDispatch();
 		});
 
@@ -161,19 +159,12 @@ public class DirectorySummaryPanel extends JPanel {
 		// Stripe renderers so it blends in
 		table.setDefaultRenderer(String.class, StripeTableCellRenderer.BASE_RENDERER);
 		table.setDefaultRenderer(Long.class, StripeTableCellRenderer.SIZE_RENDERER);
-		table.setDefaultRenderer(Date.class, new DirectorySummaryRenderers.DateOnlyRenderer());
+		table.setDefaultRenderer(Date.class, new DirectorySummaryRenderers.DateTimeRenderer());
 		table.setDefaultRenderer(Float.class, new DirectorySummaryRenderers.GradientRenderer()); // formats "X.Y min"
 		table.setDefaultRenderer(SparkData.class, new DirectorySummaryRenderers.SparkRenderer()); // red filled spark
 		installTableHeaderTooltips();
 
-		table.getColumnModel().getColumn(0).setCellRenderer(StripeTableCellRenderer.ROW_NUMBER_RENDERER);
-		table.getColumnModel().getColumn(1).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
-		table.getColumnModel().getColumn(2).setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
-		table.getColumnModel().getColumn(3).setCellRenderer(new DirectorySummaryRenderers.DateOnlyRenderer());
-		table.getColumnModel().getColumn(4).setCellRenderer(StripeTableCellRenderer.SIZE_RENDERER);
-		table.getColumnModel().getColumn(5).setCellRenderer(new DirectorySummaryRenderers.GradientRenderer());
-		table.getColumnModel().getColumn(6).setCellRenderer(StripeTableCellRenderer.SCI_RENDERER);
-		table.getColumnModel().getColumn(7).setCellRenderer(new DirectorySummaryRenderers.SparkRenderer());
+		installColumnRenderers();
 
 		add(buildSearchBar(), BorderLayout.NORTH);
 		tableScrollPane=new JScrollPane(table);
@@ -219,6 +210,73 @@ public class DirectorySummaryPanel extends JPanel {
 		model.addRows(allRows);
 		initializeSlowBitsProgress(allRows);
 		requestSlowBitsDispatch();
+	}
+
+	private void configureSorter() {
+		for (DirectorySummaryColumn column : DirectorySummaryColumn.values()) {
+			sorter.setSortable(column.modelIndex(), column.sortable);
+			if (column.valueClass==Date.class) {
+				sorter.setComparator(column.modelIndex(), Comparator.nullsLast(Comparator.<Date>naturalOrder()));
+			} else if (column.valueClass==Float.class) {
+				sorter.setComparator(column.modelIndex(), Comparator.nullsLast(Float::compareTo));
+			}
+		}
+	}
+
+	private static List<RowSorter.SortKey> toSortKeys(List<DirectorySummarySortKeySpec> specs) {
+		if (specs==null||specs.isEmpty()) return List.of();
+		ArrayList<RowSorter.SortKey> keys=new ArrayList<>(specs.size());
+		for (DirectorySummarySortKeySpec spec : specs) {
+			if (spec==null||spec.getSortOrder()==null) continue;
+			DirectorySummaryColumn column=DirectorySummaryColumn.byKey(spec.getColumnKey());
+			if (column==null||!column.sortable) continue;
+			keys.add(new RowSorter.SortKey(column.modelIndex(), spec.getSortOrder()));
+		}
+		return keys;
+	}
+
+	private static List<DirectorySummarySortKeySpec> toSortKeySpecs(List<? extends RowSorter.SortKey> keys) {
+		if (keys==null||keys.isEmpty()) return List.of();
+		ArrayList<DirectorySummarySortKeySpec> specs=new ArrayList<>(keys.size());
+		for (RowSorter.SortKey key : keys) {
+			if (key==null||key.getSortOrder()==null) continue;
+			DirectorySummaryColumn column=DirectorySummaryColumn.byModelIndex(key.getColumn());
+			if (column!=null&&column.sortable) {
+				specs.add(new DirectorySummarySortKeySpec(column.key, key.getSortOrder()));
+			}
+		}
+		return specs;
+	}
+
+	private void installColumnRenderers() {
+		for (DirectorySummaryColumn column : DirectorySummaryColumn.values()) {
+			TableColumn tableColumn=table.getColumnModel().getColumn(column.modelIndex());
+			switch (column) {
+				case ROW_NUMBER:
+					tableColumn.setCellRenderer(StripeTableCellRenderer.ROW_NUMBER_RENDERER);
+					break;
+				case FILE:
+				case VENDOR:
+					tableColumn.setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
+					break;
+				case DATE_MODIFIED:
+				case DATE_ACQUIRED:
+					tableColumn.setCellRenderer(new DirectorySummaryRenderers.DateTimeRenderer());
+					break;
+				case SIZE:
+					tableColumn.setCellRenderer(StripeTableCellRenderer.SIZE_RENDERER);
+					break;
+				case GRADIENT_MIN:
+					tableColumn.setCellRenderer(new DirectorySummaryRenderers.GradientRenderer());
+					break;
+				case TOTAL_TIC:
+					tableColumn.setCellRenderer(StripeTableCellRenderer.SCI_RENDERER);
+					break;
+				case TIC_SPARK:
+					tableColumn.setCellRenderer(new DirectorySummaryRenderers.SparkRenderer());
+					break;
+			}
+		}
 	}
 
 	private JPanel buildSearchBar() {
@@ -300,26 +358,8 @@ public class DirectorySummaryPanel extends JPanel {
 	}
 
 	private String getHeaderTooltip(int modelColumn) {
-		switch (modelColumn) {
-			case 0:
-				return "The table row number for this file.";
-			case 1:
-				return "The raw file or directory name.";
-			case 2:
-				return "The detected vendor or file format.";
-			case 3:
-				return "The last modified date reported by the file system.";
-			case 4:
-				return "The total file size on disk.";
-			case 5:
-				return "The gradient length in minutes.";
-			case 6:
-				return "The sum of MS1 TIC values across the entire raw file.";
-			case 7:
-				return "A compact trace of total ion current across retention time.";
-			default:
-				return null;
-		}
+		DirectorySummaryColumn column=DirectorySummaryColumn.byModelIndex(modelColumn);
+		return column==null?null:column.tooltip;
 	}
 
 	private void updateFilters() {
@@ -630,6 +670,7 @@ public class DirectorySummaryPanel extends JPanel {
 				dia=new EncyclopeDIAFile();
 				dia.openFile(row.path.toFile());
 				Pair<float[], float[]> tic=dia.getTICTrace();
+				row.acquiredDate=parseAcquiredDate(dia.getMetadata().get(EncyclopeDIAFile.RUN_START_TIME)).orElse(null);
 				row.totalTIC=dia.getTIC();
 				row.gradientMin=dia.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
@@ -653,6 +694,7 @@ public class DirectorySummaryPanel extends JPanel {
 			try {
 				mzml.openFile(row.path.toFile());
 				Pair<float[], float[]> tic=mzml.getTICTrace();
+				row.acquiredDate=getStructuredRunStartTime(mzml).orElse(null);
 				row.totalTIC=mzml.getTIC();
 				row.gradientMin=mzml.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
@@ -677,6 +719,7 @@ public class DirectorySummaryPanel extends JPanel {
 			try {
 				raw.openFile(row.path);
 				Pair<float[], float[]> tic=raw.getTICTrace();
+				row.acquiredDate=getStructuredRunStartTime(raw).orElse(null);
 				row.totalTIC=raw.getTIC();
 				row.gradientMin=raw.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
@@ -710,6 +753,7 @@ public class DirectorySummaryPanel extends JPanel {
 			try {
 				raw.openFile(row.path);
 				Pair<float[], float[]> tic=raw.getTICTrace();
+				row.acquiredDate=getStructuredRunStartTime(raw).orElse(null);
 				row.totalTIC=raw.getTIC();
 				row.gradientMin=raw.getGradientLength()/60f;
 				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
@@ -728,6 +772,35 @@ public class DirectorySummaryPanel extends JPanel {
 					logSlowBitsFailure(row, t);
 				}
 			}
+		}
+	}
+
+	static Optional<Date> parseAcquiredDate(String raw) {
+		if (raw==null||raw.isBlank()) return Optional.empty();
+		String value=raw.trim();
+		try {
+			return Optional.of(Date.from(Instant.parse(value)));
+		} catch (DateTimeParseException ignored) {
+		}
+		try {
+			return Optional.of(Date.from(OffsetDateTime.parse(value).toInstant()));
+		} catch (DateTimeParseException ignored) {
+		}
+		try {
+			return Optional.of(Date.from(LocalDateTime.parse(value, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")).atZone(ZoneId.systemDefault())
+					.toInstant()));
+		} catch (DateTimeParseException ignored) {
+		}
+		return Optional.empty();
+	}
+
+	private static Optional<Date> getStructuredRunStartTime(StructuredMetadataProvider provider) {
+		if (provider==null) return Optional.empty();
+		try {
+			return provider.getRunStartTime();
+		} catch (Exception e) {
+			Logger.errorException(e);
+			return Optional.empty();
 		}
 	}
 
@@ -759,38 +832,45 @@ public class DirectorySummaryPanel extends JPanel {
 		applyingSavedLayout=true;
 		try {
 			applyDefaultColumnWidths();
-			List<Integer> order=GUIPreferences.getDirectorySummaryColumnOrder();
+			List<String> order=GUIPreferences.getDirectorySummaryColumnOrderKeys();
 			if (!order.isEmpty()) {
 				applyColumnOrder(order);
 			}
-			Map<Integer, Integer> widths=GUIPreferences.getDirectorySummaryColumnWidths();
+			Map<String, Integer> widths=GUIPreferences.getDirectorySummaryColumnWidthKeys();
 			if (!widths.isEmpty()) {
 				applyColumnWidths(widths);
 			}
 		} finally {
 			applyingSavedLayout=false;
 		}
+		saveColumnPreferences();
+		GUIPreferences.setDirectorySummarySortKeySpecs(toSortKeySpecs(sorter.getSortKeys()));
 	}
 
 	private void applyDefaultColumnWidths() {
-		setColumnWidth(0, 50); // #
-		setColumnWidth(1, 320); // File
-		setColumnWidth(2, 80); // Vendor
-		setColumnWidth(3, 110); // Date Modified
-		setColumnWidth(4, 100); // Size
-		setColumnWidth(5, 110); // Gradient
-		setColumnWidth(6, 110); // total tic
-		setColumnWidth(7, 220); // TIC
+		for (DirectorySummaryColumn column : DirectorySummaryColumn.values()) {
+			setColumnWidth(column, column.defaultWidth);
+		}
 	}
 
-	private void applyColumnOrder(List<Integer> order) {
+	private void applyColumnOrder(List<String> order) {
 		int columnCount=table.getColumnModel().getColumnCount();
 		int target=0;
-		for (Integer modelIndex : order) {
-			if (modelIndex==null) continue;
-			if (modelIndex<0||modelIndex>=columnCount) continue;
-			int current=table.convertColumnIndexToView(modelIndex);
+		java.util.HashSet<DirectorySummaryColumn> applied=new java.util.HashSet<>();
+		for (String columnKey : order) {
+			DirectorySummaryColumn column=DirectorySummaryColumn.byKey(columnKey);
+			if (column==null||!applied.add(column)) continue;
+			int current=table.convertColumnIndexToView(column.modelIndex());
 			if (current<0) continue;
+			if (current!=target) {
+				table.getColumnModel().moveColumn(current, target);
+			}
+			target++;
+		}
+		for (DirectorySummaryColumn column : DirectorySummaryColumn.values()) {
+			if (!applied.add(column)) continue;
+			int current=table.convertColumnIndexToView(column.modelIndex());
+			if (current<0||current>=columnCount) continue;
 			if (current!=target) {
 				table.getColumnModel().moveColumn(current, target);
 			}
@@ -798,20 +878,19 @@ public class DirectorySummaryPanel extends JPanel {
 		}
 	}
 
-	private void applyColumnWidths(Map<Integer, Integer> widths) {
-		int columnCount=table.getColumnModel().getColumnCount();
-		for (Map.Entry<Integer, Integer> entry : widths.entrySet()) {
-			Integer modelIndex=entry.getKey();
+	private void applyColumnWidths(Map<String, Integer> widths) {
+		for (Map.Entry<String, Integer> entry : widths.entrySet()) {
+			DirectorySummaryColumn column=DirectorySummaryColumn.byKey(entry.getKey());
 			Integer width=entry.getValue();
-			if (modelIndex==null||width==null) continue;
-			if (modelIndex<0||modelIndex>=columnCount) continue;
+			if (column==null||width==null) continue;
 			if (width.intValue()<=0) continue;
-			setColumnWidth(modelIndex.intValue(), width.intValue());
+			setColumnWidth(column, width.intValue());
 		}
 	}
 
-	private void setColumnWidth(int modelIndex, int width) {
-		int viewIndex=table.convertColumnIndexToView(modelIndex);
+	private void setColumnWidth(DirectorySummaryColumn column, int width) {
+		if (column==null) return;
+		int viewIndex=table.convertColumnIndexToView(column.modelIndex());
 		if (viewIndex<0) return;
 		TableColumn col=table.getColumnModel().getColumn(viewIndex);
 		col.setPreferredWidth(width);
@@ -859,16 +938,17 @@ public class DirectorySummaryPanel extends JPanel {
 	private void saveColumnPreferences() {
 		if (applyingSavedLayout) return;
 		int count=table.getColumnModel().getColumnCount();
-		List<Integer> order=new ArrayList<>(count);
-		Map<Integer, Integer> widths=new HashMap<>(count);
+		List<String> order=new ArrayList<>(count);
+		Map<String, Integer> widths=new LinkedHashMap<>(count);
 		for (int view=0; view<count; view++) {
 			TableColumn col=table.getColumnModel().getColumn(view);
-			int modelIndex=col.getModelIndex();
-			order.add(modelIndex);
-			widths.put(modelIndex, Math.max(1, col.getWidth()));
+			DirectorySummaryColumn column=DirectorySummaryColumn.byModelIndex(col.getModelIndex());
+			if (column==null) continue;
+			order.add(column.key);
+			widths.put(column.key, Math.max(1, col.getWidth()));
 		}
-		GUIPreferences.setDirectorySummaryColumnOrder(order);
-		GUIPreferences.setDirectorySummaryColumnWidths(widths);
+		GUIPreferences.setDirectorySummaryColumnOrderKeys(order);
+		GUIPreferences.setDirectorySummaryColumnWidthKeys(widths);
 	}
 
 	@Override

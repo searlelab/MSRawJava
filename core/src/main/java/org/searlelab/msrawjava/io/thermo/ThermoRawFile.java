@@ -123,7 +123,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			runStartTime=Optional.empty();
 			try {
 				Map<String, String> metadata=getMetadata();
-				runStartTime=parseDate(firstNonBlank(metadata.get("run.start_time_iso8601"), metadata.get("run.start_time_utc")));
+				runStartTime=extractRunStartTime(metadata);
 			} catch (Exception ignored) {
 				runStartTime=Optional.empty();
 			}
@@ -499,6 +499,11 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			if (value!=null&&!value.isBlank()) return value;
 		}
 		return "";
+	}
+
+	static Optional<Date> extractRunStartTime(Map<String, String> metadata) {
+		if (metadata==null) return Optional.empty();
+		return parseDate(firstNonBlank(metadata.get("run.start_time_iso8601"), metadata.get("run.start_time_utc")));
 	}
 
 	private static Optional<Date> parseDate(String raw) {

@@ -11,7 +11,9 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -133,6 +135,13 @@ class ThermoRawFileStubTest {
 		rawFile.close();
 		assertTrue(channel.shutdownCalled);
 		assertEquals(1, channel.delegate.closeCalls);
+	}
+
+	@Test
+	void extractRunStartTime_parsesIsoMetadataKey() {
+		Optional<Date> acquired=ThermoRawFile.extractRunStartTime(Map.of("run.start_time_iso8601", "2024-01-02T03:04:05Z"));
+
+		assertEquals(Date.from(Instant.parse("2024-01-02T03:04:05Z")), acquired.orElseThrow());
 	}
 
 	@Test

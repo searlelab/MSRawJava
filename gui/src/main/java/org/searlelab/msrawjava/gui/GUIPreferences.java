@@ -12,9 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.prefs.Preferences;
 
-import javax.swing.RowSorter;
 import javax.swing.SortOrder;
 
+import org.searlelab.msrawjava.gui.filebrowser.DirectorySummaryColumn;
 import org.searlelab.msrawjava.logging.Logger;
 
 /**
@@ -116,19 +116,38 @@ public final class GUIPreferences {
 		}
 	}
 
-	public static List<RowSorter.SortKey> getDirectorySummarySortKeys() {
+	public static final class DirectorySummarySortKeySpec {
+		private final String columnKey;
+		private final SortOrder sortOrder;
+
+		public DirectorySummarySortKeySpec(String columnKey, SortOrder sortOrder) {
+			this.columnKey=columnKey;
+			this.sortOrder=sortOrder;
+		}
+
+		public String getColumnKey() {
+			return columnKey;
+		}
+
+		public SortOrder getSortOrder() {
+			return sortOrder;
+		}
+	}
+
+	public static List<DirectorySummarySortKeySpec> getDirectorySummarySortKeySpecs() {
 		String raw=PREFS.get(PREF_DIR_TABLE_SORT_KEYS, "");
 		logRead(PREF_DIR_TABLE_SORT_KEYS, raw);
 		if (raw.isBlank()) return List.of();
 		String[] parts=raw.split(",");
-		List<RowSorter.SortKey> keys=new ArrayList<>(parts.length);
+		List<DirectorySummarySortKeySpec> keys=new ArrayList<>(parts.length);
 		for (String part : parts) {
 			String[] pieces=part.split(":", 2);
 			if (pieces.length!=2) continue;
 			try {
-				int col=Integer.parseInt(pieces[0]);
+				String columnKey=normalizeDirectorySummaryColumnKey(pieces[0]);
+				if (columnKey==null) continue;
 				SortOrder order=SortOrder.valueOf(pieces[1]);
-				keys.add(new RowSorter.SortKey(col, order));
+				keys.add(new DirectorySummarySortKeySpec(columnKey, order));
 			} catch (Exception ignore) {
 				Logger.errorException(ignore);
 			}
@@ -136,17 +155,19 @@ public final class GUIPreferences {
 		return keys;
 	}
 
-	public static void setDirectorySummarySortKeys(List<? extends RowSorter.SortKey> keys) {
+	public static void setDirectorySummarySortKeySpecs(List<DirectorySummarySortKeySpec> keys) {
 		if (keys==null||keys.isEmpty()) {
 			PREFS.remove(PREF_DIR_TABLE_SORT_KEYS);
 			logWrite(PREF_DIR_TABLE_SORT_KEYS, null);
 			return;
 		}
 		StringBuilder out=new StringBuilder();
-		for (RowSorter.SortKey key : keys) {
+		for (DirectorySummarySortKeySpec key : keys) {
 			if (key==null) continue;
+			String columnKey=normalizeDirectorySummaryColumnKey(key.getColumnKey());
+			if (columnKey==null||key.getSortOrder()==null) continue;
 			if (out.length()>0) out.append(',');
-			out.append(key.getColumn()).append(':').append(key.getSortOrder().name());
+			out.append(columnKey).append(':').append(key.getSortOrder().name());
 		}
 		if (out.length()==0) {
 			PREFS.remove(PREF_DIR_TABLE_SORT_KEYS);
@@ -157,33 +178,31 @@ public final class GUIPreferences {
 		logWrite(PREF_DIR_TABLE_SORT_KEYS, out.toString());
 	}
 
-	public static List<Integer> getDirectorySummaryColumnOrder() {
+	public static List<String> getDirectorySummaryColumnOrderKeys() {
 		String raw=PREFS.get(PREF_DIR_TABLE_COLUMN_ORDER, "");
 		logRead(PREF_DIR_TABLE_COLUMN_ORDER, raw);
 		if (raw.isBlank()) return List.of();
 		String[] parts=raw.split(",");
-		List<Integer> order=new ArrayList<>(parts.length);
+		List<String> order=new ArrayList<>(parts.length);
 		for (String part : parts) {
-			try {
-				order.add(Integer.parseInt(part));
-			} catch (Exception ignore) {
-				Logger.errorException(ignore);
-			}
+			String columnKey=normalizeDirectorySummaryColumnKey(part);
+			if (columnKey!=null) order.add(columnKey);
 		}
 		return order;
 	}
 
-	public static void setDirectorySummaryColumnOrder(List<Integer> order) {
+	public static void setDirectorySummaryColumnOrderKeys(List<String> order) {
 		if (order==null||order.isEmpty()) {
 			PREFS.remove(PREF_DIR_TABLE_COLUMN_ORDER);
 			logWrite(PREF_DIR_TABLE_COLUMN_ORDER, null);
 			return;
 		}
 		StringBuilder out=new StringBuilder();
-		for (Integer idx : order) {
-			if (idx==null) continue;
+		for (String key : order) {
+			String columnKey=normalizeDirectorySummaryColumnKey(key);
+			if (columnKey==null) continue;
 			if (out.length()>0) out.append(',');
-			out.append(idx.intValue());
+			out.append(columnKey);
 		}
 		if (out.length()==0) {
 			PREFS.remove(PREF_DIR_TABLE_COLUMN_ORDER);
@@ -194,19 +213,20 @@ public final class GUIPreferences {
 		logWrite(PREF_DIR_TABLE_COLUMN_ORDER, out.toString());
 	}
 
-	public static Map<Integer, Integer> getDirectorySummaryColumnWidths() {
+	public static Map<String, Integer> getDirectorySummaryColumnWidthKeys() {
 		String raw=PREFS.get(PREF_DIR_TABLE_COLUMN_WIDTHS, "");
 		logRead(PREF_DIR_TABLE_COLUMN_WIDTHS, raw);
 		if (raw.isBlank()) return Map.of();
 		String[] parts=raw.split(",");
-		Map<Integer, Integer> widths=new HashMap<>(parts.length);
+		Map<String, Integer> widths=new HashMap<>(parts.length);
 		for (String part : parts) {
 			String[] pieces=part.split("=", 2);
 			if (pieces.length!=2) continue;
 			try {
-				int col=Integer.parseInt(pieces[0]);
+				String columnKey=normalizeDirectorySummaryColumnKey(pieces[0]);
+				if (columnKey==null) continue;
 				int width=Integer.parseInt(pieces[1]);
-				if (width>0) widths.put(col, width);
+				if (width>0) widths.put(columnKey, width);
 			} catch (Exception ignore) {
 				Logger.errorException(ignore);
 			}
@@ -214,19 +234,21 @@ public final class GUIPreferences {
 		return widths;
 	}
 
-	public static void setDirectorySummaryColumnWidths(Map<Integer, Integer> widths) {
+	public static void setDirectorySummaryColumnWidthKeys(Map<String, Integer> widths) {
 		if (widths==null||widths.isEmpty()) {
 			PREFS.remove(PREF_DIR_TABLE_COLUMN_WIDTHS);
 			logWrite(PREF_DIR_TABLE_COLUMN_WIDTHS, null);
 			return;
 		}
 		StringBuilder out=new StringBuilder();
-		for (Map.Entry<Integer, Integer> entry : widths.entrySet()) {
+		for (Map.Entry<String, Integer> entry : widths.entrySet()) {
 			if (entry.getKey()==null||entry.getValue()==null) continue;
+			String columnKey=normalizeDirectorySummaryColumnKey(entry.getKey());
+			if (columnKey==null) continue;
 			int width=entry.getValue().intValue();
 			if (width<=0) continue;
 			if (out.length()>0) out.append(',');
-			out.append(entry.getKey().intValue()).append('=').append(width);
+			out.append(columnKey).append('=').append(width);
 		}
 		if (out.length()==0) {
 			PREFS.remove(PREF_DIR_TABLE_COLUMN_WIDTHS);
@@ -235,6 +257,19 @@ public final class GUIPreferences {
 		}
 		PREFS.put(PREF_DIR_TABLE_COLUMN_WIDTHS, out.toString());
 		logWrite(PREF_DIR_TABLE_COLUMN_WIDTHS, out.toString());
+	}
+
+	private static String normalizeDirectorySummaryColumnKey(String raw) {
+		if (raw==null) return null;
+		String trimmed=raw.trim();
+		if (trimmed.isEmpty()) return null;
+		try {
+			int legacyIndex=Integer.parseInt(trimmed);
+			DirectorySummaryColumn legacyColumn=DirectorySummaryColumn.legacyByIndex(legacyIndex);
+			return legacyColumn==null?null:legacyColumn.key;
+		} catch (NumberFormatException ignore) {
+			return DirectorySummaryColumn.byKey(trimmed)==null?null:trimmed;
+		}
 	}
 
 	public static String getDirectorySummaryVendorFilter() {

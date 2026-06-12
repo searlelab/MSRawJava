@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.DataFormatException;
 
 import org.searlelab.msrawjava.io.StructuredMetadataProvider;
@@ -55,6 +57,8 @@ import gnu.trove.list.array.TFloatArrayList;
  * can treat Bruker data uniformly alongside other vendors.
  */
 public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataProvider, AutoCloseable {
+	private static final Pattern SQLITE_MISSING_COLUMN=Pattern.compile("no such column: ([^)\\s]+)", Pattern.CASE_INSENSITIVE);
+	private static final Pattern SQLITE_MISSING_TABLE=Pattern.compile("no such table: ([^)\\s]+)", Pattern.CASE_INSENSITIVE);
 
 	private Path dPath=null;
 	private File fileObj=null;
@@ -475,6 +479,36 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		}
 	}
 
+	private boolean metadataTableExists(String name, String section) {
+		try {
+			return tableExists(name);
+		} catch (SQLException sqle) {
+			logMetadataReadFailure(section, sqle);
+			return false;
+		}
+	}
+
+	private void logMetadataReadFailure(String section, SQLException failure) {
+		Logger.errorLine("Unable to read Bruker metadata for "+metadataFileDescription()+" ("+section+"): "+metadataFailureSummary(failure));
+	}
+
+	private String metadataFileDescription() {
+		if (dPath!=null) return dPath.toAbsolutePath().toString();
+		if (originalFileName!=null&&!originalFileName.isEmpty()) return originalFileName;
+		return "<unknown>";
+	}
+
+	static String metadataFailureSummary(SQLException failure) {
+		if (failure==null) return "metadata query failed";
+		String message=failure.getMessage();
+		if (message==null||message.trim().isEmpty()) return failure.getClass().getSimpleName();
+		Matcher columnMatcher=SQLITE_MISSING_COLUMN.matcher(message);
+		if (columnMatcher.find()) return "missing column "+columnMatcher.group(1);
+		Matcher tableMatcher=SQLITE_MISSING_TABLE.matcher(message);
+		if (tableMatcher.find()) return "missing table "+tableMatcher.group(1);
+		return message;
+	}
+
 	private LinkedHashMap<String, String> metadata=null;
 
 	/**
@@ -502,7 +536,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 				}
 			}
 		} catch (SQLException sqle) {
-			Logger.errorException(sqle);
+			logMetadataReadFailure("frame summary", sqle);
 		}
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT MIN(t1), AVG(t1), MAX(t1), MIN(t2), AVG(t2), MAX(t2) FROM Frames")) {
@@ -517,7 +551,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 				}
 			}
 		} catch (SQLException sqle) {
-			Logger.errorException(sqle);
+			logMetadataReadFailure("frame temperature summary", sqle);
 		}
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT AVG(CASE WHEN MsMsType=0 THEN AccumulationTime END), "
@@ -530,10 +564,10 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 				}
 			}
 		} catch (SQLException sqle) {
-			Logger.errorException(sqle);
+			logMetadataReadFailure("accumulation time summary", sqle);
 		}
 
-		if (tableExists("DiaFrameMsMsWindows")) {
+		if (metadataTableExists("DiaFrameMsMsWindows", "DIA window table check")) {
 			String cntSql="SELECT COUNT(*) FROM DiaFrameMsMsWindows";
 			String wgSql="SELECT COUNT(DISTINCT WindowGroup) FROM DiaFrameMsMsWindows";
 			String spanSql="SELECT MIN(IsolationMz - 0.5*IsolationWidth), MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "
@@ -541,12 +575,12 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 			try (PreparedStatement ps1=conn.prepareStatement(cntSql); ResultSet r1=ps1.executeQuery()) {
 				if (r1.next()) out.put("dia.windows.count", Integer.toString(r1.getInt(1)));
 			} catch (SQLException sqle) {
-				Logger.errorException(sqle);
+				logMetadataReadFailure("DIA window count", sqle);
 			}
 			try (PreparedStatement ps2=conn.prepareStatement(wgSql); ResultSet r2=ps2.executeQuery()) {
 				if (r2.next()) out.put("dia.windowGroups.count", Integer.toString(r2.getInt(1)));
 			} catch (SQLException sqle) {
-				Logger.errorException(sqle);
+				logMetadataReadFailure("DIA window group count", sqle);
 			}
 			try (PreparedStatement ps3=conn.prepareStatement(spanSql); ResultSet r3=ps3.executeQuery()) {
 				if (r3.next()) {
@@ -555,11 +589,11 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 					out.put("dia.window.avgWidth", Double.toString(r3.getDouble(3)));
 				}
 			} catch (SQLException sqle) {
-				Logger.errorException(sqle);
+				logMetadataReadFailure("DIA window span", sqle);
 			}
 		}
 
-		if (tableExists("PasefFrameMsMsInfo")) {
+		if (metadataTableExists("PasefFrameMsMsInfo", "DDA target table check")) {
 			try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(IsolationMz - 0.5*IsolationWidth), "
 					+"MAX(IsolationMz + 0.5*IsolationWidth), AVG(IsolationWidth) "+"FROM PasefFrameMsMsInfo"); ResultSet rs=ps.executeQuery()) {
 				if (rs.next()) {
@@ -569,11 +603,11 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 					out.put("dda.window.avgWidth", Double.toString(rs.getDouble(4)));
 				}
 			} catch (SQLException sqle) {
-				Logger.errorException(sqle);
+				logMetadataReadFailure("DDA target summary", sqle);
 			}
 		}
 
-		if (tableExists("GlobalMetadata")) {
+		if (metadataTableExists("GlobalMetadata", "global metadata table check")) {
 			String sql="SELECT Key, Value FROM GlobalMetadata";
 			try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
 				while (rs.next()) {
@@ -584,7 +618,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 					}
 				}
 			} catch (SQLException sqle) {
-				Logger.errorException(sqle);
+				logMetadataReadFailure("global metadata", sqle);
 			}
 		}
 		out.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
@@ -595,8 +629,13 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 
 	@Override
 	public Optional<Date> getRunStartTime() throws IOException, SQLException {
-		Map<String, String> meta=getMetadata();
-		String value=firstNonBlank(meta.get("meta.AcquisitionDateTime"), meta.get("meta.AcquisitionDate"), meta.get("meta.Date"));
+		return extractRunStartTime(getMetadata());
+	}
+
+	static Optional<Date> extractRunStartTime(Map<String, String> meta) {
+		if (meta==null) return Optional.empty();
+		String value=firstNonBlank(meta.get("meta.AcquisitionDateTime"), meta.get("meta.AcquisitionDate"), meta.get("meta.Date"), meta.get("AcquisitionDateTime"),
+				meta.get("AcquisitionDate"), meta.get("Date"));
 		if (value==null) return Optional.empty();
 		return parseDate(value);
 	}

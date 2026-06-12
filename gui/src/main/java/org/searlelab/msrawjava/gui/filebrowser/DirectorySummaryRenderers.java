@@ -7,7 +7,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
-import java.text.DateFormat;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Locale;
 
@@ -38,9 +39,9 @@ final class DirectorySummaryRenderers {
 		}
 	}
 
-	static final class DateOnlyRenderer extends StripeTableCellRenderer {
+	static final class DateTimeRenderer extends StripeTableCellRenderer {
 		private static final long serialVersionUID=1L;
-		private final DateFormat format=DateFormat.getDateInstance(DateFormat.SHORT);
+		private static final DateTimeFormatter FORMAT=DateTimeFormatter.ofPattern("M/d/yy HH:mm").withZone(ZoneId.systemDefault());
 
 		@Override
 		public Component getTableCellRendererComponent(JTable tbl, Object value, boolean isSelected, boolean hasFocus, int row, int col) {
@@ -48,11 +49,16 @@ final class DirectorySummaryRenderers {
 			if (value instanceof Date) {
 				Date d=(Date)value;
 				setHorizontalAlignment(SwingConstants.RIGHT);
-				setText(format.format(d));
+				setText(formatDateTime(d));
 			} else {
 				setText("");
 			}
 			return this;
+		}
+
+		static String formatDateTime(Date date) {
+			if (date==null) return "";
+			return FORMAT.format(date.toInstant());
 		}
 	}
 
