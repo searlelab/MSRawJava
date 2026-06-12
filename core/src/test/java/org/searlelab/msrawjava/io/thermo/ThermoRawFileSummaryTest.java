@@ -14,6 +14,7 @@ import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.SpectrumSummary;
 import org.searlelab.msrawjava.io.thermo.rpc.SummariesReply;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
+import org.searlelab.msrawjava.io.thermo.rpc.RangesReply;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -213,6 +214,11 @@ class ThermoRawFileSummaryTest {
 			String methodName=method.getFullMethodName();
 			if (methodName.endsWith("/GetScanSummaries")) {
 				listener.onMessage(cast(summaries));
+				listener.onClose(Status.OK, new Metadata());
+				return;
+			}
+			if (methodName.endsWith("/GetRanges")) {
+				listener.onMessage(cast(RangesReply.newBuilder().build()));
 				listener.onClose(Status.OK, new Metadata());
 				return;
 			}

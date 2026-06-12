@@ -119,16 +119,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 
 		try {
 			OpenReply rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
-			this.sessionId=rep.getSessionId();
-			runStartTime=Optional.empty();
-			try {
-				Map<String, String> metadata=getMetadata();
-				runStartTime=extractRunStartTime(metadata);
-			} catch (Exception ignored) {
-				runStartTime=Optional.empty();
-			}
-			acquisitionRanges=fetchRanges();
-			determineStructure();
+			applyOpenReply(rawFile, rep);
 		} catch (StatusRuntimeException e) {
 			String detail=e.getStatus()!=null?e.getStatus().getDescription():e.getMessage();
 			if (detail!=null&&detail.toLowerCase(Locale.ROOT).contains(INVALID_INSTRUMENT_INDEX_TEXT)) {
@@ -139,17 +130,42 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		}
 	}
 
+	private void applyOpenReply(Path rawFile, OpenReply rep) {
+		this.rawPath=rawFile;
+		this.sessionId=rep.getSessionId();
+		this.runStartTime=parseDate(rep.getRunStartTimeIso8601());
+		this.acquisitionRanges=new LinkedHashMap<Range, WindowData>();
+		this.dataAcquisitionType=DataAcquisitionType.DDA;
+		this.staggered=false;
+		this.precursorMarginSize=0.0;
+	}
+
 	public Map<String, String> getMetadata() throws IOException, SQLException {
 		ensureStructureDetermined();
+		Map<String, String> metadata=fetchMetadata();
+		runStartTime=extractRunStartTime(metadata);
+		metadata.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
+		return metadata;
+	}
+
+	private Map<String, String> fetchMetadata() {
 		Session req=Session.newBuilder().setSessionId(sessionId).build();
 		MetadataReply reply=stub.getMetadata(req);
-		LinkedHashMap<String, String> out=new LinkedHashMap<>(reply.getKvMap());
-		out.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
-		return out;
+		return new LinkedHashMap<>(reply.getKvMap());
 	}
 
 	@Override
-	public Optional<Date> getRunStartTime() {
+	public Optional<Date> getRunStartTime() throws IOException, SQLException {
+		if (runStartTime.isPresent()||stub==null||sessionId==null) return runStartTime;
+		try {
+			runStartTime=extractRunStartTime(fetchMetadata());
+		} catch (RuntimeException e) {
+			throw e;
+		}
+		return runStartTime;
+	}
+
+	public Optional<Date> getRunStartTimeIfKnown() {
 		return runStartTime;
 	}
 
@@ -313,6 +329,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 
 	@Override
 	public ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) throws IOException {
+		ensureStructureDetermined();
 		StripesRequest req=StripesRequest.newBuilder().setSessionId(sessionId).setRtMin(minRT/60f).setRtMax(maxRT/60f).setMzLo(targetMzRange.getStart())
 				.setMzHi(targetMzRange.getStop()).setProfile(false).build();
 
@@ -349,6 +366,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 
 	@Override
 	public ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) throws IOException {
+		ensureStructureDetermined();
 		Session req=Session.newBuilder().setSessionId(sessionId).build();
 		SummariesReply reply=stub.getScanSummaries(req);
 		ArrayList<ScanSummary> out=new ArrayList<>(reply.getSummariesCount());

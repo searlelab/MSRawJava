@@ -23,7 +23,13 @@ service ThermoRawService {
 }
 
 message OpenRequest { string path = 1; }
-message OpenReply   { string session_id = 1; string instrument_model = 2; double start_time = 3; double end_time = 4; }
+message OpenReply {
+  string session_id = 1;
+  string instrument_model = 2;
+  double start_time = 3;
+  double end_time = 4;
+  string run_start_time_iso8601 = 5;
+}
 message CloseRequest { string session_id = 1; }
 message CloseReply { bool ok = 1; }
 message Session { string session_id = 1; }

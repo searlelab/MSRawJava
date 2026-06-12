@@ -34,6 +34,7 @@ import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
 import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.WindowRange;
 import org.searlelab.msrawjava.io.utils.Pair;
+import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
 import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -142,6 +143,36 @@ class ThermoRawFileStubTest {
 		Optional<Date> acquired=ThermoRawFile.extractRunStartTime(Map.of("run.start_time_iso8601", "2024-01-02T03:04:05Z"));
 
 		assertEquals(Date.from(Instant.parse("2024-01-02T03:04:05Z")), acquired.orElseThrow());
+	}
+
+	@Test
+	void openReplyRunStartTimeAvoidsEagerMetadataAndRanges() throws Exception {
+		FakeManagedChannel channel=new FakeManagedChannel(false);
+		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=newBlockingStub(channel);
+		ThermoRawFile rawFile=new ThermoRawFile();
+		setField(rawFile, "channel", channel);
+		setField(rawFile, "stub", stub);
+
+		Method applyOpenReply=ThermoRawFile.class.getDeclaredMethod("applyOpenReply", Path.class, OpenReply.class);
+		applyOpenReply.setAccessible(true);
+		applyOpenReply.invoke(rawFile, tmp.resolve("file.raw"),
+				OpenReply.newBuilder().setSessionId("session-1").setRunStartTimeIso8601("2024-01-02T03:04:05Z").build());
+
+		assertEquals(Date.from(Instant.parse("2024-01-02T03:04:05Z")), rawFile.getRunStartTimeIfKnown().orElseThrow());
+		assertEquals(Date.from(Instant.parse("2024-01-02T03:04:05Z")), rawFile.getRunStartTime().orElseThrow());
+		assertEquals(0, channel.delegate.metadataCalls);
+		assertEquals(0, channel.delegate.rangesCalls);
+
+		Map<Range, WindowData> ranges=rawFile.getRanges();
+		assertEquals(2, ranges.size());
+		assertEquals(1, channel.delegate.rangesCalls);
+		assertEquals(0, channel.delegate.metadataCalls);
+
+		Map<String, String> metadata=rawFile.getMetadata();
+		assertEquals("TestModel", metadata.get("instrument"));
+		assertEquals("DDA", metadata.get(RawFileStructureTools.METADATA_DATA_ACQUISITION_TYPE));
+		assertEquals(1, channel.delegate.rangesCalls);
+		assertEquals(1, channel.delegate.metadataCalls);
 	}
 
 	@Test
@@ -367,6 +398,8 @@ class ThermoRawFileStubTest {
 
 	private static final class FakeChannel extends Channel {
 		private int closeCalls;
+		private int metadataCalls;
+		private int rangesCalls;
 		private Status closeStatus=Status.OK;
 		private boolean includeAnalyzers=true;
 
@@ -386,6 +419,7 @@ class ThermoRawFileStubTest {
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetMetadata")) {
+				metadataCalls++;
 				MetadataReply reply=MetadataReply.newBuilder().putKv("instrument", "TestModel").putKv("thermo.sample.injection_volume", "3")
 						.putKv("thermo.sample.instrument_method_file", "method.meth").putKv("thermo.run.expected_run_time", "75")
 						.putKv("thermo.instrument_method.1.raw_text", "MS method text").putKv("thermo.tune.0.spray_voltage_positive", "2000.00")
@@ -398,6 +432,7 @@ class ThermoRawFileStubTest {
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetRanges")) {
+				rangesCalls++;
 				RangesReply reply=RangesReply.newBuilder()
 						.addWindows(WindowRange.newBuilder().setLo(400.0).setHi(401.0).setAverageDutyCycleSeconds(0.1).setNumberOfMsms(2)
 								.setRtStartSeconds(10.0).setRtEndSeconds(20.0))

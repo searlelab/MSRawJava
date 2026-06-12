@@ -217,13 +217,14 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        int last = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum : raw.RunHeader.LastSpectrum;
 	        double rtFirst = raw.RetentionTimeFromScanNumber(first);
 	        double rtLast  = raw.RetentionTimeFromScanNumber(last);
+	        string runStartTimeIso8601 = GetRunStartTimeIso8601(raw);
 	
 	        string sid = Guid.NewGuid().ToString("N");
 	        Sessions[sid] = raw;
 	        sessionRegistered = true;
 	
 	        return Task.FromResult(new OpenReply {
-	            SessionId = sid, InstrumentModel = model, StartTime = rtFirst, EndTime = rtLast
+	            SessionId = sid, InstrumentModel = model, StartTime = rtFirst, EndTime = rtLast, RunStartTimeIso8601 = runStartTimeIso8601
 	        });
 	    }
 	    
@@ -255,6 +256,22 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 			}
 		}
 		if (last != null) throw last;
+	}
+
+	private static string GetRunStartTimeIso8601(IRawDataPlus raw)
+	{
+		try
+		{
+			var startDateProp = raw.GetType().GetProperty("CreationDate")
+				?? raw.GetType().GetProperty("DateCreated")
+				?? raw.GetType().GetProperty("AcquisitionDate")
+				?? raw.GetType().GetProperty("StartDate");
+			var startDateValue = startDateProp?.GetValue(raw);
+			if (startDateValue is DateTime dt) return dt.ToUniversalTime().ToString("O");
+			if (startDateValue is DateTimeOffset dto) return dto.ToUniversalTime().ToString("O");
+		}
+		catch { }
+		return string.Empty;
 	}
 
     public override Task<CloseReply> Close(CloseRequest request, ServerCallContext context)

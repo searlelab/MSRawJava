@@ -98,6 +98,7 @@ public class DirectorySummaryPanel extends JPanel {
 	private static final String SLOW_BITS_CANCELLED_BY_USER_SUMMARY=DirectorySummarySlowBitsFailures.SLOW_BITS_CANCELLED_BY_USER_SUMMARY;
 	private static final long SLOW_BITS_STALL_THRESHOLD_NANOS=1_000_000_000L;
 	private static final long SLOW_BITS_READER_RETRY_NANOS=750_000_000L;
+	private static final boolean SLOW_BITS_TIMING_ENABLED=Boolean.getBoolean("msrawjava.gui.slowbits.timing");
 	private static final AtomicInteger SLOW_BITS_THREAD_ID=new AtomicInteger(1);
 
 	private final int slowBitsWorkerCount=Math.max(1, Runtime.getRuntime().availableProcessors()-2);
@@ -655,123 +656,235 @@ public class DirectorySummaryPanel extends JPanel {
 	}
 
 	private void computeSlowBits(DirectorySummaryRow row) {
-		if (closed) return;
-		// Per-file fault isolation: if anything fails, we just skip updating that row
-		DirectorySummaryMetrics cached=SLOW_BITS_CACHE.get(row.path);
-		if (cached!=null) {
-			row.applyMetrics(cached);
-			markSlowBitsDone(row);
-			safeRowUpdate(row);
-			return;
-		}
-		if (row.vendor==VendorFile.ENCYCLOPEDIA) {
-			EncyclopeDIAFile dia=null;
-			try {
-				dia=new EncyclopeDIAFile();
-				dia.openFile(row.path.toFile());
-				Pair<float[], float[]> tic=dia.getTICTrace();
-				row.acquiredDate=parseAcquiredDate(dia.getMetadata().get(EncyclopeDIAFile.RUN_START_TIME)).orElse(null);
-				row.totalTIC=dia.getTIC();
-				row.gradientMin=dia.getGradientLength()/60f;
-				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
-				SLOW_BITS_CACHE.put(row.path, row.toMetrics());
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
-			} catch (Throwable ignore) {
-				logSlowBitsFailure(row, ignore);
-				row.spark=FAILED;
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
-			} finally {
-				try {
-					if (dia!=null) dia.close();
-				} catch (Throwable t) {
-					logSlowBitsFailure(row, t);
-				}
+		SlowBitsTiming timing=SlowBitsTiming.start(row);
+		try {
+			if (closed) {
+				timing.status="closed";
+				return;
 			}
-		} else if (row.vendor==VendorFile.MZML) {
-			MzmlFile mzml=new MzmlFile();
-			try {
-				mzml.openFile(row.path.toFile());
-				Pair<float[], float[]> tic=mzml.getTICTrace();
-				row.acquiredDate=getStructuredRunStartTime(mzml).orElse(null);
-				row.totalTIC=mzml.getTIC();
-				row.gradientMin=mzml.getGradientLength()/60f;
-				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
-				SLOW_BITS_CACHE.put(row.path, row.toMetrics());
+			// Per-file fault isolation: if anything fails, we just skip updating that row
+			DirectorySummaryMetrics cached=SLOW_BITS_CACHE.get(row.path);
+			if (cached!=null) {
+				timing.cacheHit=true;
+				timing.status="cache";
+				row.applyMetrics(cached);
 				markSlowBitsDone(row);
 				safeRowUpdate(row);
-			} catch (Throwable ignore) {
-				logSlowBitsFailure(row, ignore);
-				row.spark=FAILED;
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
-			} finally {
-				try {
-					mzml.close();
-				} catch (Throwable t) {
-					logSlowBitsFailure(row, t);
-				}
+				return;
 			}
-		} else if (row.vendor==VendorFile.THERMO) {
-			ThermoRawFile raw=new ThermoRawFile();
-			boolean skipClose=false;
-			try {
-				raw.openFile(row.path);
-				Pair<float[], float[]> tic=raw.getTICTrace();
-				row.acquiredDate=getStructuredRunStartTime(raw).orElse(null);
-				row.totalTIC=raw.getTIC();
-				row.gradientMin=raw.getGradientLength()/60f;
-				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
-				SLOW_BITS_CACHE.put(row.path, row.toMetrics());
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
-			} catch (Throwable ignore) {
-				if (DirectorySummarySlowBitsFailures.isThermoReaderUnavailable(ignore)) {
-					if (DirectorySummarySlowBitsFailures.shouldSkipThermoRetryOnClose(closed)) {
-						skipClose=true;
+			if (row.vendor==VendorFile.ENCYCLOPEDIA) {
+				EncyclopeDIAFile dia=null;
+				try {
+					dia=new EncyclopeDIAFile();
+					long start=System.nanoTime();
+					dia.openFile(row.path.toFile());
+					timing.openNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					Pair<float[], float[]> tic=dia.getTICTrace();
+					timing.ticTraceNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					row.acquiredDate=parseAcquiredDate(dia.getMetadata().get(EncyclopeDIAFile.RUN_START_TIME)).orElse(null);
+					timing.acquiredDateNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					row.totalTIC=dia.getTIC();
+					row.gradientMin=dia.getGradientLength()/60f;
+					timing.runSummaryNanos+=System.nanoTime()-start;
+					row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+					SLOW_BITS_CACHE.put(row.path, row.toMetrics());
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
+				} catch (Throwable ignore) {
+					timing.status=failureStatus(ignore);
+					logSlowBitsFailure(row, ignore);
+					row.spark=FAILED;
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
+				} finally {
+					long start=System.nanoTime();
+					try {
+						if (dia!=null) dia.close();
+					} catch (Throwable t) {
+						logSlowBitsFailure(row, t);
+					} finally {
+						timing.closeNanos+=System.nanoTime()-start;
+					}
+				}
+			} else if (row.vendor==VendorFile.MZML) {
+				MzmlFile mzml=new MzmlFile();
+				try {
+					long start=System.nanoTime();
+					mzml.openFile(row.path.toFile());
+					timing.openNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					Pair<float[], float[]> tic=mzml.getTICTrace();
+					timing.ticTraceNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					row.acquiredDate=getStructuredRunStartTime(mzml).orElse(null);
+					timing.acquiredDateNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					row.totalTIC=mzml.getTIC();
+					row.gradientMin=mzml.getGradientLength()/60f;
+					timing.runSummaryNanos+=System.nanoTime()-start;
+					row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+					SLOW_BITS_CACHE.put(row.path, row.toMetrics());
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
+				} catch (Throwable ignore) {
+					timing.status=failureStatus(ignore);
+					logSlowBitsFailure(row, ignore);
+					row.spark=FAILED;
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
+				} finally {
+					long start=System.nanoTime();
+					try {
+						mzml.close();
+					} catch (Throwable t) {
+						logSlowBitsFailure(row, t);
+					} finally {
+						timing.closeNanos+=System.nanoTime()-start;
+					}
+				}
+			} else if (row.vendor==VendorFile.THERMO) {
+				ThermoRawFile raw=new ThermoRawFile();
+				boolean skipClose=false;
+				try {
+					long start=System.nanoTime();
+					raw.openFile(row.path);
+					timing.openNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					Pair<float[], float[]> tic=raw.getTICTrace();
+					timing.ticTraceNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					ThermoRawFile.RunSummary summary=raw.getRunSummary();
+					timing.runSummaryNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					Optional<Date> acquired=raw.getRunStartTimeIfKnown();
+					row.acquiredDate=acquired.orElse(null);
+					timing.acquisitionDateSource=acquired.isPresent()?"open_reply":"missing";
+					timing.acquiredDateNanos+=System.nanoTime()-start;
+					row.totalTIC=(float)summary.totalIonCurrent;
+					row.gradientMin=(float)(summary.gradientLengthSeconds/60.0);
+					row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+					SLOW_BITS_CACHE.put(row.path, row.toMetrics());
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
+				} catch (Throwable ignore) {
+					timing.status=failureStatus(ignore);
+					timing.acquisitionDateSource="error";
+					if (DirectorySummarySlowBitsFailures.isThermoReaderUnavailable(ignore)) {
+						if (DirectorySummarySlowBitsFailures.shouldSkipThermoRetryOnClose(closed)) {
+							skipClose=true;
+							return;
+						}
+						ThermoServerPool.startAsync();
+						deferSlowBitsForReaderNotReady(row);
+						safeRowUpdate(row);
 						return;
 					}
-					ThermoServerPool.startAsync();
-					deferSlowBitsForReaderNotReady(row);
+					logSlowBitsFailure(row, ignore);
+					row.spark=FAILED;
+					markSlowBitsDone(row);
 					safeRowUpdate(row);
-					return;
+				} finally {
+					long start=System.nanoTime();
+					try {
+						if (!skipClose) raw.close();
+					} catch (Throwable t) {
+						logSlowBitsFailure(row, t);
+					} finally {
+						timing.closeNanos+=System.nanoTime()-start;
+					}
 				}
-				logSlowBitsFailure(row, ignore);
-				row.spark=FAILED;
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
-			} finally {
+			} else {
+				BrukerTIMSFile raw=new BrukerTIMSFile();
 				try {
-					if (!skipClose) raw.close();
-				} catch (Throwable t) {
-					logSlowBitsFailure(row, t);
+					long start=System.nanoTime();
+					raw.openFile(row.path);
+					timing.openNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					Pair<float[], float[]> tic=raw.getTICTrace();
+					timing.ticTraceNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					row.acquiredDate=getStructuredRunStartTime(raw).orElse(null);
+					timing.acquiredDateNanos+=System.nanoTime()-start;
+					start=System.nanoTime();
+					row.totalTIC=raw.getTIC();
+					row.gradientMin=raw.getGradientLength()/60f;
+					timing.runSummaryNanos+=System.nanoTime()-start;
+					row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
+					SLOW_BITS_CACHE.put(row.path, row.toMetrics());
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
+				} catch (Throwable ignore) {
+					timing.status=failureStatus(ignore);
+					logSlowBitsFailure(row, ignore);
+					row.spark=FAILED;
+					markSlowBitsDone(row);
+					safeRowUpdate(row);
+				} finally {
+					long start=System.nanoTime();
+					try {
+						raw.close();
+					} catch (Throwable t) {
+						logSlowBitsFailure(row, t);
+					} finally {
+						timing.closeNanos+=System.nanoTime()-start;
+					}
 				}
 			}
-		} else {
-			BrukerTIMSFile raw=new BrukerTIMSFile();
-			try {
-				raw.openFile(row.path);
-				Pair<float[], float[]> tic=raw.getTICTrace();
-				row.acquiredDate=getStructuredRunStartTime(raw).orElse(null);
-				row.totalTIC=raw.getTIC();
-				row.gradientMin=raw.getGradientLength()/60f;
-				row.spark=SparkData.fromTIC(tic.x, tic.y, sparkResolution);
-				SLOW_BITS_CACHE.put(row.path, row.toMetrics());
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
-			} catch (Throwable ignore) {
-				logSlowBitsFailure(row, ignore);
-				row.spark=FAILED;
-				markSlowBitsDone(row);
-				safeRowUpdate(row);
-			} finally {
-				try {
-					raw.close();
-				} catch (Throwable t) {
-					logSlowBitsFailure(row, t);
-				}
+		} finally {
+			timing.log(row);
+		}
+	}
+
+	private static String failureStatus(Throwable failure) {
+		if (failure==null) return "error";
+		return "error:"+failure.getClass().getSimpleName();
+	}
+
+	private static class SlowBitsTiming {
+		private final long totalStartNanos;
+		private boolean cacheHit=false;
+		private long openNanos=0L;
+		private long ticTraceNanos=0L;
+		private long runSummaryNanos=0L;
+		private long acquiredDateNanos=0L;
+		private long closeNanos=0L;
+		private String status="ok";
+		private String acquisitionDateSource="n/a";
+
+		private SlowBitsTiming() {
+			totalStartNanos=System.nanoTime();
+		}
+
+		static SlowBitsTiming start(DirectorySummaryRow row) {
+			SlowBitsTiming timing=new SlowBitsTiming();
+			if (row!=null&&row.vendor==VendorFile.THERMO) {
+				timing.acquisitionDateSource="unknown";
 			}
+			return timing;
+		}
+
+		void log(DirectorySummaryRow row) {
+			if (!SLOW_BITS_TIMING_ENABLED) return;
+			long totalNanos=System.nanoTime()-totalStartNanos;
+			Logger.logLine("slowbits-timing\tvendor="+safeVendor(row)+"\tpath="+safePath(row)+"\tthread="+Thread.currentThread().getName()+"\tstatus="
+					+status+"\tcache_hit="+cacheHit+"\ttotal_ms="+millis(totalNanos)+"\topen_ms="+millis(openNanos)+"\ttic_trace_ms="
+					+millis(ticTraceNanos)+"\trun_summary_ms="+millis(runSummaryNanos)+"\tacquired_date_ms="+millis(acquiredDateNanos)
+					+"\tclose_ms="+millis(closeNanos)+"\tacquisition_date_source="+acquisitionDateSource);
+		}
+
+		private static String safeVendor(DirectorySummaryRow row) {
+			return row==null||row.vendor==null?"<unknown>":row.vendor.name();
+		}
+
+		private static String safePath(DirectorySummaryRow row) {
+			return row==null||row.path==null?"<unknown>":row.path.toString();
+		}
+
+		private static String millis(long nanos) {
+			return String.format(Locale.ROOT, "%.3f", nanos/1_000_000.0);
 		}
 	}
 
