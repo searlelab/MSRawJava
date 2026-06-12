@@ -139,4 +139,9 @@ class GrpcServerLauncherTest {
 		assertEquals("1", GrpcServerLauncher.threadLimitEnvironmentValue(-4));
 		assertEquals("4", GrpcServerLauncher.threadLimitEnvironmentValue(4));
 	}
+
+	@Test
+	void areThermoResourcesAvailableDetectsPackagedServerResources() {
+		assertTrue(GrpcServerLauncher.areThermoResourcesAvailable());
+	}
 }

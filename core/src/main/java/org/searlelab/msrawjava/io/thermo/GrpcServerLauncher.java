@@ -31,6 +31,7 @@ final class GrpcServerLauncher implements AutoCloseable {
 	private static final String OS_OSX="osx";
 	private static final String OS_WIN="win";
 	static final String ENV_PROCESSING_THREADS="MSRAW_THERMO_THREADS";
+	private static final String COMMON_RAWFILEREADER_RESOURCE="/msraw/thermo/bin/common/ThermoFisher.CommonCore.RawFileReader.dll";
 	private final int port;
 	private final Process proc;
 	private final Path workDir; // temp dir holding extracted publish tree
@@ -161,6 +162,15 @@ final class GrpcServerLauncher implements AutoCloseable {
 
 	static String threadLimitEnvironmentValue(Integer processingThreads) {
 		return processingThreads==null?null:Integer.toString(Math.max(1, processingThreads));
+	}
+
+	static boolean areThermoResourcesAvailable() {
+		return GrpcServerLauncher.class.getResource(COMMON_RAWFILEREADER_RESOURCE)!=null
+				&&GrpcServerLauncher.class.getResource("/msraw/thermo/bin/"+rid()+"/"+serverExecutableName())!=null;
+	}
+
+	private static String serverExecutableName() {
+		return isWin()?"MSRaw.Thermo.Server.exe":"MSRaw.Thermo.Server";
 	}
 
 	private static Thread startStreamPump(String name, InputStream input, PrintStream output) {

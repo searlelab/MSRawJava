@@ -3,6 +3,7 @@ package org.searlelab.msrawjava;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mockStatic;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
@@ -11,8 +12,10 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
+import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 
 import picocli.CommandLine;
 
@@ -71,6 +74,25 @@ class MainTest {
 		assertTrue(out.contains("Thermo .raw"));
 		assertTrue(out.contains("Bruker timsTOF .d"));
 		assertTrue(out.contains("RawFileReader reading tool. Copyright \u00a9 2016 by Thermo Fisher Scientific, Inc. All rights reserved."));
+	}
+
+	@Test
+	void aboutFlagWithoutThermoResources_printsNoThermoTextWithoutRawFileReaderNotice() throws Exception {
+		try (MockedStatic<ThermoServerPool> pool=mockStatic(ThermoServerPool.class)) {
+			pool.when(ThermoServerPool::isThermoReaderAvailable).thenReturn(false);
+
+			CommandLine cmd=new CommandLine(new Main.CliArguments());
+			cmd.setOut(new java.io.PrintWriter(System.out, true));
+			int exitCode=cmd.execute("--about");
+			String out=stdout();
+
+			assertEquals(0, exitCode);
+			assertTrue(out.contains("does not include Thermo .raw reading support"));
+			assertTrue(out.contains("Bruker timsTOF .d"));
+			assertTrue(out.contains("EncyclopeDIA .dia"));
+			assertFalse(out.contains("RawFileReader reading tool"));
+			assertFalse(out.contains("Thermo Fisher Scientific, Inc. All rights reserved."));
+		}
 	}
 
 	@Test

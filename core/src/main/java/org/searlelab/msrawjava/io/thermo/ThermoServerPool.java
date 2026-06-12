@@ -74,6 +74,11 @@ public final class ThermoServerPool {
 		return processingThreadLimit;
 	}
 
+	/** Whether the packaged Thermo server resources needed to read .raw files are present on the classpath. */
+	public static boolean isThermoReaderAvailable() {
+		return GrpcServerLauncher.areThermoResourcesAvailable();
+	}
+
 	/** blocking call with a sensible timeout. */
 	public static int port() throws IOException, InterruptedException {
 		try {

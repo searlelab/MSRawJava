@@ -45,9 +45,14 @@ import picocli.CommandLine.Model.CommandSpec;
  * orchestration, logging, and deterministic serialization for reproducible runs.
  */
 public class Main {
-	static final String CLI_ABOUT_TEXT="MSRawJava is a command-line tool and Java library for focused, cross-platform mass spectrometry raw-file reading and conversion. "
-			+"It supports Thermo .raw, Bruker timsTOF .d, EncyclopeDIA .dia, and mzML inputs, with export to .dia, .mgf, and mzML.\n"
-			+"RawFileReader reading tool. Copyright \u00a9 2016 by Thermo Fisher Scientific, Inc. All rights reserved.";
+	static final String CLI_ABOUT_TEXT_WITH_THERMO=
+			"MSRawJava is a command-line tool and Java library for focused, cross-platform mass spectrometry raw-file reading and conversion. "
+					+"It supports Thermo .raw, Bruker timsTOF .d, EncyclopeDIA .dia, and mzML inputs, with export to .dia, .mgf, and mzML.\n"
+					+"RawFileReader reading tool. Copyright \u00a9 2016 by Thermo Fisher Scientific, Inc. All rights reserved.";
+	static final String CLI_ABOUT_TEXT_WITHOUT_THERMO=
+			"MSRawJava is a command-line tool and Java library for focused, cross-platform mass spectrometry raw-file reading and conversion. "
+					+"This package does not include Thermo .raw reading support. It supports Bruker timsTOF .d, EncyclopeDIA .dia, and mzML inputs, "
+					+"with export to .dia, .mgf, and mzML.";
 
 	/** Main CLI entry point for raw file conversion. */
 	public static void main(String[] args) throws Exception {
@@ -187,6 +192,10 @@ public class Main {
 			}
 		}
 		pool.close();
+	}
+
+	static String getCliAboutText() {
+		return ThermoServerPool.isThermoReaderAvailable()?CLI_ABOUT_TEXT_WITH_THERMO:CLI_ABOUT_TEXT_WITHOUT_THERMO;
 	}
 
 	private static LoggingProgressIndicator createIndicator(ConversionParameters params) {
@@ -348,7 +357,7 @@ public class Main {
 		@Override
 		public Integer call() throws Exception {
 			if (about) {
-				spec.commandLine().getOut().println(CLI_ABOUT_TEXT);
+				spec.commandLine().getOut().println(getCliAboutText());
 				return 0;
 			}
 			if (paths.isEmpty()) {
