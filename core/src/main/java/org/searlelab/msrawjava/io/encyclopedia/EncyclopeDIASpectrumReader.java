@@ -10,6 +10,7 @@ import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Vector;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -20,15 +21,21 @@ import java.util.zip.DataFormatException;
 
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
+import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.ScanSummary;
+import org.sqlite.SQLiteErrorCode;
+import org.sqlite.SQLiteException;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 class EncyclopeDIASpectrumReader {
+	private static final int MAX_SQLITE_CORRUPT_READ_ATTEMPTS=2;
+	private static volatile ReadFailureHook readFailureHook;
+
 	private final EncyclopeDIAFile owner;
 
 	EncyclopeDIASpectrumReader(EncyclopeDIAFile owner) {
@@ -36,6 +43,16 @@ class EncyclopeDIASpectrumReader {
 	}
 
 	ArrayList<PrecursorScan> getPrecursors(float minRT, float maxRT) throws IOException, SQLException, DataFormatException {
+		ReadContext context=ReadContext.precursors(minRT, maxRT);
+		return readWithRetry(context, new SqlReadOperation<ArrayList<PrecursorScan>>() {
+			@Override
+			public ArrayList<PrecursorScan> run() throws IOException, SQLException, DataFormatException {
+				return getPrecursorsOnce(minRT, maxRT);
+			}
+		});
+	}
+
+	private ArrayList<PrecursorScan> getPrecursorsOnce(float minRT, float maxRT) throws IOException, SQLException, DataFormatException {
 		Connection c=owner.getConnection();
 		try {
 			Statement s=c.createStatement();
@@ -98,6 +115,20 @@ class EncyclopeDIASpectrumReader {
 	}
 
 	ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
+		ReadContext context=ReadContext.stripesTarget(targetMz, minRT, maxRT);
+		try {
+			return readWithRetry(context, new SqlReadOperation<ArrayList<FragmentScan>>() {
+				@Override
+				public ArrayList<FragmentScan> run() throws IOException, SQLException {
+					return getStripesOnce(targetMz, minRT, maxRT, sqrt);
+				}
+			});
+		} catch (DataFormatException e) {
+			throw new IOException("Unexpected fragment stripe decompression failure", e);
+		}
+	}
+
+	private ArrayList<FragmentScan> getStripesOnce(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
 		Connection c=owner.getConnection();
 		try {
 			Statement s=c.createStatement();
@@ -217,6 +248,20 @@ class EncyclopeDIASpectrumReader {
 	}
 
 	ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
+		ReadContext context=ReadContext.stripesRange(targetMzRange, minRT, maxRT);
+		try {
+			return readWithRetry(context, new SqlReadOperation<ArrayList<FragmentScan>>() {
+				@Override
+				public ArrayList<FragmentScan> run() throws IOException, SQLException {
+					return getStripesOnce(targetMzRange, minRT, maxRT, sqrt);
+				}
+			});
+		} catch (DataFormatException e) {
+			throw new IOException("Unexpected fragment stripe decompression failure", e);
+		}
+	}
+
+	private ArrayList<FragmentScan> getStripesOnce(Range targetMzRange, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException {
 		Connection c=owner.getConnection();
 		try {
 			Statement s=c.createStatement();
@@ -310,6 +355,121 @@ class EncyclopeDIASpectrumReader {
 		}
 	}
 
+	private <T> T readWithRetry(ReadContext context, SqlReadOperation<T> operation) throws IOException, SQLException, DataFormatException {
+		SQLException firstFailure=null;
+		for (int attempt=1; attempt<=MAX_SQLITE_CORRUPT_READ_ATTEMPTS; attempt++) {
+			try {
+				ReadFailureHook hook=readFailureHook;
+				if (hook!=null) {
+					hook.beforeReadAttempt(context, attempt);
+				}
+				T result=operation.run();
+				if (attempt>1) {
+					Logger.errorLine("Recovered from transient SQLite read failure for "+context.describe(owner.getFile())+" after attempt "+attempt
+							+" of "+MAX_SQLITE_CORRUPT_READ_ATTEMPTS+". Initial failure: "+summarize(firstFailure));
+				}
+				return result;
+			} catch (SQLException e) {
+				if (!isRetryableSqliteCorruption(e)) {
+					throw e;
+				}
+				if (firstFailure==null) {
+					firstFailure=e;
+				}
+				if (attempt>=MAX_SQLITE_CORRUPT_READ_ATTEMPTS) {
+					throw actionableReadFailure(context, attempt, e, firstFailure);
+				}
+				Logger.errorLine("Retrying transient SQLite read failure for "+context.describe(owner.getFile())+" after attempt "+attempt+" of "
+						+MAX_SQLITE_CORRUPT_READ_ATTEMPTS+": "+summarize(e));
+			}
+		}
+		throw actionableReadFailure(context, MAX_SQLITE_CORRUPT_READ_ATTEMPTS, firstFailure, firstFailure);
+	}
+
+	private SQLException actionableReadFailure(ReadContext context, int attempts, SQLException failure, SQLException firstFailure) {
+		String message="Error reading DIA data from "+context.describe(owner.getFile())+" after "+attempts+" attempts. SQLite reported possible database "
+				+"corruption ("+summarize(failure)+"). The .dia file may need SQLite integrity checking or regeneration.";
+		SQLException actionable=new SQLException(message, failure);
+		if (firstFailure!=null&&firstFailure!=failure) {
+			actionable.addSuppressed(firstFailure);
+		}
+		return actionable;
+	}
+
+	private static boolean isRetryableSqliteCorruption(Throwable throwable) {
+		for (Throwable t=throwable; t!=null; t=t.getCause()) {
+			if (t instanceof SQLiteException) {
+				SQLiteException sqlite=(SQLiteException)t;
+				if (sqlite.getResultCode()==SQLiteErrorCode.SQLITE_CORRUPT) return true;
+			}
+			String message=t.getMessage();
+			if (message!=null) {
+				String lower=message.toLowerCase(Locale.ROOT);
+				if (lower.contains("sqlite_corrupt")||lower.contains("database disk image is malformed")) return true;
+			}
+		}
+		return false;
+	}
+
+	private static String summarize(Throwable throwable) {
+		if (throwable==null) return "unknown";
+		String message=throwable.getMessage();
+		return throwable.getClass().getSimpleName()+(message==null||message.isBlank()?"":": "+message);
+	}
+
+	static void setReadFailureHookForTesting(ReadFailureHook hook) {
+		readFailureHook=hook;
+	}
+
+	@FunctionalInterface
+	interface ReadFailureHook {
+		void beforeReadAttempt(ReadContext context, int attempt) throws SQLException;
+	}
+
+	@FunctionalInterface
+	private interface SqlReadOperation<T> {
+		T run() throws IOException, SQLException, DataFormatException;
+	}
+
+	static final class ReadContext {
+		private final String queryType;
+		private final String precursorMzContext;
+		private final Double targetMz;
+		private final Range targetMzRange;
+		private final float minRT;
+		private final float maxRT;
+
+		private ReadContext(String queryType, String precursorMzContext, Double targetMz, Range targetMzRange, float minRT, float maxRT) {
+			this.queryType=queryType;
+			this.precursorMzContext=precursorMzContext;
+			this.targetMz=targetMz;
+			this.targetMzRange=targetMzRange;
+			this.minRT=minRT;
+			this.maxRT=maxRT;
+		}
+
+		static ReadContext precursors(float minRT, float maxRT) {
+			return new ReadContext("precursor read", "m/z: n/a", null, null, minRT, maxRT);
+		}
+
+		static ReadContext stripesTarget(double targetMz, float minRT, float maxRT) {
+			return new ReadContext("MS2 stripe target read", null, targetMz, null, minRT, maxRT);
+		}
+
+		static ReadContext stripesRange(Range targetMzRange, float minRT, float maxRT) {
+			return new ReadContext("MS2 stripe range read", null, null, targetMzRange, minRT, maxRT);
+		}
+
+		String describe(java.io.File file) {
+			return String.valueOf(file)+" ("+queryType+", "+mzContext()+", retention times "+minRT+" to "+maxRT+" sec)";
+		}
+
+		private String mzContext() {
+			if (precursorMzContext!=null) return precursorMzContext;
+			if (targetMz!=null) return "target m/z "+targetMz;
+			return "m/z range "+targetMzRange.getStart()+" to "+targetMzRange.getStop();
+		}
+	}
 
 	ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) throws IOException, SQLException {
 		ArrayList<ScanSummary> out=new ArrayList<>();

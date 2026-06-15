@@ -3,6 +3,7 @@ package org.searlelab.msrawjava.io.encyclopedia;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -18,6 +19,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -28,6 +30,8 @@ import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
+import org.sqlite.SQLiteErrorCode;
+import org.sqlite.SQLiteException;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.LinkedHashMultimap;
@@ -220,6 +224,10 @@ class EncyclopeDIAFileTest {
 		return out.toFile();
 	}
 
+	private static SQLiteException malformedSqliteException() {
+		return new SQLiteException("database disk image is malformed", SQLiteErrorCode.SQLITE_CORRUPT);
+	}
+
 	@Test
 	void getStripes_withTargetMz_returnsMatchingSpectra() throws Exception {
 		File diaFile=createTestDiaFile();
@@ -245,6 +253,106 @@ class EncyclopeDIAFileTest {
 		}
 
 		dia.close();
+	}
+
+	@Test
+	void getStripes_withTargetMz_retriesTransientSqliteCorruptRead() throws Exception {
+		File diaFile=createTestDiaFile();
+		AtomicInteger attempts=new AtomicInteger();
+		EncyclopeDIASpectrumReader.setReadFailureHookForTesting((context, attempt) -> {
+			if (attempts.getAndIncrement()==0) {
+				throw malformedSqliteException();
+			}
+		});
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		try {
+			dia.openFile(diaFile);
+			ArrayList<FragmentScan> stripes=dia.getStripes(450.0, 0.0f, 10.0f, false);
+
+			assertEquals(2, attempts.get(), "Read should retry once after the synthetic corruption failure");
+			assertEquals(3, stripes.size());
+			assertEquals(1.5f, stripes.get(0).getScanStartTime(), 0.01f);
+		} finally {
+			EncyclopeDIASpectrumReader.setReadFailureHookForTesting(null);
+			dia.close();
+		}
+	}
+
+	@Test
+	void getStripes_withRange_retriesTransientSqliteCorruptRead() throws Exception {
+		File diaFile=createTestDiaFile();
+		AtomicInteger attempts=new AtomicInteger();
+		EncyclopeDIASpectrumReader.setReadFailureHookForTesting((context, attempt) -> {
+			if (attempts.getAndIncrement()==0) {
+				throw malformedSqliteException();
+			}
+		});
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		try {
+			dia.openFile(diaFile);
+			ArrayList<FragmentScan> stripes=dia.getStripes(new Range(620.0f, 680.0f), 0.0f, 10.0f, false);
+
+			assertEquals(2, attempts.get(), "Read should retry once after the synthetic corruption failure");
+			assertEquals(2, stripes.size());
+			assertEquals(600.0, stripes.get(0).getIsolationWindowLower(), 0.01);
+		} finally {
+			EncyclopeDIASpectrumReader.setReadFailureHookForTesting(null);
+			dia.close();
+		}
+	}
+
+	@Test
+	void getPrecursors_retriesTransientSqliteCorruptRead() throws Exception {
+		File diaFile=createTestDiaFile();
+		AtomicInteger attempts=new AtomicInteger();
+		EncyclopeDIASpectrumReader.setReadFailureHookForTesting((context, attempt) -> {
+			if (attempts.getAndIncrement()==0) {
+				throw malformedSqliteException();
+			}
+		});
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		try {
+			dia.openFile(diaFile);
+			ArrayList<PrecursorScan> precursors=dia.getPrecursors(0.0f, 10.0f);
+
+			assertEquals(2, attempts.get(), "Read should retry once after the synthetic corruption failure");
+			assertEquals(3, precursors.size());
+			assertEquals(1.0f, precursors.get(0).getScanStartTime(), 0.01f);
+		} finally {
+			EncyclopeDIASpectrumReader.setReadFailureHookForTesting(null);
+			dia.close();
+		}
+	}
+
+	@Test
+	void getStripes_persistentSqliteCorruptReadThrowsActionableContext() throws Exception {
+		File diaFile=createTestDiaFile();
+		AtomicInteger attempts=new AtomicInteger();
+		EncyclopeDIASpectrumReader.setReadFailureHookForTesting((context, attempt) -> {
+			attempts.incrementAndGet();
+			throw malformedSqliteException();
+		});
+
+		EncyclopeDIAFile dia=new EncyclopeDIAFile();
+		try {
+			dia.openFile(diaFile);
+			SQLException failure=assertThrows(SQLException.class, () -> dia.getStripes(450.0, 0.0f, 10.0f, false));
+
+			assertEquals(2, attempts.get(), "Persistent corruption should stop after the bounded retry count");
+			assertTrue(failure.getMessage().contains(diaFile.getAbsolutePath()));
+			assertTrue(failure.getMessage().contains("MS2 stripe target read"));
+			assertTrue(failure.getMessage().contains("target m/z 450.0"));
+			assertTrue(failure.getMessage().contains("retention times 0.0 to 10.0 sec"));
+			assertTrue(failure.getMessage().contains("integrity checking"));
+			assertTrue(failure.getMessage().contains("regeneration"));
+			assertTrue(failure.getCause() instanceof SQLiteException);
+		} finally {
+			EncyclopeDIASpectrumReader.setReadFailureHookForTesting(null);
+			dia.close();
+		}
 	}
 
 	@Test
