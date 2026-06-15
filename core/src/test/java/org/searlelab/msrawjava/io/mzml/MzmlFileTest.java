@@ -718,8 +718,16 @@ class MzmlFileTest {
 
 	@SuppressWarnings("unchecked")
 	private static Map<Integer, ?> extractPrivateMap(MzmlFile reader, String fieldName) throws Exception {
-		Field f=MzmlFile.class.getDeclaredField(fieldName);
+		Object owner=reader;
+		Class<?> ownerClass=MzmlFile.class;
+		if ("spectrumCache".equals(fieldName)) {
+			Field accessor=MzmlFile.class.getDeclaredField("spectrumReader");
+			accessor.setAccessible(true);
+			owner=accessor.get(reader);
+			ownerClass=owner.getClass();
+		}
+		Field f=ownerClass.getDeclaredField(fieldName);
 		f.setAccessible(true);
-		return (Map<Integer, ?>)f.get(reader);
+		return (Map<Integer, ?>)f.get(owner);
 	}
 }
