@@ -87,7 +87,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 
 	@Override
 	public boolean isOpen() {
-		return true;
+		return stub!=null&&sessionId!=null&&channel!=null;
 	}
 
 	ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub() {

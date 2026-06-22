@@ -134,6 +134,7 @@ class ThermoRawFileStubTest {
 		assertEquals(0, rawFile.getScanMetadata(null).getX().length);
 
 		rawFile.close();
+		assertFalse(rawFile.isOpen());
 		assertTrue(channel.shutdownCalled);
 		assertEquals(1, channel.delegate.closeCalls);
 	}

@@ -1,5 +1,6 @@
 package org.searlelab.msrawjava.io.thermo;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -194,6 +195,7 @@ public class ThermoRawFileSmokeIT {
 							+ms2.getSpectrumIndex()+", range: "+ms2.getIsolationWindowLower()+" to "+ms2.getIsolationWindowUpper()+", z: "+ms2.getCharge()
 							+", IIT: "+ms2.getIonInjectionTime()+", TIC: "+sum(ms2.getIntensityArray())+", N: "+ms2.getMassArray().length);
 			}
+			assertIndexedStripeQueries(f, ms2s);
 			System.out.println("Finished! MS1:"+ms1s.size()+", MS2:"+ms2s.size()+" Closing down."+" Processing time: "
 					+(System.currentTimeMillis()-startTime)/1000f+" sec");
 
@@ -203,8 +205,37 @@ public class ThermoRawFileSmokeIT {
 		} finally {
 			if (f!=null) f.close();
 		}
+		assertTrue(f==null||!f.isOpen(), "Thermo session should close cleanly");
 
 		System.out.println("Closed! Processing time: "+(System.currentTimeMillis()-startTime)/1000f+" sec");
+	}
+
+	private static void assertIndexedStripeQueries(ThermoRawFile file, ArrayList<FragmentScan> allMS2s) throws Exception {
+		FragmentScan target=allMS2s.get(allMS2s.size()/2);
+		double targetMz=target.getPrecursorMZ();
+		float targetRt=target.getScanStartTime();
+		ArrayList<FragmentScan> exact=file.getStripes(targetMz, targetRt, targetRt, false);
+		ArrayList<FragmentScan> expected=new ArrayList<>();
+		for (FragmentScan scan : allMS2s) {
+			if (scan.getScanStartTime()==targetRt&&scan.getIsolationWindowLower()<=targetMz&&scan.getIsolationWindowUpper()>=targetMz) {
+				expected.add(scan);
+			}
+		}
+		assertEquals(expected.size(), exact.size(), "Exact RT and isolation-window query should be inclusive");
+		for (int i=0; i<expected.size(); i++) {
+			FragmentScan expectedScan=expected.get(i);
+			FragmentScan actualScan=exact.get(i);
+			assertEquals(expectedScan.getSpectrumIndex(), actualScan.getSpectrumIndex());
+			assertEquals(expectedScan.getScanStartTime(), actualScan.getScanStartTime(), 1e-6);
+			assertEquals(expectedScan.getIsolationWindowLower(), actualScan.getIsolationWindowLower(), 1e-9);
+			assertEquals(expectedScan.getIsolationWindowUpper(), actualScan.getIsolationWindowUpper(), 1e-9);
+			assertArrayEquals(expectedScan.getMassArray(), actualScan.getMassArray());
+			assertArrayEquals(expectedScan.getIntensityArray(), actualScan.getIntensityArray());
+		}
+
+		float lastRt=allMS2s.get(allMS2s.size()-1).getScanStartTime();
+		ArrayList<FragmentScan> empty=file.getStripes(new Range(0, Float.POSITIVE_INFINITY), lastRt+1.0f, lastRt+2.0f, false);
+		assertTrue(empty.isEmpty(), "RT query beyond the final scan should be empty");
 	}
 
 	public static float sum(float[] v) {

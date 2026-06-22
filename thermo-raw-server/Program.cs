@@ -196,7 +196,7 @@ internal static class ProcessingThrottle
 
 public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 {
-    private static readonly ConcurrentDictionary<string, IRawDataPlus> Sessions = new();
+    private static readonly ConcurrentDictionary<string, RawSession> Sessions = new();
     private static readonly int[] MsInstrumentIndices = { 1, 2, 3, 4 };
 
     public override Task<OpenReply> Open(OpenRequest request, ServerCallContext context)
@@ -220,7 +220,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        string runStartTimeIso8601 = GetRunStartTimeIso8601(raw);
 	
 	        string sid = Guid.NewGuid().ToString("N");
-	        Sessions[sid] = raw;
+	        Sessions[sid] = new RawSession(raw);
 	        sessionRegistered = true;
 	
 	        return Task.FromResult(new OpenReply {
@@ -279,8 +279,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 		try 
 		{
-	        if (Sessions.TryRemove(request.SessionId, out var raw))
-	            raw.Dispose();
+	        if (Sessions.TryRemove(request.SessionId, out var session))
+	            session.Dispose();
 	
 	        return Task.FromResult(new CloseReply { Ok = true });
 	    }  
@@ -296,7 +296,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
-	        var raw = Get(req.SessionId); // your existing helper
+	        var raw = Get(req.SessionId);
 	
 	        // Default to full run if caller passed 0/0 (keeps behavior friendly while remaining minimal)
 	        double rtMin = req.RtMin;
@@ -310,10 +310,9 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        var rts  = new List<double>(1024);
 	        var tics = new List<double>(1024);
 	
-	        foreach (int scan in ScansInRt(raw, rtMin, rtMax)) // ScansInRt compares in MINUTES
+	        foreach (int scan in ScansInRt(raw, rtMin, rtMax))
 	        {
-	            // MS1 only
-		    var filter = raw.GetFilterForScanNumber(scan);
+	            var filter = raw.GetFilterForScanNumber(scan);
 	            if (filter == null || filter.MSOrder != MSOrderType.Ms) continue;
 	
 	            // Lightweight per-scan stats
@@ -346,8 +345,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
-	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
-	            throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
+	        var raw = Get(request.SessionId);
 	
 	        // Depending on RawFileReader version these are exposed via RunHeader or RunHeaderEx
 			double startMin = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.StartTime : raw.RunHeader.StartTime;
@@ -396,33 +394,16 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
-	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
-	            throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
-	
-			int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
-			int last  = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum  : raw.RunHeader.LastSpectrum;
+	        var session = GetSession(request.SessionId);
 	
 	        var buckets = new Dictionary<(double lo, double hi), List<double>>();
 	
-	        for (int scan = first; scan <= last; scan++)
+	        foreach (var scan in session.ScanIndex.AllScans)
 	        {
-	            // Filter to MS/MS only
-	            IScanFilter flt;
-	            try { flt = raw.GetFilterForScanNumber(scan); }
-	            catch { continue; }
+	            if (scan.IsMs1) continue;
+	            var rtSec = scan.RtMinutes * 60.0;
 	
-	            if (flt == null) continue;
-	            var order = flt.MSOrder;
-	            if (order <= MSOrderType.Ms) continue; // keep MS2, MS3,...
-	
-	            // Event with precursor isolation info
-	            IScanEvent evt;
-	            try { evt = raw.GetScanEventForScanNumber(scan); } catch { continue; }
-	            if (evt == null) continue;
-	
-	            var rtSec = raw.RetentionTimeFromScanNumber(scan) * 60.0;
-	
-	            foreach (var isolation in GetMs2IsolationWindows(raw, scan, evt))
+	            foreach (var isolation in scan.IsolationWindows)
 	            {
 	                var key = (isolation.Lower, isolation.Upper);
 	                if (!buckets.TryGetValue(key, out var times))
@@ -476,103 +457,45 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
-	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
-	            throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
-
-	        int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
-	        int last  = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum  : raw.RunHeader.LastSpectrum;
+	        var session = GetSession(request.SessionId);
+	        var raw = session.Raw;
 
 	        var reply = new SummariesReply();
 
-	        for (int scan = first; scan <= last; scan++)
+	        foreach (var scan in session.ScanIndex.AllScans)
 	        {
-	            IScanFilter filter;
-	            try { filter = raw.GetFilterForScanNumber(scan); }
-	            catch { continue; }
-	            if (filter == null) continue;
-
-	            int msLevel = filter.MSOrder == MSOrderType.Ms ? 1 : 2;
-
-	            double rtSec = raw.RetentionTimeFromScanNumber(scan) * 60.0;
-
-	            double isoLo = double.PositiveInfinity;
-	            double isoHi = double.NegativeInfinity;
-	            double isoTarget = 0.0;
-
-	            IScanEvent? evt = null;
-	            try { evt = raw.GetScanEventForScanNumber(scan); } catch { }
-	            if (evt != null)
-	            {
-	                if (msLevel == 1)
-	                {
-	                    int n = 0;
-	                    try { n = evt.MassRangeCount; } catch { n = 0; }
-	                    for (int i = 0; i < n; i++)
-	                    {
-	                        var r = evt.GetMassRange(i);
-	                        double l = r.Low, h = r.High;
-	                        if (h > l && l > 0)
-	                        {
-	                            if (l < isoLo) isoLo = l;
-	                            if (h > isoHi) isoHi = h;
-	                        }
-	                    }
-	                    if (!(isoHi > isoLo))
-	                    {
-	                        isoLo = 0.0;
-	                        isoHi = double.PositiveInfinity;
-	                    }
-	                }
-	                else if (TryGetMs2IsolationSuperset(raw, scan, evt, out var isolation))
-	                {
-	                    isoLo = isolation.Lower;
-	                    isoHi = isolation.Upper;
-	                    isoTarget = isolation.Target;
-	                }
-	            }
-	            if (!(isoHi > isoLo) || !double.IsFinite(isoLo) || !double.IsFinite(isoHi))
-	            {
-	                isoLo = 0.0;
-	                isoHi = double.PositiveInfinity;
-	                isoTarget = 0.0;
-	            }
-	            else if (!(isoTarget > 0.0 && double.IsFinite(isoTarget)))
-	            {
-	                isoTarget = (isoLo + isoHi) / 2.0;
-	            }
+	            int msLevel = scan.IsMs1 ? 1 : 2;
+	            scan.TryGetIsolationSuperset(out var isolation);
 
 	            double injS;
 	            double rawOvFtT;
 	            int charge;
 	            int precursorScan;
-	            ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan, out rawOvFtT);
+	            ExtractTrailerInfo(raw, scan.ScanNumber, out injS, out charge, out precursorScan, out rawOvFtT);
 	            double tic = 0.0;
 	            try
 	            {
-	                var stats = raw.GetScanStatsForScanNumber(scan);
+	                var stats = raw.GetScanStatsForScanNumber(scan.ScanNumber);
 	                if (stats != null) tic = stats.TIC;
 	            }
 	            catch { }
 
-	            double swLo, swHi;
-	            GetScanWindow(evt, out swLo, out swHi);
-
 	            var summary = new SpectrumSummary
 	            {
-	                ScanNumber = scan,
-	                RtSeconds = rtSec,
+	                ScanNumber = scan.ScanNumber,
+	                RtSeconds = scan.RtMinutes * 60.0,
 	                MsLevel = msLevel,
-	                IsoLower = isoLo,
-	                IsoUpper = isoHi,
+	                IsoLower = isolation.Lower,
+	                IsoUpper = isolation.Upper,
 	                Charge = charge,
-	                SpectrumName = scan.ToString(CultureInfo.InvariantCulture),
+	                SpectrumName = scan.ScanNumber.ToString(CultureInfo.InvariantCulture),
 	                PrecursorName = precursorScan.ToString(CultureInfo.InvariantCulture),
 	                IonInjectionTimeS = injS,
-	                ScanWindowLower = swLo,
-	                ScanWindowUpper = swHi,
+	                ScanWindowLower = scan.ScanWindowLower,
+	                ScanWindowUpper = scan.ScanWindowUpper,
 	                Tic = tic,
 	                RawOvFtt = rawOvFtT,
-	                IsoTarget = isoTarget
+	                IsoTarget = isolation.Target
 	            };
 	            reply.Summaries.Add(summary);
 	        }
@@ -656,44 +579,18 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	}
 
        public override async Task GetPrecursors(PrecursorsRequest req, IServerStreamWriter<Spectrum> stream, ServerCallContext ctx)
-    {
+	{
 		using var throttle = await ProcessingThrottle.EnterAsync(ctx.CancellationToken);
 		try 
 		{
-	        var raw = Get(req.SessionId);
+	        var session = GetSession(req.SessionId);
+	        var raw = session.Raw;
 	
-	        foreach (int scan in ScansInRt(raw, req.RtMin, req.RtMax))
+	        foreach (var scan in session.ScanIndex.InRtRange(req.RtMin, req.RtMax))
 	        {
-	            var filter = raw.GetFilterForScanNumber(scan);
-	            if (filter.MSOrder != MSOrderType.Ms) continue; // MS1
-	            
-	    		double lo = double.PositiveInfinity;
-	    		double hi = double.NegativeInfinity;
-	    		int found = 0;
-	            
-	            var evt = raw.GetScanEventForScanNumber(scan);
-	            try
-		        {
-		            int n = evt.MassRangeCount;
-		            for (int i = 0; i < n; i++)
-		            {
-		                var r = evt.GetMassRange(i);
-		                double l = r.Low, h = r.High;
-		                if (h > l && l > 0) { if (l < lo) lo = l; if (h > hi) hi = h; found++; }
-		            }
-		            
-		            if (found==0) 
-		            {
-						lo=0;
-						hi=Double.PositiveInfinity;
-					}
-		        }
-	            catch 
-	            {
-					lo=0;
-					hi=Double.PositiveInfinity;
-				}
-	            var spec = BuildSpectrum(raw, scan, isMs1: true, isoLo: lo, isoTarget: (lo + hi) / 2.0, isoHi: hi);
+	            if (!scan.IsMs1) continue;
+	            scan.TryGetIsolationSuperset(out var isolation);
+	            var spec = BuildSpectrum(raw, scan, isolation);
 	            await stream.WriteAsync(spec);
 	        }
         }
@@ -709,22 +606,21 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 		using var throttle = await ProcessingThrottle.EnterAsync(ctx.CancellationToken);
 		try
 		{
-	        var raw = Get(req.SessionId);
+	        var session = GetSession(req.SessionId);
+	        var raw = session.Raw;
 	
-	        foreach (int scan in ScansInRt(raw, req.RtMin, req.RtMax))
+	        foreach (var scan in session.ScanIndex.InRtRange(req.RtMin, req.RtMax))
 	        {
-	            var filter = raw.GetFilterForScanNumber(scan);
-	            if (filter.MSOrder != MSOrderType.Ms2) continue;
+	            if (!scan.IsMs2) continue;
 	
-	            var evt = raw.GetScanEventForScanNumber(scan);
-	            foreach (var isolation in GetMs2IsolationWindows(raw, scan, evt))
+	            foreach (var isolation in scan.IsolationWindows)
 	            {
 	                double lo = isolation.Lower;
 	                double hi = isolation.Upper;
 	
 	                if (!(lo < req.MzHi && hi > req.MzLo)) continue;
 	
-	                var spec = BuildSpectrum(raw, scan, isMs1: false, isoLo: lo, isoTarget: isolation.Target, isoHi: hi);
+	                var spec = BuildSpectrum(raw, scan, isolation);
 	                await stream.WriteAsync(spec);
 	            }
 	        }
@@ -738,10 +634,12 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     // ---------- helpers ----------
 
-    private static IRawDataPlus Get(string sid) =>
-        Sessions.TryGetValue(sid, out var raw)
-            ? raw
+    private static RawSession GetSession(string sid) =>
+        Sessions.TryGetValue(sid, out var session)
+            ? session
             : throw new RpcException(new Status(StatusCode.NotFound, "Unknown session"));
+
+    private static IRawDataPlus Get(string sid) => GetSession(sid).Raw;
 
     private static IEnumerable<int> ScansInRt(IRawDataPlus raw, double rtMin, double rtMax)
     {
@@ -755,7 +653,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
             yield return scan;
         }
     }
-    
+
     private static void ReadMzAndIntensity(IRawDataPlus raw, int scan, out double[] mz, out float[] intensity)
 	{
 	    // 1) Prefer centroided data. 'true' tells the reader to centroid profile/segmented scans.
@@ -801,6 +699,194 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
         public bool IsUsable =>
             Target > 0 && Upper > Lower && double.IsFinite(Lower) && double.IsFinite(Target) && double.IsFinite(Upper);
+    }
+
+    private sealed class IndexedScan
+    {
+        public readonly int ScanNumber;
+        public readonly double RtMinutes;
+        public readonly bool IsMs1;
+        public readonly bool IsMs2;
+        public readonly IsolationWindowInfo[] IsolationWindows;
+        public readonly double ScanWindowLower;
+        public readonly double ScanWindowUpper;
+
+        public IndexedScan(int scanNumber, double rtMinutes, bool isMs1, bool isMs2, IsolationWindowInfo[] isolationWindows, double scanWindowLower,
+            double scanWindowUpper)
+        {
+            ScanNumber = scanNumber;
+            RtMinutes = rtMinutes;
+            IsMs1 = isMs1;
+            IsMs2 = isMs2;
+            IsolationWindows = isolationWindows;
+            ScanWindowLower = scanWindowLower;
+            ScanWindowUpper = scanWindowUpper;
+        }
+
+        public bool TryGetIsolationSuperset(out IsolationWindowInfo superset)
+        {
+            if (IsolationWindows.Length == 0)
+            {
+                superset = new IsolationWindowInfo(0.0, 0.0, double.PositiveInfinity);
+                return false;
+            }
+            if (IsolationWindows.Length == 1)
+            {
+                superset = IsolationWindows[0];
+                return true;
+            }
+
+            double lo = double.PositiveInfinity;
+            double hi = double.NegativeInfinity;
+            foreach (var window in IsolationWindows)
+            {
+                if (window.Lower < lo) lo = window.Lower;
+                if (window.Upper > hi) hi = window.Upper;
+            }
+            superset = new IsolationWindowInfo(lo, (lo + hi) / 2.0, hi);
+            return true;
+        }
+    }
+
+    private sealed class ThermoScanIndex
+    {
+        private const double RtBoundaryToleranceMinutes = 1e-6;
+        private readonly IndexedScan[] scans;
+
+        public ThermoScanIndex(IndexedScan[] scans)
+        {
+            this.scans = scans;
+        }
+
+        public IndexedScan[] AllScans => scans;
+
+        public IEnumerable<IndexedScan> InRtRange(double minRtMinutes, double maxRtMinutes)
+        {
+            int start = LowerBound(minRtMinutes - RtBoundaryToleranceMinutes);
+            int stop = UpperBound(maxRtMinutes + RtBoundaryToleranceMinutes);
+            for (int i = start; i < stop; i++)
+                yield return scans[i];
+        }
+
+        private int LowerBound(double rtMinutes)
+        {
+            int lo = 0;
+            int hi = scans.Length;
+            while (lo < hi)
+            {
+                int mid = lo + (hi - lo) / 2;
+                if (scans[mid].RtMinutes < rtMinutes)
+                    lo = mid + 1;
+                else
+                    hi = mid;
+            }
+            return lo;
+        }
+
+        private int UpperBound(double rtMinutes)
+        {
+            int lo = 0;
+            int hi = scans.Length;
+            while (lo < hi)
+            {
+                int mid = lo + (hi - lo) / 2;
+                if (scans[mid].RtMinutes <= rtMinutes)
+                    lo = mid + 1;
+                else
+                    hi = mid;
+            }
+            return lo;
+        }
+    }
+
+    private sealed class RawSession : IDisposable
+    {
+        private readonly Lazy<ThermoScanIndex> scanIndex;
+
+        public RawSession(IRawDataPlus raw)
+        {
+            Raw = raw;
+            scanIndex = new Lazy<ThermoScanIndex>(() => BuildScanIndex(raw), LazyThreadSafetyMode.ExecutionAndPublication);
+        }
+
+        public IRawDataPlus Raw { get; }
+        public ThermoScanIndex ScanIndex => scanIndex.Value;
+
+        public void Dispose()
+        {
+            Raw.Dispose();
+        }
+    }
+
+    private static ThermoScanIndex BuildScanIndex(IRawDataPlus raw)
+    {
+        var clock = Stopwatch.StartNew();
+        int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
+        int last = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum : raw.RunHeader.LastSpectrum;
+        var scans = new List<IndexedScan>(Math.Max(0, last - first + 1));
+
+        for (int scan = first; scan <= last; scan++)
+        {
+            IScanFilter filter;
+            try { filter = raw.GetFilterForScanNumber(scan); }
+            catch { continue; }
+            if (filter == null) continue;
+
+            double rtMinutes;
+            try { rtMinutes = raw.RetentionTimeFromScanNumber(scan); }
+            catch { continue; }
+
+            IScanEvent? evt = null;
+            try { evt = raw.GetScanEventForScanNumber(scan); } catch { }
+            GetScanWindow(evt, out var scanWindowLower, out var scanWindowUpper);
+
+            bool isMs1 = filter.MSOrder == MSOrderType.Ms;
+            bool isMs2 = filter.MSOrder == MSOrderType.Ms2;
+            IsolationWindowInfo[] isolationWindows;
+            if (isMs1)
+            {
+                isolationWindows = new[] { GetMs1IsolationWindow(evt) };
+            }
+            else
+            {
+                isolationWindows = evt == null ? Array.Empty<IsolationWindowInfo>() : GetMs2IsolationWindows(raw, scan, evt).ToArray();
+            }
+            scans.Add(new IndexedScan(scan, rtMinutes, isMs1, isMs2, isolationWindows, scanWindowLower, scanWindowUpper));
+        }
+
+        scans.Sort((a, b) =>
+        {
+            int c = a.RtMinutes.CompareTo(b.RtMinutes);
+            return c != 0 ? c : a.ScanNumber.CompareTo(b.ScanNumber);
+        });
+        Console.WriteLine($"Thermo server: indexed {scans.Count} scans in {clock.Elapsed.TotalSeconds:F2} s");
+        return new ThermoScanIndex(scans.ToArray());
+    }
+
+    private static IsolationWindowInfo GetMs1IsolationWindow(IScanEvent? evt)
+    {
+        double lo = double.PositiveInfinity;
+        double hi = double.NegativeInfinity;
+        if (evt != null)
+        {
+            try
+            {
+                int count = evt.MassRangeCount;
+                for (int i = 0; i < count; i++)
+                {
+                    var range = evt.GetMassRange(i);
+                    if (range.High > range.Low && range.Low > 0)
+                    {
+                        if (range.Low < lo) lo = range.Low;
+                        if (range.High > hi) hi = range.High;
+                    }
+                }
+            }
+            catch { }
+        }
+        if (!(hi > lo))
+            return new IsolationWindowInfo(0.0, 0.0, double.PositiveInfinity);
+        return new IsolationWindowInfo(lo, (lo + hi) / 2.0, hi);
     }
 
     private static IsolationWindowInfo GetMs2IsolationWindow(IRawDataPlus raw, int scan, IScanEvent evt, int reactionIndex)
@@ -862,70 +948,35 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         return windows;
     }
 
-    private static bool TryGetMs2IsolationSuperset(IRawDataPlus raw, int scan, IScanEvent evt, out IsolationWindowInfo superset)
+    private static Spectrum BuildSpectrum(IRawDataPlus raw, IndexedScan scan, IsolationWindowInfo isolation)
     {
-        var windows = GetMs2IsolationWindows(raw, scan, evt);
-        if (windows.Count == 0)
-        {
-            superset = new IsolationWindowInfo(0.0, 0.0, double.PositiveInfinity);
-            return false;
-        }
-        if (windows.Count == 1)
-        {
-            superset = windows[0];
-            return true;
-        }
-
-        double lo = double.PositiveInfinity;
-        double hi = double.NegativeInfinity;
-        foreach (var window in windows)
-        {
-            if (window.Lower < lo) lo = window.Lower;
-            if (window.Upper > hi) hi = window.Upper;
-        }
-        superset = new IsolationWindowInfo(lo, (lo + hi) / 2.0, hi);
-        return true;
-    }
-
-    private static Spectrum BuildSpectrum(IRawDataPlus raw, int scan, bool isMs1, double isoLo, double isoTarget, double isoHi)
-    {
-        ReadMzAndIntensity(raw, scan, out var mz, out var intensF);
+        ReadMzAndIntensity(raw, scan.ScanNumber, out var mz, out var intensF);
         
         double injS;
         double rawOvFtT;
         int charge;
         int precursorScan;
-        ExtractTrailerInfo(raw, scan, out injS, out charge, out precursorScan, out rawOvFtT);
-
-        double swLo, swHi;
-        GetScanWindow(raw, scan, out swLo, out swHi);
+        ExtractTrailerInfo(raw, scan.ScanNumber, out injS, out charge, out precursorScan, out rawOvFtT);
 
         var s = new Spectrum
         {
-            ScanNumber = scan,
-            RtSeconds  = raw.RetentionTimeFromScanNumber(scan)*60f,
-            MsLevel    = isMs1 ? 1 : 2,
-            IsoLower   = isoLo,
-            IsoUpper   = isoHi,
-            IsoTarget  = isoTarget,
+            ScanNumber = scan.ScanNumber,
+            RtSeconds  = scan.RtMinutes * 60.0,
+            MsLevel    = scan.IsMs1 ? 1 : 2,
+            IsoLower   = isolation.Lower,
+            IsoUpper   = isolation.Upper,
+            IsoTarget  = isolation.Target,
             Charge     = charge,
-            SpectrumName    = scan.ToString(CultureInfo.InvariantCulture),
+            SpectrumName    = scan.ScanNumber.ToString(CultureInfo.InvariantCulture),
             PrecursorName   = precursorScan.ToString(CultureInfo.InvariantCulture),
             IonInjectionTimeS = injS,
-	        ScanWindowLower = swLo,
-	        ScanWindowUpper = swHi,
+	        ScanWindowLower = scan.ScanWindowLower,
+	        ScanWindowUpper = scan.ScanWindowUpper,
 	        RawOvFtt = rawOvFtT
         };
         s.Mz.AddRange(mz);
         s.Intensity.AddRange(intensF);
         return s;
-    }
-
-    private static void GetScanWindow(IRawDataPlus raw, int scan, out double swLo, out double swHi)
-    {
-        IScanEvent? evt2 = null;
-        try { evt2 = raw.GetScanEventForScanNumber(scan); } catch { }
-        GetScanWindow(evt2, out swLo, out swHi);
     }
 
     private static void GetScanWindow(IScanEvent? evt2, out double swLo, out double swHi)
@@ -1029,8 +1080,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
         try
         {
-            if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
-                throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
+            var raw = Get(request.SessionId);
 
             var reply = new ScanMetadataReply();
             AddStatusLogValues(raw, request.ScanNumber, reply);
@@ -1098,8 +1148,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 		using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
 	    try
 	    {
-	        if (!Sessions.TryGetValue(request.SessionId, out var raw) || raw == null)
-	            throw new RpcException(new Status(StatusCode.NotFound, "invalid session"));
+	        var raw = Get(request.SessionId);
 	
 	        var kv = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
 	
