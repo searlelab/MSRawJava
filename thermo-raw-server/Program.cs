@@ -889,7 +889,6 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     private static Spectrum BuildSpectrum(IRawDataPlus raw, int scan, bool isMs1, double isoLo, double isoTarget, double isoHi)
     {
-        var cs = raw.GetCentroidStream(scan, false);
         ReadMzAndIntensity(raw, scan, out var mz, out var intensF);
         
         double injS;
