@@ -25,7 +25,7 @@ public final class RawFileStructureTools {
 	public static DataAcquisitionType getDataType(Map<Range, WindowData> ranges) {
 		if (ranges==null||ranges.isEmpty()) return DataAcquisitionType.DDA;
 		if (ranges.size()==1) return DataAcquisitionType.PRM;
-		if (ranges.size()>500) return DataAcquisitionType.DDA;
+		if (ranges.size()>10000) return DataAcquisitionType.DDA;
 		for (WindowData data : ranges.values()) {
 			if (data.getNumberOfMSMS()<5) return DataAcquisitionType.DDA;
 		}
