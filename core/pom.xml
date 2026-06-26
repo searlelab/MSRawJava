@@ -13,7 +13,9 @@
 	<artifactId>msrawjava-core</artifactId>
 	<packaging>jar</packaging>
 	<name>msrawjava (core)</name>
-	<description>Cross platform Java tools for reading Thermo Raw and timsTOF files</description>
+	<description>
+		MSRawJava is a cross-platform Java library for reading Thermo Raw and timsTOF files. To the best of our ability, we deliver this software to you under the Apache 2.0 License. This software, however, depends on other software libraries. While most libraries have Apache 2.0-compatible licenses (BSD-3, CDDL 1.1, LGPL 2.1, MIT, and MPL-2.0), the Thermo RawFileReader has a more restrictive license on its use and redistribution. If you want to use the fully Apache 2.0-compatible library, please get the msrawjava-core-nolice package instead. The full license for RawFileReader is available here: [Thermo-RawFileReader.txt](https://github.com/searlelab/MSRawJava/blob/main/licenses/Thermo-RawFileReader.txt). Essentially, end users are free to install and use it, but may not reverse engineer, modify, or use it for high-risk activities. Distributors may include it only with their own software, must include the required notice, must prevent further redistribution, must not imply Thermo endorsement, and may not commercially exploit it without permission. The software is provided “as is,” with no support or warranty, and Thermo’s liability is limited to $1.
+	</description>
 
 	<properties>
 		<maven.compiler.release>11</maven.compiler.release>
