@@ -53,7 +53,9 @@ class ThermoRawSpectrumReader {
 	}
 
 	ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, boolean sqrt) throws IOException {
-		owner.ensureStructureDetermined();
+		if (owner.shouldDetermineStructureBeforeSpectrumExtraction()) {
+			owner.ensureStructureDetermined();
+		}
 		StripesRequest req=StripesRequest.newBuilder().setSessionId(owner.sessionId()).setRtMin(minRT/60f).setRtMax(maxRT/60f)
 				.setMzLo(targetMzRange.getStart()).setMzHi(targetMzRange.getStop()).setProfile(false).build();
 

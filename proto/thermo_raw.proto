@@ -17,12 +17,16 @@ service ThermoRawService {
   rpc GetScanSummaries(Session) returns (SummariesReply);
   rpc GetRunSummary(Session) returns (RunSummary);
   rpc GetRanges(Session) returns (RangesReply);
+  rpc GetStructure(Session) returns (StructureReply);
   rpc GetMetadata(Session) returns (MetadataReply);
   rpc GetScanMetadata(ScanMetadataRequest) returns (ScanMetadataReply);
   rpc GetMs1Tic(TicRequest) returns (TicReply);
 }
 
-message OpenRequest { string path = 1; }
+message OpenRequest {
+  string path = 1;
+  bool build_full_index = 2;
+}
 message OpenReply {
   string session_id = 1;
   string instrument_model = 2;
@@ -65,6 +69,14 @@ message WindowRange {
 
 message RangesReply {
   repeated WindowRange windows = 1;
+}
+
+message StructureReply {
+  string data_acquisition_type = 1;
+  bool is_staggered = 2;
+  double precursor_margin_size = 3;
+  int32 sampled_scans = 4;
+  int32 sampled_ms2 = 5;
 }
 
 message TicRequest {

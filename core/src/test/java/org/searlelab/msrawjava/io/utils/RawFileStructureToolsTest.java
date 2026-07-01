@@ -22,7 +22,7 @@ class RawFileStructureToolsTest {
 	@Test
 	void tooManyWindows_areDda() {
 		LinkedHashMap<Range, WindowData> ranges=new LinkedHashMap<>();
-		for (int i=0; i<501; i++) {
+		for (int i=0; i<10001; i++) {
 			ranges.put(new Range(i, i+1), window());
 		}
 		assertEquals(DataAcquisitionType.DDA, RawFileStructureTools.getDataType(ranges));

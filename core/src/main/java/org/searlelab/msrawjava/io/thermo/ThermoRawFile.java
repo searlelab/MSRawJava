@@ -29,6 +29,7 @@ import org.searlelab.msrawjava.io.thermo.rpc.RangesReply;
 import org.searlelab.msrawjava.io.thermo.rpc.Session;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.SpectrumSummary;
+import org.searlelab.msrawjava.io.thermo.rpc.StructureReply;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
 import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.TicRequest;
@@ -70,6 +71,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 	private boolean staggered=false;
 	private double precursorMarginSize=0.0;
 	private Optional<Date> runStartTime=Optional.empty();
+	private ThermoIndexingMode indexingMode=ThermoIndexingMode.LAZY;
 	private final ThermoRawSpectrumReader spectrumReader=new ThermoRawSpectrumReader(this);
 
 	public ThermoRawFile() {
@@ -104,11 +106,20 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 	}
 
 	public void openFile(Path rawFile) throws IOException, SQLException {
+		openFile(rawFile, ThermoIndexingMode.LAZY);
+	}
+
+	public void openFile(File userFile, ThermoIndexingMode indexingMode) throws IOException, SQLException {
+		this.openFile(userFile.toPath(), indexingMode);
+	}
+
+	public void openFile(Path rawFile, ThermoIndexingMode indexingMode) throws IOException, SQLException {
 		if (stub!=null) {
 			close();
 		}
 
 		this.rawPath=rawFile;
+		this.indexingMode=indexingMode==null?ThermoIndexingMode.LAZY:indexingMode;
 
 		int port;
 		try {
@@ -121,7 +132,8 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		this.stub=ThermoRawServiceGrpc.newBlockingStub(channel);
 
 		try {
-			OpenReply rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString()).build());
+			OpenReply rep=stub.open(OpenRequest.newBuilder().setPath(rawFile.toAbsolutePath().toString())
+					.setBuildFullIndex(this.indexingMode==ThermoIndexingMode.FULL).build());
 			applyOpenReply(rawFile, rep);
 		} catch (StatusRuntimeException e) {
 			String detail=e.getStatus()!=null?e.getStatus().getDescription():e.getMessage();
@@ -143,12 +155,37 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		this.precursorMarginSize=0.0;
 	}
 
+	boolean shouldDetermineStructureBeforeSpectrumExtraction() {
+		return indexingMode==ThermoIndexingMode.FULL;
+	}
+
 	public Map<String, String> getMetadata() throws IOException, SQLException {
 		ensureStructureDetermined();
 		Map<String, String> metadata=fetchMetadata();
 		runStartTime=extractRunStartTime(metadata);
 		metadata.putAll(RawFileStructureTools.structureMetadata(dataAcquisitionType, staggered, precursorMarginSize));
 		return metadata;
+	}
+
+	public Map<String, String> getStructureMetadata() {
+		Session req=Session.newBuilder().setSessionId(sessionId).build();
+		StructureReply reply=stub.getStructure(req);
+		DataAcquisitionType type=parseDataAcquisitionType(reply.getDataAcquisitionType());
+		LinkedHashMap<String, String> metadata=new LinkedHashMap<String, String>();
+		metadata.putAll(RawFileStructureTools.structureMetadata(type, reply.getIsStaggered(), reply.getPrecursorMarginSize()));
+		metadata.put("rawFileStructure.sampledScans", Integer.toString(reply.getSampledScans()));
+		metadata.put("rawFileStructure.sampledMs2", Integer.toString(reply.getSampledMs2()));
+		return metadata;
+	}
+
+	private static DataAcquisitionType parseDataAcquisitionType(String value) {
+		if (value!=null) {
+			try {
+				return DataAcquisitionType.valueOf(value.toUpperCase(Locale.ROOT));
+			} catch (IllegalArgumentException ignored) {
+			}
+		}
+		return DataAcquisitionType.DDA;
 	}
 
 	private Map<String, String> fetchMetadata() {

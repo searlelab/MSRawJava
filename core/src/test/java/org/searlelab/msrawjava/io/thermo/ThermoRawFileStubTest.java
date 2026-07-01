@@ -30,6 +30,7 @@ import org.searlelab.msrawjava.io.thermo.rpc.RunSummary;
 import org.searlelab.msrawjava.io.thermo.rpc.ScanMetadataReply;
 import org.searlelab.msrawjava.io.thermo.rpc.Spectrum;
 import org.searlelab.msrawjava.io.thermo.rpc.SpectrumSummary;
+import org.searlelab.msrawjava.io.thermo.rpc.StructureReply;
 import org.searlelab.msrawjava.io.thermo.rpc.ThermoRawServiceGrpc;
 import org.searlelab.msrawjava.io.thermo.rpc.TicReply;
 import org.searlelab.msrawjava.io.thermo.rpc.WindowRange;
@@ -174,6 +175,61 @@ class ThermoRawFileStubTest {
 		assertEquals("DDA", metadata.get(RawFileStructureTools.METADATA_DATA_ACQUISITION_TYPE));
 		assertEquals(1, channel.delegate.rangesCalls);
 		assertEquals(1, channel.delegate.metadataCalls);
+	}
+
+	@Test
+	void lazyStripesDoNotFetchRangesBeforeBoundedExtraction() throws Exception {
+		FakeManagedChannel channel=new FakeManagedChannel(false);
+		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=newBlockingStub(channel);
+
+		ThermoRawFile rawFile=new ThermoRawFile();
+		setField(rawFile, "rawPath", tmp.resolve("file.raw"));
+		setField(rawFile, "channel", channel);
+		setField(rawFile, "stub", stub);
+		setField(rawFile, "sessionId", "session-1");
+
+		List<FragmentScan> stripes=rawFile.getStripes(new Range(400.0, 402.0), 0, 100, false);
+
+		assertEquals(2, stripes.size());
+		assertEquals(0, channel.delegate.rangesCalls);
+	}
+
+	@Test
+	void fullIndexStripesStillFetchRangesBeforeExtraction() throws Exception {
+		FakeManagedChannel channel=new FakeManagedChannel(false);
+		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=newBlockingStub(channel);
+
+		ThermoRawFile rawFile=new ThermoRawFile();
+		setField(rawFile, "rawPath", tmp.resolve("file.raw"));
+		setField(rawFile, "channel", channel);
+		setField(rawFile, "stub", stub);
+		setField(rawFile, "sessionId", "session-1");
+		setField(rawFile, "indexingMode", ThermoIndexingMode.FULL);
+
+		List<FragmentScan> stripes=rawFile.getStripes(new Range(400.0, 402.0), 0, 100, false);
+
+		assertEquals(2, stripes.size());
+		assertEquals(1, channel.delegate.rangesCalls);
+	}
+
+	@Test
+	void structureMetadataUsesDedicatedProbeWithoutRangesOrMetadata() throws Exception {
+		FakeManagedChannel channel=new FakeManagedChannel(false);
+		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=newBlockingStub(channel);
+
+		ThermoRawFile rawFile=new ThermoRawFile();
+		setField(rawFile, "rawPath", tmp.resolve("file.raw"));
+		setField(rawFile, "channel", channel);
+		setField(rawFile, "stub", stub);
+		setField(rawFile, "sessionId", "session-1");
+
+		Map<String, String> metadata=rawFile.getStructureMetadata();
+
+		assertEquals("DIA", metadata.get(RawFileStructureTools.METADATA_DATA_ACQUISITION_TYPE));
+		assertEquals("12", metadata.get("rawFileStructure.sampledMs2"));
+		assertEquals(1, channel.delegate.structureCalls);
+		assertEquals(0, channel.delegate.rangesCalls);
+		assertEquals(0, channel.delegate.metadataCalls);
 	}
 
 	@Test
@@ -401,6 +457,7 @@ class ThermoRawFileStubTest {
 		private int closeCalls;
 		private int metadataCalls;
 		private int rangesCalls;
+		private int structureCalls;
 		private Status closeStatus=Status.OK;
 		private boolean includeAnalyzers=true;
 
@@ -440,6 +497,12 @@ class ThermoRawFileStubTest {
 						.addWindows(WindowRange.newBuilder().setLo(401.0).setHi(402.0).setAverageDutyCycleSeconds(0.2).setNumberOfMsms(3)
 								.setRtStartSeconds(15.0).setRtEndSeconds(25.0))
 						.build();
+				return new FakeClientCall<>(List.of((RespT)reply));
+			}
+			if (name.endsWith("/GetStructure")) {
+				structureCalls++;
+				StructureReply reply=StructureReply.newBuilder().setDataAcquisitionType("DIA").setIsStaggered(false).setPrecursorMarginSize(0.5)
+						.setSampledScans(100).setSampledMs2(12).build();
 				return new FakeClientCall<>(List.of((RespT)reply));
 			}
 			if (name.endsWith("/GetMs1Tic")) {

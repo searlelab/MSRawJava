@@ -220,7 +220,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        string runStartTimeIso8601 = GetRunStartTimeIso8601(raw);
 	
 	        string sid = Guid.NewGuid().ToString("N");
-	        Sessions[sid] = new RawSession(raw);
+	        Sessions[sid] = new RawSession(raw, request.BuildFullIndex);
 	        sessionRegistered = true;
 	
 	        return Task.FromResult(new OpenReply {
@@ -398,7 +398,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	
 	        var buckets = new Dictionary<(double lo, double hi), List<double>>();
 	
-	        foreach (var scan in session.ScanIndex.AllScans)
+	        foreach (var scan in session.BuildFullIndex ? session.ScanIndex.AllScans : EnumerateIndexedScans(session.Raw))
 	        {
 	            if (scan.IsMs1) continue;
 	            var rtSec = scan.RtMinutes * 60.0;
@@ -452,6 +452,21 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    }
     }
 
+    public override Task<StructureReply> GetStructure(Session request, ServerCallContext context)
+    {
+	    using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
+	    try
+	    {
+	        var session = GetSession(request.SessionId);
+	        return Task.FromResult(session.BuildFullIndex ? ClassifyStructure(session.ScanIndex.AllScans) : ProbeStructure(session.Raw));
+	    }
+	    catch (RpcException) { throw; }
+	    catch (Exception ex)
+	    {
+	        throw new RpcException(new Status(StatusCode.Internal, "GetStructure failed: " + ex));
+	    }
+    }
+
     public override Task<SummariesReply> GetScanSummaries(Session request, ServerCallContext context)
     {
 	    using var throttle = ProcessingThrottle.Enter(context.CancellationToken);
@@ -462,7 +477,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
 	        var reply = new SummariesReply();
 
-	        foreach (var scan in session.ScanIndex.AllScans)
+	        foreach (var scan in session.BuildFullIndex ? session.ScanIndex.AllScans : EnumerateIndexedScans(raw))
 	        {
 	            int msLevel = scan.IsMs1 ? 1 : 2;
 	            scan.TryGetIsolationSuperset(out var isolation);
@@ -586,7 +601,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        var session = GetSession(req.SessionId);
 	        var raw = session.Raw;
 	
-	        foreach (var scan in session.ScanIndex.InRtRange(req.RtMin, req.RtMax))
+	        foreach (var scan in session.BuildFullIndex ? session.ScanIndex.InRtRange(req.RtMin, req.RtMax) : EnumerateIndexedScansInRt(raw, req.RtMin, req.RtMax))
 	        {
 	            if (!scan.IsMs1) continue;
 	            scan.TryGetIsolationSuperset(out var isolation);
@@ -609,7 +624,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	        var session = GetSession(req.SessionId);
 	        var raw = session.Raw;
 	
-	        foreach (var scan in session.ScanIndex.InRtRange(req.RtMin, req.RtMax))
+	        foreach (var scan in session.BuildFullIndex ? session.ScanIndex.InRtRange(req.RtMin, req.RtMax) : EnumerateIndexedScansInRt(raw, req.RtMin, req.RtMax))
 	        {
 	            if (!scan.IsMs2) continue;
 	
@@ -618,7 +633,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	                double lo = isolation.Lower;
 	                double hi = isolation.Upper;
 	
-	                if (!(lo < req.MzHi && hi > req.MzLo)) continue;
+	                if (!(lo <= req.MzHi && hi >= req.MzLo)) continue;
 	
 	                var spec = BuildSpectrum(raw, scan, isolation);
 	                await stream.WriteAsync(spec);
@@ -643,15 +658,139 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     private static IEnumerable<int> ScansInRt(IRawDataPlus raw, double rtMin, double rtMax)
     {
+        const double rtBoundaryToleranceMinutes = 1e-6;
         int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
         int last = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum : raw.RunHeader.LastSpectrum;
         for (int scan = first; scan <= last; scan++)
         {
             double rt = raw.RetentionTimeFromScanNumber(scan);
-            if (rt < rtMin) continue;
-            if (rt > rtMax) break;
+            if (rt < rtMin - rtBoundaryToleranceMinutes) continue;
+            if (rt > rtMax + rtBoundaryToleranceMinutes) break;
             yield return scan;
         }
+    }
+
+    private static IEnumerable<IndexedScan> EnumerateIndexedScans(IRawDataPlus raw)
+    {
+        int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
+        int last = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum : raw.RunHeader.LastSpectrum;
+        for (int scan = first; scan <= last; scan++)
+        {
+            var indexed = BuildIndexedScan(raw, scan);
+            if (indexed != null) yield return indexed;
+        }
+    }
+
+    private static IEnumerable<IndexedScan> EnumerateIndexedScansInRt(IRawDataPlus raw, double rtMin, double rtMax)
+    {
+        foreach (int scan in ScansInRt(raw, rtMin, rtMax))
+        {
+            var indexed = BuildIndexedScan(raw, scan);
+            if (indexed != null) yield return indexed;
+        }
+    }
+
+    private static StructureReply ProbeStructure(IRawDataPlus raw)
+    {
+        const int maxScansToProbe = 10000;
+        const int maxMs2ToProbe = 1500;
+        int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
+        int last = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum : raw.RunHeader.LastSpectrum;
+        var scans = new List<IndexedScan>(Math.Min(maxMs2ToProbe, Math.Max(0, last - first + 1)));
+
+        for (int scan = first; scan <= last && scan < first + maxScansToProbe && scans.Count < maxMs2ToProbe; scan++)
+        {
+            var indexed = BuildIndexedScan(raw, scan);
+            if (indexed == null) continue;
+            if (indexed.IsMs2) scans.Add(indexed);
+        }
+
+        var reply = ClassifyStructure(scans);
+        reply.SampledScans = Math.Min(maxScansToProbe, Math.Max(0, last - first + 1));
+        reply.SampledMs2 = scans.Count;
+        return reply;
+    }
+
+    private static StructureReply ClassifyStructure(IEnumerable<IndexedScan> scans)
+    {
+        var buckets = new Dictionary<(long lo, long hi), WindowProbe>();
+        int sampledMs2 = 0;
+
+        foreach (var scan in scans)
+        {
+            if (!scan.IsMs2) continue;
+            sampledMs2++;
+            foreach (var isolation in scan.IsolationWindows)
+            {
+                var key = RoundedWindowKey(isolation);
+                if (!buckets.TryGetValue(key, out var bucket))
+                {
+                    bucket = new WindowProbe(isolation.Lower, isolation.Upper);
+                    buckets[key] = bucket;
+                }
+                bucket.Count++;
+                bucket.RtStartSeconds = Math.Min(bucket.RtStartSeconds, scan.RtMinutes * 60.0);
+                bucket.RtEndSeconds = Math.Max(bucket.RtEndSeconds, scan.RtMinutes * 60.0);
+            }
+        }
+
+        string type = ClassifyWindowBuckets(buckets.Values.ToList());
+        return new StructureReply { DataAcquisitionType = type, IsStaggered = false, PrecursorMarginSize = 0.0, SampledMs2 = sampledMs2 };
+    }
+
+    private static string ClassifyWindowBuckets(List<WindowProbe> buckets)
+    {
+        if (buckets.Count == 0) return "DDA";
+        if (buckets.Count == 1) return "PRM";
+        if (buckets.Count > 10000) return "DDA";
+        foreach (var bucket in buckets)
+        {
+            if (bucket.Count < 5) return "DDA";
+        }
+        buckets.Sort((a, b) => a.Lower.CompareTo(b.Lower));
+        foreach (var current in buckets)
+        {
+            bool lowerJoined = false;
+            bool upperJoined = false;
+            bool hasCoactiveWindow = false;
+            foreach (var other in buckets)
+            {
+                if (ReferenceEquals(current, other)) continue;
+                if (!RtOverlaps(current, other)) continue;
+                hasCoactiveWindow = true;
+                if (other.Upper < current.Lower - 0.02) continue;
+                if (other.Lower > current.Upper + 0.02) continue;
+                double currentMiddle = (current.Lower + current.Upper) / 2.0;
+                double otherMiddle = (other.Lower + other.Upper) / 2.0;
+                if (otherMiddle < currentMiddle && other.Upper >= current.Lower - 0.02) lowerJoined = true;
+                if (otherMiddle > currentMiddle && other.Lower <= current.Upper + 0.02) upperJoined = true;
+            }
+            if (hasCoactiveWindow && !lowerJoined && !upperJoined) return "PRM";
+        }
+        return "DIA";
+    }
+
+    private static bool RtOverlaps(WindowProbe a, WindowProbe b) =>
+        a.RtStartSeconds <= b.RtEndSeconds + 0.02 && b.RtStartSeconds <= a.RtEndSeconds + 0.02;
+
+    private static (long lo, long hi) RoundedWindowKey(IsolationWindowInfo isolation) =>
+        ((long)Math.Round(isolation.Lower / 0.02), (long)Math.Round(isolation.Upper / 0.02));
+
+    private sealed class WindowProbe
+    {
+        public WindowProbe(double lower, double upper)
+        {
+            Lower = lower;
+            Upper = upper;
+            RtStartSeconds = double.PositiveInfinity;
+            RtEndSeconds = double.NegativeInfinity;
+        }
+
+        public double Lower { get; }
+        public double Upper { get; }
+        public int Count { get; set; }
+        public double RtStartSeconds { get; set; }
+        public double RtEndSeconds { get; set; }
     }
 
     private static void ReadMzAndIntensity(IRawDataPlus raw, int scan, out double[] mz, out float[] intensity)
@@ -803,13 +942,15 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
     {
         private readonly Lazy<ThermoScanIndex> scanIndex;
 
-        public RawSession(IRawDataPlus raw)
+        public RawSession(IRawDataPlus raw, bool buildFullIndex)
         {
             Raw = raw;
+            BuildFullIndex = buildFullIndex;
             scanIndex = new Lazy<ThermoScanIndex>(() => BuildScanIndex(raw), LazyThreadSafetyMode.ExecutionAndPublication);
         }
 
         public IRawDataPlus Raw { get; }
+        public bool BuildFullIndex { get; }
         public ThermoScanIndex ScanIndex => scanIndex.Value;
 
         public void Dispose()
@@ -827,31 +968,8 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
         for (int scan = first; scan <= last; scan++)
         {
-            IScanFilter filter;
-            try { filter = raw.GetFilterForScanNumber(scan); }
-            catch { continue; }
-            if (filter == null) continue;
-
-            double rtMinutes;
-            try { rtMinutes = raw.RetentionTimeFromScanNumber(scan); }
-            catch { continue; }
-
-            IScanEvent? evt = null;
-            try { evt = raw.GetScanEventForScanNumber(scan); } catch { }
-            GetScanWindow(evt, out var scanWindowLower, out var scanWindowUpper);
-
-            bool isMs1 = filter.MSOrder == MSOrderType.Ms;
-            bool isMs2 = filter.MSOrder == MSOrderType.Ms2;
-            IsolationWindowInfo[] isolationWindows;
-            if (isMs1)
-            {
-                isolationWindows = new[] { GetMs1IsolationWindow(evt) };
-            }
-            else
-            {
-                isolationWindows = evt == null ? Array.Empty<IsolationWindowInfo>() : GetMs2IsolationWindows(raw, scan, evt).ToArray();
-            }
-            scans.Add(new IndexedScan(scan, rtMinutes, isMs1, isMs2, isolationWindows, scanWindowLower, scanWindowUpper));
+            var indexed = BuildIndexedScan(raw, scan);
+            if (indexed != null) scans.Add(indexed);
         }
 
         scans.Sort((a, b) =>
@@ -861,6 +979,35 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         });
         Console.WriteLine($"Thermo server: indexed {scans.Count} scans in {clock.Elapsed.TotalSeconds:F2} s");
         return new ThermoScanIndex(scans.ToArray());
+    }
+
+    private static IndexedScan? BuildIndexedScan(IRawDataPlus raw, int scan)
+    {
+        IScanFilter filter;
+        try { filter = raw.GetFilterForScanNumber(scan); }
+        catch { return null; }
+        if (filter == null) return null;
+
+        double rtMinutes;
+        try { rtMinutes = raw.RetentionTimeFromScanNumber(scan); }
+        catch { return null; }
+
+        IScanEvent? evt = null;
+        try { evt = raw.GetScanEventForScanNumber(scan); } catch { }
+        GetScanWindow(evt, out var scanWindowLower, out var scanWindowUpper);
+
+        bool isMs1 = filter.MSOrder == MSOrderType.Ms;
+        bool isMs2 = filter.MSOrder == MSOrderType.Ms2;
+        IsolationWindowInfo[] isolationWindows;
+        if (isMs1)
+        {
+            isolationWindows = new[] { GetMs1IsolationWindow(evt) };
+        }
+        else
+        {
+            isolationWindows = evt == null ? Array.Empty<IsolationWindowInfo>() : GetMs2IsolationWindows(raw, scan, evt).ToArray();
+        }
+        return new IndexedScan(scan, rtMinutes, isMs1, isMs2, isolationWindows, scanWindowLower, scanWindowUpper);
     }
 
     private static IsolationWindowInfo GetMs1IsolationWindow(IScanEvent? evt)
