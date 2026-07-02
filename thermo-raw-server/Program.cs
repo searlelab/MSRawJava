@@ -196,6 +196,9 @@ internal static class ProcessingThrottle
 
 public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 {
+    private const int StructureProbeSpectrumCount = 12000;
+    private const int StructureProbeMs2Count = 3000;
+    private const int MinimumRepeatedWindowCount = 3;
     private static readonly ConcurrentDictionary<string, RawSession> Sessions = new();
     private static readonly int[] MsInstrumentIndices = { 1, 2, 3, 4 };
 
@@ -458,7 +461,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 	    try
 	    {
 	        var session = GetSession(request.SessionId);
-	        return Task.FromResult(session.BuildFullIndex ? ClassifyStructure(session.ScanIndex.AllScans) : ProbeStructure(session.Raw));
+	        return Task.FromResult(ProbeStructure(session.Raw));
 	    }
 	    catch (RpcException) { throw; }
 	    catch (Exception ex)
@@ -692,21 +695,36 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
 
     private static StructureReply ProbeStructure(IRawDataPlus raw)
     {
-        const int maxScansToProbe = 10000;
-        const int maxMs2ToProbe = 1500;
         int first = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.FirstSpectrum : raw.RunHeader.FirstSpectrum;
         int last = (raw.RunHeaderEx != null) ? raw.RunHeaderEx.LastSpectrum : raw.RunHeader.LastSpectrum;
-        var scans = new List<IndexedScan>(Math.Min(maxMs2ToProbe, Math.Max(0, last - first + 1)));
+        int sampledScans = Math.Min(StructureProbeSpectrumCount, Math.Max(0, last - first + 1));
+        int inspectedScans = 0;
+        var scans = new List<IndexedScan>(Math.Min(StructureProbeMs2Count, sampledScans));
+        var repeatedWindowProbe = new Dictionary<(double lo, double hi), int>();
+        bool repeatedWindowsObserved = false;
 
-        for (int scan = first; scan <= last && scan < first + maxScansToProbe && scans.Count < maxMs2ToProbe; scan++)
+        for (int scan = first; scan <= last && scan < first + StructureProbeSpectrumCount && scans.Count < StructureProbeMs2Count; scan++)
         {
+            inspectedScans++;
             var indexed = BuildIndexedScan(raw, scan);
             if (indexed == null) continue;
-            if (indexed.IsMs2) scans.Add(indexed);
+            if (!indexed.IsMs2) continue;
+
+            scans.Add(indexed);
+            foreach (var isolation in indexed.IsolationWindows)
+            {
+                var key = (isolation.Lower, isolation.Upper);
+                repeatedWindowProbe.TryGetValue(key, out int count);
+                repeatedWindowProbe[key] = count + 1;
+            }
+            repeatedWindowsObserved = repeatedWindowProbe.Count > 0 && repeatedWindowProbe.Values.All(count => count >= MinimumRepeatedWindowCount);
+            if (repeatedWindowsObserved) break;
         }
 
-        var reply = ClassifyStructure(scans);
-        reply.SampledScans = Math.Min(maxScansToProbe, Math.Max(0, last - first + 1));
+        var reply = repeatedWindowsObserved
+            ? ClassifyStructure(scans)
+            : new StructureReply { DataAcquisitionType = "DDA", IsStaggered = false, PrecursorMarginSize = 0.0, SampledMs2 = scans.Count };
+        reply.SampledScans = inspectedScans;
         reply.SampledMs2 = scans.Count;
         return reply;
     }
@@ -745,7 +763,7 @@ public sealed class ThermoRawServiceImpl : ThermoRawService.ThermoRawServiceBase
         if (buckets.Count > 10000) return "DDA";
         foreach (var bucket in buckets)
         {
-            if (bucket.Count < 5) return "DDA";
+            if (bucket.Count < MinimumRepeatedWindowCount) return "DDA";
         }
         buckets.Sort((a, b) => a.Lower.CompareTo(b.Lower));
         foreach (var current in buckets)

@@ -17,6 +17,7 @@ public final class RawFileStructureTools {
 	// sometimes we see rounding errors of 0.01 with the Thermo method editor, 
 	// and we don't want to get caught in a floating point rounding issue 
 	public static final float WINDOW_BOUNDARY_TOLERANCE=0.02f;
+	private static final int MINIMUM_REPEATED_WINDOW_COUNT=3;
 	private static final double MAX_MARGIN_MZ=3.0;
 
 	private RawFileStructureTools() {
@@ -27,7 +28,7 @@ public final class RawFileStructureTools {
 		if (ranges.size()==1) return DataAcquisitionType.PRM;
 		if (ranges.size()>10000) return DataAcquisitionType.DDA;
 		for (WindowData data : ranges.values()) {
-			if (data.getNumberOfMSMS()<5) return DataAcquisitionType.DDA;
+			if (data.getNumberOfMSMS()<MINIMUM_REPEATED_WINDOW_COUNT) return DataAcquisitionType.DDA;
 		}
 
 		ArrayList<Entry> entries=entries(ranges);

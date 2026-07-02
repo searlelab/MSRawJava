@@ -31,8 +31,16 @@ class RawFileStructureToolsTest {
 	@Test
 	void lowObservationWindow_isDda() {
 		LinkedHashMap<Range, WindowData> ranges=windows(400, 402, 402, 404);
-		ranges.put(new Range(404, 406), new WindowData(1f, 4, Optional.empty(), Optional.of(new Range(0, 10))));
+		ranges.put(new Range(404, 406), new WindowData(1f, 2, Optional.empty(), Optional.of(new Range(0, 10))));
 		assertEquals(DataAcquisitionType.DDA, RawFileStructureTools.getDataType(ranges));
+	}
+
+	@Test
+	void threeObservationWindows_areClassifiedByWindowShape() {
+		LinkedHashMap<Range, WindowData> ranges=new LinkedHashMap<>();
+		ranges.put(new Range(400, 402), window(0, 10, 3));
+		ranges.put(new Range(450, 452), window(0, 10, 3));
+		assertEquals(DataAcquisitionType.PRM, RawFileStructureTools.getDataType(ranges));
 	}
 
 	@Test
@@ -126,6 +134,10 @@ class RawFileStructureToolsTest {
 	}
 
 	private static WindowData window(double rtStart, double rtStop) {
-		return new WindowData(1f, 10, Optional.empty(), Optional.of(new Range(rtStart, rtStop)));
+		return window(rtStart, rtStop, 10);
+	}
+
+	private static WindowData window(double rtStart, double rtStop, int numberOfMsms) {
+		return new WindowData(1f, numberOfMsms, Optional.empty(), Optional.of(new Range(rtStart, rtStop)));
 	}
 }
