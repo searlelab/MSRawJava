@@ -137,6 +137,14 @@ class BrukerTimsSpectrumReader {
 			ArrayList<FragmentScan> out=extractDIASpectra(metas, sqrt, scanWindowLower, scanWindowUpper);
 
 			return out;
+		} else if (owner.ms2Key()==10&&owner.tableExists("PrmFrameMsMsInfo")&&owner.tableExists("PrmTargets")) {
+			String sql="SELECT I.Frame, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
+					+"T.Charge, T.Description, I.Target, F.t1, F.NumScans, T.MonoisotopicMz "
+					+"FROM PrmFrameMsMsInfo I JOIN Frames F ON I.Frame = F.Id JOIN PrmTargets T ON I.Target = T.Id "
+					+"WHERE F.MsMsType = 10 AND F.Time BETWEEN ? AND ? "
+					+"AND ? BETWEEN I.IsolationMz-I.IsolationWidth/2 AND I.IsolationMz+I.IsolationWidth/2 "
+					+"ORDER BY F.Time ASC, I.ScanNumBegin ASC";
+			return getPrmStripes(sql, minRT, maxRT, targetMz, sqrt, scanWindowLower, scanWindowUpper);
 		} else if (owner.ms2Key()==8) {
 			// DDA: select frames whose isolation contains targetMz, pick closest per frame, include charge and parent
 			String sql="SELECT I.frame, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
@@ -214,6 +222,78 @@ class BrukerTimsSpectrumReader {
 			// Unknown MS2 key, return empty
 			return new ArrayList<>();
 		}
+	}
+
+	private ArrayList<FragmentScan> getPrmStripes(String sql, double minRT, double maxRT, double targetStart, boolean sqrt, double scanWindowLower,
+			double scanWindowUpper) throws SQLException, IOException {
+		try (PreparedStatement ps=owner.connection().prepareStatement(sql)) {
+			ps.setDouble(1, minRT);
+			ps.setDouble(2, maxRT);
+			ps.setDouble(3, targetStart);
+			try (ResultSet rs=ps.executeQuery()) {
+				ArrayList<FragmentScan> out=new ArrayList<>();
+				while (rs.next()) {
+					addPrmSpectrum(out, rs, sqrt, scanWindowLower, scanWindowUpper);
+				}
+				Collections.sort(out);
+				return out;
+			}
+		}
+	}
+
+	private ArrayList<FragmentScan> getPrmStripes(String sql, double minRT, double maxRT, double targetStart, double targetStop, boolean sqrt,
+			double scanWindowLower, double scanWindowUpper) throws SQLException, IOException {
+		try (PreparedStatement ps=owner.connection().prepareStatement(sql)) {
+			ps.setDouble(1, minRT);
+			ps.setDouble(2, maxRT);
+			ps.setDouble(3, targetStart);
+			ps.setDouble(4, targetStop);
+			try (ResultSet rs=ps.executeQuery()) {
+				ArrayList<FragmentScan> out=new ArrayList<>();
+				while (rs.next()) {
+					addPrmSpectrum(out, rs, sqrt, scanWindowLower, scanWindowUpper);
+				}
+				Collections.sort(out);
+				return out;
+			}
+		}
+	}
+
+	private void addPrmSpectrum(ArrayList<FragmentScan> out, ResultSet rs, boolean sqrt, double scanWindowLower, double scanWindowUpper) throws SQLException,
+			IOException {
+		int frameId=rs.getInt(1);
+		float rt=rs.getFloat(2);
+		int scanLo=rs.getInt(3);
+		int scanHi=rs.getInt(4);
+		double isolationMz=rs.getDouble(5);
+		double isolationWidth=rs.getDouble(6);
+		float accumulation=rs.getFloat(7);
+		byte charge=(byte)Math.max(0, rs.getInt(8));
+		String targetDescription=rs.getString(9);
+		double t1=rs.getDouble(11);
+		int numScans=rs.getInt(12);
+		double targetMz=rs.getDouble(13);
+		String name=buildBrukerFrameScanName(frameId, scanLo, scanHi);
+		Range isolationRange=new Range(isolationMz-0.5*isolationWidth, isolationMz+0.5*isolationWidth);
+		Triplet<double[], float[], int[]> triplet=owner.reader().readRawFrameAndCalibrate(frameId-1, scanLo, scanHi, t1);
+		if (triplet==null||triplet.x==null||triplet.x.length==0) {
+			out.add(new FragmentScan(name, targetDescription, owner.prmSpectrumIndex(frameId, scanLo), targetMz, rt, 0, accumulationTimeSeconds(accumulation),
+					isolationRange.getStart(), isolationRange.getStop(), new double[0], new float[0], new float[0], charge, scanWindowLower, scanWindowUpper));
+			return;
+		}
+		float[] intens=triplet.y;
+		if (sqrt) {
+			intens=intens.clone();
+			for (int i=0; i<intens.length; i++) {
+				intens[i]=(float)Math.sqrt(intens[i]);
+			}
+		}
+		float[] ims=new float[triplet.z.length];
+		for (int i=0; i<ims.length; i++) {
+			ims[i]=getIMSFromScanNumber(triplet.z[i], numScans);
+		}
+		out.add(new FragmentScan(name, targetDescription, owner.prmSpectrumIndex(frameId, scanLo), targetMz, rt, 0, accumulationTimeSeconds(accumulation),
+				isolationRange.getStart(), isolationRange.getStop(), triplet.x, intens, ims, charge, scanWindowLower, scanWindowUpper));
 	}
 
 	private static class Win {
@@ -302,6 +382,13 @@ class BrukerTimsSpectrumReader {
 			ArrayList<FragmentScan> out=extractDIASpectra(metas, sqrt, scanWindowLower, scanWindowUpper);
 
 			return out;
+		} else if (owner.ms2Key()==10&&owner.tableExists("PrmFrameMsMsInfo")&&owner.tableExists("PrmTargets")) {
+			String sql="SELECT I.Frame, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
+					+"T.Charge, T.Description, I.Target, F.t1, F.NumScans, T.MonoisotopicMz "
+					+"FROM PrmFrameMsMsInfo I JOIN Frames F ON I.Frame = F.Id JOIN PrmTargets T ON I.Target = T.Id "
+					+"WHERE F.MsMsType = 10 AND F.Time BETWEEN ? AND ? AND T.MonoisotopicMz BETWEEN ? AND ? "
+					+"ORDER BY F.Time ASC, I.ScanNumBegin ASC";
+			return getPrmStripes(sql, minRT, maxRT, targetMzRange.getStart(), targetMzRange.getStop(), sqrt, scanWindowLower, scanWindowUpper);
 		} else if (owner.ms2Key()==8) {
 			// DDA: pick targets whose isolation window overlaps the target range.
 			String sql="SELECT I.frame, F.Time, I.ScanNumBegin, I.ScanNumEnd, I.IsolationMz, I.IsolationWidth, F.AccumulationTime, "
@@ -446,6 +533,33 @@ class BrukerTimsSpectrumReader {
 				}
 			}
 		}
+		if (owner.ms2Key()==10&&owner.tableExists("PrmFrameMsMsInfo")&&owner.tableExists("PrmTargets")) {
+			String ms2Sql="SELECT I.Frame, F.Time, F.AccumulationTime, F.SummedIntensities, I.IsolationMz, I.IsolationWidth, "
+					+"T.MonoisotopicMz, T.Charge, I.ScanNumBegin, I.ScanNumEnd "
+					+"FROM PrmFrameMsMsInfo I JOIN Frames F ON I.Frame = F.Id JOIN PrmTargets T ON I.Target = T.Id "
+					+"WHERE F.MsMsType = 10 AND F.Time BETWEEN ? AND ? ORDER BY F.Time ASC, I.ScanNumBegin ASC";
+			try (PreparedStatement ps=owner.connection().prepareStatement(ms2Sql)) {
+				ps.setDouble(1, rtStart);
+				ps.setDouble(2, rtEnd);
+				try (ResultSet rs=ps.executeQuery()) {
+					while (rs.next()) {
+						int frameId=rs.getInt(1);
+						float rt=rs.getFloat(2);
+						float injTime=accumulationTimeSeconds(rs.getFloat(3));
+						float tic=(float)rs.getDouble(4);
+						double center=rs.getDouble(5);
+						double width=rs.getDouble(6);
+						double targetMz=rs.getDouble(7);
+						byte charge=(byte)Math.max(0, rs.getInt(8));
+						int scanBegin=rs.getInt(9);
+						int scanEnd=rs.getInt(10);
+						String name=buildBrukerFrameScanName(frameId, scanBegin, scanEnd);
+						out.add(new ScanSummary(name, owner.prmSpectrumIndex(frameId, scanBegin), rt, 0, tic, targetMz, false, injTime, center-0.5*width,
+								center+0.5*width, scanWindowLower, scanWindowUpper, charge));
+					}
+				}
+			}
+		}
 		if (owner.ms2Key()==8&&owner.tableExists("PasefFrameMsMsInfo")&&owner.tableExists("Precursors")) {
 			String ms2Sql="SELECT I.frame, F.Time, F.AccumulationTime, F.SummedIntensities, I.IsolationMz, I.IsolationWidth, "
 					+"COALESCE(P.MonoisotopicMz, P.largestPeakMz, I.IsolationMz) AS targetMz, COALESCE(P.Charge, 0) AS Charge, P.Parent, I.Precursor, "
@@ -501,6 +615,7 @@ class BrukerTimsSpectrumReader {
 		for (FragmentScan scan : scans) {
 			if (scan.getSpectrumIndex()==summary.getSpectrumIndex()) return scan;
 		}
+		if (owner.ms2Key()==10) return null;
 		return scans.isEmpty()?null:scans.get(0);
 	}
 

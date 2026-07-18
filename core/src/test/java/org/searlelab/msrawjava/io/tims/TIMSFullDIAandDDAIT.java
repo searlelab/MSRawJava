@@ -1,7 +1,9 @@
 package org.searlelab.msrawjava.io.tims;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Assumptions;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
@@ -115,6 +118,47 @@ public class TIMSFullDIAandDDAIT {
 			long nonEmptyMs2=ms2.stream().filter(p -> p.getMassArray().length>0).count();
 			System.out.printf(Locale.ROOT, "DDA summary: MS1=%d total (%d non-empty), MS2 windows=%d total (%d non-empty), RT span=%.3f..%.3f s%n", ms1.size(),
 					nonEmptyMs1, ms2.size(), nonEmptyMs2, minRT, maxRT);
+		}
+	}
+
+	@Test
+	void endToEndPrmTest() throws Exception {
+		String fixtureRoot=System.getProperty("msrawjava.prm.fixture.root");
+		Assumptions.assumeTrue(fixtureRoot!=null&&!fixtureRoot.isBlank(), "Set -Dmsrawjava.prm.fixture.root to run the external PRM integration test");
+		for (String name : List.of("20260630_blank_PRM_CB_WO03_Slot1-2_1_9513.d", "20260630_blank_PRM_NP_WO01_Slot1-2_1_9510.d")) {
+			Path dataDir=Path.of(fixtureRoot, name);
+			Path tdfPath=dataDir.resolve("analysis.tdf");
+			Assumptions.assumeTrue(Files.isRegularFile(tdfPath), "PRM fixture missing: "+tdfPath.toAbsolutePath());
+
+			try (Connection conn=DriverManager.getConnection("jdbc:sqlite:"+tdfPath); BrukerTIMSFile stripe=new BrukerTIMSFile()) {
+				stripe.openFile(dataDir);
+				assertTrue(stripe.isPASEFPRM());
+				assertFalse(stripe.isPASEFDDA());
+				assertFalse(stripe.isPASEFDIA());
+				assertEquals("PRM", stripe.getMetadata().get("rawFileStructure.dataAcquisitionType"));
+				assertEquals(0.0, stripe.getPrecursorMarginSize());
+				assertFalse(stripe.getRanges().isEmpty());
+
+				int expected=scalarInt(conn, "SELECT COUNT(*) FROM PrmFrameMsMsInfo I JOIN Frames F ON F.Id = I.Frame JOIN PrmTargets T ON T.Id = I.Target WHERE F.MsMsType = 10");
+				ArrayList<FragmentScan> fragments=stripe.getStripes(new Range(0, Float.MAX_VALUE), 0f, Float.MAX_VALUE, false);
+				ArrayList<org.searlelab.msrawjava.model.ScanSummary> summaries=stripe.getScanSummaries(0f, Float.MAX_VALUE);
+				assertEquals(expected, fragments.size(), "PRM row count mismatch vs SQLite");
+				assertEquals(expected, summaries.stream().filter(summary -> !summary.isPrecursor()).count(), "PRM summary count mismatch vs SQLite");
+				assertIsNondecreasingRT(fragments);
+				sanityCheckFragmentScans(fragments);
+
+				FragmentScan first=fragments.get(0);
+				assertNotNull(first.getPrecursorName());
+				assertTrue(first.getPrecursorCharge()>0);
+				org.searlelab.msrawjava.model.ScanSummary firstSummary=summaries.stream().filter(summary -> !summary.isPrecursor()).findFirst().orElseThrow();
+				AcquiredSpectrum resolved=stripe.getSpectrum(firstSummary);
+				assertEquals(firstSummary.getSpectrumIndex(), resolved.getSpectrumIndex(), "PRM summary must resolve its exact frame and IM slice");
+				org.searlelab.msrawjava.model.ScanSummary missing=new org.searlelab.msrawjava.model.ScanSummary(firstSummary.getSpectrumName(), Integer.MIN_VALUE,
+						firstSummary.getScanStartTime(), firstSummary.getFraction(), firstSummary.getTic(), firstSummary.getPrecursorMz(), false,
+						firstSummary.getIonInjectionTime(), firstSummary.getIsolationWindowLower(), firstSummary.getIsolationWindowUpper(),
+						firstSummary.getScanWindowLower(), firstSummary.getScanWindowUpper(), firstSummary.getCharge());
+				assertNull(stripe.getSpectrum(missing), "An unmatched PRM summary must not resolve to a neighboring spectrum");
+			}
 		}
 	}
 

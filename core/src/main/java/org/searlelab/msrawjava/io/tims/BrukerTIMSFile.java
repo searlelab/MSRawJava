@@ -68,6 +68,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 	private volatile boolean open=false;
 	private int ms1Key=0;
 	private int ms2Key=-1; // unknown
+	private int prmSpectrumIndexStride=1;
 	private DataAcquisitionType dataAcquisitionType=DataAcquisitionType.DDA;
 	private boolean staggered=false;
 	private double precursorMarginSize=0.0;
@@ -85,6 +86,10 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 
 	public boolean isPASEFDDA() {
 		return ms2Key==8;
+	}
+
+	public boolean isPASEFPRM() {
+		return ms2Key==10;
 	}
 
 	/** Histogram of MsMsType values present. */
@@ -204,6 +209,9 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		} else if (hist.containsKey(Integer.valueOf(8))) {
 			expectedMS2Key=8;
 			expectedMS2=hist.getOrDefault(expectedMS2Key, 0);
+		} else if (hist.containsKey(Integer.valueOf(10))) {
+			expectedMS2Key=10;
+			expectedMS2=hist.getOrDefault(expectedMS2Key, 0);
 		} else {
 			for (Entry<Integer, Integer> tally : hist.entrySet()) {
 				if (!Integer.valueOf(0).equals(tally.getKey())) {
@@ -220,6 +228,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		if (expectedMS2==0) Logger.errorLine("No MS2s found!");
 		ms1Key=expectedMS1Key;
 		ms2Key=expectedMS2Key;
+		configurePrmSpectrumIndexing();
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT value FROM GlobalMetadata where key=\"OneOverK0AcqRangeLower\"");
 				ResultSet rs=ps.executeQuery()) {
@@ -272,13 +281,14 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		}
 	}
 
-	/** Return DIA stripe boundaries and stats; empty for datasets without DIA. */
+	/** Return acquired isolation-window boundaries and stats; empty for datasets without MS2 windows. */
 	public Map<Range, WindowData> getRanges() {
 		return RawFileStructureTools.trimRanges(fetchRanges(), precursorMarginSize);
 	}
 
 	private Map<Range, WindowData> fetchRanges() {
 		try {
+			if (ms2Key==10) return fetchPrmRanges();
 			if (!tableExists("DiaFrameMsMsWindows")||!tableExists("DiaFrameMsMsInfo")) {
 				return Collections.emptyMap();
 			}
@@ -331,6 +341,28 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		}
 	}
 
+	private Map<Range, WindowData> fetchPrmRanges() throws SQLException {
+		if (!tableExists("PrmFrameMsMsInfo")) return Collections.emptyMap();
+		String sql="SELECT I.IsolationMz, I.IsolationWidth, MIN(F.Time) AS RtStart, MAX(F.Time) AS RtStop, COUNT(*) AS NumFrames, "
+				+"MIN(I.ScanNumBegin) AS ScanNumBegin, MAX(I.ScanNumEnd) AS ScanNumEnd "
+				+"FROM Frames F JOIN PrmFrameMsMsInfo I ON I.Frame = F.Id WHERE F.MsMsType = 10 "
+				+"GROUP BY I.IsolationMz, I.IsolationWidth ORDER BY I.IsolationMz ASC";
+		Map<Range, WindowData> out=new LinkedHashMap<>();
+		try (PreparedStatement ps=conn.prepareStatement(sql); ResultSet rs=ps.executeQuery()) {
+			while (rs.next()) {
+				double center=rs.getDouble("IsolationMz");
+				double width=rs.getDouble("IsolationWidth");
+				int count=rs.getInt("NumFrames");
+				float avgCycle=count>=2?(float)((rs.getDouble("RtStop")-rs.getDouble("RtStart"))/(count-1)):0f;
+				Range range=new Range(center-0.5*width, center+0.5*width);
+				Optional<Range> imRange=Optional.of(new Range(rs.getFloat("ScanNumBegin"), rs.getFloat("ScanNumEnd")));
+				Optional<Range> rtRange=Optional.of(new Range(rs.getFloat("RtStart"), rs.getFloat("RtStop")));
+				out.put(range, new WindowData(avgCycle, count, imRange, rtRange));
+			}
+		}
+		return out;
+	}
+
 	@Override
 	public double getPrecursorMarginSize() {
 		return precursorMarginSize;
@@ -344,7 +376,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 
 	private void determineStructure() {
 		Map<Range, WindowData> acquisitionRanges=fetchRanges();
-		dataAcquisitionType=RawFileStructureTools.getDataType(acquisitionRanges);
+		dataAcquisitionType=ms2Key==10?DataAcquisitionType.PRM:RawFileStructureTools.getDataType(acquisitionRanges);
 		if (dataAcquisitionType==DataAcquisitionType.DIA) {
 			staggered=RawFileStructureTools.isStaggered(acquisitionRanges);
 			precursorMarginSize=RawFileStructureTools.getPrecursorMarginSize(acquisitionRanges).orElse(0.0);
@@ -496,6 +528,10 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		return ms2Key;
 	}
 
+	int prmSpectrumIndex(int frameId, int scanNumBegin) {
+		return frameId*prmSpectrumIndexStride+scanNumBegin;
+	}
+
 	float imsLower() {
 		return OneOverK0AcqRangeLower;
 	}
@@ -549,7 +585,8 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		out.put("file.name", originalFileName);
 
 		try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), MIN(Time), MAX(Time), SUM(CASE WHEN MsMsType=0 THEN 1 ELSE 0 END), "
-				+"SUM(CASE WHEN MsMsType=8 THEN 1 ELSE 0 END), SUM(CASE WHEN MsMsType=9 THEN 1 ELSE 0 END) "+"FROM Frames")) {
+				+"SUM(CASE WHEN MsMsType=8 THEN 1 ELSE 0 END), SUM(CASE WHEN MsMsType=9 THEN 1 ELSE 0 END), "
+				+"SUM(CASE WHEN MsMsType=10 THEN 1 ELSE 0 END) FROM Frames")) {
 			try (ResultSet rs=ps.executeQuery()) {
 				if (rs.next()) {
 					out.put("frames.total", Integer.toString(rs.getInt(1)));
@@ -558,6 +595,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 					out.put("frames.ms1", Integer.toString(rs.getInt(4)));
 					out.put("frames.ms2.dda", Integer.toString(rs.getInt(5)));
 					out.put("frames.ms2.dia", Integer.toString(rs.getInt(6)));
+					out.put("frames.ms2.prm", Integer.toString(rs.getInt(7)));
 				}
 			}
 		} catch (SQLException sqle) {
@@ -629,6 +667,22 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 				}
 			} catch (SQLException sqle) {
 				logMetadataReadFailure("DDA target summary", sqle);
+			}
+		}
+
+		if (ms2Key==10&&metadataTableExists("PrmFrameMsMsInfo", "PRM target table check")&&metadataTableExists("PrmTargets", "PRM target table check")) {
+			try (PreparedStatement ps=conn.prepareStatement("SELECT COUNT(*), COUNT(DISTINCT I.Target), MIN(I.IsolationMz - 0.5*I.IsolationWidth), "
+					+"MAX(I.IsolationMz + 0.5*I.IsolationWidth), AVG(I.IsolationWidth) FROM PrmFrameMsMsInfo I "
+					+"JOIN Frames F ON F.Id = I.Frame WHERE F.MsMsType = 10"); ResultSet rs=ps.executeQuery()) {
+				if (rs.next()) {
+					out.put("prm.windows.count", Integer.toString(rs.getInt(1)));
+					out.put("prm.targets.count", Integer.toString(rs.getInt(2)));
+					out.put("prm.mz.min", Double.toString(rs.getDouble(3)));
+					out.put("prm.mz.max", Double.toString(rs.getDouble(4)));
+					out.put("prm.window.avgWidth", Double.toString(rs.getDouble(5)));
+				}
+			} catch (SQLException sqle) {
+				logMetadataReadFailure("PRM target summary", sqle);
 			}
 		}
 
@@ -745,6 +799,22 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 
 	static float accumulationTimeSeconds(double accumulationMs) {
 		return BrukerTimsSpectrumReader.accumulationTimeSeconds(accumulationMs);
+	}
+
+	private void configurePrmSpectrumIndexing() throws SQLException {
+		prmSpectrumIndexStride=1;
+		if (ms2Key!=10) return;
+		try (PreparedStatement ps=conn.prepareStatement("SELECT COALESCE(MAX(Id), 0), COALESCE(MAX(NumScans), 0) FROM Frames WHERE MsMsType = 10");
+				ResultSet rs=ps.executeQuery()) {
+			if (!rs.next()) return;
+			long maxFrameId=rs.getLong(1);
+			long maxNumScans=rs.getLong(2);
+			long stride=maxNumScans+1L;
+			if (stride>Integer.MAX_VALUE||maxFrameId*stride+maxNumScans>Integer.MAX_VALUE) {
+				throw new SQLException("PRM frame and scan identifiers cannot be represented as distinct spectrum indices");
+			}
+			prmSpectrumIndexStride=(int)stride;
+		}
 	}
 
 	/**
