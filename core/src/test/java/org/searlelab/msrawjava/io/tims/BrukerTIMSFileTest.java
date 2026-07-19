@@ -18,6 +18,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -26,6 +27,19 @@ import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
 class BrukerTIMSFileTest {
+	@Test
+	void tsfOnlyDirectoryIsRejectedWithoutCreatingTdf(@TempDir Path tempDir) throws Exception {
+		Path dDir=Files.createDirectory(tempDir.resolve("pasef-off.d"));
+		Path tdfPath=dDir.resolve("analysis.tdf");
+		Files.writeString(dDir.resolve("analysis.tsf"), "tsf metadata placeholder");
+
+		BrukerTIMSFile file=new BrukerTIMSFile();
+		BrukerTIMSFile.UnsupportedTsfException error=assertThrows(BrukerTIMSFile.UnsupportedTsfException.class, () -> file.openFile(dDir));
+
+		assertTrue(error.getMessage().contains("PASEF-off / TSF files are not supported"));
+		assertFalse(Files.exists(tdfPath), "TSF validation must not create analysis.tdf");
+	}
+
 	public static void main(String[] args) throws Exception {
 		//Path path=Paths.get("/Users/searle.brian/Documents/temp/bruker/2025-07-05_17-56-24_One-column-separation.d");
 		Path path=Paths.get("/Users/searle.brian/Documents/temp/jgreenwald/20251013_Batch2_50_16HBE_WTV3_B2_DIA_Slot1-7_1_12472.d");

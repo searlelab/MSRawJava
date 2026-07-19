@@ -23,6 +23,7 @@ import org.searlelab.msrawjava.io.mzml.MzmlConstants;
 import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
+import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.logging.ConsoleStatus;
 import org.searlelab.msrawjava.logging.FileLogRecorder;
@@ -131,6 +132,9 @@ public class Main {
 				indicator=createIndicator(params);
 				try {
 					RawFileConverters.writeTims(pool, path, outputPath, params, indicator);
+				} catch (BrukerTIMSFile.UnsupportedTsfException e) {
+					Logger.errorLine(e.getMessage());
+					continue;
 				} finally {
 					indicator.close();
 				}

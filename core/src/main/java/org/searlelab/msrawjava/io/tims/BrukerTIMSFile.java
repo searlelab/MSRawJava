@@ -2,6 +2,7 @@ package org.searlelab.msrawjava.io.tims;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -59,6 +60,14 @@ import gnu.trove.list.array.TFloatArrayList;
 public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataProvider, AutoCloseable {
 	private static final Pattern SQLITE_MISSING_COLUMN=Pattern.compile("no such column: ([^)\\s]+)", Pattern.CASE_INSENSITIVE);
 	private static final Pattern SQLITE_MISSING_TABLE=Pattern.compile("no such table: ([^)\\s]+)", Pattern.CASE_INSENSITIVE);
+
+	/** Raised when a PASEF-off TSF run is supplied to the TDF-only reader. */
+	public static class UnsupportedTsfException extends IOException {
+		public UnsupportedTsfException(Path dPath) {
+			super("Unsupported Bruker timsTOF TSF input: "+dPath
+					+" contains analysis.tsf but no analysis.tdf. PASEF-off / TSF files are not supported by this build; use a TDF/PASEF-on file.");
+		}
+	}
 
 	private Path dPath=null;
 	private File fileObj=null;
@@ -125,10 +134,17 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 		open=false;
 
 		Objects.requireNonNull(dPath, "dPath");
+		Path tdfPath=dPath.resolve("analysis.tdf");
+		if (!Files.isRegularFile(tdfPath)) {
+			if (Files.isRegularFile(dPath.resolve("analysis.tsf"))) {
+				throw new UnsupportedTsfException(dPath);
+			}
+			throw new IOException("Bruker timsTOF input is missing analysis.tdf: "+dPath);
+		}
 		this.dPath=dPath;
 		this.fileObj=dPath.toFile();
 		this.originalFileName=dPath.getFileName().toString();
-		String url="jdbc:sqlite:"+dPath.resolve("analysis.tdf").toAbsolutePath();
+		String url="jdbc:sqlite:"+tdfPath.toAbsolutePath();
 		this.conn=DriverManager.getConnection(url);
 		this.conn.setAutoCommit(false);
 		Optional<MzCalibrationParams> params=readCalibrationParams();

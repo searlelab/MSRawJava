@@ -3,6 +3,7 @@ package org.searlelab.msrawjava;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -27,6 +28,7 @@ import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile; // <-- added
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
+import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
@@ -35,22 +37,32 @@ import picocli.CommandLine;
 class MainSmokeTest {
 
 	private PrintStream origOut;
+	private PrintStream origErr;
 	private java.io.ByteArrayOutputStream outBuf;
+	private java.io.ByteArrayOutputStream errBuf;
 
 	@BeforeEach
 	void setup() {
 		origOut=System.out;
+		origErr=System.err;
 		outBuf=new java.io.ByteArrayOutputStream();
+		errBuf=new java.io.ByteArrayOutputStream();
 		System.setOut(new PrintStream(outBuf, true, StandardCharsets.UTF_8));
+		System.setErr(new PrintStream(errBuf, true, StandardCharsets.UTF_8));
 	}
 
 	@AfterEach
 	void tearDown() {
 		System.setOut(origOut);
+		System.setErr(origErr);
 	}
 
 	private String stdout() {
 		return outBuf.toString(StandardCharsets.UTF_8);
+	}
+
+	private String stderr() {
+		return errBuf.toString(StandardCharsets.UTF_8);
 	}
 
 	@TempDir
@@ -145,5 +157,34 @@ class MainSmokeTest {
 					any(ProgressIndicator.class)), times(1));
 
 		}
+	}
+
+	@Test
+	void convertKnownFiles_skipsUnsupportedTsfAndContinuesWithOtherTimsFiles() throws Exception {
+		Path start=tmp.resolve("mixed");
+		Files.createDirectories(start);
+		Path tsfDir=Files.createDirectory(start.resolve("pasef-off.d"));
+		Files.writeString(tsfDir.resolve("analysis.tsf"), "tsf metadata placeholder");
+		Path tdfDir=Files.createDirectory(start.resolve("pasef-on.d"));
+
+		ConversionParameters p=params(start, OutputType.mgf, null, 3.0f, 1.0f);
+		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
+				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class)) {
+			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(tsfDir.toAbsolutePath().normalize()), any(Path.class),
+					any(ConversionParameters.class), any(ProgressIndicator.class)))
+					.thenThrow(new BrukerTIMSFile.UnsupportedTsfException(tsfDir));
+			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(tdfDir.toAbsolutePath().normalize()), any(Path.class),
+					any(ConversionParameters.class), any(ProgressIndicator.class))).thenReturn(true);
+
+			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
+
+			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(tsfDir.toAbsolutePath().normalize()), any(Path.class),
+					any(ConversionParameters.class), any(ProgressIndicator.class)), times(1));
+			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(tdfDir.toAbsolutePath().normalize()), any(Path.class),
+					any(ConversionParameters.class), any(ProgressIndicator.class)), times(1));
+		}
+
+		assertTrue(stderr().contains("PASEF-off / TSF files are not supported"));
+		assertFalse(stderr().contains("UnsupportedTsfException"), "CLI must report unsupported TSF without a stack trace");
 	}
 }
