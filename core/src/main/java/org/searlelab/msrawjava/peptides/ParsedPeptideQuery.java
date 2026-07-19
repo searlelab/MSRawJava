@@ -14,9 +14,15 @@ public final class ParsedPeptideQuery {
 	private final double nTermMassShift;
 	private final double[] residueMassShifts;
 	private final List<PeptideModification> modifications;
+	private final List<String> ignoredNamedModifications;
 
 	public ParsedPeptideQuery(String originalToken, String sequence, int precursorCharge, double nTermMassShift, double[] residueMassShifts,
 			List<PeptideModification> modifications) {
+		this(originalToken, sequence, precursorCharge, nTermMassShift, residueMassShifts, modifications, List.of());
+	}
+
+	public ParsedPeptideQuery(String originalToken, String sequence, int precursorCharge, double nTermMassShift, double[] residueMassShifts,
+			List<PeptideModification> modifications, List<String> ignoredNamedModifications) {
 		this.originalToken=originalToken;
 		this.sequence=sequence;
 		this.precursorCharge=precursorCharge;
@@ -26,6 +32,11 @@ public final class ParsedPeptideQuery {
 			this.modifications=List.of();
 		} else {
 			this.modifications=Collections.unmodifiableList(new ArrayList<>(modifications));
+		}
+		if (ignoredNamedModifications==null||ignoredNamedModifications.isEmpty()) {
+			this.ignoredNamedModifications=List.of();
+		} else {
+			this.ignoredNamedModifications=Collections.unmodifiableList(new ArrayList<>(ignoredNamedModifications));
 		}
 	}
 
@@ -64,5 +75,9 @@ public final class ParsedPeptideQuery {
 
 	public List<PeptideModification> getModifications() {
 		return modifications;
+	}
+
+	public List<String> getIgnoredNamedModifications() {
+		return ignoredNamedModifications;
 	}
 }

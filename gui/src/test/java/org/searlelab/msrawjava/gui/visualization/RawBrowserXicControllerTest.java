@@ -73,6 +73,18 @@ class RawBrowserXicControllerTest {
 		assertEquals(Cursor.getDefaultCursor(), cursor.get());
 	}
 
+	@Test
+	void extractFromInput_reportsRejectedTargetsWhenNothingCanBeExtracted() {
+		RawBrowserXicController controller=newController();
+		JLabel feedback=new JLabel();
+		controller.bindControls(feedback, null, null, new JTextField("BADTOKEN"), null, new JButton());
+
+		controller.extractFromInput(ScanTypeFilterOption.ms1());
+
+		assertEquals("Rejected: BADTOKEN", feedback.getText());
+		assertFalse(controller.isXicModeActive());
+	}
+
 	private RawBrowserXicController newController() {
 		return new RawBrowserXicController(null, () -> {}, () -> {}, () -> {}, cursor -> {});
 	}

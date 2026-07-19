@@ -57,6 +57,7 @@ public final class PeptideQueryParser {
 		ArrayList<Character> residues=new ArrayList<>();
 		ArrayList<Double> residueMassShift=new ArrayList<>();
 		ArrayList<PeptideModification> modifications=new ArrayList<>();
+		ArrayList<String> ignoredNamedModifications=new ArrayList<>();
 		double nTermMassShift=0.0;
 
 		for (int i=0; i<peptideText.length(); i++) {
@@ -115,7 +116,8 @@ public final class PeptideQueryParser {
 					modifications.add(PeptideModification.nTerm(MASS_ACETYL_NTERM, MOD_ACETYL_NTERM));
 					continue;
 				}
-				// Unknown named modifications are ignored.
+				// Unknown named modifications are ignored but retained for callers that need to report the caveat.
+				ignoredNamedModifications.add(rawMod);
 				continue;
 			}
 
@@ -130,7 +132,8 @@ public final class PeptideQueryParser {
 			sequence.append(residues.get(i).charValue());
 			residueShifts[i]=residueMassShift.get(i).doubleValue();
 		}
-		ParsedPeptideQuery parsed=new ParsedPeptideQuery(trimmed, sequence.toString(), chargeSplit.charge(), nTermMassShift, residueShifts, modifications);
+		ParsedPeptideQuery parsed=new ParsedPeptideQuery(trimmed, sequence.toString(), chargeSplit.charge(), nTermMassShift, residueShifts, modifications,
+				ignoredNamedModifications);
 		return Optional.of(parsed);
 	}
 

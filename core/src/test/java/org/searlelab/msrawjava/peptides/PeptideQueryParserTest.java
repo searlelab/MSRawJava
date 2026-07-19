@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,14 @@ class PeptideQueryParserTest {
 		assertTrue(parsed.isPresent());
 		assertEquals(42.010565, parsed.get().getNTermMassShift(), 1e-9);
 		assertFalse(parser.parsePeptide("PEP[Acetyl (Protein N-term)]TIDE+2").isPresent());
+	}
+
+	@Test
+	void parsePeptide_retainsIgnoredUnknownNamedModificationsWithoutChangingMassShifts() {
+		Optional<ParsedPeptideQuery> parsed=parser.parsePeptide("PEP[Unlisted Mod]TIDE+2");
+		assertTrue(parsed.isPresent());
+		assertEquals(List.of("Unlisted Mod"), parsed.get().getIgnoredNamedModifications());
+		assertEquals(0.0, parsed.get().getResidueMassShift(2), 1e-12);
 	}
 
 	@Test

@@ -53,6 +53,20 @@ class RawBrowserXicUtilsTest {
 	}
 
 	@Test
+	void parseXicTargets_reportsAcceptedRejectedAndCaveatedTokensInInputOrder() {
+		RawBrowserXicUtils.ParsedXicTargets parsed=RawBrowserXicUtils.parseXicTargets("445.34, BADTOKEN, PEPTIDE[Unlisted Mod]++");
+
+		assertEquals(3, parsed.diagnostics().size());
+		assertEquals(RawBrowserXicUtils.XicInputDiagnostic.Status.ACCEPTED, parsed.diagnostics().get(0).status());
+		assertEquals(RawBrowserXicUtils.XicInputDiagnostic.Status.REJECTED, parsed.diagnostics().get(1).status());
+		assertEquals(RawBrowserXicUtils.XicInputDiagnostic.Status.CAVEAT, parsed.diagnostics().get(2).status());
+		assertTrue(parsed.diagnosticSummary().contains("Rejected: BADTOKEN"));
+		assertTrue(parsed.diagnosticSummary().contains("ignored Unlisted Mod"));
+		assertTrue(parsed.precursorTargets().stream().anyMatch(target -> target.label().equals("XIC 445.3400")));
+		assertTrue(parsed.precursorTargets().stream().anyMatch(target -> target.label().contains("PEPTIDE++ [M]")));
+	}
+
+	@Test
 	void sanitizeXicPasteChunk_normalizesLineBreaksAndDelimiterRuns() {
 		String chunk="445.34,\nPEPTIDER++\t[Oxidation (M)]   ,, 500.2";
 		String sanitized=RawBrowserXicUtils.sanitizeXicPasteChunk(chunk);

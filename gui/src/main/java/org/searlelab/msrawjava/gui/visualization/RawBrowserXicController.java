@@ -103,6 +103,7 @@ final class RawBrowserXicController {
 	void extractFromInput(ScanTypeFilterOption activeScanType) {
 		if (activeScanType==null||activeScanType.isAll()) return;
 		RawBrowserXicUtils.ParsedXicTargets parsedTargets=RawBrowserXicUtils.parseXicTargets(xicField.getText());
+		setXicFeedback(parsedTargets.diagnosticSummary());
 		List<RawBrowserXicUtils.XicTarget> targets=selectTargetsForScanType(parsedTargets, activeScanType);
 		if (targets.isEmpty()) {
 			clearState();
@@ -145,6 +146,10 @@ final class RawBrowserXicController {
 		if (xicField!=null) xicField.setEnabled(enabled);
 		if (xicToleranceFilter!=null) xicToleranceFilter.setEnabled(enabled);
 		if (extractXicButton!=null) extractXicButton.setEnabled(enabled);
+	}
+
+	private void setXicFeedback(String message) {
+		if (xicLabel!=null) xicLabel.setText(message==null?"":message);
 	}
 
 	boolean isXicModeActive() {

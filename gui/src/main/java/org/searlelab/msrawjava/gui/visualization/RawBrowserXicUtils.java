@@ -5,12 +5,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 
-import org.searlelab.msrawjava.peptides.ParsedQueryToken;
 import org.searlelab.msrawjava.peptides.ChargeParsingUtils;
 import org.searlelab.msrawjava.peptides.PeptideIonGenerator;
 import org.searlelab.msrawjava.peptides.PeptideIonTarget;
 import org.searlelab.msrawjava.peptides.PeptideQueryParser;
+import org.searlelab.msrawjava.peptides.ParsedQueryToken;
 
 /**
  * Utility methods for Raw Browser XIC parsing and extraction math.
@@ -44,14 +45,16 @@ final class RawBrowserXicUtils {
 	static final class ParsedXicTargets {
 		private final List<XicTarget> precursorTargets;
 		private final List<XicTarget> fragmentTargets;
+		private final List<XicInputDiagnostic> diagnostics;
 
-		private ParsedXicTargets(List<XicTarget> precursorTargets, List<XicTarget> fragmentTargets) {
+		private ParsedXicTargets(List<XicTarget> precursorTargets, List<XicTarget> fragmentTargets, List<XicInputDiagnostic> diagnostics) {
 			this.precursorTargets=precursorTargets;
 			this.fragmentTargets=fragmentTargets;
+			this.diagnostics=diagnostics;
 		}
 
 		static ParsedXicTargets empty() {
-			return new ParsedXicTargets(List.of(), List.of());
+			return new ParsedXicTargets(List.of(), List.of(), List.of());
 		}
 
 		List<XicTarget> precursorTargets() {
@@ -65,6 +68,37 @@ final class RawBrowserXicUtils {
 		boolean hasAnyTargets() {
 			return !precursorTargets.isEmpty()||!fragmentTargets.isEmpty();
 		}
+
+		List<XicInputDiagnostic> diagnostics() {
+			return diagnostics;
+		}
+
+		String diagnosticSummary() {
+			if (diagnostics.isEmpty()) return "Enter one or more XIC targets.";
+			StringJoiner joiner=new StringJoiner("; ");
+			for (XicInputDiagnostic diagnostic : diagnostics) {
+				joiner.add(diagnostic.message());
+			}
+			return joiner.toString();
+		}
+	}
+
+	static final class XicInputDiagnostic {
+		enum Status { ACCEPTED, REJECTED, CAVEAT }
+
+		private final String token;
+		private final Status status;
+		private final String message;
+
+		XicInputDiagnostic(String token, Status status, String message) {
+			this.token=token;
+			this.status=status;
+			this.message=message;
+		}
+
+		String token() { return token; }
+		Status status() { return status; }
+		String message() { return message; }
 	}
 
 	private static final PeptideQueryParser QUERY_PARSER=new PeptideQueryParser();
@@ -166,25 +200,34 @@ final class RawBrowserXicUtils {
 
 		LinkedHashMap<String, XicTarget> precursorTargets=new LinkedHashMap<>();
 		LinkedHashMap<String, XicTarget> fragmentTargets=new LinkedHashMap<>();
+		ArrayList<XicInputDiagnostic> diagnostics=new ArrayList<>();
 		for (String token : tokens) {
-			QUERY_PARSER.parseToken(token).ifPresent(parsed -> {
-				if (parsed.isNumericMz()) {
-					double mz=parsed.getNumericMz();
-					XicTarget target=new XicTarget(mz, String.format(Locale.ROOT, "XIC %.4f", mz), token);
-					addUniqueTarget(precursorTargets, target);
-					addUniqueTarget(fragmentTargets, target);
-					return;
-				}
-				if (parsed.isMolecularFormula()) {
-					String label=parsed.getMolecularFormula().toCanonicalFormulaString()+ChargeParsingUtils.formatChargeShorthand(parsed.getMolecularFormula().getCharge());
-					XicTarget target=new XicTarget(parsed.getMolecularFormula().getMz(), label, parsed.getOriginalToken());
-					addUniqueTarget(precursorTargets, target);
-					return;
-				}
+			var parsedToken=QUERY_PARSER.parseToken(token);
+			if (parsedToken.isEmpty()) {
+				diagnostics.add(new XicInputDiagnostic(token, XicInputDiagnostic.Status.REJECTED, "Rejected: "+token));
+				continue;
+			}
+			ParsedQueryToken parsed=parsedToken.get();
+			if (parsed.isNumericMz()) {
+				double mz=parsed.getNumericMz();
+				XicTarget target=new XicTarget(mz, String.format(Locale.ROOT, "XIC %.4f", mz), token);
+				addUniqueTarget(precursorTargets, target);
+				addUniqueTarget(fragmentTargets, target);
+			} else if (parsed.isMolecularFormula()) {
+				String label=parsed.getMolecularFormula().toCanonicalFormulaString()+ChargeParsingUtils.formatChargeShorthand(parsed.getMolecularFormula().getCharge());
+				XicTarget target=new XicTarget(parsed.getMolecularFormula().getMz(), label, parsed.getOriginalToken());
+				addUniqueTarget(precursorTargets, target);
+			} else {
 				addPeptideTargets(parsed, precursorTargets, fragmentTargets);
-			});
+			}
+			if (parsed.isPeptide()&&!parsed.getPeptideQuery().getIgnoredNamedModifications().isEmpty()) {
+				diagnostics.add(new XicInputDiagnostic(token, XicInputDiagnostic.Status.CAVEAT,
+						"Caution: "+token+" ignored "+String.join(", ", parsed.getPeptideQuery().getIgnoredNamedModifications())));
+			} else {
+				diagnostics.add(new XicInputDiagnostic(token, XicInputDiagnostic.Status.ACCEPTED, "Accepted: "+token));
+			}
 		}
-		return new ParsedXicTargets(List.copyOf(precursorTargets.values()), List.copyOf(fragmentTargets.values()));
+		return new ParsedXicTargets(List.copyOf(precursorTargets.values()), List.copyOf(fragmentTargets.values()), List.copyOf(diagnostics));
 	}
 
 	private static void addPeptideTargets(ParsedQueryToken parsed, Map<String, XicTarget> precursorTargets, Map<String, XicTarget> fragmentTargets) {

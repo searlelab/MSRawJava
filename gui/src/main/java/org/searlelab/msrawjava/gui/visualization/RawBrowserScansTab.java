@@ -145,7 +145,7 @@ class RawBrowserScansTab extends JPanel {
 		deltaModeButton.setToolTipText("Plot intensity-weighted m/z error for extracted signal.");
 		xicModeButton.addActionListener(e -> xicController.setDisplayMode(XicDisplayMode.INTENSITY));
 		deltaModeButton.addActionListener(e -> xicController.setDisplayMode(XicDisplayMode.DELTA));
-		JLabel xicLabel=new JLabel("");
+		JLabel xicLabel=new JLabel("Enter one or more XIC targets.");
 		xicField=new JTextField();
 		xicField.setToolTipText("Enter one or more m/z, peptide, or formula targets with optional signed charges (comma or whitespace separated).");
 		((AbstractDocument)xicField.getDocument()).setDocumentFilter(new XicInputFilter());
@@ -180,6 +180,7 @@ class RawBrowserScansTab extends JPanel {
 		xicControlsPanel.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
 		xicControlsPanel.add(xicExamplesPanel, BorderLayout.NORTH);
 		xicControlsPanel.add(xicBar, BorderLayout.CENTER);
+		xicControlsPanel.add(xicLabel, BorderLayout.SOUTH);
 		topChartContainer=new JPanel(new BorderLayout());
 		topChartContainer.add(xicControlsPanel, BorderLayout.NORTH);
 		topChartContainer.add(renderer.getTopChartContent(), BorderLayout.CENTER);
