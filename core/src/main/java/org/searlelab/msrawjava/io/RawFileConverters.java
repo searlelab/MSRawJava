@@ -7,9 +7,11 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
@@ -34,6 +36,7 @@ import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.io.tims.TIMSPeakPicker;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
+import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.DemultiplexedFragmentScan;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.MassTolerance;
@@ -101,15 +104,19 @@ public class RawFileConverters {
 			float start=0.0f;
 			float sectionTime=gradientLength/sections;
 			double totalPrecursorTic=0.0;
+			Set<Integer> emittedPrecursorIndices=new HashSet<>();
+			Set<Integer> emittedFragmentIndices=new HashSet<>();
 			for (int i=0; i<sections; i++) {
 				boolean lastSection=i==sections-1;
 				float stop=lastSection?Float.MAX_VALUE:start+sectionTime;
 				float queryStop=sectionQueryStop(stop, lastSection);
 
 				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, queryStop);
+				retainUnemitted(ms1s, emittedPrecursorIndices);
 				totalPrecursorTic+=sumTic(ms1s);
 				if (progress.isCanceled()) return false;
 				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, queryStop, false);
+				retainUnemitted(ms2s, emittedFragmentIndices);
 				if (progress.isCanceled()) return false;
 
 				submitWrite(outFile, ms1s, ms2s, writerRef, writeFuturesRef, firstWriteErrorRef);
@@ -229,6 +236,8 @@ public class RawFileConverters {
 			final float sectionTime=gradientLength/sections;
 			int currentScanNumber=1;
 			double totalPrecursorTic=0.0;
+			Set<Integer> emittedPrecursorIndices=new HashSet<>();
+			Set<Integer> emittedFragmentIndices=new HashSet<>();
 
 			for (int i=0; i<sections; i++) {
 				boolean lastSection=i==sections-1;
@@ -237,11 +246,13 @@ public class RawFileConverters {
 
 				// Publish MS1s as-is (unchanged semantics)
 				ArrayList<PrecursorScan> ms1s=rawFile.getPrecursors(start, queryStop);
+				retainUnemitted(ms1s, emittedPrecursorIndices);
 				totalPrecursorTic+=sumTic(ms1s);
 				if (progress.isCanceled()) return false;
 
 				// Gather MS2s for cycle assembly (don’t directly publish them)
 				ArrayList<FragmentScan> ms2s=rawFile.getStripes(new Range(0.0f, Float.MAX_VALUE), start, queryStop, false);
+				retainUnemitted(ms2s, emittedFragmentIndices);
 				if (progress.isCanceled()) return false;
 
 				// Feed MS2 scans into the cycle assembler in arrival order
@@ -740,6 +751,10 @@ public class RawFileConverters {
 	// Use non-overlapping section query windows while keeping the section progression unchanged.
 	private static float sectionQueryStop(float stop, boolean isLastSection) {
 		return isLastSection?Float.MAX_VALUE:Math.nextDown(stop);
+	}
+
+	private static void retainUnemitted(List<? extends AcquiredSpectrum> spectra, Set<Integer> emittedIndices) {
+		spectra.removeIf(scan -> !emittedIndices.add(scan.getSpectrumIndex()));
 	}
 
 	private static ThreadFactory namedFactory(String base) {

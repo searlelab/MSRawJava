@@ -116,12 +116,14 @@ class RawFileConvertersStandardTest {
 		raw.setMetadata(Map.of("filename", "boundary.mzML", "filelocation", "/tmp/boundary.mzML"));
 
 		ArrayList<PrecursorScan> ms1s=new ArrayList<>();
-		ms1s.add(new PrecursorScan("ms1", 1, 0.5f, 0, 400.0, 500.0, null, new double[] {401.0}, new float[] {10.0f}, null));
+		ms1s.add(new PrecursorScan("ms1-boundary", 2, 1.0f, 0, 400.0, 500.0, null, new double[] {401.0}, new float[] {10.0f}, null));
 		ArrayList<FragmentScan> ms2s=new ArrayList<>();
-		// Exactly at section boundary (1.0 sec)
+		ms2s.add(new FragmentScan("ms2-before-boundary", "prec", 1, 450.0, 0.5f, 0, null, 449.5, 450.5, new double[] {450.1}, new float[] {4.0f}, null,
+				(byte)2, 0.0, 2000.0));
 		ms2s.add(new FragmentScan("ms2-boundary", "prec", 2, 450.0, 1.0f, 0, null, 449.5, 450.5, new double[] {450.1}, new float[] {5.0f}, null,
 				(byte)2, 0.0, 2000.0));
 		raw.setScans(ms1s, ms2s);
+		raw.setRtBoundaryTolerance(0.00006f); // Thermo's 1e-6 minute tolerance, expressed in seconds
 
 		ConversionParameters params=ConversionParameters.builder().outType(OutputType.EncyclopeDIA).build();
 		CapturingProgress progress=new CapturingProgress();
@@ -138,10 +140,13 @@ class RawFileConvertersStandardTest {
 		assertTrue(Files.exists(outFile), "Expected output DIA to exist");
 
 		try (Connection c=DriverManager.getConnection("jdbc:sqlite:"+outFile)) {
-			assertEquals(1, count(c, "select count(*) from spectra"), "Expected one MS2 row");
+			assertEquals(2, count(c, "select count(*) from spectra"), "Expected both distinct MS2 rows");
 			assertEquals(1, count(c, "select count(*) from spectra where SpectrumIndex=2"), "Boundary scan should be inserted once");
+			assertEquals(1, count(c, "select count(*) from precursor where SpectrumIndex=2"), "Boundary precursor should be inserted once");
 			assertEquals(0, count(c, "select count(*) from (select SpectrumIndex, count(*) c from spectra group by SpectrumIndex having c>1)"),
 					"No duplicated SpectrumIndex values should exist");
+			assertEquals(0, count(c, "select count(*) from (select SpectrumIndex, count(*) c from precursor group by SpectrumIndex having c>1)"),
+					"No duplicated precursor SpectrumIndex values should exist");
 		}
 	}
 
@@ -306,6 +311,7 @@ class RawFileConvertersStandardTest {
 		private Map<String, String> metadata=Collections.emptyMap();
 		private ArrayList<PrecursorScan> ms1s=new ArrayList<>();
 		private ArrayList<FragmentScan> ms2s=new ArrayList<>();
+		private float rtBoundaryTolerance;
 
 		private FakeStripeFile(File file) {
 			this.file=file;
@@ -328,6 +334,10 @@ class RawFileConvertersStandardTest {
 			this.ms2s=ms2s;
 		}
 
+		void setRtBoundaryTolerance(float rtBoundaryTolerance) {
+			this.rtBoundaryTolerance=rtBoundaryTolerance;
+		}
+
 		@Override
 		public Map<Range, WindowData> getRanges() {
 			return ranges;
@@ -348,7 +358,7 @@ class RawFileConvertersStandardTest {
 			ArrayList<PrecursorScan> out=new ArrayList<>();
 			for (PrecursorScan scan : ms1s) {
 				float rt=scan.getScanStartTime();
-				if (rt>=minRT&&rt<=maxRT) out.add(scan);
+				if (rt>=minRT-rtBoundaryTolerance&&rt<=maxRT+rtBoundaryTolerance) out.add(scan);
 			}
 			return out;
 		}
@@ -363,7 +373,7 @@ class RawFileConvertersStandardTest {
 			ArrayList<FragmentScan> out=new ArrayList<>();
 			for (FragmentScan scan : ms2s) {
 				float rt=scan.getScanStartTime();
-				if (rt<minRT||rt>maxRT) continue;
+				if (rt<minRT-rtBoundaryTolerance||rt>maxRT+rtBoundaryTolerance) continue;
 				if (scan.getIsolationWindowLower()>targetMzRange.getStop()||scan.getIsolationWindowUpper()<targetMzRange.getStart()) continue;
 				out.add(scan);
 			}
