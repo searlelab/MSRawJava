@@ -759,22 +759,16 @@ For Bruker data, use `BrukerTIMSFile` and open the `.d` directory path.
 Path input = Path.of("/data/sample.raw");
 Path outputDir = Path.of("/data/converted");
 
-ProcessingThreadPool pool = ProcessingThreadPool.createWithThreadLimit(null);
-ThermoRawFile raw = new ThermoRawFile();
-try {
-    raw.openFile(input);
-    ConversionParameters params = ConversionParameters.builder()
-            .outType(OutputType.mzML)
-            .build();
-    RawFileConverters.writeStandard(pool, raw, outputDir, params,
-            new LoggingProgressIndicator(LoggingProgressIndicator.Mode.BATCH, false));
-} finally {
-    raw.close();
-    pool.close();
-}
+ConversionOptions options = ConversionOptions.builder()
+        .outputType(OutputType.mzML)
+        .build();
+ConversionRequest request = new ConversionRequest(
+        input, outputDir, null, null, options, null);
+ConversionResult result = RawFileConversion.convert(request);
+System.out.println(result.getStatus() + ": " + result.getOutputPath());
 ```
 
-Use `RawFileConverters.writeDemux(...)` instead of `writeStandard(...)` when you have resolved a supported staggered-window DIA input to demultiplexed conversion.
+Leave demultiplexing unset for automatic selection, or call `.demultiplex(true)` or `.demultiplex(false)` on the options builder to override it. The facade owns and closes readers, writers, and its processing pool.
 
 ### Building from Source
 

@@ -146,10 +146,14 @@ public class ConversionParameters {
 				+", discoverMzMLFiles="+discoverMzMLFiles+", outputFilePathOverride="+outputFilePathOverride+", processingThreads="+processingThreads+"]";
 	}
 
+	/** @deprecated Use {@link ConversionOptions#builder()} for library conversion settings. */
+	@Deprecated
 	public static Builder builder() {
 		return new Builder();
 	}
 
+	/** @deprecated Use the top-level {@link ConversionOptionsBuilder}. */
+	@Deprecated
 	public static class Builder {
 		private ArrayList<File> fileList=new ArrayList<>();
 		private OutputType outType=OutputType.EncyclopeDIA;

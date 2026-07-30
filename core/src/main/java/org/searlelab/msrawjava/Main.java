@@ -11,20 +11,17 @@ import java.util.concurrent.Callable;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig.InterpolationMethod;
 import org.searlelab.msrawjava.io.ConversionParameters;
-import org.searlelab.msrawjava.io.MGFOutputFile;
+import org.searlelab.msrawjava.io.ConversionOptions;
+import org.searlelab.msrawjava.io.ConversionRequest;
+import org.searlelab.msrawjava.io.ConversionResult;
+import org.searlelab.msrawjava.io.ConversionStatus;
+import org.searlelab.msrawjava.io.RawFileConversion;
 import org.searlelab.msrawjava.io.OutputType;
-import org.searlelab.msrawjava.io.RawFileConverters;
-import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.VendorFiles;
-import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
-import org.searlelab.msrawjava.io.mzml.MzmlConstants;
-import org.searlelab.msrawjava.io.mzml.MzmlFile;
-import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
-import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.logging.ConsoleStatus;
 import org.searlelab.msrawjava.logging.FileLogRecorder;
 import org.searlelab.msrawjava.logging.Logger;
@@ -65,12 +62,13 @@ public class Main {
 		}
 	}
 
-	/** Discovers vendor files and writes outputs using the selected format. */
+	/**
+	 * Discovers vendor files and converts each through the library facade.
+	 * @deprecated Library consumers should call {@link RawFileConversion#convert(ConversionRequest)} for one input.
+	 */
+	@Deprecated
 	public static void convertKnownFiles(ConversionParameters params) throws Exception {
-		ThermoServerPool.setProcessingThreadLimit(params.getProcessingThreads());
-		ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(params.getProcessingThreads());
 		VendorFiles files=new VendorFiles();
-		LoggingProgressIndicator indicator=null;
 		for (File f : params.getFileList()) {
 			if (f.exists()&&f.canRead()) {
 				VendorFileFinder.findAndAddRawAndD(f.toPath(), files, params.isDiscoverDIAFiles(), params.isDiscoverMzMLFiles());
@@ -81,121 +79,58 @@ public class Main {
 			Logger.errorLine("No vendor files found ("+vendors+").");
 			return;
 		}
+		List<ConversionStatus> statuses=new ArrayList<>();
+		statuses.addAll(convertDiscovered(files.getThermoFiles(), VendorFile.THERMO, params));
+		statuses.addAll(convertDiscovered(files.getBrukerDirs(), VendorFile.BRUKER, params));
+		statuses.addAll(convertDiscovered(files.getDiaFiles(), VendorFile.ENCYCLOPEDIA, params));
+		statuses.addAll(convertDiscovered(files.getMzmlFiles(), VendorFile.MZML, params));
+		if (statuses.contains(ConversionStatus.CANCELED)) Logger.logLine("One or more conversions were canceled.");
+	}
 
-		if (files.getThermoFiles().size()>0) {
-			Logger.logLine("Found "+files.getThermoFiles().size()+" total "+VendorFile.THERMO.getDisplayName()+" files");
-			try {
+	private static List<ConversionStatus> convertDiscovered(List<Path> paths, VendorFile vendor, ConversionParameters params) throws Exception {
+		List<ConversionStatus> statuses=new ArrayList<>();
+		if (paths.isEmpty()) return statuses;
+		Logger.logLine("Found "+paths.size()+" total "+vendor.getDisplayName()+" files");
+		ThermoServerPool.setProcessingThreadLimit(params.getProcessingThreads());
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(params.getProcessingThreads())) {
+			if (vendor==VendorFile.THERMO) {
 				Logger.logLine("Setting up "+VendorFile.THERMO.getDisplayName()+" reader...");
 				ThermoServerPool.port();
-
-				for (Path path : files.getThermoFiles()) {
-					Logger.logLine("Processing "+VendorFile.THERMO.getDisplayName()+" "+path);
-
-					Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
-					Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
-
-					ThermoRawFile rawFile=new ThermoRawFile();
-					rawFile.openFile(path);
-
-					ConversionParameters fileParams=prepareFileParameters(params, rawFile, VendorFile.THERMO);
-					fileParams=maybeOverrideOutput(fileParams, path, outputPath, VendorFile.THERMO);
-					indicator=createIndicator(fileParams);
-					try {
-						if (fileParams.getDemultiplex().orElse(false)) {
-							RawFileConverters.writeDemux(pool, rawFile, outputPath, fileParams, indicator);
-						} else {
-							RawFileConverters.writeStandard(pool, rawFile, outputPath, fileParams, indicator);
-						}
-					} finally {
-						indicator.close();
-					}
-					Logger.logLine("Finished writing "+params.getOutType()+" file");
-				}
-
-			} finally {
-				ThermoServerPool.shutdown();
 			}
-		}
-
-		if (files.getBrukerDirs().size()>0) {
-			Logger.logLine("Found "+files.getBrukerDirs().size()+" total "+VendorFile.BRUKER.getDisplayName()+" files");
-			for (Path path : files.getBrukerDirs()) {
-				Logger.logLine("Processing "+VendorFile.BRUKER.getDisplayName()+" "+path);
-
-				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
-				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
-
-				if (params.getDemultiplex().orElse(false)) {
+			for (Path path : paths) {
+				Logger.logLine("Processing "+vendor.getDisplayName()+" "+path);
+				Path outputDirectory=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
+				Logger.logLine("Writing "+params.getOutType()+" file to "+outputDirectory);
+				if (vendor==VendorFile.BRUKER&&params.getDemultiplex().orElse(false)) {
 					Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()
 							+" files. Processing without demultiplexing.");
 				}
-				indicator=createIndicator(params);
+				LoggingProgressIndicator indicator=createIndicator(params);
 				try {
-					RawFileConverters.writeTims(pool, path, outputPath, params, indicator);
+					ConversionOptions options=ConversionOptions.builder().outputType(params.getOutType())
+							.minimumMS1Intensity(params.getMinimumMS1Intensity()).minimumMS2Intensity(params.getMinimumMS2Intensity())
+							.demultiplex(params.getDemultiplex()).precursorMarginSize(params.getPrecursorMarginSize())
+							.demuxTolerance(params.getDemuxTolerance()).demuxConfig(params.getDemuxConfig()).build();
+					Path requestOutputDirectory=params.getOutputFilePathOverride()==null?params.getOutputDirPath():null;
+					ConversionRequest request=new ConversionRequest(path, requestOutputDirectory, params.getOutputFilePathOverride(),
+						null, options, indicator);
+					ConversionResult result=RawFileConversion.convert(request, pool);
+					statuses.add(result.getStatus());
+					if (result.getStatus()==ConversionStatus.COMPLETED) {
+						Logger.logLine("Finished writing "+params.getOutType()+" file");
+					} else {
+						Logger.logLine("Canceled writing "+params.getOutType()+" file");
+					}
 				} catch (BrukerTIMSFile.UnsupportedTsfException e) {
 					Logger.errorLine(e.getMessage());
-					continue;
 				} finally {
 					indicator.close();
 				}
-				Logger.logLine("Finished writing "+params.getOutType()+" file");
 			}
+		} finally {
+			if (vendor==VendorFile.THERMO) ThermoServerPool.shutdown();
 		}
-
-		if (files.getDiaFiles().size()>0) {
-			Logger.logLine("Found "+files.getDiaFiles().size()+" total "+VendorFile.ENCYCLOPEDIA.getDisplayName()+" files");
-			for (Path path : files.getDiaFiles()) {
-				Logger.logLine("Processing "+VendorFile.ENCYCLOPEDIA.getDisplayName()+" "+path);
-
-				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
-				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
-
-				EncyclopeDIAFile dia=new EncyclopeDIAFile();
-				dia.openFile(path.toFile());
-
-				ConversionParameters fileParams=prepareFileParameters(params, dia, VendorFile.ENCYCLOPEDIA);
-				fileParams=maybeOverrideOutput(fileParams, path, outputPath, VendorFile.ENCYCLOPEDIA);
-				indicator=createIndicator(fileParams);
-				try {
-					if (fileParams.getDemultiplex().orElse(false)) {
-						RawFileConverters.writeDemux(pool, dia, outputPath, fileParams, indicator);
-					} else {
-						RawFileConverters.writeStandard(pool, dia, outputPath, fileParams, indicator);
-					}
-				} finally {
-					indicator.close();
-				}
-				Logger.logLine("Finished writing "+params.getOutType()+" file");
-			}
-		}
-
-		if (files.getMzmlFiles().size()>0) {
-			Logger.logLine("Found "+files.getMzmlFiles().size()+" total "+VendorFile.MZML.getDisplayName()+" files");
-			for (Path path : files.getMzmlFiles()) {
-				Logger.logLine("Processing "+VendorFile.MZML.getDisplayName()+" "+path);
-
-				Path outputPath=params.getOutputDirPath()==null?path.getParent():params.getOutputDirPath();
-				Logger.logLine("Writing "+params.getOutType()+" file to "+outputPath.toString());
-
-				MzmlFile mzml=new MzmlFile();
-				mzml.openFile(path.toFile());
-
-				ConversionParameters fileParams=prepareFileParameters(params, mzml, VendorFile.MZML);
-				fileParams=maybeOverrideOutput(fileParams, path, outputPath, VendorFile.MZML);
-				indicator=createIndicator(fileParams);
-				try {
-					if (fileParams.getDemultiplex().orElse(false)) {
-						RawFileConverters.writeDemux(pool, mzml, outputPath, fileParams, indicator);
-					} else {
-						RawFileConverters.writeStandard(pool, mzml, outputPath, fileParams, indicator);
-					}
-				} finally {
-					indicator.close();
-				}
-				Logger.logLine("Finished writing "+params.getOutType()+" file");
-			}
-		}
-		pool.close();
+		return statuses;
 	}
 
 	static String getCliAboutText() {
@@ -211,89 +146,6 @@ public class Main {
 			return new LoggingProgressIndicator(LoggingProgressIndicator.Mode.BATCH, useAnsi);
 		}
 		return new LoggingProgressIndicator(LoggingProgressIndicator.Mode.DEFAULT, useAnsi);
-	}
-
-	private static ConversionParameters prepareFileParameters(ConversionParameters base, StripeFileInterface rawFile, VendorFile source) {
-		boolean inferredDemux=source!=VendorFile.BRUKER&&RawFileStructureTools.isStaggered(rawFile.getRanges());
-		boolean demux=base.getDemultiplex().orElse(inferredDemux);
-		if (source==VendorFile.BRUKER&&demux) {
-			demux=false;
-		}
-		if (base.getPrecursorMarginSize().isPresent()) {
-			rawFile.setPrecursorMarginSize(base.getPrecursorMarginSize().get());
-		}
-		double margin=rawFile.getPrecursorMarginSize();
-		if (demux&&margin!=0.0) {
-			throw new IllegalArgumentException("--demux true cannot be used with --precursorMarginSize "+margin
-					+". Use staggered demultiplexing or precursor margins, not both.");
-		}
-		return cloneWithResolvedSettings(base, demux);
-	}
-
-	private static ConversionParameters maybeOverrideOutput(ConversionParameters base, Path inputPath, Path outputDir, VendorFile source) {
-		if (base.getOutputFilePathOverride()!=null) return base;
-		String name=inputPath.getFileName().toString();
-		boolean isDiaInput=VendorFile.ENCYCLOPEDIA.matchesName(name);
-		boolean isMzmlInput=VendorFile.MZML.matchesName(name);
-
-		if (base.getDemultiplex().orElse(false)&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA||source==VendorFile.MZML)) {
-			String baseName=stripExtension(name);
-			String suffix;
-			switch (base.getOutType()) {
-				case EncyclopeDIA:
-					suffix=".demux"+EncyclopeDIAFile.DIA_EXTENSION;
-					break;
-				case mzML:
-					suffix=".demux"+MzmlConstants.MZML_EXTENSION;
-					break;
-				case mgf:
-					suffix=".demux"+MGFOutputFile.MGF_EXTENSION;
-					break;
-				default:
-					suffix=null;
-					break;
-			}
-			if (suffix!=null) {
-				return cloneWithOutputOverride(base, outputDir.resolve(baseName+suffix));
-			}
-		}
-
-		if (source==VendorFile.ENCYCLOPEDIA&&base.getOutType()==OutputType.EncyclopeDIA&&base.getOutputDirPath()==null&&isDiaInput) {
-			String baseName=name.substring(0, name.length()-4);
-			Path override=outputDir.resolve(baseName+".2"+EncyclopeDIAFile.DIA_EXTENSION);
-			return cloneWithOutputOverride(base, override);
-		}
-
-		// Prevent mzML-to-mzML overwrite when output dir is same as input dir
-		if (source==VendorFile.MZML&&base.getOutType()==OutputType.mzML&&base.getOutputDirPath()==null&&isMzmlInput) {
-			String baseName=name.substring(0, name.length()-5); // strip .mzML
-			Path override=outputDir.resolve(baseName+".2"+MzmlConstants.MZML_EXTENSION);
-			return cloneWithOutputOverride(base, override);
-		}
-		return base;
-	}
-
-	private static String stripExtension(String name) {
-		int idx=name.lastIndexOf('.');
-		return (idx>0)?name.substring(0, idx):name;
-	}
-
-	private static ConversionParameters cloneWithOutputOverride(ConversionParameters base, Path override) {
-		return ConversionParameters.builder().fileList(base.getFileList()).outType(base.getOutType()).outputDirPath(base.getOutputDirPath())
-				.minimumMS1Intensity(base.getMinimumMS1Intensity()).minimumMS2Intensity(base.getMinimumMS2Intensity()).demultiplex(base.getDemultiplex())
-				.precursorMarginSize(base.getPrecursorMarginSize()).demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig())
-				.logFilePath(base.getLogFilePath()).batch(base.isBatch()).silent(base.isSilent()).noAnsi(base.isNoAnsi())
-				.discoverDIAFiles(base.isDiscoverDIAFiles()).discoverMzMLFiles(base.isDiscoverMzMLFiles()).outputFilePathOverride(override)
-				.processingThreads(base.getProcessingThreads()).build();
-	}
-
-	private static ConversionParameters cloneWithResolvedSettings(ConversionParameters base, boolean demux) {
-		return ConversionParameters.builder().fileList(base.getFileList()).outType(base.getOutType()).outputDirPath(base.getOutputDirPath())
-				.minimumMS1Intensity(base.getMinimumMS1Intensity()).minimumMS2Intensity(base.getMinimumMS2Intensity()).demultiplex(demux)
-				.precursorMarginSize(base.getPrecursorMarginSize()).demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig())
-				.logFilePath(base.getLogFilePath()).batch(base.isBatch()).silent(base.isSilent()).noAnsi(base.isNoAnsi())
-				.discoverDIAFiles(base.isDiscoverDIAFiles()).discoverMzMLFiles(base.isDiscoverMzMLFiles())
-				.outputFilePathOverride(base.getOutputFilePathOverride()).processingThreads(base.getProcessingThreads()).build();
 	}
 
 	@Command(name="msrawjava", mixinStandardHelpOptions=true, description="Convert vendor raw files into analysis-ready formats.", versionProvider=VersionProvider.class)
@@ -316,11 +168,18 @@ public class Main {
 		@Option(names="--log-file", paramLabel="FILE", description="Write logs to a file (overwrites on each run).")
 		private Path logFilePath;
 
-		@Option(names="--min-ms1", defaultValue="3.0", description="Minimum MS1 intensity threshold for timsTOF.")
 		private float minimumMS1Intensity=3.0f;
+		private float minimumMS2Intensity=1.0f;
+
+		@Option(names="--min-ms1", defaultValue="3.0", description="Minimum MS1 intensity threshold for timsTOF.")
+		private void setMinimumMS1Intensity(float value) {
+			minimumMS1Intensity=validateIntensity(value, "--min-ms1");
+		}
 
 		@Option(names="--min-ms2", defaultValue="1.0", description="Minimum MS2 intensity threshold for timsTOF.")
-		private float minimumMS2Intensity=1.0f;
+		private void setMinimumMS2Intensity(float value) {
+			minimumMS2Intensity=validateIntensity(value, "--min-ms2");
+		}
 
 		@Option(names="--demux", arity="1", description="Enable or disable staggered window demultiplexing for DIA.")
 		private Boolean demultiplex=null;
@@ -385,12 +244,14 @@ public class Main {
 		}
 
 		ConversionParameters toParameters() {
+			float validatedMS1=validateIntensity(minimumMS1Intensity, "--min-ms1");
+			float validatedMS2=validateIntensity(minimumMS2Intensity, "--min-ms2");
 			DemuxConfig demuxConfig=DemuxConfig.builder().k(demuxK)
 					.interpolationMethod(demuxInterpolation==DemuxInterpolation.cubic?InterpolationMethod.CUBIC_HERMITE:InterpolationMethod.LOG_QUADRATIC)
 					.includeEdgeSubWindows(!demuxExcludeEdges).build();
 
 			return ConversionParameters.builder().fileList(paths).outType(format.toOutputType()).outputDirPath(outputDirPath).logFilePath(logFilePath)
-					.minimumMS1Intensity(minimumMS1Intensity).minimumMS2Intensity(minimumMS2Intensity).demultiplex(demultiplex)
+					.minimumMS1Intensity(validatedMS1).minimumMS2Intensity(validatedMS2).demultiplex(demultiplex)
 					.precursorMarginSize(Optional.ofNullable(precursorMarginSize)).demuxTolerance(new PPMMassTolerance(demuxPpm)).demuxConfig(demuxConfig)
 					.batch(batch).silent(silent).noAnsi(noAnsi).discoverDIAFiles(discoverDIAFiles).discoverMzMLFiles(discoverMzMLFiles)
 					.processingThreads(validateThreads()).build();
@@ -400,6 +261,13 @@ public class Main {
 			if (threads==null) return null;
 			if (threads<1) throw new CommandLine.ParameterException(new CommandLine(this), "--threads must be a positive integer.");
 			return threads;
+		}
+
+		private float validateIntensity(float intensity, String option) {
+			if (!Float.isFinite(intensity)||intensity<0f) {
+				throw new CommandLine.ParameterException(new CommandLine(this), option+" must be finite and nonnegative.");
+			}
+			return intensity;
 		}
 
 		private void configureLogging(ConversionParameters params) throws Exception {

@@ -19,14 +19,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.MockedConstruction; // <-- added
+import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
 import org.searlelab.msrawjava.io.RawFileConverters;
 import org.searlelab.msrawjava.io.StripeFileInterface;
-import org.searlelab.msrawjava.io.thermo.ThermoRawFile; // <-- added
+import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
@@ -88,6 +88,8 @@ class MainSmokeTest {
 		Files.createDirectories(start);
 		Path raw=start.resolve("file.raw");
 		Files.writeString(raw, "dummy");
+		Path raw2=start.resolve("file2.raw");
+		Files.writeString(raw2, "dummy");
 		Path ddir=start.resolve("bundle.d");
 		Files.createDirectories(ddir);
 
@@ -120,7 +122,7 @@ class MainSmokeTest {
 
 			// Verify writers called with expected paths and any ProgressIndicator
 			conv.verify(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), eq(outDir),
-					argThat(paramsArg -> paramsArg.getOutType()==OutputType.mgf), any(ProgressIndicator.class)), times(1));
+					argThat(paramsArg -> paramsArg.getOutType()==OutputType.mgf), any(ProgressIndicator.class)), times(2));
 
 			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(outDir), argThat(
 					paramsArg -> paramsArg.getOutType()==OutputType.mgf&&paramsArg.getMinimumMS1Intensity()==2.0f&&paramsArg.getMinimumMS2Intensity()==1.0f),

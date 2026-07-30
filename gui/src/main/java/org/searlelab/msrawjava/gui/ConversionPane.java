@@ -45,15 +45,13 @@ import javax.swing.table.JTableHeader;
 import org.searlelab.msrawjava.COREPreferences;
 import org.searlelab.msrawjava.gui.filebrowser.StripeTableCellRenderer;
 import org.searlelab.msrawjava.gui.utils.PathDisplayNames;
-import org.searlelab.msrawjava.io.ConversionParameters;
+import org.searlelab.msrawjava.io.ConversionOptions;
+import org.searlelab.msrawjava.io.ConversionRequest;
+import org.searlelab.msrawjava.io.ConversionResult;
+import org.searlelab.msrawjava.io.ConversionStatus;
 import org.searlelab.msrawjava.io.OutputType;
-import org.searlelab.msrawjava.io.RawFileConverters;
-import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.RawFileConversion;
 import org.searlelab.msrawjava.io.VendorFile;
-import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
-import org.searlelab.msrawjava.io.mzml.MzmlFile;
-import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
-import org.searlelab.msrawjava.io.utils.RawFileStructureTools;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
@@ -71,6 +69,9 @@ import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox.State;
  * Owns conversion parameters, queueing, dispatch, and details output.
  */
 public class ConversionPane extends JPanel {
+	static Optional<Boolean> resolveEffectiveDemultiplex(VendorFile vendor, Optional<Boolean> requested) {
+		return vendor==VendorFile.BRUKER?Optional.of(false):requested;
+	}
 	private static final long serialVersionUID=1L;
 
 	// ---- prefs keys (kept local to the pane) ----
@@ -689,52 +690,16 @@ public class ConversionPane extends JPanel {
 		@Override
 		public void run() {
 			try (AutoCloseable foregroundWork=GuiProcessingActivity.beginForegroundWork()) {
-				boolean ok;
-				ConversionParameters.Builder builder=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(demultiplex)
-						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
-						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity());
-				ConversionParameters params=builder.build();
-				if (vendor==VendorFile.THERMO) {
-					ThermoRawFile rawFile=new ThermoRawFile();
-					rawFile.openFile(input);
-					params=prepareFileParameters(params, rawFile, vendor);
-					params=withOutputOverride(params, resolveOutputOverride(vendor, input, outputDir, outType, params.getDemultiplex().orElse(false)));
-					if (params.getDemultiplex().orElse(false)) {
-						ok=RawFileConverters.writeDemux(pool, rawFile, outputDir, params, this);
-					} else {
-						ok=RawFileConverters.writeStandard(pool, rawFile, outputDir, params, this);
-					}
-				} else if (vendor==VendorFile.ENCYCLOPEDIA) {
-					EncyclopeDIAFile dia=new EncyclopeDIAFile();
-					dia.openFile(input.toFile());
-					params=prepareFileParameters(params, dia, vendor);
-					params=withOutputOverride(params, resolveOutputOverride(vendor, input, outputDir, outType, params.getDemultiplex().orElse(false)));
-					if (params.getDemultiplex().orElse(false)) {
-						ok=RawFileConverters.writeDemux(pool, dia, outputDir, params, this);
-					} else {
-						ok=RawFileConverters.writeStandard(pool, dia, outputDir, params, this);
-					}
-				} else if (vendor==VendorFile.MZML) {
-					MzmlFile mzml=new MzmlFile();
-					mzml.openFile(input.toFile());
-					params=prepareFileParameters(params, mzml, vendor);
-					params=withOutputOverride(params, resolveOutputOverride(vendor, input, outputDir, outType, params.getDemultiplex().orElse(false)));
-					if (params.getDemultiplex().orElse(false)) {
-						ok=RawFileConverters.writeDemux(pool, mzml, outputDir, params, this);
-					} else {
-						ok=RawFileConverters.writeStandard(pool, mzml, outputDir, params, this);
-					}
-				} else {
-					boolean requestedDemux=params.getDemultiplex().orElse(false);
-					if (requestedDemux) {
-						Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()+" files");
-					}
-					params=ConversionParameters.builder().outType(outType).outputDirPath(outputDir).demultiplex(false)
-							.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
-							.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity())
-							.build();
-					ok=RawFileConverters.writeTims(pool, input, outputDir, params, this);
+				if (vendor==VendorFile.BRUKER&&demultiplex.orElse(false)) {
+					Logger.errorLine("Sorry, staggered demultiplexing is not available for "+VendorFile.BRUKER.getDisplayName()+" files");
 				}
+				Optional<Boolean> effectiveDemultiplex=resolveEffectiveDemultiplex(vendor, demultiplex);
+				ConversionOptions options=ConversionOptions.builder().outputType(outType).demultiplex(effectiveDemultiplex)
+						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
+						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity()).build();
+				ConversionRequest request=new ConversionRequest(input, outputDir, null, null, options, this);
+				ConversionResult result=RawFileConversion.convert(request, pool);
+				boolean ok=result.getStatus()==ConversionStatus.COMPLETED;
 				if (cancelRequested) {
 					state=JobState.CANCELED;
 					success=false;
@@ -756,60 +721,6 @@ public class ConversionPane extends JPanel {
 			} finally {
 				queueModel.jobUpdated(this);
 			}
-		}
-
-		private ConversionParameters prepareFileParameters(ConversionParameters base, StripeFileInterface rawFile, VendorFile source) {
-			boolean inferredDemux=source!=VendorFile.BRUKER&&RawFileStructureTools.isStaggered(rawFile.getRanges());
-			boolean demux=base.getDemultiplex().orElse(inferredDemux);
-			if (source==VendorFile.BRUKER&&demux) demux=false;
-			double margin=rawFile.getPrecursorMarginSize();
-			if (demux&&margin!=0.0) {
-				throw new IllegalArgumentException("Demux cannot be used with precursorMarginSize "+margin+". Use staggered demultiplexing or precursor margins, not both.");
-			}
-			return ConversionParameters.builder().outType(base.getOutType()).outputDirPath(base.getOutputDirPath()).demultiplex(demux)
-					.demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig()).minimumMS1Intensity(base.getMinimumMS1Intensity())
-					.minimumMS2Intensity(base.getMinimumMS2Intensity()).build();
-		}
-
-		private ConversionParameters withOutputOverride(ConversionParameters base, Path outputOverride) {
-			return ConversionParameters.builder().outType(base.getOutType()).outputDirPath(base.getOutputDirPath()).demultiplex(base.getDemultiplex())
-					.precursorMarginSize(base.getPrecursorMarginSize()).demuxTolerance(base.getDemuxTolerance()).demuxConfig(base.getDemuxConfig())
-					.minimumMS1Intensity(base.getMinimumMS1Intensity()).minimumMS2Intensity(base.getMinimumMS2Intensity())
-					.outputFilePathOverride(outputOverride).build();
-		}
-
-		private java.nio.file.Path resolveOutputOverride(VendorFile source, Path input, Path outputDir, OutputType outType, boolean demultiplex) {
-			String name=PathDisplayNames.displayNameFor(input);
-			boolean isDiaInput=VendorFile.ENCYCLOPEDIA.matchesName(name);
-			boolean isMzmlInput=VendorFile.MZML.matchesName(name);
-			if (demultiplex&&(source==VendorFile.THERMO||source==VendorFile.ENCYCLOPEDIA||source==VendorFile.MZML)) {
-				String base=stripExtension(name);
-				String suffix;
-				if (outType==OutputType.EncyclopeDIA) {
-					suffix=".demux"+org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile.DIA_EXTENSION;
-				} else if (outType==OutputType.mzML) {
-					suffix=".demux"+org.searlelab.msrawjava.io.mzml.MzmlConstants.MZML_EXTENSION;
-				} else if (outType==OutputType.mgf) {
-					suffix=".demux"+org.searlelab.msrawjava.io.MGFOutputFile.MGF_EXTENSION;
-				} else {
-					suffix=null;
-				}
-				return (suffix==null)?null:outputDir.resolve(base+suffix);
-			}
-			if (source==VendorFile.ENCYCLOPEDIA&&outType==OutputType.EncyclopeDIA&&isDiaInput) {
-				String base=name.substring(0, name.length()-4);
-				return outputDir.resolve(base+".2"+org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile.DIA_EXTENSION);
-			}
-			if (source==VendorFile.MZML&&outType==OutputType.mzML&&isMzmlInput) {
-				String base=name.substring(0, name.length()-5);
-				return outputDir.resolve(base+".2"+org.searlelab.msrawjava.io.mzml.MzmlConstants.MZML_EXTENSION);
-			}
-			return null;
-		}
-
-		private String stripExtension(String name) {
-			int idx=name.lastIndexOf('.');
-			return (idx>0)?name.substring(0, idx):name;
 		}
 
 		// ---- ProgressIndicator ----

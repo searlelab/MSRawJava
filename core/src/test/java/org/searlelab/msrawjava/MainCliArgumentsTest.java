@@ -5,11 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -18,8 +15,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
 import org.searlelab.msrawjava.io.ConversionParameters;
 import org.searlelab.msrawjava.io.OutputType;
-import org.searlelab.msrawjava.io.StripeFileInterface;
-import org.searlelab.msrawjava.io.VendorFile;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
 
@@ -61,6 +56,13 @@ class MainCliArgumentsTest {
 	}
 
 	@Test
+	void toParametersRejectsNegativeIntensityAtParseBoundary() {
+		Main.CliArguments args=new Main.CliArguments();
+		assertThrows(CommandLine.ParameterException.class,
+				() -> new CommandLine(args).parseArgs("--min-ms1", "-1", "src/test/resources/rawdata/HeLa_16mzst_demux.dia"));
+	}
+
+	@Test
 	void configureLogging_respectsSilentFlag(@TempDir Path tempDir) throws Exception {
 		Main.CliArguments args=new Main.CliArguments();
 		ConversionParameters params=ConversionParameters.builder().silent(true).logFilePath(tempDir.resolve("log.txt")).build();
@@ -97,18 +99,6 @@ class MainCliArgumentsTest {
 		assertEquals(OutputType.EncyclopeDIA, Main.OutputFormat.dia.toOutputType());
 		assertEquals(OutputType.mgf, Main.OutputFormat.mgf.toOutputType());
 		assertEquals(OutputType.mzML, Main.OutputFormat.mzml.toOutputType());
-	}
-
-	@Test
-	void prepareFileParameters_rejectsDemuxWithPositiveMargin() throws Exception {
-		ConversionParameters params=ConversionParameters.builder().demultiplex(true).precursorMarginSize(0.5).build();
-		StripeFileInterface rawFile=mock(StripeFileInterface.class);
-		when(rawFile.getPrecursorMarginSize()).thenReturn(0.5);
-
-		Method method=Main.class.getDeclaredMethod("prepareFileParameters", ConversionParameters.class, StripeFileInterface.class, VendorFile.class);
-		method.setAccessible(true);
-		InvocationTargetException thrown=assertThrows(InvocationTargetException.class, () -> method.invoke(null, params, rawFile, VendorFile.THERMO));
-		assertTrue(thrown.getCause() instanceof IllegalArgumentException);
 	}
 
 	@Test

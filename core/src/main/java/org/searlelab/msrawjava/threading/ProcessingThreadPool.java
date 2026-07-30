@@ -28,8 +28,14 @@ public class ProcessingThreadPool implements AutoCloseable {
 	@Override
 	public void close() throws InterruptedException {
 		computePool.shutdown();
-		if (!computePool.awaitTermination(60, TimeUnit.SECONDS)) {
+		try {
+			if (!computePool.awaitTermination(60, TimeUnit.SECONDS)) {
+				computePool.shutdownNow();
+			}
+		} catch (InterruptedException e) {
 			computePool.shutdownNow();
+			Thread.currentThread().interrupt();
+			throw e;
 		}
 	}
 
