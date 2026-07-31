@@ -12,6 +12,8 @@ import gnu.trove.list.array.TIntArrayList;
  */
 // @Immutable
 public abstract class MassTolerance {
+	protected MassTolerance() {
+	}
 
 	public abstract double getToleranceInMz(double m1, double m2);
 

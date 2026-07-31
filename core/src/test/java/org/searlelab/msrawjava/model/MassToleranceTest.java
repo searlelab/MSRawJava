@@ -25,6 +25,7 @@ class MassToleranceTest {
 		private final double absoluteTolerance;
 
 		TestMassTolerance(double absoluteTolerance) {
+			super();
 			this.absoluteTolerance=absoluteTolerance;
 		}
 

@@ -15,6 +15,8 @@ public class TIMSMassTolerance extends MassTolerance {
 	}
 
 	public TIMSMassTolerance(boolean lowIonStats) {
+		super();
+		
 		double resolution=50000.0;
 		double resolutionAtMass=1222.0;
 		double N=lowIonStats?1.0:10.0; // assume 10 ions go into each centroid

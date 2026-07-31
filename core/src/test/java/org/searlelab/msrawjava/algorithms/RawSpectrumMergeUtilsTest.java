@@ -93,6 +93,7 @@ class RawSpectrumMergeUtilsTest {
 		private final double tol;
 
 		FixedTolerance(double tol) {
+			super();
 			this.tol=tol;
 		}
 
