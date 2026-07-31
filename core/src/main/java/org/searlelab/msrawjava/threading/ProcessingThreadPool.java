@@ -9,12 +9,15 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.searlelab.msrawjava.API;
+
 /**
  * Bounded worker pool with backpressure for CPU-intensive processing stages.
  */
 public class ProcessingThreadPool implements AutoCloseable {
 	private final ThreadPoolExecutor computePool;
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public ProcessingThreadPool(int threads, int queueCapacity) {
 		this.computePool=new ThreadPoolExecutor(threads, threads, 365L, TimeUnit.DAYS, new ArrayBlockingQueue<>(queueCapacity),
 				namedFactory("msrawjava-worker"), new BlockOnRejectPolicy());
@@ -26,6 +29,7 @@ public class ProcessingThreadPool implements AutoCloseable {
 	}
 
 	@Override
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public void close() throws InterruptedException {
 		computePool.shutdown();
 		try {

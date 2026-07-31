@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.algorithms.QuickMedian;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.PeakInterface;
@@ -17,6 +18,7 @@ import gnu.trove.list.array.TDoubleArrayList;
  * and aggregates intensities into lightweight Peak tuples (mz, intensity, ims), producing deterministic outputs while
  * minimizing allocation so that downstream spectrum assembly remains fast and GC-friendly.
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public class TIMSPeakPicker {
 	/**
 	 * all peaks need to be "on", this will toggle some "off"
@@ -75,6 +77,7 @@ public class TIMSPeakPicker {
 	 * @param mzSortedPeaks
 	 * @return
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static ArrayList<PeakWithIMS> peakPickAcrossIMS(ArrayList<PeakWithIMS> mzSortedPeaks) {
 		mzSortedPeaks.sort(null);
 

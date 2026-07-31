@@ -1,30 +1,40 @@
 package org.searlelab.msrawjava.algorithms.demux;
 
+import org.searlelab.msrawjava.API;
+
 /**
  * Configuration for staggered DIA demultiplexing.
  *
  * Controls the local approximation size (k) and interpolation method used for
  * retention time alignment before NNLS solving.
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public class DemuxConfig {
 
 	/**
 	 * Interpolation methods for retention time alignment.
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public enum InterpolationMethod {
 		/** Cubic hermite spline interpolation (pwiz-compatible) */
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		CUBIC_HERMITE,
 		/** Log-quadratic interpolation (original MSRawJava approach) */
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		LOG_QUADRATIC
 	}
 
 	/** Minimum allowed local approximation size */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static final int MIN_K=7;
 	/** Maximum allowed local approximation size */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static final int MAX_K=9;
 	/** Default local approximation size (matches pwiz) */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static final int DEFAULT_K=7;
 	/** Default setting for including edge sub-windows */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static final boolean DEFAULT_INCLUDE_EDGE_SUBWINDOWS=true;
 
 	private final int k;
@@ -34,6 +44,7 @@ public class DemuxConfig {
 	/**
 	 * Creates a configuration with default settings (k=7, cubic hermite interpolation, include edges).
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public DemuxConfig() {
 		this(DEFAULT_K, InterpolationMethod.CUBIC_HERMITE, DEFAULT_INCLUDE_EDGE_SUBWINDOWS);
 	}
@@ -49,6 +60,7 @@ public class DemuxConfig {
 	 * @throws IllegalArgumentException
 	 *             if k is outside the valid range [7, 9]
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public DemuxConfig(int k, InterpolationMethod interpolationMethod) {
 		this(k, interpolationMethod, DEFAULT_INCLUDE_EDGE_SUBWINDOWS);
 	}
@@ -67,6 +79,7 @@ public class DemuxConfig {
 	 * @throws IllegalArgumentException
 	 *             if k is outside the valid range [7, 9]
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public DemuxConfig(int k, InterpolationMethod interpolationMethod, boolean includeEdgeSubWindows) {
 		if (k<MIN_K||k>MAX_K) {
 			throw new IllegalArgumentException("k must be between "+MIN_K+" and "+MAX_K+", got: "+k);
@@ -85,6 +98,7 @@ public class DemuxConfig {
 	 *
 	 * @return k value in range [7, 9]
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public int getK() {
 		return k;
 	}
@@ -94,6 +108,7 @@ public class DemuxConfig {
 	 *
 	 * @return the configured interpolation method
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public InterpolationMethod getInterpolationMethod() {
 		return interpolationMethod;
 	}
@@ -107,6 +122,7 @@ public class DemuxConfig {
 	 *
 	 * @return true to include edge sub-windows, false to exclude them
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public boolean isIncludeEdgeSubWindows() {
 		return includeEdgeSubWindows;
 	}
@@ -118,11 +134,13 @@ public class DemuxConfig {
 	 *
 	 * @return 2^k
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public int getNumCacheEntries() {
 		return 1<<k; // 2^k
 	}
 
 	@Override
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public String toString() {
 		return "DemuxConfig[k="+k+", interpolation="+interpolationMethod+", includeEdges="+includeEdgeSubWindows+"]";
 	}
@@ -130,41 +148,53 @@ public class DemuxConfig {
 	/**
 	 * Builder for creating DemuxConfig instances with fluent API.
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static class Builder {
 		private int k=DEFAULT_K;
 		private InterpolationMethod interpolationMethod=InterpolationMethod.CUBIC_HERMITE;
 		private boolean includeEdgeSubWindows=DEFAULT_INCLUDE_EDGE_SUBWINDOWS;
 
+		@API(status = API.Status.STABLE, since = "v26.7.31")
+		public Builder() {
+		}
+
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		public Builder k(int k) {
 			this.k=k;
 			return this;
 		}
 
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		public Builder interpolationMethod(InterpolationMethod method) {
 			this.interpolationMethod=method;
 			return this;
 		}
 
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		public Builder useCubicHermite() {
 			this.interpolationMethod=InterpolationMethod.CUBIC_HERMITE;
 			return this;
 		}
 
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		public Builder useLogQuadratic() {
 			this.interpolationMethod=InterpolationMethod.LOG_QUADRATIC;
 			return this;
 		}
 
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		public Builder includeEdgeSubWindows(boolean include) {
 			this.includeEdgeSubWindows=include;
 			return this;
 		}
 
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		public Builder excludeEdgeSubWindows() {
 			this.includeEdgeSubWindows=false;
 			return this;
 		}
 
+		@API(status = API.Status.STABLE, since = "v26.7.31")
 		public DemuxConfig build() {
 			return new DemuxConfig(k, interpolationMethod, includeEdgeSubWindows);
 		}
@@ -173,6 +203,7 @@ public class DemuxConfig {
 	/**
 	 * Returns a new builder for creating DemuxConfig instances.
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static Builder builder() {
 		return new Builder();
 	}

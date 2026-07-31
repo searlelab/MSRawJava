@@ -11,6 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.logging.Logger;
 
 /**
@@ -36,6 +37,7 @@ public final class ThermoServerPool {
 	}
 
 	/** Lazily start the Thermo server in the background (idempotent). */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static synchronized CompletableFuture<Integer> startAsync() {
 		if (launcherFuture==null||launcherFuture.isCompletedExceptionally()||launcherFuture.isCancelled()) {
 			Integer threadLimit=processingThreadLimit;
@@ -75,6 +77,7 @@ public final class ThermoServerPool {
 	}
 
 	/** Whether the packaged Thermo server resources needed to read .raw files are present on the classpath. */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static boolean isThermoReaderAvailable() {
 		return GrpcServerLauncher.areThermoResourcesAvailable();
 	}
@@ -129,6 +132,7 @@ public final class ThermoServerPool {
 	}
 
 	/** Shut down the server (safe to call any time). */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static synchronized void shutdown() {
 		CompletableFuture<GrpcServerLauncher> f=launcherFuture;
 		launcherFuture=null;

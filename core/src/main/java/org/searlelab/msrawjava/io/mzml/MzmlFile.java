@@ -35,6 +35,7 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.utils.DataAcquisitionType;
@@ -80,12 +81,17 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 	private Multimap<String, String> softwareAccessionIdToVersion=ImmutableMultimap.of();
 	private ImmutableMultimap<InstrumentId, InstrumentComponent> instrumentConfigurations=ImmutableMultimap.of();
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
+	public MzmlFile() {
+	}
+
 	@FunctionalInterface
 	public interface SpectrumConsumer {
 		void accept(PrecursorScan precursor, FragmentScan fragment) throws Exception;
 	}
 
 	@Override
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public void openFile(File userFile) throws IOException, SQLException {
 		this.userFile=userFile;
 		spectrumReader.close();
@@ -542,6 +548,7 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 	}
 
 	@Override
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public void close() {
 		spectrumReader.close();
 		open=false;

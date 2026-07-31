@@ -28,6 +28,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
@@ -57,6 +58,7 @@ import gnu.trove.list.array.TFloatArrayList;
  * FragmentScan) along with DIA window summaries (Range/WindowData). The class isolates vendor specifics so call-sites
  * can treat Bruker data uniformly alongside other vendors.
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataProvider, AutoCloseable {
 	private static final Pattern SQLITE_MISSING_COLUMN=Pattern.compile("no such column: ([^)\\s]+)", Pattern.CASE_INSENSITIVE);
 	private static final Pattern SQLITE_MISSING_TABLE=Pattern.compile("no such table: ([^)\\s]+)", Pattern.CASE_INSENSITIVE);
@@ -86,6 +88,7 @@ public class BrukerTIMSFile implements StripeFileInterface, StructuredMetadataPr
 	private float OneOverK0AcqRangeUpper=0;
 	private final BrukerTimsSpectrumReader spectrumReader=new BrukerTimsSpectrumReader(this);
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public BrukerTIMSFile() {
 	}
 

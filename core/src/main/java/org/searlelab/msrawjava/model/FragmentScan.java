@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Optional;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.algorithms.QuickMedian;
 
@@ -36,6 +37,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	private final byte charge;
 	private final float tic;
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, double precursorMz, float scanStartTime, int fraction,
 			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double[] massArray, float[] intensityArray,
 			float[] ionMobilityArray, byte charge, double scanWindowLower, double scanWindowUpper) {
@@ -44,6 +46,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 				scanWindowLower, scanWindowUpper);
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public FragmentScan(String spectrumName, String precursorName, int spectrumIndex, double precursorMz, float scanStartTime, int fraction,
 			Float ionInjectionTime, double isolationWindowLower, double isolationWindowTarget, double isolationWindowUpper, double[] massArray,
 			float[] intensityArray, float[] ionMobilityArray, byte charge, double scanWindowLower, double scanWindowUpper) {
@@ -112,6 +115,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 		return withIsolationWindow(lower, upper);
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public FragmentScan sqrt() {
 		float[] sqrtIntensityArray=new float[intensityArray.length];
 		for (int i=0; i<intensityArray.length; i++) {
@@ -280,6 +284,7 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	}
 
 	@Override
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getScanStartTime() {
 		return scanStartTime;
 	}

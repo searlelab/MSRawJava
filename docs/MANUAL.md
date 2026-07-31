@@ -770,6 +770,16 @@ System.out.println(result.getStatus() + ": " + result.getOutputPath());
 
 Leave demultiplexing unset for automatic selection, or call `.demultiplex(true)` or `.demultiplex(false)` on the options builder to override it. The facade owns and closes readers, writers, and its processing pool.
 
+When no explicit output path is supplied, the facade resolves one from the input location or output directory, output type, and the inferred or requested demultiplexing mode; an explicit output path is honored as provided.
+
+### Stable Library API
+
+Declarations marked with `@API(status = API.Status.STABLE, since = "v26.7.31")` are part of the supported library compatibility surface for this release. `MassTolerance` and `DemuxConfig`, including their supported concrete types and builders, are intentionally included.
+
+Use `RawFileConversion.convert(request)` when the facade should own the worker pool. For a long-lived caller-owned pool, use `RawFileConversion.convert(request, pool)` with a request whose `processingThreads` value is `null`; the caller must close the pool and remains responsible for the shared Thermo server lifecycle.
+
+The older `ConversionParameters.Builder` and direct `RawFileConverters` writer entry points are retained as compatibility paths and marked `@API(status = API.Status.DEPRECATED, since = "v26.7.31")`. New library code should construct `ConversionOptions`, `ConversionRequest`, and call `RawFileConversion` instead.
+
 ### Building from Source
 
 MSRawJava is a Maven multi-module project with `core` and `gui` modules. The project targets Java 11 for compilation. Full packaging can also build the native Thermo server and Bruker JNI bridge.

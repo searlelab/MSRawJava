@@ -21,6 +21,7 @@ import java.util.Optional;
 import java.util.TimeZone;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.Version;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 import org.searlelab.msrawjava.io.OutputSpectrumFile;
@@ -54,6 +55,7 @@ import gnu.trove.procedure.TIntObjectProcedure;
  * with ByteConverter, optionally applies CompressionUtils, and enforces deterministic ordering so downstream tools
  * consume stable archives.
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, StripeFileInterface {
 	public static final DateFormat m_ISO8601Local=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 	private static final Version MOST_RECENT_VERSION=new Version(0, 8, 0, false);
@@ -89,6 +91,7 @@ public class EncyclopeDIAFile extends SQLFile implements OutputSpectrumFile, Str
 		m_ISO8601Local.setTimeZone(TimeZone.getTimeZone("UTC"));
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public EncyclopeDIAFile() throws IOException {
 	}
 

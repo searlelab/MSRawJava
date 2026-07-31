@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.searlelab.msrawjava.API;
 import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.list.array.TIntArrayList;
 
@@ -11,10 +12,13 @@ import gnu.trove.list.array.TIntArrayList;
  * MassTolerance abstracts a mass-error policy for comparing or windowing m/z values.
  */
 // @Immutable
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public abstract class MassTolerance {
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	protected MassTolerance() {
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public abstract double getToleranceInMz(double m1, double m2);
 
 	/**
@@ -24,6 +28,7 @@ public abstract class MassTolerance {
 	 * @param m2
 	 * @return
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public int compareTo(double m1, double m2) {
 		double tolerance=getToleranceInMz(m1, m2);
 		if (m1+tolerance<m2) return -1;
@@ -37,6 +42,7 @@ public abstract class MassTolerance {
 	 * @param target
 	 * @return all matching masses in range
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public int[] getIndices(double[] peaks, double target) {
 		int value=Arrays.binarySearch(peaks, target);
 		// exact match (not likely)
@@ -69,6 +75,7 @@ public abstract class MassTolerance {
 	 * @param target
 	 * @return all matching masses in range
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public int[] getIndices(TDoubleArrayList peaks, double target) {
 		int value=peaks.binarySearch(target);
 		// exact match (not likely)
@@ -101,6 +108,7 @@ public abstract class MassTolerance {
 	 * @param target
 	 * @return all matching masses in range
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public int[] getIndices(PeakInterface[] peaks, PeakInterface target) {
 		int value=Arrays.binarySearch(peaks, target);
 		// exact match (not likely)
@@ -133,6 +141,7 @@ public abstract class MassTolerance {
 	 * @param target
 	 * @return all matching masses in range
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public int[] getIndices(List<? extends PeakInterface> peaks, PeakInterface target) {
 		int value=Collections.binarySearch(peaks, target);
 		// exact match (not likely)

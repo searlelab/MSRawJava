@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.mzml.MzmlConstants;
 import org.searlelab.msrawjava.io.mzml.MzmlFile;
@@ -15,6 +16,7 @@ import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 /** Library-oriented facade for converting one supported input file. */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public final class RawFileConversion {
 	private RawFileConversion() {
 	}
@@ -23,6 +25,7 @@ public final class RawFileConversion {
 	 * Converts one input while owning the worker pool. ThermoServerPool is shared process state; this method only
 	 * changes its thread limit and shuts it down when this call observes that no other caller owns or is starting it.
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static ConversionResult convert(ConversionRequest request) throws Exception {
 		ValidatedRequest validated=validate(request);
 		boolean ownsThermo=validated.vendor==VendorFile.THERMO&&!ThermoServerPool.isReady()&&!ThermoServerPool.isStarting();
@@ -41,12 +44,46 @@ public final class RawFileConversion {
 	 * Converts using a caller-owned pool. This is intended for batch/UI orchestrators; the pool and Thermo server
 	 * remain alive across calls and must be closed by the owner. The owner is responsible for ThermoServerPool lifecycle.
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static ConversionResult convert(ConversionRequest request, ProcessingThreadPool pool) throws Exception {
 		if (pool==null) throw new IllegalArgumentException("pool must not be null");
 		if (request!=null&&request.getProcessingThreads()!=null) {
 			throw new IllegalArgumentException("processingThreads is owned by the caller-supplied pool");
 		}
 		return convert(validate(request), pool);
+	}
+
+	/**
+	 * Converts an already-open reader using caller-owned reader and worker-pool lifecycles. The request must specify an
+	 * explicit output path and must not specify a processing-thread count.
+	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
+	public static ConversionResult convert(StripeFileInterface source, ConversionRequest request, ProcessingThreadPool pool) throws Exception {
+		if (source==null) throw new IllegalArgumentException("source must not be null");
+		if (!source.isOpen()) throw new IllegalArgumentException("source must be open");
+		if (pool==null) throw new IllegalArgumentException("pool must not be null");
+		if (request==null) throw new IllegalArgumentException("request must not be null");
+		if (request.getProcessingThreads()!=null) throw new IllegalArgumentException("processingThreads is owned by the caller-supplied pool");
+		if (request.getOutputPath()==null) throw new IllegalArgumentException("outputPath must be explicit for a caller-supplied source");
+		Path outputPath=request.getOutputPath().toAbsolutePath().normalize();
+		Path outputDirectory=outputPath.getParent();
+		if (outputDirectory==null) throw new IllegalArgumentException("Cannot determine output directory for "+outputPath);
+		ConversionOptions options=request.getOptions();
+		boolean demux=options.getDemultiplex().orElse(RawFileStructureTools.isStaggered(source.getRanges()));
+		if (demux&&options.getPrecursorMarginSize().isPresent()&&options.getPrecursorMarginSize().get()!=0d) {
+			throw new IllegalArgumentException("Demultiplexing cannot be combined with a nonzero precursor margin");
+		}
+		if (options.getPrecursorMarginSize().isPresent()) source.setPrecursorMarginSize(options.getPrecursorMarginSize().get());
+		ProgressIndicator progress=request.getProgressIndicator();
+		LoggingProgressIndicator ownedProgress=progress==null?new LoggingProgressIndicator(LoggingProgressIndicator.Mode.BATCH, false):null;
+		if (progress==null) progress=ownedProgress;
+		try {
+			boolean completed=demux?ConversionExecutor.writeDemux(pool, source, outputDirectory, options, outputPath, progress, false)
+					:ConversionExecutor.writeStandard(pool, source, outputDirectory, options, false, outputPath, progress, false);
+			return new ConversionResult(outputPath, completed?ConversionStatus.COMPLETED:ConversionStatus.CANCELED);
+		} finally {
+			if (ownedProgress!=null) ownedProgress.close();
+		}
 	}
 
 	private static ConversionResult convert(ValidatedRequest request, ProcessingThreadPool pool) throws Exception {
@@ -117,8 +154,8 @@ public final class RawFileConversion {
 			throw new IllegalArgumentException("--demux true cannot be used with --precursorMarginSize "+margin
 					+". Use staggered demultiplexing or precursor margins, not both.");
 		}
-		return demux?ConversionExecutor.writeDemux(pool, raw, request.outputDirectory, request.options, request.outputPath, progress)
-				:ConversionExecutor.writeStandard(pool, raw, request.outputDirectory, request.options, false, request.outputPath, progress);
+		return demux?ConversionExecutor.writeDemux(pool, raw, request.outputDirectory, request.options, request.outputPath, progress, true)
+				:ConversionExecutor.writeStandard(pool, raw, request.outputDirectory, request.options, false, request.outputPath, progress, true);
 	}
 
 	private static ValidatedRequest validate(ConversionRequest request) throws IOException {

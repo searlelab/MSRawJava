@@ -3,9 +3,11 @@ package org.searlelab.msrawjava.io;
 import java.nio.file.Path;
 import java.util.Objects;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.logging.ProgressIndicator;
 
 /** Complete request for converting one supported input. */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public final class ConversionRequest {
 	private final Path inputPath;
 	private final Path outputDirectory;
@@ -27,26 +29,35 @@ public final class ConversionRequest {
 		this.progressIndicator=progressIndicator;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static ConversionRequest of(Path inputPath, ConversionOptions options) {
 		return new ConversionRequest(inputPath, null, null, null, options, null);
 	}
 
 	/** Creates a request whose output is resolved beneath the supplied directory. */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static ConversionRequest toDirectory(Path inputPath, Path outputDirectory, Integer processingThreads, ConversionOptions options,
 			ProgressIndicator progressIndicator) {
 		return new ConversionRequest(inputPath, outputDirectory, null, processingThreads, options, progressIndicator);
 	}
 
 	/** Creates a request with an explicit output path. */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static ConversionRequest toPath(Path inputPath, Path outputPath, Integer processingThreads, ConversionOptions options,
 			ProgressIndicator progressIndicator) {
 		return new ConversionRequest(inputPath, null, outputPath, processingThreads, options, progressIndicator);
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Path getInputPath() { return inputPath; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Path getOutputDirectory() { return outputDirectory; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Path getOutputPath() { return outputPath; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Integer getProcessingThreads() { return processingThreads; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public ConversionOptions getOptions() { return options; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public ProgressIndicator getProgressIndicator() { return progressIndicator; }
 }

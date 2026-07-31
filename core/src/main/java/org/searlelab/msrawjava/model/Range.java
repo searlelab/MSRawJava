@@ -3,6 +3,8 @@ package org.searlelab.msrawjava.model;
 import java.util.ArrayList;
 import java.util.Comparator;
 
+import org.searlelab.msrawjava.API;
+
 /**
  * Range represents a interval with explicit lower and upper bounds, used throughout the model to express m/z windows,
  * retention-time slices, or other bounded domains.
@@ -11,10 +13,12 @@ import java.util.Comparator;
 public class Range implements Comparable<Range> {
 	private final float start, stop;
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Range(double start, double stop) {
 		this((float)start, (float)stop);
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Range(float start, float stop) {
 		// ensure that start comes before stop
 		if (start<=stop) {
@@ -74,14 +78,17 @@ public class Range implements Comparable<Range> {
 		return true;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getStart() {
 		return start;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getStop() {
 		return stop;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getMiddle() {
 		return (start+stop)/2.0f;
 	}
@@ -90,6 +97,7 @@ public class Range implements Comparable<Range> {
 		return stop-start;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public boolean contains(double value) {
 		if (value>=start&&value<=stop) {
 			return true;
@@ -97,6 +105,7 @@ public class Range implements Comparable<Range> {
 		return false;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public boolean contains(float value) {
 		if (value>=start&&value<=stop) {
 			return true;

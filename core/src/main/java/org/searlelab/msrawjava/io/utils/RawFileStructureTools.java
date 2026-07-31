@@ -6,11 +6,14 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.model.Range;
 import org.searlelab.msrawjava.model.WindowData;
 
 public final class RawFileStructureTools {
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static final String METADATA_DATA_ACQUISITION_TYPE="rawFileStructure.dataAcquisitionType";
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static final String METADATA_IS_STAGGERED="rawFileStructure.isStaggered";
 	public static final String METADATA_PRECURSOR_MARGIN_SIZE="rawFileStructure.precursorMarginSize";
 
@@ -23,6 +26,7 @@ public final class RawFileStructureTools {
 	private RawFileStructureTools() {
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static DataAcquisitionType getDataType(Map<Range, WindowData> ranges) {
 		if (ranges==null||ranges.isEmpty()) return DataAcquisitionType.DDA;
 		if (ranges.size()==1) return DataAcquisitionType.PRM;
@@ -60,6 +64,7 @@ public final class RawFileStructureTools {
 		return DataAcquisitionType.DIA;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static boolean isStaggered(Map<Range, WindowData> ranges) {
 		if (ranges==null||ranges.size()<3) return false;
 		if (getDataType(ranges)!=DataAcquisitionType.DIA) return false;

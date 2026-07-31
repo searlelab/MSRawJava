@@ -2,6 +2,8 @@ package org.searlelab.msrawjava.model;
 
 import java.util.Optional;
 
+import org.searlelab.msrawjava.API;
+
 /**
  * WindowData aggregates statistics and annotations for a window (commonly a DIA m/z range), such as counts and timing
  * characteristics, and optionally ion-mobility span or retention-time coverage.
@@ -13,6 +15,7 @@ public class WindowData {
 	private final Optional<Range> ionMobilityRange;
 	private final Optional<Range> rtRange;
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public WindowData(float averageDutyCycle, int numberOfMSMS) {
 		this(averageDutyCycle, numberOfMSMS, Optional.empty(), Optional.empty());
 	}
@@ -28,6 +31,7 @@ public class WindowData {
 		this.rtRange=rtRange;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getAverageDutyCycle() {
 		return averageDutyCycle;
 	}

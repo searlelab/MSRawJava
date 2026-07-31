@@ -2,10 +2,12 @@ package org.searlelab.msrawjava.io;
 
 import java.util.Optional;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
 import org.searlelab.msrawjava.model.MassTolerance;
 
 /** Immutable settings that affect one raw-file conversion. */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public final class ConversionOptions {
 	private final OutputType outputType;
 	private final float minimumMS1Intensity;
@@ -26,15 +28,23 @@ public final class ConversionOptions {
 		this.demuxConfig=demuxConfig;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public static ConversionOptionsBuilder builder() {
 		return new ConversionOptionsBuilder();
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public OutputType getOutputType() { return outputType; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getMinimumMS1Intensity() { return minimumMS1Intensity; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getMinimumMS2Intensity() { return minimumMS2Intensity; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Optional<Boolean> getDemultiplex() { return demultiplex; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Optional<Double> getPrecursorMarginSize() { return precursorMarginSize; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public MassTolerance getDemuxTolerance() { return demuxTolerance; }
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public DemuxConfig getDemuxConfig() { return demuxConfig; }
 }

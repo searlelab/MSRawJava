@@ -3,6 +3,7 @@ package org.searlelab.msrawjava.io;
 import java.nio.file.Path;
 import java.rmi.UnexpectedException;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.io.mzml.MzmlConstants;
 
@@ -11,6 +12,7 @@ import org.searlelab.msrawjava.io.mzml.MzmlConstants;
  * implementation. It provides a single source of truth for format identity and mapping, keeping CLI and orchestration
  * logic decoupled from concrete writer classes.
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public enum OutputType {
 	EncyclopeDIA, mgf, mzML;
 

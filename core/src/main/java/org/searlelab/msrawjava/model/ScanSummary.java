@@ -1,5 +1,7 @@
 package org.searlelab.msrawjava.model;
 
+import org.searlelab.msrawjava.API;
+
 /**
  * ScanSummary captures lightweight metadata for a scan without loading spectral arrays.
  * It is intended for fast UI listing and on-demand spectrum retrieval.
@@ -19,12 +21,14 @@ public final class ScanSummary {
 	private final double scanWindowUpper;
 	private final byte charge;
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double targetMz, boolean precursor, Float ionInjectionTime,
 			double isolationWindowLower, double isolationWindowUpper, double scanWindowLower, double scanWindowUpper, byte charge) {
 		this(spectrumName, spectrumIndex, scanStartTime, fraction, Float.NaN, targetMz, precursor, ionInjectionTime, isolationWindowLower,
 				isolationWindowUpper, scanWindowLower, scanWindowUpper, charge);
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public ScanSummary(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, float tic, double targetMz, boolean precursor,
 			Float ionInjectionTime, double isolationWindowLower, double isolationWindowUpper, double scanWindowLower, double scanWindowUpper, byte charge) {
 		this.spectrumName=spectrumName;
@@ -46,10 +50,12 @@ public final class ScanSummary {
 		return spectrumName;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public int getSpectrumIndex() {
 		return spectrumIndex;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getScanStartTime() {
 		return scanStartTime;
 	}
@@ -58,6 +64,7 @@ public final class ScanSummary {
 		return fraction;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getTic() {
 		return tic;
 	}

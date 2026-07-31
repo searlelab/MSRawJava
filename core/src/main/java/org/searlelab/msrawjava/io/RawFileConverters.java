@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.Date;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.algorithms.CycleAssembler;
 import org.searlelab.msrawjava.algorithms.StaggeredDemultiplexer;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
@@ -72,6 +73,7 @@ public class RawFileConverters {
 		return writeStandardInternal(pool, rawFile, outputDirPath, ConversionSettings.fromLegacy(params), progress);
 	}
 
+	@API(status = API.Status.DEPRECATED, since = "v26.7.31")
 	public static boolean writeStandard(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionParameters params,
 			ProgressIndicator progress) throws Exception {
 		return writeStandardInternal(pool, rawFile, outputDirPath, ConversionSettings.fromLegacy(params), progress);
@@ -79,6 +81,11 @@ public class RawFileConverters {
 
 	static boolean writeStandardInternal(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionSettings params,
 			ProgressIndicator progress) throws Exception {
+		return writeStandardInternal(pool, rawFile, outputDirPath, params, progress, true);
+	}
+
+	static boolean writeStandardInternal(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionSettings params,
+			ProgressIndicator progress, boolean closeSource) throws Exception {
 		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 		ExecutorService writer=null;
 
@@ -168,7 +175,7 @@ public class RawFileConverters {
 			return true;
 
 		} finally {
-			rawFile.close();
+			if (closeSource) rawFile.close();
 			outFile.close();
 			if (writer!=null) {
 				try {
@@ -180,6 +187,7 @@ public class RawFileConverters {
 		}
 	}
 
+	@API(status = API.Status.DEPRECATED, since = "v26.7.31")
 	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionParameters params,
 			ProgressIndicator progress) throws Exception {
 		return writeDemuxInternal(pool, rawFile, outputDirPath, ConversionSettings.fromLegacy(params), progress);
@@ -187,6 +195,11 @@ public class RawFileConverters {
 
 	static boolean writeDemuxInternal(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionSettings params,
 			ProgressIndicator progress) throws Exception {
+		return writeDemuxInternal(pool, rawFile, outputDirPath, params, progress, true);
+	}
+
+	static boolean writeDemuxInternal(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionSettings params,
+			ProgressIndicator progress, boolean closeSource) throws Exception {
 		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 
 		ExecutorService writer=null;
@@ -402,10 +415,12 @@ public class RawFileConverters {
 			return true;
 
 		} finally {
-			try {
-				rawFile.close();
-			} catch (Throwable t) {
-				Logger.errorException(t);
+			if (closeSource) {
+				try {
+					rawFile.close();
+				} catch (Throwable t) {
+					Logger.errorException(t);
+				}
 			}
 			try {
 				outFile.close();
@@ -422,6 +437,7 @@ public class RawFileConverters {
 		}
 	}
 
+	@API(status = API.Status.DEPRECATED, since = "v26.7.31")
 	public static boolean writeTims(ProcessingThreadPool pool, Path timsFilePath, Path outputDirPath, ConversionParameters params, ProgressIndicator progress)
 			throws Exception {
 		return writeTimsInternal(pool, timsFilePath, outputDirPath, ConversionSettings.fromLegacy(params), progress);

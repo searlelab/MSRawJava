@@ -1,19 +1,23 @@
 package org.searlelab.msrawjava.io.tims;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.model.MassTolerance;
 
 /**
  * TIMSMassTolerance models a mass tolerance tailored for how the timsTOF pro (v1) operates and assumptions about the
  * source of noise in the instrument, rather than just a standard PPM tolerance. NOTE, CANNOT USE NEGATIVE NUMBERS
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public class TIMSMassTolerance extends MassTolerance {
 	private final double ccoverN;
 	private final double systemSquared;
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public TIMSMassTolerance() {
 		this(false);
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public TIMSMassTolerance(boolean lowIonStats) {
 		super();
 		
@@ -33,6 +37,7 @@ public class TIMSMassTolerance extends MassTolerance {
 	 * NOTE, CANNOT USE NEGATIVE NUMBERS
 	 */
 	@Override
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public double getToleranceInMz(double m1, double m2) {
 		double m=(m1+m2)/2.0;
 

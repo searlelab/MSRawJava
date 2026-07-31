@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.io.StructuredMetadataProvider;
 import org.searlelab.msrawjava.io.StripeFileInterface;
 import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
@@ -60,6 +61,7 @@ import io.grpc.netty.shaded.io.grpc.netty.NettyChannelBuilder;
  * gradient length), enumerates DIA window definitions as {@link java.util.Map}&lt;Range,WindowData&gt;, and streams
  * MS1/MS2 content as PrecursorScan and FragmentScan objects.
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public final class ThermoRawFile implements StripeFileInterface, StructuredMetadataProvider, Closeable {
 	private static final String INVALID_INSTRUMENT_INDEX_TEXT="instrument index";
 	private Path rawPath=null;
@@ -74,6 +76,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 	private ThermoIndexingMode indexingMode=ThermoIndexingMode.LAZY;
 	private final ThermoRawSpectrumReader spectrumReader=new ThermoRawSpectrumReader(this);
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public ThermoRawFile() {
 	}
 
@@ -109,6 +112,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		openFile(rawFile, ThermoIndexingMode.LAZY);
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public void openFile(File userFile, ThermoIndexingMode indexingMode) throws IOException, SQLException {
 		this.openFile(userFile.toPath(), indexingMode);
 	}
@@ -167,6 +171,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		return metadata;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Map<String, String> getStructureMetadata() {
 		Session req=Session.newBuilder().setSessionId(sessionId).build();
 		StructureReply reply=stub.getStructure(req);

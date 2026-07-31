@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.zip.DataFormatException;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.io.utils.Pair;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
 import org.searlelab.msrawjava.model.FragmentScan;
@@ -20,6 +21,7 @@ import org.searlelab.msrawjava.model.WindowData;
  * exposes access to run metadata and to window/range organization in a vendor-neutral way so output code can pull
  * MS1/MS2 content uniformly from Bruker and Thermo sources.
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public interface StripeFileInterface {
 
 	/**
@@ -27,12 +29,15 @@ public interface StripeFileInterface {
 	 * 
 	 * @return Range: low/high boundaries for stripes, Float value is average time in seconds between cycles
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	Map<Range, WindowData> getRanges();
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	default double getPrecursorMarginSize() {
 		return 0.0;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	default void setPrecursorMarginSize(double precursorMarginSize) {
 	}
 
@@ -41,6 +46,7 @@ public interface StripeFileInterface {
 	 * 
 	 * @return
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	Map<String, String> getMetadata() throws IOException, SQLException;
 
 	/**
@@ -50,6 +56,7 @@ public interface StripeFileInterface {
 	 * @throws IOException
 	 * @throws SQLException
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	void openFile(File userFile) throws IOException, SQLException;
 
 	/**
@@ -62,6 +69,7 @@ public interface StripeFileInterface {
 	 * @throws SQLException
 	 * @throws DataFormatException
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	ArrayList<PrecursorScan> getPrecursors(float minRT, float maxRT) throws IOException, SQLException, DataFormatException;
 
 	/**
@@ -76,6 +84,7 @@ public interface StripeFileInterface {
 	 * @throws IOException
 	 * @throws SQLException
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	ArrayList<FragmentScan> getStripes(double targetMz, float minRT, float maxRT, boolean sqrt) throws IOException, SQLException;
 
 	/**
@@ -89,22 +98,26 @@ public interface StripeFileInterface {
 	 * @throws IOException
 	 * @throws SQLException
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	ArrayList<FragmentScan> getStripes(Range targetMzRange, float minRT, float maxRT, final boolean sqrt) throws IOException, SQLException;
 
 	/**
 	 * Fast metadata-only scan summaries for UI listing without loading spectra arrays.
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	ArrayList<ScanSummary> getScanSummaries(float minRT, float maxRT) throws IOException, SQLException;
 
 	/**
 	 * On-demand spectrum fetch based on summary (avoids full-file parsing).
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	AcquiredSpectrum getSpectrum(ScanSummary summary) throws IOException, SQLException, DataFormatException;
 
 	/**
 	 * On-demand per-scan vendor metadata for GUI inspection. Unsupported readers or missing vendor data should return
 	 * empty arrays rather than fail the spectrum view.
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	default Pair<String[], String[]> getScanMetadata(ScanSummary summary) throws IOException, SQLException, DataFormatException {
 		return new Pair<>(new String[0], new String[0]);
 	}
@@ -116,6 +129,7 @@ public interface StripeFileInterface {
 	 * @throws IOException
 	 * @throws SQLException
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	float getTIC() throws IOException, SQLException;
 
 	/**
@@ -125,6 +139,7 @@ public interface StripeFileInterface {
 	 * @throws IOException
 	 * @throws SQLException
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public Pair<float[], float[]> getTICTrace() throws IOException, SQLException;
 
 	/**
@@ -134,13 +149,16 @@ public interface StripeFileInterface {
 	 * @throws IOException
 	 * @throws SQLException
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	float getGradientLength() throws IOException, SQLException;
 
 	/**
 	 * closes file
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	void close();
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	boolean isOpen();
 
 	/**
@@ -148,6 +166,7 @@ public interface StripeFileInterface {
 	 * 
 	 * @return
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	File getFile();
 
 	/**
@@ -155,5 +174,6 @@ public interface StripeFileInterface {
 	 * 
 	 * @return
 	 */
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	String getOriginalFileName();
 }

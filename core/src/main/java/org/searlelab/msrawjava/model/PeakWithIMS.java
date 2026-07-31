@@ -2,17 +2,21 @@ package org.searlelab.msrawjava.model;
 
 import java.util.Comparator;
 
+import org.searlelab.msrawjava.API;
+
 /**
  * Peak is a value object representing a single centroided data point, typically holding an m/z, an intensity, and (when
  * available) an ion-mobility coordinate. It is meant for heavy-weight data analysis, rather than light-weight data
  * transfer.
  */
+@API(status = API.Status.STABLE, since = "v26.7.31")
 public class PeakWithIMS implements PeakInterface {
 	public final double mz;
 	public final float intensity;
 	public final float ims;
 	private volatile boolean toggle=true;
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public PeakWithIMS(double mz, float intensity, float ims) {
 		this.mz=mz;
 		this.intensity=intensity;
@@ -49,6 +53,7 @@ public class PeakWithIMS implements PeakInterface {
 		return mz;
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getIMS() {
 		return ims;
 	}

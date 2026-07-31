@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.algorithms.MatrixMath;
 
 /**
@@ -25,12 +26,14 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 	private final float[] ionMobilityArray;
 	private final float tic;
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public PrecursorScan(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double scanWindowLower, double scanWindowUpper,
 			Float ionInjectionTime, double[] massArray, float[] intensityArray, float[] ionMobilityArray) {
 		this(spectrumName, spectrumIndex, scanStartTime, fraction, scanWindowLower, scanWindowUpper, ionInjectionTime, massArray, intensityArray,
 				ionMobilityArray, null);
 	}
 
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public PrecursorScan(String spectrumName, int spectrumIndex, float scanStartTime, int fraction, double scanWindowLower, double scanWindowUpper,
 			Float ionInjectionTime, double[] massArray, float[] intensityArray, float[] ionMobilityArray, Float tic) {
 		this.spectrumName=spectrumName;
@@ -140,6 +143,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 	}
 
 	@Override
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getScanStartTime() {
 		return scanStartTime;
 	}
@@ -189,6 +193,7 @@ public class PrecursorScan implements AcquiredSpectrum, Comparable<AcquiredSpect
 	}
 
 	@Override
+	@API(status = API.Status.STABLE, since = "v26.7.31")
 	public float getTIC() {
 		return tic;
 	}

@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedConstruction;
+import org.mockito.AdditionalAnswers;
+import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
@@ -138,7 +140,7 @@ class RawFileConversionTest {
 		try (MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class);
 				MockedStatic<org.searlelab.msrawjava.io.thermo.ThermoServerPool> thermo=Mockito.mockStatic(org.searlelab.msrawjava.io.thermo.ThermoServerPool.class)) {
 			converters.when(() -> ConversionExecutor.writeStandard(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.eq(options), Mockito.anyBoolean(),
-					Mockito.any(), Mockito.any())).thenReturn(true);
+					Mockito.any(), Mockito.any(), Mockito.anyBoolean())).thenReturn(true);
 			RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, null));
 			thermo.verifyNoInteractions();
 		}
@@ -151,6 +153,121 @@ class RawFileConversionTest {
 		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1)) {
 			IllegalArgumentException error=assertThrows(IllegalArgumentException.class, () -> RawFileConversion.convert(request, pool));
 			assertEquals("processingThreads is owned by the caller-supplied pool", error.getMessage());
+		}
+	}
+
+	@Test
+	void callerOwnedSourceUsesExplicitStandardOutputWithoutClosingResources(@TempDir Path output) throws Exception {
+		StripeFileInterface source=Mockito.mock(StripeFileInterface.class);
+		Mockito.when(source.isOpen()).thenReturn(true);
+		Mockito.when(source.getRanges()).thenReturn(java.util.Collections.emptyMap());
+		Path explicit=output.resolve("calibrated.mzML");
+		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mzML).demultiplex(false).build();
+		ConversionRequest request=ConversionRequest.toPath(output.resolve("source.dia"), explicit, null, options, null);
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1);
+				MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class)) {
+			converters.when(() -> ConversionExecutor.writeStandard(Mockito.eq(pool), Mockito.eq(source), Mockito.eq(output), Mockito.eq(options),
+					Mockito.eq(false), Mockito.eq(explicit), Mockito.any(), Mockito.eq(false))).thenReturn(true);
+			ConversionResult result=RawFileConversion.convert(source, request, pool);
+			assertEquals(ConversionStatus.COMPLETED, result.getStatus());
+			assertEquals(explicit, result.getOutputPath());
+			Mockito.verify(source, Mockito.never()).close();
+		}
+	}
+
+	@Test
+	void callerOwnedSourceForwardsDemuxAndCancellation(@TempDir Path output) throws Exception {
+		StripeFileInterface source=Mockito.mock(StripeFileInterface.class);
+		Mockito.when(source.isOpen()).thenReturn(true);
+		Path explicit=output.resolve("demux.dia");
+		ConversionOptions options=ConversionOptions.builder().demultiplex(true).build();
+		ConversionRequest request=ConversionRequest.toPath(output.resolve("source.dia"), explicit, null, options, null);
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1);
+				MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class)) {
+			converters.when(() -> ConversionExecutor.writeDemux(Mockito.eq(pool), Mockito.eq(source), Mockito.eq(output), Mockito.eq(options),
+					Mockito.eq(explicit), Mockito.any(), Mockito.eq(false))).thenReturn(false);
+			ConversionResult result=RawFileConversion.convert(source, request, pool);
+			assertEquals(ConversionStatus.CANCELED, result.getStatus());
+			Mockito.verify(source, Mockito.never()).close();
+		}
+	}
+
+	@Test
+	void callerOwnedSourceRemainsOpenThroughRealStandardConversion(@TempDir Path output) throws Exception {
+		EncyclopeDIAFile realSource=new EncyclopeDIAFile();
+		realSource.openFile(fixture("HeLa_16mzst_demux.dia").toFile());
+		StripeFileInterface source=Mockito.mock(StripeFileInterface.class, AdditionalAnswers.delegatesTo(realSource));
+		Path explicit=output.resolve("caller-owned.mgf");
+		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).demultiplex(false).build();
+		ConversionRequest request=ConversionRequest.toPath(source.getFile().toPath(), explicit, null, options, null);
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1)) {
+			ConversionResult result=RawFileConversion.convert(source, request, pool);
+			assertEquals(ConversionStatus.COMPLETED, result.getStatus());
+			assertTrue(realSource.isOpen());
+			assertTrue(Files.isRegularFile(explicit));
+			Mockito.verify(source, Mockito.never()).close();
+		} finally {
+			realSource.close();
+		}
+	}
+
+	@Test
+	void callerOwnedSourceRemainsOpenThroughRealDemuxConversion(@TempDir Path output) throws Exception {
+		EncyclopeDIAFile realSource=new EncyclopeDIAFile();
+		realSource.openFile(fixture("HeLa_16mzst_29to31min.dia").toFile());
+		StripeFileInterface source=Mockito.mock(StripeFileInterface.class, AdditionalAnswers.delegatesTo(realSource));
+		Path explicit=output.resolve("caller-owned-demux.mgf");
+		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).demultiplex(true).build();
+		ConversionRequest request=ConversionRequest.toPath(source.getFile().toPath(), explicit, null, options, null);
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1)) {
+			ConversionResult result=RawFileConversion.convert(source, request, pool);
+			assertEquals(ConversionStatus.COMPLETED, result.getStatus());
+			assertTrue(realSource.isOpen());
+			assertTrue(Files.isRegularFile(explicit));
+			Mockito.verify(source, Mockito.never()).close();
+		} finally {
+			realSource.close();
+		}
+	}
+
+	@Test
+	void rejectedCallerOwnedDemuxDoesNotMutateSourceMargin(@TempDir Path output) throws Exception {
+		StripeFileInterface source=Mockito.mock(StripeFileInterface.class);
+		Mockito.when(source.isOpen()).thenReturn(true);
+		ConversionOptions options=ConversionOptions.builder().demultiplex(true).precursorMarginSize(1.0).build();
+		ConversionRequest request=ConversionRequest.toPath(output.resolve("source.dia"), output.resolve("demux.dia"), null, options, null);
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1)) {
+			assertThrows(IllegalArgumentException.class, () -> RawFileConversion.convert(source, request, pool));
+			Mockito.verify(source, Mockito.never()).setPrecursorMarginSize(Mockito.anyDouble());
+		}
+	}
+
+	@Test
+	void callerOwnedDemuxPreservesExistingSourceMarginWhenRequestDoesNotSetOne(@TempDir Path output) throws Exception {
+		StripeFileInterface source=Mockito.mock(StripeFileInterface.class);
+		Mockito.when(source.isOpen()).thenReturn(true);
+		Mockito.when(source.getPrecursorMarginSize()).thenReturn(1.0);
+		Path explicit=output.resolve("demux.dia");
+		ConversionOptions options=ConversionOptions.builder().demultiplex(true).build();
+		ConversionRequest request=ConversionRequest.toPath(output.resolve("source.dia"), explicit, null, options, null);
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1);
+				MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class)) {
+			converters.when(() -> ConversionExecutor.writeDemux(Mockito.eq(pool), Mockito.eq(source), Mockito.eq(output), Mockito.eq(options),
+					Mockito.eq(explicit), Mockito.any(), Mockito.eq(false))).thenReturn(true);
+			assertEquals(ConversionStatus.COMPLETED, RawFileConversion.convert(source, request, pool).getStatus());
+		}
+	}
+
+	@Test
+	void callerOwnedSourceValidatesOwnershipAndExplicitOutput(@TempDir Path output) throws Exception {
+		StripeFileInterface source=Mockito.mock(StripeFileInterface.class);
+		Mockito.when(source.isOpen()).thenReturn(true);
+		ConversionOptions options=ConversionOptions.builder().build();
+		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1)) {
+			assertThrows(IllegalArgumentException.class,
+					() -> RawFileConversion.convert(source, ConversionRequest.of(output.resolve("source.dia"), options), pool));
+			assertThrows(IllegalArgumentException.class, () -> RawFileConversion.convert(Mockito.mock(StripeFileInterface.class),
+					ConversionRequest.toPath(output.resolve("source.dia"), output.resolve("output.dia"), null, options, null), pool));
 		}
 	}
 
@@ -168,7 +285,7 @@ class RawFileConversionTest {
 			thermo.when(ThermoServerPool::isStarting).thenReturn(false);
 			thermo.when(ThermoServerPool::port).thenReturn(12345);
 			converters.when(() -> ConversionExecutor.writeStandard(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.eq(options), Mockito.anyBoolean(),
-					Mockito.any(), Mockito.any())).thenReturn(true);
+					Mockito.any(), Mockito.any(), Mockito.anyBoolean())).thenReturn(true);
 
 			ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, null));
 

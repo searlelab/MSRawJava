@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import org.searlelab.msrawjava.API;
 import org.searlelab.msrawjava.algorithms.demux.DemuxConfig;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.PPMMassTolerance;
@@ -148,12 +149,14 @@ public class ConversionParameters {
 
 	/** @deprecated Use {@link ConversionOptions#builder()} for library conversion settings. */
 	@Deprecated
+	@API(status = API.Status.DEPRECATED, since = "v26.7.31")
 	public static Builder builder() {
 		return new Builder();
 	}
 
 	/** @deprecated Use the top-level {@link ConversionOptionsBuilder}. */
 	@Deprecated
+	@API(status = API.Status.DEPRECATED, since = "v26.7.31")
 	public static class Builder {
 		private ArrayList<File> fileList=new ArrayList<>();
 		private OutputType outType=OutputType.EncyclopeDIA;
