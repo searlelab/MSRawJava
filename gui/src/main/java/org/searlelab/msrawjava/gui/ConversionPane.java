@@ -697,7 +697,7 @@ public class ConversionPane extends JPanel {
 				ConversionOptions options=ConversionOptions.builder().outputType(outType).demultiplex(effectiveDemultiplex)
 						.demuxTolerance(new PPMMassTolerance(COREPreferences.getDemuxTolerancePpm()))
 						.minimumMS1Intensity(COREPreferences.getMinimumMS1Intensity()).minimumMS2Intensity(COREPreferences.getMinimumMS2Intensity()).build();
-				ConversionRequest request=new ConversionRequest(input, outputDir, null, null, options, this);
+				ConversionRequest request=ConversionRequest.toDirectory(input, outputDir, null, options, this);
 				ConversionResult result=RawFileConversion.convert(request, pool);
 				boolean ok=result.getStatus()==ConversionStatus.COMPLETED;
 				if (cancelRequested) {

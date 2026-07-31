@@ -69,10 +69,15 @@ public class RawFileConverters {
 		ThermoRawFile rawFile=new ThermoRawFile();
 
 		rawFile.openFile(rawFilePath);
-		return writeStandard(pool, rawFile, outputDirPath, params, progress);
+		return writeStandardInternal(pool, rawFile, outputDirPath, ConversionSettings.fromLegacy(params), progress);
 	}
 
 	public static boolean writeStandard(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionParameters params,
+			ProgressIndicator progress) throws Exception {
+		return writeStandardInternal(pool, rawFile, outputDirPath, ConversionSettings.fromLegacy(params), progress);
+	}
+
+	static boolean writeStandardInternal(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionSettings params,
 			ProgressIndicator progress) throws Exception {
 		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 		ExecutorService writer=null;
@@ -176,6 +181,11 @@ public class RawFileConverters {
 	}
 
 	public static boolean writeDemux(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionParameters params,
+			ProgressIndicator progress) throws Exception {
+		return writeDemuxInternal(pool, rawFile, outputDirPath, ConversionSettings.fromLegacy(params), progress);
+	}
+
+	static boolean writeDemuxInternal(ProcessingThreadPool pool, StripeFileInterface rawFile, Path outputDirPath, ConversionSettings params,
 			ProgressIndicator progress) throws Exception {
 		OutputSpectrumFile outFile=params.getOutType().getOutputSpectrumFile();
 
@@ -414,6 +424,11 @@ public class RawFileConverters {
 
 	public static boolean writeTims(ProcessingThreadPool pool, Path timsFilePath, Path outputDirPath, ConversionParameters params, ProgressIndicator progress)
 			throws Exception {
+		return writeTimsInternal(pool, timsFilePath, outputDirPath, ConversionSettings.fromLegacy(params), progress);
+	}
+
+	static boolean writeTimsInternal(ProcessingThreadPool pool, Path timsFilePath, Path outputDirPath, ConversionSettings params, ProgressIndicator progress)
+			throws Exception {
 		float minimumMS1Intensity=params.getMinimumMS1Intensity();
 		float minimumMS2Intensity=params.getMinimumMS2Intensity();
 		BrukerTIMSFile timsFile=new BrukerTIMSFile();
@@ -572,7 +587,7 @@ public class RawFileConverters {
 		}
 	}
 
-	private static boolean writeStandardMzmlFastPath(MzmlFile mzmlFile, OutputSpectrumFile outFile, Path outputDirPath, ConversionParameters params,
+	private static boolean writeStandardMzmlFastPath(MzmlFile mzmlFile, OutputSpectrumFile outFile, Path outputDirPath, ConversionSettings params,
 			ProgressIndicator progress, String originalFileName, long startTime) throws Exception {
 		ExecutorService writer=Executors.newSingleThreadExecutor(namedFactory("sqlite-writer"));
 		try {
@@ -687,7 +702,7 @@ public class RawFileConverters {
 		}
 	}
 
-	private static void writeConversionParameterMetadata(OutputSpectrumFile outFile, ConversionParameters params) throws IOException, SQLException {
+	private static void writeConversionParameterMetadata(OutputSpectrumFile outFile, ConversionSettings params) throws IOException, SQLException {
 		if (!(outFile instanceof EncyclopeDIAFile)||params==null) {
 			return;
 		}

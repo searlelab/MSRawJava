@@ -21,10 +21,16 @@ import org.mockito.Mockito;
 
 class RawFileConversionTest {
 	@Test
+	void requestAndResultAreCreatedThroughFactories() {
+		assertEquals(0, ConversionRequest.class.getConstructors().length, "ConversionRequest constructor should not be public");
+		assertEquals(0, ConversionResult.class.getConstructors().length, "ConversionResult constructor should not be public");
+	}
+
+	@Test
 	void standardConversionReturnsExactOutputAndStatus(@TempDir Path output) throws Exception {
 		Path input=fixture("HeLa_16mzst_demux.dia");
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).build();
-		ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, output, null, 1, options, null));
+		ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, null));
 
 		assertEquals(ConversionStatus.COMPLETED, result.getStatus());
 		assertEquals(output.resolve("HeLa_16mzst_demux.mgf").toAbsolutePath(), result.getOutputPath());
@@ -35,7 +41,7 @@ class RawFileConversionTest {
 	void automaticDemuxReturnsDemuxOutputPath(@TempDir Path output) throws Exception {
 		Path input=fixture("HeLa_16mzst_29to31min.dia");
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).build();
-		ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, output, null, 1, options, null));
+		ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, null));
 
 		assertEquals(ConversionStatus.COMPLETED, result.getStatus());
 		assertEquals(output.resolve("HeLa_16mzst_29to31min.demux.mgf").toAbsolutePath(), result.getOutputPath());
@@ -48,7 +54,7 @@ class RawFileConversionTest {
 		LoggingProgressIndicator indicator=new LoggingProgressIndicator(LoggingProgressIndicator.Mode.SILENT, false);
 		indicator.setCanceled(true);
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).build();
-		ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, output, null, 1, options, indicator));
+		ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, indicator));
 
 		assertEquals(ConversionStatus.CANCELED, result.getStatus());
 		assertEquals(output.resolve("HeLa_16mzst_demux.mgf").toAbsolutePath(), result.getOutputPath());
@@ -58,7 +64,7 @@ class RawFileConversionTest {
 	void forcedDemuxUsesDemuxOutputName(@TempDir Path output) throws Exception {
 		Path input=fixture("HeLa_16mzst_29to31min.dia");
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).demultiplex(true).build();
-		ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, output, null, 1, options, null));
+		ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, null));
 
 		assertEquals(ConversionStatus.COMPLETED, result.getStatus());
 		assertEquals(output.resolve("HeLa_16mzst_29to31min.demux.mgf").toAbsolutePath(), result.getOutputPath());
@@ -69,7 +75,7 @@ class RawFileConversionTest {
 		Path input=fixture("HeLa_16mzst_demux.dia");
 		Path explicit=output.resolve("custom-output.mgf");
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).build();
-		ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, null, explicit, 1, options, null));
+		ConversionResult result=RawFileConversion.convert(ConversionRequest.toPath(input, explicit, 1, options, null));
 
 		assertEquals(explicit.toAbsolutePath(), result.getOutputPath());
 		assertTrue(Files.isRegularFile(explicit));
@@ -79,13 +85,13 @@ class RawFileConversionTest {
 	void brukerDemuxRequestIsForwardedVerbatimToWriter(@TempDir Path temp) throws Exception {
 		Path input=Files.createDirectory(temp.resolve("sample.d"));
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).demultiplex(true).build();
-		try (MockedStatic<RawFileConverters> converters=Mockito.mockStatic(RawFileConverters.class)) {
-			converters.when(() -> RawFileConverters.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
-					Mockito.any(ConversionParameters.class), Mockito.any())).thenReturn(true);
-			ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, temp, null, 1, options, null));
+		try (MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class)) {
+			converters.when(() -> ConversionExecutor.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
+					Mockito.eq(options), Mockito.eq(true), Mockito.any(), Mockito.any())).thenReturn(true);
+			ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, temp, 1, options, null));
 			assertEquals(ConversionStatus.COMPLETED, result.getStatus());
-			converters.verify(() -> RawFileConverters.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
-					Mockito.argThat(p -> p.getDemultiplex().orElse(false)), Mockito.any()));
+			converters.verify(() -> ConversionExecutor.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
+					Mockito.eq(options), Mockito.eq(true), Mockito.any(), Mockito.any()));
 		}
 	}
 
@@ -93,13 +99,13 @@ class RawFileConversionTest {
 	void brukerDemuxDisabledAllowsAnExplicitPrecursorMargin(@TempDir Path temp) throws Exception {
 		Path input=Files.createDirectory(temp.resolve("sample.d"));
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).demultiplex(false).precursorMarginSize(0.5).build();
-		try (MockedStatic<RawFileConverters> converters=Mockito.mockStatic(RawFileConverters.class)) {
-			converters.when(() -> RawFileConverters.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
-					Mockito.any(ConversionParameters.class), Mockito.any())).thenReturn(true);
-			ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, temp, null, 1, options, null));
+		try (MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class)) {
+			converters.when(() -> ConversionExecutor.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
+					Mockito.eq(options), Mockito.eq(false), Mockito.any(), Mockito.any())).thenReturn(true);
+			ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, temp, 1, options, null));
 			assertEquals(ConversionStatus.COMPLETED, result.getStatus());
-			converters.verify(() -> RawFileConverters.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
-					Mockito.argThat(p -> !p.getDemultiplex().orElse(true)&&p.getPrecursorMarginSize().orElse(0d)==0.5d), Mockito.any()));
+			converters.verify(() -> ConversionExecutor.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
+					Mockito.eq(options), Mockito.eq(false), Mockito.any(), Mockito.any()));
 		}
 	}
 
@@ -107,10 +113,10 @@ class RawFileConversionTest {
 	void brukerDemuxWithZeroPrecursorMarginIsAllowed(@TempDir Path temp) throws Exception {
 		Path input=Files.createDirectory(temp.resolve("sample.d"));
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).demultiplex(true).precursorMarginSize(0.0).build();
-		try (MockedStatic<RawFileConverters> converters=Mockito.mockStatic(RawFileConverters.class)) {
-			converters.when(() -> RawFileConverters.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
-					Mockito.any(ConversionParameters.class), Mockito.any())).thenReturn(true);
-			ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, temp, null, 1, options, null));
+		try (MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class)) {
+			converters.when(() -> ConversionExecutor.writeTims(Mockito.any(), Mockito.eq(input.toAbsolutePath().normalize()), Mockito.eq(temp),
+					Mockito.eq(options), Mockito.eq(true), Mockito.any(), Mockito.any())).thenReturn(true);
+			ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, temp, 1, options, null));
 			assertEquals(ConversionStatus.COMPLETED, result.getStatus());
 		}
 	}
@@ -121,7 +127,7 @@ class RawFileConversionTest {
 		Assumptions.assumeTrue(Files.isDirectory(input), "Fixture missing: "+input);
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).demultiplex(true).precursorMarginSize(5.0).build();
 		IllegalArgumentException error=assertThrows(IllegalArgumentException.class,
-				() -> RawFileConversion.convert(new ConversionRequest(input, output, null, 1, options, null)));
+				() -> RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, null)));
 		assertTrue(error.getMessage().contains("--demux true")&&error.getMessage().contains("--precursorMarginSize"));
 	}
 
@@ -129,17 +135,18 @@ class RawFileConversionTest {
 	void nonThermoConversionDoesNotMutateThermoPool(@TempDir Path output) throws Exception {
 		Path input=fixture("HeLa_16mzst_demux.dia");
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).build();
-		try (MockedStatic<RawFileConverters> converters=Mockito.mockStatic(RawFileConverters.class);
+		try (MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class);
 				MockedStatic<org.searlelab.msrawjava.io.thermo.ThermoServerPool> thermo=Mockito.mockStatic(org.searlelab.msrawjava.io.thermo.ThermoServerPool.class)) {
-			converters.when(() -> RawFileConverters.writeStandard(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(true);
-			RawFileConversion.convert(new ConversionRequest(input, output, null, 1, options, null));
+			converters.when(() -> ConversionExecutor.writeStandard(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.eq(options), Mockito.anyBoolean(),
+					Mockito.any(), Mockito.any())).thenReturn(true);
+			RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, null));
 			thermo.verifyNoInteractions();
 		}
 	}
 
 	@Test
 	void callerOwnedPoolRejectsProcessingThreadLimitInRequest(@TempDir Path output) throws Exception {
-		ConversionRequest request=new ConversionRequest(output.resolve("missing.dia"), output, null, 8,
+		ConversionRequest request=ConversionRequest.toDirectory(output.resolve("missing.dia"), output, 8,
 				ConversionOptions.builder().build(), null);
 		try (ProcessingThreadPool pool=ProcessingThreadPool.createWithThreadLimit(1)) {
 			IllegalArgumentException error=assertThrows(IllegalArgumentException.class, () -> RawFileConversion.convert(request, pool));
@@ -151,7 +158,7 @@ class RawFileConversionTest {
 	void publicThermoConversionLeavesAnExistingServerAlive(@TempDir Path output) throws Exception {
 		Path input=Files.createFile(output.resolve("sample.raw"));
 		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).build();
-		try (MockedStatic<RawFileConverters> converters=Mockito.mockStatic(RawFileConverters.class);
+		try (MockedStatic<ConversionExecutor> converters=Mockito.mockStatic(ConversionExecutor.class);
 				MockedStatic<ThermoServerPool> thermo=Mockito.mockStatic(ThermoServerPool.class);
 				MockedConstruction<ThermoRawFile> readers=Mockito.mockConstruction(ThermoRawFile.class, (reader, context) -> {
 					Mockito.doNothing().when(reader).openFile(Mockito.any(Path.class));
@@ -160,9 +167,10 @@ class RawFileConversionTest {
 			thermo.when(ThermoServerPool::isReady).thenReturn(true);
 			thermo.when(ThermoServerPool::isStarting).thenReturn(false);
 			thermo.when(ThermoServerPool::port).thenReturn(12345);
-			converters.when(() -> RawFileConverters.writeStandard(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(true);
+			converters.when(() -> ConversionExecutor.writeStandard(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.eq(options), Mockito.anyBoolean(),
+					Mockito.any(), Mockito.any())).thenReturn(true);
 
-			ConversionResult result=RawFileConversion.convert(new ConversionRequest(input, output, null, 1, options, null));
+			ConversionResult result=RawFileConversion.convert(ConversionRequest.toDirectory(input, output, 1, options, null));
 
 			assertEquals(ConversionStatus.COMPLETED, result.getStatus());
 			thermo.verify(ThermoServerPool::shutdown, Mockito.never());

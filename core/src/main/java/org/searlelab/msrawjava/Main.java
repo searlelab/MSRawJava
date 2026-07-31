@@ -111,9 +111,9 @@ public class Main {
 							.minimumMS1Intensity(params.getMinimumMS1Intensity()).minimumMS2Intensity(params.getMinimumMS2Intensity())
 							.demultiplex(params.getDemultiplex()).precursorMarginSize(params.getPrecursorMarginSize())
 							.demuxTolerance(params.getDemuxTolerance()).demuxConfig(params.getDemuxConfig()).build();
-					Path requestOutputDirectory=params.getOutputFilePathOverride()==null?params.getOutputDirPath():null;
-					ConversionRequest request=new ConversionRequest(path, requestOutputDirectory, params.getOutputFilePathOverride(),
-						null, options, indicator);
+					ConversionRequest request=params.getOutputFilePathOverride()==null
+							?ConversionRequest.toDirectory(path, params.getOutputDirPath(), null, options, indicator)
+							:ConversionRequest.toPath(path, params.getOutputFilePathOverride(), null, options, indicator);
 					ConversionResult result=RawFileConversion.convert(request, pool);
 					statuses.add(result.getStatus());
 					if (result.getStatus()==ConversionStatus.COMPLETED) {

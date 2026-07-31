@@ -730,8 +730,8 @@ Important classes and interfaces:
 - `EncyclopeDIAFile`: reader/writer for `.dia` files.
 - `MzmlFile`: reader for `mzML` files.
 - `VendorFileFinder`: directory discovery for supported input types.
-- `ConversionParameters`: shared conversion settings.
-- `RawFileConverters`: conversion entry points.
+- `ConversionOptions` and `ConversionRequest`: immutable library conversion inputs.
+- `RawFileConversion`: single-input conversion facade.
 - `AcquiredSpectrum`, `PrecursorScan`, `FragmentScan`, `Range`, and `WindowData`: core spectrum and acquisition-window model classes.
 
 ### Minimal Reader Example
@@ -762,8 +762,8 @@ Path outputDir = Path.of("/data/converted");
 ConversionOptions options = ConversionOptions.builder()
         .outputType(OutputType.mzML)
         .build();
-ConversionRequest request = new ConversionRequest(
-        input, outputDir, null, null, options, null);
+ConversionRequest request = ConversionRequest.toDirectory(
+        input, outputDir, null, options, null);
 ConversionResult result = RawFileConversion.convert(request);
 System.out.println(result.getStatus() + ": " + result.getOutputPath());
 ```

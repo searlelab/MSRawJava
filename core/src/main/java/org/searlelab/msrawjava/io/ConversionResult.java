@@ -8,7 +8,7 @@ public final class ConversionResult {
 	private final Path outputPath;
 	private final ConversionStatus status;
 
-	public ConversionResult(Path outputPath, ConversionStatus status) {
+	ConversionResult(Path outputPath, ConversionStatus status) {
 		this.outputPath=Objects.requireNonNull(outputPath, "outputPath");
 		this.status=Objects.requireNonNull(status, "status");
 	}

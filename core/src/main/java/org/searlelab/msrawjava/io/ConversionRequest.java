@@ -14,7 +14,7 @@ public final class ConversionRequest {
 	private final ConversionOptions options;
 	private final ProgressIndicator progressIndicator;
 
-	public ConversionRequest(Path inputPath, Path outputDirectory, Path outputPath, Integer processingThreads, ConversionOptions options,
+	ConversionRequest(Path inputPath, Path outputDirectory, Path outputPath, Integer processingThreads, ConversionOptions options,
 			ProgressIndicator progressIndicator) {
 		if (inputPath==null) throw new IllegalArgumentException("inputPath must not be null");
 		this.inputPath=inputPath;
@@ -29,6 +29,18 @@ public final class ConversionRequest {
 
 	public static ConversionRequest of(Path inputPath, ConversionOptions options) {
 		return new ConversionRequest(inputPath, null, null, null, options, null);
+	}
+
+	/** Creates a request whose output is resolved beneath the supplied directory. */
+	public static ConversionRequest toDirectory(Path inputPath, Path outputDirectory, Integer processingThreads, ConversionOptions options,
+			ProgressIndicator progressIndicator) {
+		return new ConversionRequest(inputPath, outputDirectory, null, processingThreads, options, progressIndicator);
+	}
+
+	/** Creates a request with an explicit output path. */
+	public static ConversionRequest toPath(Path inputPath, Path outputPath, Integer processingThreads, ConversionOptions options,
+			ProgressIndicator progressIndicator) {
+		return new ConversionRequest(inputPath, null, outputPath, processingThreads, options, progressIndicator);
 	}
 
 	public Path getInputPath() { return inputPath; }

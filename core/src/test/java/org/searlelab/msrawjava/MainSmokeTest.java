@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 
 import java.io.PrintStream;
@@ -23,13 +22,14 @@ import org.mockito.MockedConstruction;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.searlelab.msrawjava.io.ConversionParameters;
+import org.searlelab.msrawjava.io.ConversionRequest;
+import org.searlelab.msrawjava.io.ConversionResult;
+import org.searlelab.msrawjava.io.ConversionStatus;
 import org.searlelab.msrawjava.io.OutputType;
-import org.searlelab.msrawjava.io.RawFileConverters;
-import org.searlelab.msrawjava.io.StripeFileInterface;
+import org.searlelab.msrawjava.io.RawFileConversion;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
 import org.searlelab.msrawjava.io.tims.BrukerTIMSFile;
-import org.searlelab.msrawjava.logging.ProgressIndicator;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 
 import picocli.CommandLine;
@@ -98,7 +98,9 @@ class MainSmokeTest {
 
 		ConversionParameters p=params(start, OutputType.mgf, outDir, 2.0f, 1.0f);
 
-		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
+		ConversionResult completed=Mockito.mock(ConversionResult.class);
+		Mockito.when(completed.getStatus()).thenReturn(ConversionStatus.COMPLETED);
+		try (MockedStatic<RawFileConversion> conv=Mockito.mockStatic(RawFileConversion.class);
 				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class);
 				// prevent ThermoRawFile from trying to open a real gRPC connection
 				MockedConstruction<ThermoRawFile> ctor=Mockito.mockConstruction(ThermoRawFile.class, (mock, ctx) -> {
@@ -108,11 +110,7 @@ class MainSmokeTest {
 
 			pool.when(ThermoServerPool::port).thenReturn(12345); // harmless value
 
-			// Static methods return boolean; stub them to succeed.
-			conv.when(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), any(Path.class),
-					any(ConversionParameters.class), any(ProgressIndicator.class))).thenReturn(true);
-			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(ConversionParameters.class),
-					any(ProgressIndicator.class))).thenReturn(true);
+			conv.when(() -> RawFileConversion.convert(any(ConversionRequest.class), any(ProcessingThreadPool.class))).thenReturn(completed);
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 
@@ -120,13 +118,13 @@ class MainSmokeTest {
 			pool.verify(ThermoServerPool::port, times(1));
 			pool.verify(ThermoServerPool::shutdown, times(1));
 
-			// Verify writers called with expected paths and any ProgressIndicator
-			conv.verify(() -> RawFileConverters.writeStandard(any(ProcessingThreadPool.class), any(StripeFileInterface.class), eq(outDir),
-					argThat(paramsArg -> paramsArg.getOutType()==OutputType.mgf), any(ProgressIndicator.class)), times(2));
-
-			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(outDir), argThat(
-					paramsArg -> paramsArg.getOutType()==OutputType.mgf&&paramsArg.getMinimumMS1Intensity()==2.0f&&paramsArg.getMinimumMS2Intensity()==1.0f),
-					any(ProgressIndicator.class)), times(1));
+			conv.verify(() -> RawFileConversion.convert(argThat(request -> request.getOptions().getOutputType()==OutputType.mgf
+					&&request.getOutputDirectory().equals(outDir)
+					&&request.getInputPath().toString().endsWith(".raw")), any(ProcessingThreadPool.class)), times(2));
+			conv.verify(() -> RawFileConversion.convert(argThat(request -> request.getOptions().getOutputType()==OutputType.mgf
+					&&request.getOptions().getMinimumMS1Intensity()==2.0f
+					&&request.getOptions().getMinimumMS2Intensity()==1.0f
+					&&request.getInputPath().equals(ddir.toAbsolutePath().normalize())), any(ProcessingThreadPool.class)), times(1));
 
 		}
 	}
@@ -140,11 +138,11 @@ class MainSmokeTest {
 
 		ConversionParameters p=params(start, OutputType.EncyclopeDIA, null, 3.0f, 1.0f);
 
-		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
+		ConversionResult completed=Mockito.mock(ConversionResult.class);
+		Mockito.when(completed.getStatus()).thenReturn(ConversionStatus.COMPLETED);
+		try (MockedStatic<RawFileConversion> conv=Mockito.mockStatic(RawFileConversion.class);
 				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class)) {
-
-			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), any(Path.class), any(Path.class), any(ConversionParameters.class),
-					any(ProgressIndicator.class))).thenReturn(true);
+			conv.when(() -> RawFileConversion.convert(any(ConversionRequest.class), any(ProcessingThreadPool.class))).thenReturn(completed);
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 
@@ -153,10 +151,11 @@ class MainSmokeTest {
 			pool.verify(ThermoServerPool::shutdown, times(0));
 
 			Path expectedOut=start; // parent of .d when outputDirPath == null
-			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(ddir.toAbsolutePath().normalize()), eq(expectedOut),
-					argThat(paramsArg -> paramsArg.getOutType()==OutputType.EncyclopeDIA&&paramsArg.getMinimumMS1Intensity()==3.0f
-							&&paramsArg.getMinimumMS2Intensity()==1.0f),
-					any(ProgressIndicator.class)), times(1));
+			conv.verify(() -> RawFileConversion.convert(argThat(request -> request.getInputPath().equals(ddir.toAbsolutePath().normalize())
+					&&request.getOutputDirectory()==null
+					&&request.getOptions().getOutputType()==OutputType.EncyclopeDIA
+					&&request.getOptions().getMinimumMS1Intensity()==3.0f
+					&&request.getOptions().getMinimumMS2Intensity()==1.0f), any(ProcessingThreadPool.class)), times(1));
 
 		}
 	}
@@ -170,20 +169,22 @@ class MainSmokeTest {
 		Path tdfDir=Files.createDirectory(start.resolve("pasef-on.d"));
 
 		ConversionParameters p=params(start, OutputType.mgf, null, 3.0f, 1.0f);
-		try (MockedStatic<RawFileConverters> conv=Mockito.mockStatic(RawFileConverters.class);
+		ConversionResult completed=Mockito.mock(ConversionResult.class);
+		Mockito.when(completed.getStatus()).thenReturn(ConversionStatus.COMPLETED);
+		try (MockedStatic<RawFileConversion> conv=Mockito.mockStatic(RawFileConversion.class);
 				MockedStatic<ThermoServerPool> pool=Mockito.mockStatic(ThermoServerPool.class)) {
-			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(tsfDir.toAbsolutePath().normalize()), any(Path.class),
-					any(ConversionParameters.class), any(ProgressIndicator.class)))
-					.thenThrow(new BrukerTIMSFile.UnsupportedTsfException(tsfDir));
-			conv.when(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(tdfDir.toAbsolutePath().normalize()), any(Path.class),
-					any(ConversionParameters.class), any(ProgressIndicator.class))).thenReturn(true);
+			conv.when(() -> RawFileConversion.convert(any(ConversionRequest.class), any(ProcessingThreadPool.class))).thenAnswer(invocation -> {
+				ConversionRequest request=invocation.getArgument(0);
+				if (request.getInputPath().equals(tsfDir.toAbsolutePath().normalize())) throw new BrukerTIMSFile.UnsupportedTsfException(tsfDir);
+				return completed;
+			});
 
 			assertDoesNotThrow(() -> Main.convertKnownFiles(p));
 
-			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(tsfDir.toAbsolutePath().normalize()), any(Path.class),
-					any(ConversionParameters.class), any(ProgressIndicator.class)), times(1));
-			conv.verify(() -> RawFileConverters.writeTims(any(ProcessingThreadPool.class), eq(tdfDir.toAbsolutePath().normalize()), any(Path.class),
-					any(ConversionParameters.class), any(ProgressIndicator.class)), times(1));
+			conv.verify(() -> RawFileConversion.convert(argThat(request -> request.getInputPath().equals(tsfDir.toAbsolutePath().normalize())),
+					any(ProcessingThreadPool.class)), times(1));
+			conv.verify(() -> RawFileConversion.convert(argThat(request -> request.getInputPath().equals(tdfDir.toAbsolutePath().normalize())),
+					any(ProcessingThreadPool.class)), times(1));
 		}
 
 		assertTrue(stderr().contains("PASEF-off / TSF files are not supported"));

@@ -66,8 +66,8 @@ public final class RawFileConversion {
 						throw new IllegalArgumentException("--demux true cannot be used with --precursorMarginSize "+margin
 								+". Use staggered demultiplexing or precursor margins, not both.");
 					}
-					completed=RawFileConverters.writeTims(pool, request.input, request.outputDirectory,
-							parameters(request.options, request.options.getDemultiplex().orElse(false), request.outputPath), progress);
+					completed=ConversionExecutor.writeTims(pool, request.input, request.outputDirectory, request.options,
+							request.options.getDemultiplex().orElse(false), request.outputPath, progress);
 					break;
 				case ENCYCLOPEDIA:
 					completed=convertStripe(request, pool, progress, new EncyclopeDIAFile());
@@ -117,15 +117,8 @@ public final class RawFileConversion {
 			throw new IllegalArgumentException("--demux true cannot be used with --precursorMarginSize "+margin
 					+". Use staggered demultiplexing or precursor margins, not both.");
 		}
-		ConversionParameters params=parameters(request.options, demux, request.outputPath);
-		return demux?RawFileConverters.writeDemux(pool, raw, request.outputDirectory, params, progress)
-				:RawFileConverters.writeStandard(pool, raw, request.outputDirectory, params, progress);
-	}
-
-	private static ConversionParameters parameters(ConversionOptions options, boolean demux, Path outputPath) {
-		return ConversionParameters.builder().outType(options.getOutputType()).minimumMS1Intensity(options.getMinimumMS1Intensity())
-				.minimumMS2Intensity(options.getMinimumMS2Intensity()).demultiplex(demux).precursorMarginSize(options.getPrecursorMarginSize())
-				.demuxTolerance(options.getDemuxTolerance()).demuxConfig(options.getDemuxConfig()).outputFilePathOverride(outputPath).build();
+		return demux?ConversionExecutor.writeDemux(pool, raw, request.outputDirectory, request.options, request.outputPath, progress)
+				:ConversionExecutor.writeStandard(pool, raw, request.outputDirectory, request.options, false, request.outputPath, progress);
 	}
 
 	private static ValidatedRequest validate(ConversionRequest request) throws IOException {
