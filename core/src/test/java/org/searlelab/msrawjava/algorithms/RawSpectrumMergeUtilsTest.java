@@ -11,6 +11,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.searlelab.msrawjava.model.AcquiredSpectrum;
+import org.searlelab.msrawjava.model.FixedMassTolerance;
 import org.searlelab.msrawjava.model.MassTolerance;
 import org.searlelab.msrawjava.model.PrecursorScan;
 
@@ -20,7 +21,7 @@ class RawSpectrumMergeUtilsTest {
 
 	@Test
 	void mergeSpectra_emptyList_returnsEmptySpectrum() {
-		AcquiredSpectrum merged=RawSpectrumMergeUtils.mergeSpectra(Collections.emptyList(), new FixedTolerance(0.1));
+		AcquiredSpectrum merged=RawSpectrumMergeUtils.mergeSpectra(Collections.emptyList(), new FixedMassTolerance(0.1));
 		assertNotNull(merged);
 		assertEquals(0, merged.getMassArray().length);
 		assertEquals(0, merged.getIntensityArray().length);
@@ -32,7 +33,7 @@ class RawSpectrumMergeUtilsTest {
 		for (int i=0; i<51; i++) {
 			spectra.add(scan("s"+i, new double[] {100.0+i}, new float[] {1.0f}, null));
 		}
-		AcquiredSpectrum merged=RawSpectrumMergeUtils.mergeSpectra(spectra, new FixedTolerance(0.1));
+		AcquiredSpectrum merged=RawSpectrumMergeUtils.mergeSpectra(spectra, new FixedMassTolerance(0.1));
 		assertTrue(merged.getMassArray().length>0);
 		assertTrue(merged.getIntensityArray().length>0);
 	}
@@ -65,7 +66,7 @@ class RawSpectrumMergeUtilsTest {
 	void accurateMergeSpectra_mergesWithinTolerance() {
 		List<AcquiredSpectrum> spectra=List.of(scan("a", new double[] {100.0}, new float[] {10.0f}, null),
 				scan("b", new double[] {100.2}, new float[] {5.0f}, null));
-		AcquiredSpectrum merged=RawSpectrumMergeUtils.accurateMergeSpectra(spectra, new FixedTolerance(0.5));
+		AcquiredSpectrum merged=RawSpectrumMergeUtils.accurateMergeSpectra(spectra, new FixedMassTolerance(0.5));
 		assertEquals(1, merged.getMassArray().length);
 		assertEquals(15.0f, merged.getIntensityArray()[0], 1e-6f);
 	}
@@ -76,30 +77,16 @@ class RawSpectrumMergeUtilsTest {
 		method.setAccessible(true);
 
 		TDoubleArrayList peaks=new TDoubleArrayList();
-		assertEquals(-1, (int)method.invoke(null, peaks, 100.0, new FixedTolerance(0.1)));
+		assertEquals(-1, (int)method.invoke(null, peaks, 100.0, new FixedMassTolerance(0.1)));
 
 		peaks.add(100.0);
 		peaks.add(101.0);
 		// insertion point between 100 and 101, tolerance should match lower neighbor
-		int idx=(int)method.invoke(null, peaks, 100.05, new FixedTolerance(0.1));
+		int idx=(int)method.invoke(null, peaks, 100.05, new FixedMassTolerance(0.1));
 		assertEquals(0, idx);
 	}
 
 	private static PrecursorScan scan(String name, double[] mz, float[] intensity, float[] ims) {
 		return new PrecursorScan(name, 0, 0.0f, 0, 0.0, Double.MAX_VALUE, null, mz, intensity, ims);
-	}
-
-	private static final class FixedTolerance extends MassTolerance {
-		private final double tol;
-
-		FixedTolerance(double tol) {
-			super();
-			this.tol=tol;
-		}
-
-		@Override
-		public double getToleranceInMz(double m1, double m2) {
-			return tol;
-		}
 	}
 }
