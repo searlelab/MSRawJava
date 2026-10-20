@@ -1,0 +1,324 @@
+{
+  "status": "complete within approved local scope",
+  "completed_utc": "2026-10-20T15:30:13.217399+00:00",
+  "canonical_plan": "docs/uu-exact-reader-optimization.md",
+  "canonical_plan_sha256": "e4985c2895e97959a034b6c3c0431bc66b1715f6b327244b1c9ae6b594ac7bd6",
+  "baseline_source_commit": "34a375553d24b5af629c08e81df2e4d8f47ef0db",
+  "runtime": "Azul Zulu OpenJDK 21.0.7, macOS arm64; javac --release 11",
+  "fixture_manifest": "core/src/test/resources/spectra/exact-reader-fixtures.json",
+  "fixture_manifest_sha256": "fa6678d7382b0497408b5bad989f7637b11f92f93313846062f5db7356c1b916",
+  "raw_evidence": {
+    "distribution": "Local only; excluded from Git. Regression tests and this summary do not require the raw evidence directory.",
+    "directory": ".local-evidence/exact-reader-optimization-20261020",
+    "retention": "Moved outside Maven build directories; normal mvn clean preserves it. Back up or share separately when raw data is needed.",
+    "original_full_report_sha256": "ed01dc5a140e7323585b272d6814a0fef6f5a74249cb8aa8eb58b082b6c2c845",
+    "contents": "Unchanged raw logs, origins, commands, pair data, profiles, source variants and full-results.json; RELOCATION.md explains historical path prefixes."
+  },
+  "human_decisions": {
+    "mass_view": "Leave mass view out; do not adopt mass or combined variant",
+    "scratch": "Accept scratch with reported occupancy uncertainty",
+    "nnls_memory": "Accept NNLS with reported heap high-water uncertainty",
+    "thermo_memory": "Accept Thermo with reported small heap high-water uncertainty",
+    "nnls_conversion_speed": "Retain NNLS with inconclusive cold-conversion timing uncertainty; kernel benefit accepted"
+  },
+  "mechanisms": {
+    "scratch": {
+      "method": "TIMSPeakPicker.peakPickAcrossIMS/smoothIMSGaussian",
+      "decision": "accepted by human with occupancy uncertainty"
+    },
+    "ms1-sort": {
+      "method": "RawFileConverters.writeTimsInternal, MS1 lambda",
+      "decision": "accepted; caller replay repeatable benefit, complete native parity"
+    },
+    "trim": {
+      "method": "FragmentScan.trimMasses",
+      "decision": "accepted; custom Range single-pass fallback and independently owned arrays preserved"
+    },
+    "thermo": {
+      "method": "ThermoRawSpectrumReader.getPrecursors/getStripes",
+      "decision": "accepted by human with sampled-heap uncertainty",
+      "scope": "in-memory protobuf reader conversion only; no native Astral/full-search speed claim"
+    },
+    "nnls": {
+      "method": "NNLSSolver.solve; solveLeastSquares unchanged",
+      "decision": "accepted by human with both heap high-water and complete-conversion timing uncertainty"
+    },
+    "mass-view": {
+      "decision": "rejected by human; excluded from implementation",
+      "reason": "allocation regression; marginal speed gain inconclusive"
+    },
+    "combined-mass-scratch": {
+      "decision": "excluded because mass view rejected"
+    }
+  },
+  "pending_candidates": [],
+  "measurement_policy": {
+    "design": "alternating fresh baseline/candidate JVMs; one process at a time",
+    "fixtures": "single worker; deep fixture reconstruction for every picker invocation, preserving identity aliases and initial availability",
+    "conversion_workers": 2,
+    "summary": "median of paired candidate/baseline ratios; 10000 deterministic bootstrap median samples, seed 731; interval is descriptive, not a multiplicity-corrected scientific inference",
+    "memory": "allocation, sampled heap high-water/commit, after-GC occupancy, GC, and whole-process RSS kept separate. No forced GC. No PSS/native ownership claim.",
+    "os_file_cache": "Not flushed; fresh JVM and fresh private output destination for each complete conversion. Cold conversion refers to absence of an existing demux/output cache, not cold OS pages."
+  },
+  "performance": {
+    "scratch-csv": {
+      "pairs": 6,
+      "time_change_percent": -4.06,
+      "time_change_95pct_interval": [
+        -4.63,
+        -1.88
+      ],
+      "allocation_change_percent": -65.36
+    },
+    "scratch-dia": {
+      "pairs": 6,
+      "time_change_percent": -5.72,
+      "time_change_95pct_interval": [
+        -6.74,
+        -2.25
+      ],
+      "allocation_change_percent": -68.39
+    },
+    "caller-sort-long": {
+      "pairs": 6,
+      "time_change_percent": -2.77,
+      "time_change_95pct_interval": [
+        -3.5,
+        -0.13
+      ],
+      "allocation_change_percent": -0.11
+    },
+    "trim-wide-memory": {
+      "pairs": 6,
+      "time_change_percent": -73.79,
+      "time_change_95pct_interval": [
+        -74.85,
+        -73.3
+      ],
+      "allocation_change_percent": -76.56
+    },
+    "trim-narrow-memory": {
+      "pairs": 6,
+      "time_change_percent": -12.34,
+      "time_change_95pct_interval": [
+        -14.62,
+        -10.17
+      ],
+      "allocation_change_percent": -74.49
+    },
+    "trim-empty-long": {
+      "pairs": 6,
+      "time_change_percent": -0.08,
+      "time_change_95pct_interval": [
+        -0.62,
+        1.18
+      ],
+      "allocation_change_percent": -65.45
+    },
+    "thermo-memory": {
+      "pairs": 6,
+      "time_change_percent": -13.38,
+      "time_change_95pct_interval": [
+        -15.96,
+        -10.15
+      ],
+      "allocation_change_percent": -0.38
+    },
+    "nnls-systems-memory": {
+      "pairs": 6,
+      "time_change_percent": -8.65,
+      "time_change_95pct_interval": [
+        -9.11,
+        -3.3
+      ],
+      "allocation_change_percent": -9.64
+    },
+    "native-accepted-pairs": {
+      "pairs": 6,
+      "time_change_percent": -8.2,
+      "time_change_95pct_interval": [
+        -14.06,
+        -3.38
+      ]
+    },
+    "demux-pooled-12-pairs": {
+      "pairs": 12,
+      "time_change_percent": 0.71,
+      "time_change_95pct_interval": [
+        -2.63,
+        7.84
+      ]
+    },
+    "demux-control-pairs": {
+      "pairs": 6,
+      "time_change_percent": 0.15,
+      "time_change_95pct_interval": [
+        -7.22,
+        4.37
+      ]
+    }
+  },
+  "performance_scope": {
+    "picker": "Scratch and caller-sort measurements include candidate setup; fixture reconstruction is measured separately and included equally in complete conversion.",
+    "trim": "Synthetic wide/narrow/empty ranges; independently owned arrays and custom Range fallback verified.",
+    "thermo": "In-memory protobuf reader replay only; no native Astral or full-search speed claim.",
+    "native": "Small complete timsTOF conversion, accepted combination; 15 MS1 and 348 MS2 spectra.",
+    "demux": "Complete demux conversion timing is inconclusive; retained by explicit human decision based on exactness and NNLS system benefit."
+  },
+  "memory_uncertainties": {
+    "scratch": "Human accepted potential occupancy cost: one excluded JFR profile showed after-GC median +0.20 MiB; RSS varied within control noise.",
+    "nnls": "Human accepted sampled context heap high-water +6.9% (95% interval +1.3% to +11.1%); heap commit unchanged and RSS within noise. This is not retained occupancy.",
+    "thermo": "Human accepted sampled heap high-water +0.04% (95% interval +0.01% to +0.14%); heap commit unchanged and RSS within noise.",
+    "native": "Complete conversion RSS interval is wide; allocation reductions do not establish memory neutrality."
+  },
+  "exactness": {
+    "picker_fixtures": 50,
+    "picker": "ordered raw output bits, sorted input identity ordinals/aliasing/availability; repeated and independent concurrent invocations; double-vs-single caller sort",
+    "native_complete": {
+      "ms1": 15,
+      "ms2": 348,
+      "sha256": "ef2c339416174f644e5a5716780de0d5b5eb4fbf9345ed227eafa1719df4af8d"
+    },
+    "demux_complete": {
+      "ms1": 41,
+      "ms2": 2432,
+      "sha256": "06a73241603735b6701f8e7c3bf5a10c9ead45e9163f2c53322e53dd9814c2ba"
+    },
+    "demux_context": "Five actual production-assembled cycles, 76 complete windows per cycle, acquired windows/config/RT/order/metadata and all neighbors; 256 interpolation calls and 256 NNLS systems checked independently. Entire upstream DIA retained and converter section-read logs preserved.",
+    "nonfinite_test_policy": "Compare ordered raw bits and mutated input identity/availability to the verbatim frozen original picker on the same JVM. The static nonfinite digest remains original campaign evidence; finite fixtures additionally assert recorded golden digests."
+  },
+  "verification": {
+    "scope": "Completed implementation verification before this documentation-only follow-up.",
+    "focused": {
+      "tests": 59,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "full_suite": {
+      "status": "passed",
+      "core": {
+        "tests": 844,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 5
+      },
+      "gui": {
+        "tests": 121,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "total_tests": 965,
+      "passed_tests": 960,
+      "skipped_tests": 5
+    },
+    "expected_skips": "One external PRM fixture assumption and four Linux/Windows launcher tests on macOS.",
+    "compile": "Passed after full suite.",
+    "commands": [
+      "mvn -pl core -am -Dskip.build.natives=true -Dtest=NNLSSolverTest,NNLSSolverEdgeTest,NNLSCacheTest,NNLSCacheEdgeTest,FragmentScanTest,TIMSPeakpickerTest,PeakPickerReplayTest,DemuxProductionReplayTest,ThermoMassExtractionTest,FragmentTrimReplayTest test",
+      "mvn -pl core,gui -am -Dskip.build.natives=true test",
+      "mvn -pl core,gui -am -Dskip.build.natives=true -Dmaven.test.skip=true compile"
+    ]
+  },
+  "final_source_manifest": {
+    "core/src/main/java/org/searlelab/msrawjava/io/RawFileConverters.java": {
+      "sha256": "7ed4346c5f2892d5d5e598ad9609e500c8bd6345fba7c9e30fc072f0deca6597",
+      "bytes": 36405
+    },
+    "core/src/main/java/org/searlelab/msrawjava/model/FragmentScan.java": {
+      "sha256": "26990d0e5d756fbbc601422b6756e228686bf46640b31bea4a5c39fef2046ec5",
+      "bytes": 14114
+    },
+    "core/src/main/java/org/searlelab/msrawjava/algorithms/demux/NNLSSolver.java": {
+      "sha256": "4b95a7c92d63f74150c3eac7e62f103d899ccf27a528602fa9813428c4255ae2",
+      "bytes": 6894
+    },
+    "core/src/main/java/org/searlelab/msrawjava/io/tims/TIMSPeakPicker.java": {
+      "sha256": "c898b19156ffab9f769e61c664d0d09bc60739ee31bce1b8cf9d1e6117bbc64f",
+      "bytes": 7452
+    },
+    "core/src/main/java/org/searlelab/msrawjava/io/thermo/ThermoRawSpectrumReader.java": {
+      "sha256": "7349b75029f26073cff27cda596f65f93ff43546948d94efb08d896612d6668d",
+      "bytes": 7810
+    },
+    "core/src/test/java/org/searlelab/msrawjava/benchmarks/ReplayMemory.java": {
+      "sha256": "71dcf6ba666a25de5f5d0aaa13ef9c8f326a5d6250fd9a68c42500c4863d78a4",
+      "bytes": 1146
+    },
+    "core/src/test/java/org/searlelab/msrawjava/model/FragmentTrimReplayTest.java": {
+      "sha256": "90684e318086a0e8325cf7abaa1fff23da79ad77003595ca04f5588c0ef9beca",
+      "bytes": 6220
+    },
+    "core/src/test/java/org/searlelab/msrawjava/algorithms/demux/DemuxProductionReplayTest.java": {
+      "sha256": "e06e8d07740df8e6cac4b584bd528c16e9f2f7d621cb8bd20a2a8c7bf26eb8f6",
+      "bytes": 6187
+    },
+    "core/src/test/java/org/searlelab/msrawjava/algorithms/demux/ProductionDemuxCapture.java": {
+      "sha256": "1063f4a0a98a3a3400a8b308c372df48b12122283a7d6e48b2d73deaab203ffb",
+      "bytes": 7494
+    },
+    "core/src/test/java/org/searlelab/msrawjava/io/tims/TimsConversionReplay.java": {
+      "sha256": "16c854ae48c650083bfed2de2d2a3eec8f069fadfbefe8f46493b816b906b065",
+      "bytes": 4796
+    },
+    "core/src/test/java/org/searlelab/msrawjava/io/tims/PeakPickerReplayTest.java": {
+      "sha256": "ea74450cbf43bd26124411cea21b27297923e4dbb6621f3ace2dbd64010c773b",
+      "bytes": 4858
+    },
+    "core/src/test/java/org/searlelab/msrawjava/io/tims/PeakPickerFixture.java": {
+      "sha256": "2d1f2768ca77f8f8e94d1dc29533fcbea0b3d7decd740578d0b733c1d5229cc2",
+      "bytes": 2588
+    },
+    "core/src/test/java/org/searlelab/msrawjava/io/tims/PeakPickerReplay.java": {
+      "sha256": "75b23e00fdb623aa2535279c0b9fedd948d8400a320429bcce70a801560103b7",
+      "bytes": 16926
+    },
+    "core/src/test/java/org/searlelab/msrawjava/io/thermo/ThermoMassExtractionTest.java": {
+      "sha256": "8e1a7b7fc678b4b4c7435240900bace4efe883cb388d16054e89b0d411ab5c80",
+      "bytes": 6336
+    },
+    "core/src/test/java/org/searlelab/msrawjava/io/tims/PeakPickerBaseline.java": {
+      "sha256": "e5aaa8965a30132635ea302679629569d3c4bb68d4b17daf62326cbadc04b037",
+      "bytes": 4627
+    }
+  },
+  "deferred": [
+    "Linux native-memory ownership diagnostics",
+    "scan-summary caching",
+    "NNLSCache activation",
+    "native/server/dependency changes",
+    "calibrated EncyclopeDIA windows and complete searches",
+    "unrelated correctness repairs"
+  ],
+  "limitations": [
+    "Small retained fixtures bound the claims; no whole-search speedup or Linux native-memory ownership claim.",
+    "NNLS complete-conversion timing and the approved memory uncertainties remain unresolved.",
+    "Native JNI resource matches the measured campaign JAR byte-for-byte; its original build toolchain is not identified.",
+    "Raw run evidence is local and not distributed with this summary; repository fixtures support the regular regression checks."
+  ],
+  "documentation_follow_up": {
+    "changes": "Trimmed report, moved raw evidence outside target, updated implemented plan status and harness/test maintenance comments.",
+    "behavior": "Production sources, frozen reference implementation, fixture bytes and golden values unchanged.",
+    "verification": {
+      "java_compile": "Passed: mvn -pl core,gui -am -Dskip.build.natives=true -Dmaven.test.skip=true compile",
+      "resource_cap": "One interpreted CPU, 256 MiB heap; no testing reservation used.",
+      "static_checks": "JSON parses, zero machine-specific user paths, source manifest hashes match, original report preserved byte-for-byte, raw directory outside Maven build trees and ignored by Git, git diff --check passed.",
+      "preservation": "Production/reference sources and all fixture/golden hashes match the completed implementation; approved plan body unchanged.",
+      "tests": "Not rerun for documentation/comment-only changes; implementation verification counts above remain historical."
+    },
+    "completed_utc": "2026-10-20T16:10:30.220927+00:00"
+  },
+  "deferred_observations": [
+    {
+      "path": "core/src/main/java/org/searlelab/msrawjava/model/FragmentScan.java",
+      "method": "rebuild(int, float, ArrayList<? extends PeakInterface>)",
+      "observation": "Existing overload forwards scanStartTime instead of its rtInsec argument. Left unchanged; no affected production workflow reproduced in this optimization task."
+    },
+    {
+      "path": "core/src/main/java/org/searlelab/msrawjava/io/tims/TIMSPeakPicker.java",
+      "method": "peakPickAcrossIMS / smoothIMSGaussian",
+      "observation": "The smoothing walk advances start/end only forward over IMS coordinates, while the input is collected in mass-sorted order and has no explicit per-group IMS sort. This is an existing ordering assumption worth separate scientific review. Traversal/arithmetic were intentionally preserved; no production correctness difference was established in this task."
+    }
+  ]
+}

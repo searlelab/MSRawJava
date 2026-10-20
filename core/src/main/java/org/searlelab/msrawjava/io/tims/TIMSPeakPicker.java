@@ -85,6 +85,11 @@ public class TIMSPeakPicker {
 		intensitySorted.sort(new PeakWithIMS.PeakIntensityComparator());
 		ArrayList<PeakWithIMS> out=new ArrayList<>(MAX_PEAKS/10);
 
+		// Scratch belongs to this invocation; points are consumed through their original references.
+		TDoubleArrayList mzList=null;
+		ArrayList<PeakWithIMS> imsPeaks=null;
+		GaussianScratch gaussian=null;
+
 		int totalIncluded=0; // count of consumed points
 
 		// Navigate intensity in descending order
@@ -114,8 +119,13 @@ public class TIMSPeakPicker {
 			float sumIntensity=0f;
 			int numIncludable=0;
 
-			TDoubleArrayList mzList=new TDoubleArrayList();
-			ArrayList<PeakWithIMS> imsPeaks=new ArrayList<>();
+			if (mzList==null) {
+				mzList=new TDoubleArrayList();
+				imsPeaks=new ArrayList<>();
+			} else {
+				mzList.resetQuick();
+				imsPeaks.clear();
+			}
 			for (int i=start; i<end; i++) {
 				PeakWithIMS p=mzSortedPeaks.get(i);
 				if (p.isAvailable()&&p.intensity>0f&&p.ims>=leftIm&&p.ims<=rightIm) {
@@ -133,9 +143,10 @@ public class TIMSPeakPicker {
 
 			float ensembleIMS=imApex;
 			if (imsPeaks.size()>1) {
-				float[] trace=smoothIMSGaussian(imsPeaks, 0.005f);
+				if (gaussian==null) gaussian=new GaussianScratch();
+				float[] trace=smoothIMSGaussian(imsPeaks, 0.005f, gaussian);
 				int maxIndex=0;
-				for (int i=1; i<trace.length; i++) {
+				for (int i=1; i<imsPeaks.size(); i++) {
 					if (trace[i]>trace[maxIndex]) {
 						maxIndex=i;
 					}
@@ -154,9 +165,10 @@ public class TIMSPeakPicker {
 		return out;
 	}
 
-	private static float[] smoothIMSGaussian(List<PeakWithIMS> peaks, float sigma) {
+	private static float[] smoothIMSGaussian(List<PeakWithIMS> peaks, float sigma, GaussianScratch scratch) {
 		final int n=peaks.size();
-		final float[] out=new float[n];
+		scratch.ensureCapacity(n);
+		final float[] out=scratch.out;
 		if (n==0) return out;
 		if (n==1) {
 			out[0]=peaks.get(0).intensity;
@@ -169,8 +181,8 @@ public class TIMSPeakPicker {
 		}
 
 		// Pull to primitive arrays
-		final float[] ims=new float[n];
-		final float[] y=new float[n];
+		final float[] ims=scratch.ims;
+		final float[] y=scratch.y;
 		for (int i=0; i<n; i++) {
 			PeakWithIMS p=peaks.get(i);
 			ims[i]=p.ims;
@@ -206,6 +218,21 @@ public class TIMSPeakPicker {
 			out[i]=(wsum>0.0f)?(ysum/wsum):y[i];
 		}
 		return out;
+	}
+
+	/** Reused only until peakPickAcrossIMS returns; every populated element is overwritten. */
+	private static final class GaussianScratch {
+		private float[] out;
+		private float[] ims;
+		private float[] y;
+
+		private void ensureCapacity(int n) {
+			if (out==null||out.length<n) {
+				out=new float[n];
+				ims=new float[n];
+				y=new float[n];
+			}
+		}
 	}
 
 	// ---- helpers: m/z lower/upper bounds on a List<Peak> sorted by m/z ----

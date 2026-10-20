@@ -508,7 +508,6 @@ public class RawFileConverters {
 						ArrayList<PeakInterface> peaks=ms1s.get(idx).getPeaks(minimumMS1Intensity);
 						ArrayList<PeakWithIMS> imsPeaks=asImsPeaks(peaks);
 						if (imsPeaks!=null&&!imsPeaks.isEmpty()) {
-							Collections.sort(imsPeaks);
 							imsPeaks=TIMSPeakPicker.peakPickAcrossIMS(imsPeaks);
 							return withBrukerMergedSpectrumName(ms1s.get(idx).rebuild(sn, imsPeaks)); // never null for MS1
 						}

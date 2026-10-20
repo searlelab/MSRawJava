@@ -1,0 +1,81 @@
+{
+  "source_commit": "34a375553d24b5af629c08e81df2e4d8f47ef0db",
+  "source_revision": "26.8.21",
+  "measured_campaign_tag": "v26.7.31 / 8bdf8a224841afd07c6a5ccf7a7300775203d311",
+  "measured_campaign_jar_sha256": "cd709b15370b61fb0ba2663c498748f4f55e5f32e59cbc28f94fb7dcc100ee39",
+  "runtime": "Azul Zulu OpenJDK 21.0.7, macOS arm64; javac --release 11",
+  "inputs": {
+    "core/src/test/resources/spectra/one_tims_ms1.csv": {
+      "sha256": "c2f715133f131e2435e67e0586cbfe406e4a63953585ac52f8b96e3aad0b0de1",
+      "bytes": 7706771
+    },
+    "core/src/test/resources/rawdata/230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d/analysis.tdf": {
+      "sha256": "43bc9302a7c0723f06192cb0e580f5504319124632b34ee49bd424b8d478e90f",
+      "bytes": 679936
+    },
+    "core/src/test/resources/rawdata/230711_idleflow_400-1000mz_25mz_diaPasef_10sec.d/analysis.tdf_bin": {
+      "sha256": "67a9879611df012995e56f15e8c77cf07708a239888bcd19ef5a7ec0fc29d53c",
+      "bytes": 11448320
+    },
+    "core/src/test/resources/rawdata/HeLa_16mzst_29to31min.dia": {
+      "sha256": "b0fa9f7de2cedde5cf3a8bc3cbcc55d620750d754f7736211b40268f1bf8f0e2",
+      "bytes": 6975488
+    },
+    "core/target/classes/META-INF/lib/osx-aarch64/libtimsrust_jni.dylib": {
+      "sha256": "f603dc2304eb546aa98ba2017cd1416c867873a430ec0e3957c112d75d2f1666",
+      "bytes": 2808768
+    }
+  },
+  "artifacts": {
+    "tims-dia-range.bin.gz": {
+      "sha256": "208078928085ec6ee1d0bfe9d702380c60653acee81d81994c4da2939ede9923",
+      "bytes": 45132
+    },
+    "demux-production-context.bin.gz": {
+      "sha256": "b996f02a12d93ae1062a28e57bfcaced97fbb6c5f9cc97d47a78877283ada94a",
+      "bytes": 1347716
+    },
+    "demux-production-systems.bin.gz": {
+      "sha256": "52ef243dddbc8c4c53ce8e564dc83410cc2c5b056a061b283b85acde21983b88",
+      "bytes": 15785
+    },
+    "tims-picker-golden.tsv": {
+      "sha256": "abb2c110c9065c7c0d96011240d9436d52be6fc44d7c4d4bb8e5c8db1a9a60e0",
+      "bytes": 4112
+    },
+    "tims-rebuilt-golden.sha256": {
+      "sha256": "6644f2e6006a715a573626f85b7bb0f425900cf8c7437500451fec313780b6e2",
+      "bytes": 65
+    },
+    "fragment-trim-golden.sha256": {
+      "sha256": "8e99557302ac26f751ffee0d7247d0a0cc70309a47bad4ce1ba35268470b6f61",
+      "bytes": 65
+    }
+  },
+  "tims": {
+    "selection": "First nonempty DIA scan index (201, physical frame 2), retaining all three windows and all mobility points. getStripes(Range(0, Float.MAX_VALUE), 0, Float.MAX_VALUE, false).",
+    "point_selection": "Native FragmentScan.getPeaks(1.0f): strict >1; CSV matches original TIMSPeakpickerTest: skip <3.0f. Initial availability true. Synthetic cases additionally freeze off points and repeated-reference aliases.",
+    "capture_entrypoint": "org.searlelab.msrawjava.io.tims.PeakPickerReplay capture-native",
+    "snapshot": "Picker output raw bits plus sorted input reference identities and availability; rebuilt MS1/MS2 raw arrays and all model fields.",
+    "baseline_reference": "PeakPickerBaseline.java contains the original picker method and helpers verbatim from the source commit. Unit replay compares all 50 fixtures to that same-JVM reference without NaN canonicalization; static finite digests also remain asserted.",
+    "baseline_reference_sha256": "e5aaa8965a30132635ea302679629569d3c4bb68d4b17daf62326cbadc04b037"
+  },
+  "demux": {
+    "source_context": "Entire unchanged HeLa_16mzst_29to31min.dia is retained upstream context. A temporary export of RawFileConverters changes only demultiplexer construction to ProductionDemuxCapture and prints section read bounds/counts; production reads, deduplication, CycleAssembler, window order and section boundaries are unchanged.",
+    "cycles": 5,
+    "windows_per_cycle": 76,
+    "k": 7,
+    "interpolation": "CUBIC_HERMITE",
+    "include_edges": true,
+    "ppm": 10.0,
+    "nnls_systems": 256,
+    "interpolation_calls": 256,
+    "capture_entrypoint": "org.searlelab.msrawjava.algorithms.demux.ProductionDemuxCapture <fresh-output-dir>",
+    "context_expected_sha256": "be102837248abe8d9780ad7f3223adfc00b0551bbaf3655d581eb425b483c8a7",
+    "records": "All five complete cycles and windows, options, RTs, names, indices, fraction, injection time, isolation target/bounds, scan bounds, charge, TIC, array shapes, mobility nullability and ordered raw bits. NNLS systems and interpolation calls are separate from complete-spectrum context checks.",
+    "starting_scan_number": 1
+  },
+  "format": "Binary formats version 1; big-endian DataOutput primitives with explicit raw double/float bits and nullable precursor name/mobility. Read/write methods live in PeakPickerReplay and ProductionDemuxCapture. Gzip is lossless. SHA-256 goldens are frozen from original baseline classes, not candidate results.",
+  "measured_jar_jni_sha256": "f603dc2304eb546aa98ba2017cd1416c867873a430ec0e3957c112d75d2f1666",
+  "jni_matches_measured_jar": true
+}

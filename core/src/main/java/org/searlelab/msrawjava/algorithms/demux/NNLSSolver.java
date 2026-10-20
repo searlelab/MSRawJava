@@ -74,10 +74,8 @@ public class NNLSSolver {
 		DMatrixRMaj At=new DMatrixRMaj(n, m);
 		CommonOps_DDRM.transpose(A, At);
 
-		// Precompute A^T * A and A^T * b
-		DMatrixRMaj AtA=new DMatrixRMaj(n, n);
+		// Precompute A^T * b; the gradient below is updated from the residual.
 		DMatrixRMaj Atb=new DMatrixRMaj(n, 1);
-		CommonOps_DDRM.mult(At, A, AtA);
 		CommonOps_DDRM.mult(At, b, Atb);
 
 		// w = A^T * (b - A*x) = A^T*b - A^T*A*x = Atb (since x=0)

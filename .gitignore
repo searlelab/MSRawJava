@@ -35,6 +35,8 @@ replay_pid*
 
 # target files
 /target/
+# Local benchmark evidence retained across Maven clean; not distributed with the source.
+/.local-evidence/
 .flattened-pom.xml
 /rust-jni/target/
 /publish/

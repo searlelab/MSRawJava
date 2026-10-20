@@ -44,6 +44,18 @@ Note, you need to run scripts/build-all-net.sh before scripts/build-all-rust.sh 
 
 Bruker timsTOF-specific Rust binaries are embedded in the jar under `META-INF/lib/{os-arch}` and `resources/msraw/thermo/bin/{rid}` for the Thermo server. The runtime loaders (`NativeLibraryLoader`, `GrpcServerLauncher`) resolve and launch them automatically.
 
+To publish a prepared Java-only release while reusing the staged native binaries,
+run the following with Maven credentials for server ID `github`:
+
+```bash
+mvn -pl core,gui -am -Dskip.build.natives=true deploy
+```
+
+Keep the existing `core/target` directory for this command: Bruker JNI libraries
+are staged under `core/target/classes/META-INF/lib`, so `clean` combined with
+`skip.build.natives=true` would remove them. The parent POM's `revision` property
+sets the shared release version for the parent, core, MSForest and nolice artifacts.
+
 A license to [Install4j](https://www.ej-technologies.com/install4j) was graciously provided to this project by ej-technologies GmbH. Please contact them directly if you want to build the installer.
 
 

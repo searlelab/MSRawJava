@@ -300,6 +300,10 @@
 				<artifactId>maven-jar-plugin</artifactId>
 				<version>3.3.0</version>
 				<configuration>
+					<!-- Maven generates these descriptors; ignore stale IDE copies in classes. -->
+					<excludes>
+						<exclude>META-INF/maven/**</exclude>
+					</excludes>
 					<archive>
 						<manifest>
 							<mainClass>org.searlelab.msrawjava.Main</mainClass>

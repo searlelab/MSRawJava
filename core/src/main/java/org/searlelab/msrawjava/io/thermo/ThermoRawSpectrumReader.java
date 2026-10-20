@@ -37,7 +37,10 @@ class ThermoRawSpectrumReader {
 		while (it.hasNext()) {
 			Spectrum s=it.next();
 			double rawOvFtT=s.getRawOvFtt();
-			double[] mz=s.getMzList().stream().mapToDouble(d -> d).toArray();
+			double[] mz=new double[s.getMzCount()];
+			for (int i=0; i<mz.length; i++) {
+				mz[i]=s.getMz(i);
+			}
 			float[] intensity=new float[s.getIntensityCount()];
 			for (int i=0; i<intensity.length; i++) {
 				intensity[i]=s.getIntensity(i);
@@ -65,7 +68,10 @@ class ThermoRawSpectrumReader {
 		while (it.hasNext()) {
 			Spectrum s=it.next();
 			double rawOvFtT=s.getRawOvFtt();
-			double[] mz=s.getMzList().stream().mapToDouble(d -> d).toArray();
+			double[] mz=new double[s.getMzCount()];
+			for (int i=0; i<mz.length; i++) {
+				mz[i]=s.getMz(i);
+			}
 			float[] intensity=new float[s.getIntensityCount()];
 			for (int i=0; i<intensity.length; i++) {
 				float v=s.getIntensity(i);

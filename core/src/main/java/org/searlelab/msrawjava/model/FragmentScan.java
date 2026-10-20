@@ -170,6 +170,27 @@ public class FragmentScan implements AcquiredSpectrum, Comparable<AcquiredSpectr
 	}
 
 	public FragmentScan trimMasses(Range r) {
+		// Preserve the single-pass contract for custom Range implementations.
+		if (r!=null&&r.getClass()==Range.class) {
+			int count=0;
+			for (double mass : massArray) if (r.contains(mass)) count++;
+			double[] masses=new double[count];
+			float[] intensities=new float[count];
+			float[] mobilities=ionMobilityArray==null?null:new float[count];
+			int next=0;
+			if (count>0) {
+				for (int i=0; i<massArray.length; i++) {
+					if (r.contains(massArray[i])) {
+						masses[next]=massArray[i];
+						intensities[next]=intensityArray[i];
+						if (mobilities!=null) mobilities[next]=ionMobilityArray[i];
+						next++;
+					}
+				}
+			}
+			return new FragmentScan(spectrumName, precursorName, spectrumIndex, precursorMz, scanStartTime, fraction, ionInjectionTime, isolationWindowLower,
+					isolationWindowTarget, isolationWindowUpper, masses, intensities, mobilities, charge, scanWindowLower, scanWindowUpper);
+		}
 		TFloatArrayList ints=new TFloatArrayList();
 		TDoubleArrayList masses=new TDoubleArrayList();
 		TFloatArrayList mobilities=new TFloatArrayList();
