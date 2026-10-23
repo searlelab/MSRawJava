@@ -223,17 +223,12 @@ public final class MenuManager {
 	}
 
 	private static void onOpen(Frame ownerFrame, RawFileBrowser browser, boolean visualize) {
-		File f=chooseRawFile(ownerFrame);
+		File f=chooseRawFile(ownerFrame, createRawFileChooser());
 		if (f==null) return;
-		File parent=f.isDirectory()?f.getParentFile():f.getParentFile();
-		if (parent!=null) {
-			GUIPreferences.rememberLastDirectory(parent);
-		}
 		browser.openAndSelectFile(f, visualize);
 	}
 
-	private static File chooseRawFile(Frame parent) {
-		JFileChooser chooser=new JFileChooser();
+	static File chooseRawFile(Frame parent, JFileChooser chooser) {
 		chooser.setDialogTitle("Select raw file");
 		chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
 		String lastDir=GUIPreferences.getLastDirectory();
@@ -241,33 +236,45 @@ public final class MenuManager {
 			File dir=new File(lastDir);
 			if (dir.isDirectory()) chooser.setCurrentDirectory(dir);
 		}
-		chooser.setAcceptAllFileFilterUsed(true);
-		chooser.addChoosableFileFilter(new FileFilter() {
+		int result=chooser.showOpenDialog(parent);
+		if (result!=JFileChooser.APPROVE_OPTION) return null;
+		// Let the browser validate approved selections and report unsupported inputs.
+		return chooser.getSelectedFile();
+	}
+
+	static JFileChooser createRawFileChooser() {
+		JFileChooser chooser=new JFileChooser() {
+			private static final long serialVersionUID=1L;
+
 			@Override
-			public boolean accept(File f) {
-				if (f.isDirectory()) return true;
-				String name=f.getName();
-				for (VendorFile vendor : VendorFile.list()) {
-					if (vendor.matchesName(name)) return true;
+			public boolean isTraversable(File file) {
+				if (file!=null&&BrowserDatasets.isBrukerBundle(file.toPath())) return false;
+				return super.isTraversable(file);
+			}
+		};
+		chooser.setFileSelectionMode(JFileChooser.FILES_AND_DIRECTORIES);
+		FileFilter supported=datasetFilter(VendorFile.list(), "Raw files");
+		chooser.addChoosableFileFilter(supported);
+		chooser.addChoosableFileFilter(datasetFilter(List.of(VendorFile.BRUKER), "Bruker datasets"));
+		chooser.setFileFilter(supported);
+		return chooser;
+	}
+
+	private static FileFilter datasetFilter(List<VendorFile> vendors, String label) {
+		return new FileFilter() {
+			@Override
+			public boolean accept(File file) {
+				if (file.isDirectory()) {
+					return !BrowserDatasets.isBrukerBundle(file.toPath())||vendors.contains(VendorFile.BRUKER);
 				}
-				return false;
+				return vendors.stream().anyMatch(vendor -> vendor.matchesName(file.getName()));
 			}
 
 			@Override
 			public String getDescription() {
-				String extList=VendorFile.list().stream().map(v -> "*"+v.getExtension()).collect(java.util.stream.Collectors.joining(", "));
-				return "Raw files ("+extList+")";
+				return label+" ("+vendors.stream().map(vendor -> "*"+vendor.getExtension()).collect(java.util.stream.Collectors.joining(", "))+")";
 			}
-		});
-		int result=chooser.showOpenDialog(parent);
-		if (result!=JFileChooser.APPROVE_OPTION) return null;
-		File selected=chooser.getSelectedFile();
-		if (selected==null) return null;
-		if (VendorFile.BRUKER.matchesPath(selected.toPath())) return selected;
-		if (VendorFile.THERMO.matchesPath(selected.toPath())) return selected;
-		if (VendorFile.ENCYCLOPEDIA.matchesPath(selected.toPath())) return selected;
-		if (VendorFile.MZML.matchesPath(selected.toPath())) return selected;
-		return null;
+		};
 	}
 
 	static File manualFile() {

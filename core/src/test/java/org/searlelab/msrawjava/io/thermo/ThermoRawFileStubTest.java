@@ -61,6 +61,25 @@ class ThermoRawFileStubTest {
 	Path tmp;
 
 	@Test
+	void instrumentFromOpenReplyDoesNotFetchMetadataOrStructureAndResets() throws Exception {
+		ThermoRawFile raw=new ThermoRawFile();
+		FakeManagedChannel channel=new FakeManagedChannel(false);
+		setField(raw, "stub", newBlockingStub(channel));
+		Method apply=ThermoRawFile.class.getDeclaredMethod("applyOpenReply", Path.class, OpenReply.class);
+		apply.setAccessible(true);
+		apply.invoke(raw, tmp.resolve("first.raw"), OpenReply.newBuilder().setSessionId("first").setInstrumentModel("  Exploris 480  ").build());
+		assertEquals("Exploris 480", raw.getInstrumentModelIfKnown().orElseThrow());
+		assertEquals(0, channel.delegate.metadataCalls);
+		assertEquals(0, channel.delegate.structureCalls);
+		assertEquals(0, channel.delegate.rangesCalls);
+		apply.invoke(raw, tmp.resolve("second.raw"), OpenReply.newBuilder().setSessionId("second").build());
+		assertTrue(raw.getInstrumentModelIfKnown().isEmpty());
+		apply.invoke(raw, tmp.resolve("third.raw"), OpenReply.newBuilder().setSessionId("third").setInstrumentModel("Astral").build());
+		raw.close();
+		assertTrue(raw.getInstrumentModelIfKnown().isEmpty());
+	}
+
+	@Test
 	void readsMetadataSummaryRangesAndSpectraWithStubbedChannel() throws Exception {
 		FakeManagedChannel channel=new FakeManagedChannel(false);
 		ThermoRawServiceGrpc.ThermoRawServiceBlockingStub stub=newBlockingStub(channel);

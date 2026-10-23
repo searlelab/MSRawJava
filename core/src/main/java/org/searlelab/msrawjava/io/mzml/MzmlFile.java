@@ -129,6 +129,10 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 		ArrayDeque<String> tagStack=new ArrayDeque<>();
 		ImmutableMultimap.Builder<String, String> softwareBuilder=ImmutableMultimap.builder();
 		ImmutableMultimap.Builder<InstrumentId, InstrumentComponent> instrumentBuilder=ImmutableMultimap.builder();
+		Map<String, InstrumentId> parameterGroupModels=new HashMap<>();
+		String currentParameterGroup=null;
+		InstrumentId directInstrumentModel=null;
+		InstrumentId referencedInstrumentModel=null;
 		String currentSoftwareVersion=null;
 		InstrumentId.Builder currentInstrumentIdBuilder=null;
 		ArrayList<InstrumentComponent> currentInstrumentComponents=new ArrayList<>();
@@ -176,7 +180,14 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 										runStartTime=Optional.empty();
 									}
 								}
+							} else if ("referenceableParamGroup".equals(localName)) {
+								currentParameterGroup=reader.getAttributeValue(null, "id");
+							} else if ("referenceableParamGroupRef".equals(localName)&&"instrumentConfiguration".equals(parentTag(tagStack))) {
+								InstrumentId model=parameterGroupModels.get(reader.getAttributeValue(null, "ref"));
+								if (model!=null) referencedInstrumentModel=preferInstrumentModel(referencedInstrumentModel, model);
 							} else if ("instrumentConfiguration".equals(localName)) {
+								directInstrumentModel=null;
+								referencedInstrumentModel=null;
 								currentInstrumentIdBuilder=InstrumentId.builder().setInstrumentConfigurationId(reader.getAttributeValue(null, "id"));
 								currentInstrumentComponents=new ArrayList<>();
 							} else if (InstrumentComponent.Type.getTypeByName(localName).isPresent()) {
@@ -191,7 +202,10 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 								if ("software".equals(parent)&&currentSoftwareVersion!=null&&accession!=null) {
 									softwareBuilder.put(accession, currentSoftwareVersion);
 								} else if ("instrumentConfiguration".equals(parent)&&currentInstrumentIdBuilder!=null) {
-									currentInstrumentIdBuilder.setAccession(accession).setName(name);
+									directInstrumentModel=preferInstrumentModel(directInstrumentModel, instrumentModel(reader));
+								} else if ("referenceableParamGroup".equals(parent)&&currentParameterGroup!=null) {
+									InstrumentId model=preferInstrumentModel(parameterGroupModels.get(currentParameterGroup), instrumentModel(reader));
+									if (model!=null) parameterGroupModels.put(currentParameterGroup, model);
 								} else if (InstrumentComponent.Type.getTypeByName(parent).isPresent()&&currentInstrumentComponentBuilder!=null) {
 									currentInstrumentComponentBuilder.setCvRef(cvRef).setAccessionId(accession).setName(name);
 								}
@@ -206,10 +220,14 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 							}
 						} else if ("instrumentConfiguration".equals(localName)) {
 							if (currentInstrumentIdBuilder!=null) {
+								InstrumentId model=preferInstrumentModel(directInstrumentModel, referencedInstrumentModel);
+								if (model!=null) currentInstrumentIdBuilder.setAccession(model.accession).setName(model.name);
 								instrumentBuilder.putAll(currentInstrumentIdBuilder.build(), currentInstrumentComponents);
 								currentInstrumentIdBuilder=null;
 								currentInstrumentComponents=new ArrayList<>();
 							}
+						} else if ("referenceableParamGroup".equals(localName)) {
+							currentParameterGroup=null;
 						} else if ("software".equals(localName)) {
 							currentSoftwareVersion=null;
 						}
@@ -224,6 +242,22 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 				reader.close();
 			}
 		}
+	}
+
+	private static InstrumentId instrumentModel(XMLStreamReader reader) {
+		String accession=reader.getAttributeValue(null, "accession");
+		String name=reader.getAttributeValue(null, "name");
+		// Serial numbers and customization are instrument attributes, not model names.
+		if ("MS:1000529".equals(accession)||"MS:1000032".equals(accession)||name==null||name.isBlank()) return null;
+		String value=reader.getAttributeValue(null, "value");
+		if ("MS:1000031".equals(accession)&&value!=null&&!value.isBlank()) name=value;
+		return InstrumentId.builder().setAccession(accession).setName(name.trim()).build();
+	}
+
+	private static InstrumentId preferInstrumentModel(InstrumentId preferred, InstrumentId fallback) {
+		if (preferred==null) return fallback;
+		if ("instrument model".equalsIgnoreCase(preferred.name)&&fallback!=null) return fallback;
+		return preferred;
 	}
 
 	private static String parentTag(ArrayDeque<String> tagStack) {

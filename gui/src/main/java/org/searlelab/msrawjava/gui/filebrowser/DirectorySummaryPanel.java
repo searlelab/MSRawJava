@@ -107,11 +107,22 @@ public class DirectorySummaryPanel extends JPanel {
 	private final ProgressSpinner spinner=new ProgressSpinner();
 
 	public DirectorySummaryPanel(VendorFiles files) {
+		this(prepareRows(files));
+	}
+
+	/** Prepare filesystem information in the directory worker, then construct Swing components on the EDT. */
+	public static java.util.function.Supplier<DirectorySummaryPanel> prepare(VendorFiles files) {
+		List<DirectorySummaryRow> rows=prepareRows(files);
+		return () -> new DirectorySummaryPanel(rows);
+	}
+
+	private DirectorySummaryPanel(List<DirectorySummaryRow> allRows) {
 		super(new BorderLayout());
 
 		table=new JTable(model);
 		sorter=new TableRowSorter<>(model);
 		configureSorter();
+		sorter.setSortsOnUpdates(true);
 		List<RowSorter.SortKey> validSortKeys=toSortKeys(GUIPreferences.getDirectorySummarySortKeySpecs());
 		if (!validSortKeys.isEmpty()) {
 			sorter.setSortKeys(validSortKeys);
@@ -153,7 +164,13 @@ public class DirectorySummaryPanel extends JPanel {
 		SwingUtilities.invokeLater(this::applySavedColumnLayout);
 		installColumnPreferenceListeners();
 
-		// Seed fast info (file name/vendor/size) synchronously so table appears immediately
+		model.addRows(allRows);
+		initializeSlowBitsProgress(allRows);
+		requestSlowBitsDispatch();
+	}
+
+	private static List<DirectorySummaryRow> prepareRows(VendorFiles files) {
+		// Gather file name/vendor/size before creating the table.
 		ArrayList<DirectorySummaryRow> brukerRows=new ArrayList<DirectorySummaryRow>();
 		for (Path p : files.getBrukerDirs()) {
 			brukerRows.add(DirectorySummaryRow.fromBruker(p));
@@ -182,9 +199,7 @@ public class DirectorySummaryPanel extends JPanel {
 		allRows.addAll(mzmlRows);
 		Collections.sort(allRows);
 
-		model.addRows(allRows);
-		initializeSlowBitsProgress(allRows);
-		requestSlowBitsDispatch();
+		return allRows;
 	}
 
 	private void configureSorter() {
@@ -232,6 +247,7 @@ public class DirectorySummaryPanel extends JPanel {
 					break;
 				case FILE:
 				case VENDOR:
+				case INSTRUMENT:
 					tableColumn.setCellRenderer(StripeTableCellRenderer.BASE_RENDERER);
 					break;
 				case DATE_MODIFIED:
@@ -428,13 +444,34 @@ public class DirectorySummaryPanel extends JPanel {
 		return out;
 	}
 
+	/** Reveal an explicitly opened dataset, removing only filters that exclude its row. */
+	public boolean revealPath(Path target) {
+		if (target==null) return false;
+		DirectorySummaryRow match=null;
+		for (DirectorySummaryRow row : model.snapshotRows()) {
+			if (row.path.toAbsolutePath().normalize().equals(target.toAbsolutePath().normalize())) {
+				match=row;
+				break;
+			}
+		}
+		if (match==null) return false;
+		String filter=DirectorySummaryVendorFilter.getVendorFilterValueForSelection(vendorFilter.getSelectedItem());
+		if (!DirectorySummaryVendorFilter.matchesVendorFilterValue(match.vendor, filter, DirectorySummaryVendorFilter.parseSpecificVendorFilter(filter))) {
+			vendorFilter.setSelectedItem(VENDOR_ALL);
+		}
+		String text=searchField.getText().trim().toLowerCase(Locale.ROOT);
+		if (!match.fileNameLower.contains(text)) searchField.setText("");
+		updateFilters();
+		return selectPath(target);
+	}
+
 	public boolean selectPath(Path target) {
 		if (target==null) return false;
 		int rows=model.getRowCount();
 		for (int mr=0; mr<rows; mr++) {
 			DirectorySummaryRow row=model.getAt(mr);
 			if (row==null||row.path==null) continue;
-			if (row.path.equals(target)) {
+			if (row.path.toAbsolutePath().normalize().equals(target.toAbsolutePath().normalize())) {
 				int vr=table.convertRowIndexToView(mr);
 				if (vr>=0) {
 					table.getSelectionModel().setSelectionInterval(vr, vr);
@@ -482,7 +519,7 @@ public class DirectorySummaryPanel extends JPanel {
 		applyingSavedLayout=true;
 		try {
 			applyDefaultColumnWidths();
-			List<String> order=GUIPreferences.getDirectorySummaryColumnOrderKeys();
+			List<String> order=withInstrumentColumn(GUIPreferences.getDirectorySummaryColumnOrderKeys());
 			if (!order.isEmpty()) {
 				applyColumnOrder(order);
 			}
@@ -501,6 +538,15 @@ public class DirectorySummaryPanel extends JPanel {
 		for (DirectorySummaryColumn column : DirectorySummaryColumn.values()) {
 			setColumnWidth(column, column.defaultWidth);
 		}
+	}
+
+	static List<String> withInstrumentColumn(List<String> saved) {
+		List<String> order=new ArrayList<>(saved);
+		if (!order.isEmpty()&&!order.contains(DirectorySummaryColumn.INSTRUMENT.key)) {
+			int vendor=order.indexOf(DirectorySummaryColumn.VENDOR.key);
+			order.add(vendor<0?Math.min(3, order.size()):vendor+1, DirectorySummaryColumn.INSTRUMENT.key);
+		}
+		return order;
 	}
 
 	private void applyColumnOrder(List<String> order) {

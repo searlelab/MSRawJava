@@ -61,6 +61,16 @@ class GUIPreferencesTest {
 	}
 
 	@Test
+	void instrumentColumnPreferencesRoundTrip() {
+		GUIPreferences.setDirectorySummarySortKeySpecs(List.of(new DirectorySummarySortKeySpec("instrument", SortOrder.ASCENDING)));
+		GUIPreferences.setDirectorySummaryColumnOrderKeys(List.of("file", "vendor", "instrument"));
+		GUIPreferences.setDirectorySummaryColumnWidthKeys(Map.of("instrument", 160));
+		assertEquals("instrument", GUIPreferences.getDirectorySummarySortKeySpecs().get(0).getColumnKey());
+		assertEquals(List.of("file", "vendor", "instrument"), GUIPreferences.getDirectorySummaryColumnOrderKeys());
+		assertEquals(160, GUIPreferences.getDirectorySummaryColumnWidthKeys().get("instrument"));
+	}
+
+	@Test
 	void directorySummaryLegacyIndexPreferencesMapToStableKeys() {
 		prefs.put(SORT_KEYS, "3:DESCENDING,5:ASCENDING,99:DESCENDING,bad:ASCENDING");
 		prefs.put(COLUMN_ORDER, "1,3,5,99,bad");

@@ -6,6 +6,7 @@ public enum DirectorySummaryColumn {
 	ROW_NUMBER("row_number", "#", String.class, 50, "The table row number for this file.", false),
 	FILE("file", "File", String.class, 320, "The raw file or directory name.", true),
 	VENDOR("vendor", "Vendor", String.class, 80, "The detected vendor or file format.", true),
+	INSTRUMENT("instrument", "Instrument", String.class, 160, "The instrument model reported by the dataset, when available.", true),
 	DATE_MODIFIED("date_modified", "Date Modified", Date.class, 110, "The last modified date reported by the file system.", true),
 	DATE_ACQUIRED("date_acquired", "Date Acquired", Date.class, 110, "The acquisition date reported by the raw file metadata.", true),
 	SIZE("size", "Size", Long.class, 100, "The total file size on disk.", true),

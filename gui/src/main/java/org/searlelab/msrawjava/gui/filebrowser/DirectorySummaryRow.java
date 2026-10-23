@@ -20,6 +20,7 @@ final class DirectorySummaryRow implements Comparable<DirectorySummaryRow> {
 	final long sizeBytes;
 	final Date lastModified;
 
+	volatile String instrument; // null until computed or unavailable
 	volatile Float gradientMin; // null until computed
 	volatile Float totalTIC; // null until computed
 	volatile Date acquiredDate; // null until computed or unavailable
@@ -57,7 +58,7 @@ final class DirectorySummaryRow implements Comparable<DirectorySummaryRow> {
 	}
 
 	DirectorySummaryMetrics toMetrics() {
-		return new DirectorySummaryMetrics(gradientMin, totalTIC, acquiredDate, spark);
+		return new DirectorySummaryMetrics(gradientMin, totalTIC, acquiredDate, spark, instrument);
 	}
 
 	void applyMetrics(DirectorySummaryMetrics bits) {
@@ -66,6 +67,7 @@ final class DirectorySummaryRow implements Comparable<DirectorySummaryRow> {
 		this.totalTIC=bits.totalTIC;
 		this.acquiredDate=bits.acquiredDate;
 		this.spark=bits.spark;
+		this.instrument=bits.instrument;
 	}
 
 	boolean markSlowBitsReady() {

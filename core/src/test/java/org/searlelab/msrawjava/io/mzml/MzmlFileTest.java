@@ -200,6 +200,43 @@ class MzmlFileTest {
 	}
 
 	@Test
+	void resolvesReferencedInstrumentModelsAndIgnoresSerialNumbers() throws Exception {
+		String xml="<mzML><referenceableParamGroupList count=\"1\"><referenceableParamGroup id=\"CommonInstrumentParams\">"
+				+"<cvParam accession=\"MS:1003029\" name=\"timsTOF Pro\"/>"
+				+"<cvParam accession=\"MS:1000529\" name=\"instrument serial number\" value=\"123\"/>"
+				+"</referenceableParamGroup></referenceableParamGroupList><instrumentConfigurationList count=\"2\">"
+				+"<instrumentConfiguration id=\"IC1\"><referenceableParamGroupRef ref=\"CommonInstrumentParams\"/>"
+				+"<componentList><analyzer order=\"1\"><cvParam name=\"time-of-flight\"/></analyzer></componentList></instrumentConfiguration>"
+				+"<instrumentConfiguration id=\"IC2\"><cvParam accession=\"MS:1000483\" name=\"Orbitrap Fusion\"/>"
+				+"<referenceableParamGroupRef ref=\"CommonInstrumentParams\"/><cvParam accession=\"MS:1000529\" name=\"instrument serial number\"/>"
+				+"<componentList><analyzer order=\"1\"><cvParam name=\"orbitrap\"/></analyzer></componentList></instrumentConfiguration>"
+				+"</instrumentConfigurationList><run><spectrumList count=\"0\"/></run></mzML>";
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(writeMzml(xml));
+			List<String> names=new ArrayList<>();
+			for (InstrumentId id : reader.getInstrumentConfigurations().keySet()) names.add(id.name);
+			assertEquals(List.of("timsTOF Pro", "Orbitrap Fusion"), names);
+		} finally {
+			reader.close();
+		}
+	}
+
+	@Test
+	void missingInstrumentReferenceDoesNotPreventOpening() throws Exception {
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(writeMzml("<mzML><instrumentConfigurationList><instrumentConfiguration id=\"IC1\">"
+					+"<referenceableParamGroupRef ref=\"missing\"/><componentList><analyzer order=\"1\"><cvParam name=\"orbitrap\"/>"
+					+"</analyzer></componentList></instrumentConfiguration></instrumentConfigurationList><run><spectrumList count=\"0\"/></run></mzML>"));
+			assertTrue(reader.isOpen());
+			assertEquals(null, reader.getInstrumentConfigurations().keySet().iterator().next().name);
+		} finally {
+			reader.close();
+		}
+	}
+
+	@Test
 	void parsesMS1WithUncompressedBinaryArrays() throws Exception {
 		double[] mz= {100.0, 200.0, 300.0};
 		float[] inten= {10.0f, 20.0f, 30.0f};

@@ -83,7 +83,10 @@ class DirectorySummaryPanelVendorFilterTest {
 	void directorySummaryModelExposesExpectedColumns() {
 		DirectorySummaryModel model=new DirectorySummaryModel();
 
-		assertEquals(9, model.getColumnCount());
+		assertEquals(10, model.getColumnCount());
+		assertEquals("Instrument", model.getColumnName(DirectorySummaryColumn.INSTRUMENT.modelIndex()));
+		assertEquals(String.class, model.getColumnClass(DirectorySummaryColumn.INSTRUMENT.modelIndex()));
+		assertEquals(DirectorySummaryColumn.VENDOR.modelIndex()+1, DirectorySummaryColumn.INSTRUMENT.modelIndex());
 		assertEquals("#", model.getColumnName(DirectorySummaryColumn.ROW_NUMBER.modelIndex()));
 		assertEquals("File", model.getColumnName(DirectorySummaryColumn.FILE.modelIndex()));
 		assertEquals("Vendor", model.getColumnName(DirectorySummaryColumn.VENDOR.modelIndex()));
@@ -106,6 +109,7 @@ class DirectorySummaryPanelVendorFilterTest {
 		Path raw=Files.createTempFile("directory-summary-row", ".raw");
 		DirectorySummaryRow row=DirectorySummaryRow.fromThermo(raw);
 		Date acquired=Date.from(Instant.parse("2024-01-02T03:04:05Z"));
+		row.instrument="Exploris 480";
 		row.gradientMin=12.5f;
 		row.totalTIC=100.0f;
 		row.acquiredDate=acquired;
@@ -114,6 +118,7 @@ class DirectorySummaryPanelVendorFilterTest {
 		DirectorySummaryRow copy=DirectorySummaryRow.fromThermo(raw);
 		copy.applyMetrics(row.toMetrics());
 
+		assertEquals("Exploris 480", copy.instrument);
 		assertEquals(acquired, copy.acquiredDate);
 		assertEquals(12.5f, copy.gradientMin, 0.001f);
 		assertEquals(100.0f, copy.totalTIC, 0.001f);

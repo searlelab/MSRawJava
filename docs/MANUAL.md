@@ -148,9 +148,23 @@ The window has three main areas, shown in Figure 1:
 
 ### Opening a Directory
 
-Use the directory tree to browse to a folder containing raw files. Selecting a directory scans it for supported files and updates the summary table. The scanner recognizes Thermo `.raw` files, Bruker `.d` directories, EncyclopeDIA `.dia` files, and `mzML` files.
+Use the directory tree to browse to a folder containing raw files. Selecting a directory scans it for supported files and updates the summary table. The scanner recognizes Thermo `.raw` files, Bruker `.d` directories containing `analysis.tdf`, EncyclopeDIA `.dia` files, and `mzML` files. Directories with a `.d` extension but no `analysis.tdf`, including TSF-only acquisitions, remain ordinary navigable folders.
 
-You can also use **File > Open** to choose a raw file or directory. MSForest selects the enclosing folder in the browser and highlights the chosen file when possible.
+Selecting a drive or filesystem root shows a directory-selection hint without scanning the drive. Choose a subfolder to scan its datasets. Root navigation does not replace the last remembered directory. Opening a dataset directly in a root shows a message explaining that it must be moved into a subfolder to be selected in the browser. The GUI's TDF requirement does not change MSRawJava core or CLI discovery: those still recognize TSF `.d` inputs and report the specific unsupported-TSF diagnostic.
+
+You can also use **File > Open** to choose a supported dataset. The chooser starts with the supported raw-file filter and includes a **Bruker datasets (*.d)** filter. Bruker `.d` directories are selectable datasets: double-clicking one selects it instead of navigating into its contents. MSForest selects the enclosing folder in the browser and highlights the dataset without opening a visualization. **View > Visualize Raw File** uses the same chooser and opens the visualization directly. Approving an unsupported file or folder shows an error message and preserves the current browser location; canceling the chooser stays silent.
+
+Drag a file from your file manager onto the directory tree, including its empty area, to navigate to its enclosing folder. The whole tree pane highlights as the drop target; hovering over a directory row does not choose a destination folder. Supported datasets are also selected in the table. Dropping an ordinary directory navigates into that directory; dropping a `.d` bundle selects it in its parent folder. Drops only navigate and do not move or copy files. For a multi-file drop, MSForest uses the first existing target. Opening a dataset clears a search or vendor filter only if that filter would hide the requested row.
+
+### Opening Datasets from Your File Manager
+
+Installed MSForest launchers can handle `.raw`, `.dia`, `.mzML`, and `.tdf` files and forward later opens to the existing browser. Double-click opening navigates and selects the dataset; double-click its row in MSForest or use **Visualize** when you are ready to inspect it. Standalone JAR launches do not enforce a single running instance.
+
+- **Windows:** The installer's **File Associations** pane offers a separate checkbox for each extension, all initially unchecked. You can also right-click a dataset file, choose **Open with > Choose another app**, select MSForest (browse to `MSForest.exe` if needed), and choose the option to always use it. Windows may require choosing the default in **Settings > Apps > Default apps**.
+- **macOS:** MSForest registers as an alternate viewer for all four extensions. To make it the default for an extension, select a file of that type in Finder, choose **Get Info > Open with > MSForest**, and click **Change All**. Use **Open With > Other** if MSForest is not listed yet.
+- **Linux:** In the installer's **File Associations** pane, select the desired extensions to install their MIME/desktop integration. Each extension has its own checkbox, initially unchecked. In your file manager's **Open With** or **Properties** dialog, choose MSForest as the default application. Labels vary by desktop environment.
+
+Repeat the default-app selection for each extension you want MSForest to open. Opening a Bruker `analysis.tdf` reveals and selects its containing `.d` dataset; the folder must contain `analysis.tdf`. You can also open `.d` datasets through the chooser or by dropping them into the tree.
 
 Directory scans run in the background. Large folders and network drives may take longer, especially while MSForest reads slower metrics such as gradient length, total TIC, and TIC traces.
 
@@ -161,6 +175,7 @@ The summary table gives one row per discovered raw file. The columns are:
 - `#`: table row number.
 - `File`: raw file or directory name.
 - `Vendor`: detected vendor or file format.
+- `Instrument`: sortable instrument name after Vendor, populated in the background when metadata is available. Missing names remain blank. EncyclopeDIA `.dia` files use instrument names retained in their metadata. mzML files with multiple instruments list distinct names separated by semicolons.
 - `Modified`: last modified date from the file system.
 - `Size`: total size on disk.
 - `Gradient`: run length in minutes.
@@ -213,6 +228,7 @@ Right-click a row for context actions:
 
 - **Visualize** opens the selected file in the raw file visualizer.
 - **Show Enclosing Folder** selects the file's folder in the directory tree.
+- **Show in Finder** (macOS), **Show in File Explorer** (Windows), or **Show in Files** (Linux) opens the enclosing folder in your system file manager, selecting the dataset when supported. This action is also available by right-clicking a folder in the directory tree. Bruker `.d` bundles are revealed in their parent folder; filesystem roots open directly.
 - **Select All** selects all visible rows in the current table.
 
 In a typical triage pass, sort or group the directory so related injections are adjacent, scan the sparklines for outliers, open the suspicious runs, and only then queue the files that pass inspection.

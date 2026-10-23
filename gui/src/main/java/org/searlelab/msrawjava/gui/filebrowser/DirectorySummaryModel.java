@@ -18,7 +18,8 @@ final class DirectorySummaryModel extends AbstractTableModel {
 		rows.addAll(rs);
 		final int end=rows.size()-1;
 		if (end>=start) {
-			SwingUtilities.invokeLater(() -> fireTableRowsInserted(start, end));
+			if (SwingUtilities.isEventDispatchThread()) fireTableRowsInserted(start, end);
+			else SwingUtilities.invokeLater(() -> fireTableRowsInserted(start, end));
 		}
 	}
 
@@ -70,6 +71,8 @@ final class DirectorySummaryModel extends AbstractTableModel {
 				return row.fileName;
 			case VENDOR:
 				return row.vendor.getVendorName();
+			case INSTRUMENT:
+				return row.instrument;
 			case DATE_MODIFIED:
 				return row.lastModified;
 			case DATE_ACQUIRED:

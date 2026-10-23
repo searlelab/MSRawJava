@@ -300,6 +300,8 @@ class DirectorySummarySlowBitsController {
 					dia=new EncyclopeDIAFile();
 					long start=System.nanoTime();
 					dia.openFile(row.path.toFile());
+					EncyclopeDIAFile openedDia=dia;
+					readInstrument(row, () -> InstrumentNames.fromMetadata(openedDia.getMetadata()));
 					timing.openNanos+=System.nanoTime()-start;
 					start=System.nanoTime();
 					Pair<float[], float[]> tic=dia.getTICTrace();
@@ -336,6 +338,7 @@ class DirectorySummarySlowBitsController {
 				try {
 					long start=System.nanoTime();
 					mzml.openFile(row.path.toFile());
+					readInstrument(row, () -> InstrumentNames.fromConfigurations(mzml.getInstrumentConfigurations().keySet()));
 					timing.openNanos+=System.nanoTime()-start;
 					start=System.nanoTime();
 					Pair<float[], float[]> tic=mzml.getTICTrace();
@@ -373,6 +376,7 @@ class DirectorySummarySlowBitsController {
 				try {
 					long start=System.nanoTime();
 					raw.openFile(row.path);
+					readInstrument(row, () -> raw.getInstrumentModelIfKnown().orElse(null));
 					timing.openNanos+=System.nanoTime()-start;
 					start=System.nanoTime();
 					Pair<float[], float[]> tic=raw.getTICTrace();
@@ -423,6 +427,7 @@ class DirectorySummarySlowBitsController {
 				try {
 					long start=System.nanoTime();
 					raw.openFile(row.path);
+					readInstrument(row, () -> raw.getMetadata().get("meta.InstrumentName"));
 					timing.openNanos+=System.nanoTime()-start;
 					start=System.nanoTime();
 					Pair<float[], float[]> tic=raw.getTICTrace();
@@ -457,6 +462,19 @@ class DirectorySummarySlowBitsController {
 			}
 		} finally {
 			timing.log(row);
+		}
+	}
+
+	@FunctionalInterface
+	private interface InstrumentReader {
+		String read() throws Exception;
+	}
+
+	private static void readInstrument(DirectorySummaryRow row, InstrumentReader reader) {
+		try {
+			row.instrument=InstrumentNames.clean(reader.read());
+		} catch (Exception e) {
+			Logger.errorException(e);
 		}
 	}
 

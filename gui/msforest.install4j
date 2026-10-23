@@ -22,7 +22,7 @@
   </files>
   <launchers>
     <launcher name="MSForest" id="35">
-      <executable name="MSForest" iconSet="true" stderrMode="append" redirectStdout="true" executableMode="gui" changeWorkingDirectory="false" checkConsoleParameter="true" />
+      <executable name="MSForest" iconSet="true" stderrMode="append" redirectStdout="true" executableMode="gui" singleInstance="true" changeWorkingDirectory="false" checkConsoleParameter="true" />
       <splashScreen show="true" bitmapFile="./splash.png" textOverlay="true">
         <text>
           <versionLine x="10" y="10" text="version ${compiler:sys.version}" fontColor="153,153,153" />
@@ -37,6 +37,12 @@
       <iconImageFiles>
         <file path="./icon256.png" />
       </iconImageFiles>
+      <macStaticAssociations>
+        <fileAssociation extension="raw" description="Thermo RAW dataset" role="viewer" handlerRank="alternate" />
+        <fileAssociation extension="dia" description="EncyclopeDIA dataset" role="viewer" handlerRank="alternate" />
+        <fileAssociation extension="mzML" description="mzML dataset" role="viewer" handlerRank="alternate" />
+        <fileAssociation extension="tdf" description="Bruker TDF dataset" role="viewer" handlerRank="alternate" />
+      </macStaticAssociations>
     </launcher>
   </launchers>
   <installerGui>
@@ -249,9 +255,84 @@ MSForest and all included components are provided “as is,” without warrantie
               </formComponent>
             </formComponents>
           </screen>
+          <screen id="311" beanClass="com.install4j.runtime.beans.screens.FileAssociationsScreen">
+            <condition>!Util.isMacOS() &amp;&amp; !context.getBooleanVariable("sys.streamlinedInstallation")</condition>
+            <formComponents>
+              <formComponent id="312" beanClass="com.install4j.runtime.beans.formcomponents.MultilineLabelComponent">
+                <serializedBean>
+                  <property name="labelText" type="string">Optionally associate Thermo RAW, EncyclopeDIA DIA, mzML, and Bruker TDF files with MSForest. You can also choose MSForest later using your operating system's Open With settings.</property>
+                </serializedBean>
+              </formComponent>
+              <formComponent id="309" beanClass="com.install4j.runtime.beans.formcomponents.FileAssociationsComponent" />
+            </formComponents>
+          </screen>
           <screen id="15" beanClass="com.install4j.runtime.beans.screens.InstallationScreen" rollbackBarrier="true" rollbackBarrierExitCode="0">
             <actions>
               <action id="17" beanClass="com.install4j.runtime.beans.actions.InstallFilesAction" actionElevationType="elevated" rollbackBarrierExitCode="0" failureStrategy="quit" errorMessage="${i18n:FileCorrupted}" />
+              <action id="310" beanClass="com.install4j.runtime.beans.actions.desktop.CreateFileAssociationAction" actionElevationType="elevated" rollbackBarrierExitCode="0">
+                <serializedBean>
+                  <property name="description" type="string">Thermo RAW dataset (.raw)</property>
+                  <property name="extension" type="string">raw</property>
+                  <property name="launcherId" type="string">35</property>
+                  <property name="selected" type="boolean" value="false" />
+                  <property name="windows" type="boolean" value="true" />
+                  <property name="unix" type="boolean" value="true" />
+                  <property name="unixIconFile">
+                    <object class="com.install4j.api.beans.ExternalFile">
+                      <string>./icon256.png</string>
+                    </object>
+                  </property>
+                  <property name="unixMimeType" type="string">application/x-thermo-raw</property>
+                </serializedBean>
+              </action>
+              <action id="314" beanClass="com.install4j.runtime.beans.actions.desktop.CreateFileAssociationAction" actionElevationType="elevated" rollbackBarrierExitCode="0">
+                <serializedBean>
+                  <property name="description" type="string">EncyclopeDIA dataset (.dia)</property>
+                  <property name="extension" type="string">dia</property>
+                  <property name="launcherId" type="string">35</property>
+                  <property name="selected" type="boolean" value="false" />
+                  <property name="windows" type="boolean" value="true" />
+                  <property name="unix" type="boolean" value="true" />
+                  <property name="unixIconFile">
+                    <object class="com.install4j.api.beans.ExternalFile">
+                      <string>./icon256.png</string>
+                    </object>
+                  </property>
+                  <property name="unixMimeType" type="string">application/x-encyclopedia-dia</property>
+                </serializedBean>
+              </action>
+              <action id="315" beanClass="com.install4j.runtime.beans.actions.desktop.CreateFileAssociationAction" actionElevationType="elevated" rollbackBarrierExitCode="0">
+                <serializedBean>
+                  <property name="description" type="string">mzML dataset (.mzML)</property>
+                  <property name="extension" type="string">mzML</property>
+                  <property name="launcherId" type="string">35</property>
+                  <property name="selected" type="boolean" value="false" />
+                  <property name="windows" type="boolean" value="true" />
+                  <property name="unix" type="boolean" value="true" />
+                  <property name="unixIconFile">
+                    <object class="com.install4j.api.beans.ExternalFile">
+                      <string>./icon256.png</string>
+                    </object>
+                  </property>
+                  <property name="unixMimeType" type="string">application/mzml+xml</property>
+                </serializedBean>
+              </action>
+              <action id="316" beanClass="com.install4j.runtime.beans.actions.desktop.CreateFileAssociationAction" actionElevationType="elevated" rollbackBarrierExitCode="0">
+                <serializedBean>
+                  <property name="description" type="string">Bruker TDF dataset (.tdf)</property>
+                  <property name="extension" type="string">tdf</property>
+                  <property name="launcherId" type="string">35</property>
+                  <property name="selected" type="boolean" value="false" />
+                  <property name="windows" type="boolean" value="true" />
+                  <property name="unix" type="boolean" value="true" />
+                  <property name="unixIconFile">
+                    <object class="com.install4j.api.beans.ExternalFile">
+                      <string>./icon256.png</string>
+                    </object>
+                  </property>
+                  <property name="unixMimeType" type="string">application/x-bruker-tdf</property>
+                </serializedBean>
+              </action>
               <action id="18" beanClass="com.install4j.runtime.beans.actions.desktop.CreateDefaultStartMenuEntriesAction" actionElevationType="elevated" rollbackBarrierExitCode="0" />
               <action id="19" beanClass="com.install4j.runtime.beans.actions.desktop.RegisterAddRemoveAction" actionElevationType="elevated" rollbackBarrierExitCode="0">
                 <serializedBean>

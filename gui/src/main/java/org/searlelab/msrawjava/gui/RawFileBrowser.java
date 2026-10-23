@@ -16,18 +16,19 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.DoubleConsumer;
+import java.util.function.Supplier;
 
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTree;
-import javax.swing.ListSelectionModel;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
@@ -54,7 +55,6 @@ import org.searlelab.msrawjava.gui.loadingpanels.LoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.QuadrupoleLoadingPanel;
 import org.searlelab.msrawjava.gui.loadingpanels.TOFLoadingPanel;
 import org.searlelab.msrawjava.gui.utils.BackgroundKeyboardListener;
-import org.searlelab.msrawjava.io.VendorFileFinder;
 import org.searlelab.msrawjava.io.VendorFiles;
 import org.searlelab.msrawjava.logging.Logger;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
@@ -75,10 +75,12 @@ public class RawFileBrowser extends JFrame {
 	private final JComponent directorySelectionHintPanel=new DirectorySelectionHintPanel();
 	private DirectorySummaryPanel currentSummaryPanel;
 	private Path pendingSelectionPath;
+	private Path currentDirectory;
+	private final FileNavigation navigation=new FileNavigation();
 
 	private final JSplitPane fileSplit;
 	private final JSplitPane leftAndCenter;
-	private volatile SwingWorker<JComponent, String> currentLoad;
+	private volatile SwingWorker<Supplier<JComponent>, String> currentLoad;
 	private final AtomicLong loadSeq=new AtomicLong();
 	private boolean restoringSelection=false;
 	private boolean programmaticSelection=false;
@@ -103,13 +105,26 @@ public class RawFileBrowser extends JFrame {
 		dirTree.setCellRenderer(new FileTreeCellRenderer(fsv));
 		dirTree.addTreeWillExpandListener(new TreeWillExpandLoader());
 		dirTree.addTreeSelectionListener(this::onTreeSelectionChanged);
+		dirTree.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent event) {
+				maybeShowTreePopup(event);
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent event) {
+				maybeShowTreePopup(event);
+			}
+		});
 
 		JScrollPane treeScroll=new JScrollPane(dirTree);
+		FileNavigationTransferHandler drops=new FileNavigationTransferHandler(files -> navigateFiles(files, false, false));
+		FileNavigationDropPane treeDropPane=new FileNavigationDropPane(treeScroll, dirTree, drops);
 		treeScroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
 
 		ReaderStatusPanel statusPanel=new ReaderStatusPanel();
 		JPanel treeWithStatus=new JPanel(new java.awt.BorderLayout());
-		treeWithStatus.add(treeScroll, java.awt.BorderLayout.CENTER);
+		treeWithStatus.add(treeDropPane, java.awt.BorderLayout.CENTER);
 		treeWithStatus.add(statusPanel, java.awt.BorderLayout.SOUTH);
 
 		// ---- Top is the directory table (set later); Bottom is the lowerSplit
@@ -182,10 +197,13 @@ public class RawFileBrowser extends JFrame {
 	}
 
 	private void onTreeSelectionChanged(TreeSelectionEvent e) {
+		if (programmaticSelection) return;
 		if (restoringSelection) {
 			restoringSelection=false;
 			return;
 		}
+		navigation.cancel();
+		pendingSelectionPath=null;
 		DirectoryNode node=(DirectoryNode)dirTree.getLastSelectedPathComponent();
 		if (node==null) return;
 
@@ -206,7 +224,7 @@ public class RawFileBrowser extends JFrame {
 		if (GUIPreferences.isVerboseGuiLogging()) {
 			Logger.logLine("RawFileBrowser selection event: userEvent="+userEvent+", eventType="+eventType);
 		}
-		if (!programmaticSelection&&userEvent) {
+		if (userEvent) {
 			node.setLoaded(false);
 			treeModel.loadChildren(node, fsv);
 			GUIPreferences.rememberLastDirectory(dir);
@@ -215,6 +233,10 @@ public class RawFileBrowser extends JFrame {
 	}
 
 	private void showDirectorySelectionHint() {
+		loadSeq.incrementAndGet();
+		if (currentLoad!=null) currentLoad.cancel(true);
+		pendingSelectionPath=null;
+		currentDirectory=null;
 		conversionPane.setSelectedPathsSupplier(java.util.List::of);
 		conversionPane.updateDemuxAvailability(java.util.List.of());
 		setTopComponent(directorySelectionHintPanel);
@@ -232,11 +254,18 @@ public class RawFileBrowser extends JFrame {
 	}
 
 	private void updateDirectory(File dir) {
+		if (isFileSystemRoot(dir)) {
+			showDirectorySelectionHint();
+			return;
+		}
+		currentSummaryPanel=null;
+		currentDirectory=dir.toPath().toAbsolutePath().normalize();
+		if (pendingSelectionPath!=null&&!currentDirectory.equals(pendingSelectionPath.getParent())) pendingSelectionPath=null;
 		if (GUIPreferences.isVerboseGuiLogging()) {
 			Logger.logLine("RawFileBrowser opened directory: "+dir.getAbsolutePath());
 		}
 		// Cancel any in-flight worker (directory or file loader)
-		SwingWorker<JComponent, String> prev=currentLoad;
+		SwingWorker<Supplier<JComponent>, String> prev=currentLoad;
 		if (prev!=null) prev.cancel(true);
 
 		final long mySeq=loadSeq.incrementAndGet();
@@ -254,19 +283,18 @@ public class RawFileBrowser extends JFrame {
 
 		currentLoad=new SwingWorker<>() {
 			@Override
-			protected JComponent doInBackground() {
+			protected Supplier<JComponent> doInBackground() {
 				try {
-					VendorFiles files=VendorFileFinder.findAndAddRawAndD(dir.toPath(), true, true);
+					VendorFiles files=BrowserDatasets.find(dir.toPath());
 					if (isCancelled()) return null;
 
-					DirectorySummaryPanel panel=new DirectorySummaryPanel(files);
-					panel.getTable().setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-					return panel;
+					Supplier<DirectorySummaryPanel> prepared=DirectorySummaryPanel.prepare(files);
+					return prepared::get;
 				} catch (Throwable t) {
 					String message="Error scanning directory: "+t.getMessage();
 					Logger.errorLine(message);
 					Logger.errorException(t);
-					return new JLabel(message);
+					return () -> new JLabel(message);
 				}
 			}
 
@@ -277,7 +305,8 @@ public class RawFileBrowser extends JFrame {
 
 				try {
 					if (isCancelled()) return;
-					JComponent top=get(); // may be a DirectorySummaryPanel or a JLabel on error
+					Supplier<JComponent> prepared=get();
+					JComponent top=prepared==null?null:prepared.get(); // Construct Swing components on the EDT.
 
 					if (top instanceof DirectorySummaryPanel) {
 						DirectorySummaryPanel panel=(DirectorySummaryPanel)top;
@@ -366,21 +395,55 @@ public class RawFileBrowser extends JFrame {
 		if (panel==null||pendingSelectionPath==null) return;
 		Path pending=pendingSelectionPath;
 		pendingSelectionPath=null;
-		SwingUtilities.invokeLater(() -> panel.selectPath(pending));
+		panel.revealPath(pending);
 	}
 
 	public void openAndSelectFile(File file, boolean visualize) {
-		if (file==null) return;
-		File parent=file.isDirectory()?file.getParentFile():file.getParentFile();
-		if (parent==null) return;
-		pendingSelectionPath=file.toPath();
-		selectDirectoryInTree(parent);
-		if (currentSummaryPanel!=null) {
-			currentSummaryPanel.selectPath(file.toPath());
+		if (file!=null) navigateFiles(List.of(file), true, visualize);
+	}
+
+	void openExternalFiles(List<File> files) {
+		navigateFiles(files, true, false);
+	}
+
+	private void navigateFiles(List<File> files, boolean datasetsOnly, boolean visualize) {
+		if (!SwingUtilities.isEventDispatchThread()) {
+			SwingUtilities.invokeLater(() -> navigateFiles(files, datasetsOnly, visualize));
+			return;
 		}
-		if (visualize) {
-			FileDetailsDialog.showFileDetailsDialog(this, file);
+		pendingSelectionPath=null;
+		navigation.open(files, datasetsOnly, target -> applyNavigationTarget(target, visualize), () -> {
+			showOpenRequestError("No existing "+(datasetsOnly?"supported dataset":"file or directory")+" was found in the open request.");
+		});
+	}
+
+	private void applyNavigationTarget(FileNavigation.Target target, boolean visualize) {
+		pendingSelectionPath=target.selection;
+		long before=loadSeq.get();
+		selectDirectoryInTree(target.directory.toFile());
+		if (!isFileSystemRoot(target.directory.toFile())) GUIPreferences.rememberLastDirectory(target.directory.toFile());
+		// Selecting the current tree node produces no event; a new file may require a refresh.
+		if (before==loadSeq.get()) {
+			if (target.directory.equals(currentDirectory)&&currentSummaryPanel!=null
+					&&(target.selection==null||currentSummaryPanel.revealPath(target.selection))) {
+				pendingSelectionPath=null;
+			} else {
+				updateDirectory(target.directory.toFile());
+			}
 		}
+		setExtendedState(getExtendedState()&~JFrame.ICONIFIED);
+		toFront();
+		requestFocus();
+		if (target.selection!=null&&isFileSystemRoot(target.directory.toFile())) {
+			showOpenRequestError("This dataset is in a drive or filesystem root and cannot be selected in the browser.\n"
+					+"Move it into a subfolder to select it.");
+		}
+		if (visualize&&target.selection!=null) FileDetailsDialog.showFileDetailsDialog(this, target.selection.toFile());
+	}
+
+	void showOpenRequestError(String message) {
+		Logger.errorLine(message);
+		JOptionPane.showMessageDialog(this, message, ProductBranding.PRODUCT_NAME, JOptionPane.ERROR_MESSAGE);
 	}
 
 	private void installSummaryInteractions(DirectorySummaryPanel panel) {
@@ -443,9 +506,21 @@ public class RawFileBrowser extends JFrame {
 
 		menu.add(visualize);
 		menu.add(showDir);
+		menu.add(FileManagerActions.menuItem(this, p));
 		menu.addSeparator();
 		menu.add(selectAll);
 		menu.show(tbl, e.getX(), e.getY());
+	}
+
+	private void maybeShowTreePopup(MouseEvent event) {
+		if (!event.isPopupTrigger()) return;
+		TreePath path=dirTree.getPathForLocation(event.getX(), event.getY());
+		if (path==null||!(path.getLastPathComponent() instanceof DirectoryNode)) return;
+		File directory=((DirectoryNode)path.getLastPathComponent()).getFile();
+		if (directory==null) return; // The virtual computer root has no filesystem location.
+		JPopupMenu menu=new JPopupMenu();
+		menu.add(FileManagerActions.menuItem(this, directory.toPath()));
+		menu.show(dirTree, event.getX(), event.getY());
 	}
 
 	private static double dividerProportion(JSplitPane sp) {
@@ -457,20 +532,20 @@ public class RawFileBrowser extends JFrame {
 	/** Expand & select a directory in the tree, adding child nodes along the way if needed. */
 	private void selectDirectoryInTree(File targetDir) {
 		if (targetDir==null) return;
-		// Build the path from a root under our virtual root
-		DirectoryNode virtualRoot=(DirectoryNode)treeModel.getRoot();
-		TreePath path=treePathForDirectory(virtualRoot, targetDir);
-		if (path!=null) {
-			// Expand along the path
-			programmaticSelection=true;
-			try {
+		programmaticSelection=true;
+		try {
+			// Loading ancestors can itself produce selection events; keep the whole navigation guarded.
+			DirectoryNode virtualRoot=(DirectoryNode)treeModel.getRoot();
+			TreePath path=treePathForDirectory(virtualRoot, targetDir);
+			if (path!=null) {
 				dirTree.expandPath(path);
 				dirTree.setSelectionPath(path);
 				dirTree.scrollPathToVisible(path);
-			} finally {
-				programmaticSelection=false;
 			}
+		} finally {
+			programmaticSelection=false;
 		}
+		if (!targetDir.toPath().toAbsolutePath().normalize().equals(currentDirectory)) updateDirectory(targetDir);
 	}
 
 	/** Create/locate a TreePath from our virtual root down to the target directory. */
@@ -509,7 +584,7 @@ public class RawFileBrowser extends JFrame {
 			File piece=chain.get(i);
 			treeModel.loadChildren(cur, fsv);
 			DirectoryNode next=findChildByFile(cur, piece);
-			if (next==null) break; // may be hidden/permission issue
+			if (next==null) next=ensureChildNodeFor(cur, piece); // Explicit navigation may include hidden directories.
 			cur=next;
 			curPath=curPath.pathByAddingChild(cur);
 		}

@@ -72,6 +72,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 	private DataAcquisitionType dataAcquisitionType=DataAcquisitionType.DDA;
 	private boolean staggered=false;
 	private double precursorMarginSize=0.0;
+	private Optional<String> instrumentModel=Optional.empty();
 	private Optional<Date> runStartTime=Optional.empty();
 	private ThermoIndexingMode indexingMode=ThermoIndexingMode.LAZY;
 	private final ThermoRawSpectrumReader spectrumReader=new ThermoRawSpectrumReader(this);
@@ -123,6 +124,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		}
 
 		this.rawPath=rawFile;
+		instrumentModel=Optional.empty();
 		this.indexingMode=indexingMode==null?ThermoIndexingMode.LAZY:indexingMode;
 
 		int port;
@@ -152,6 +154,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 	private void applyOpenReply(Path rawFile, OpenReply rep) {
 		this.rawPath=rawFile;
 		this.sessionId=rep.getSessionId();
+		this.instrumentModel=Optional.of(rep.getInstrumentModel().trim()).filter(value -> !value.isEmpty());
 		this.runStartTime=parseDate(rep.getRunStartTimeIso8601());
 		this.acquisitionRanges=new LinkedHashMap<Range, WindowData>();
 		this.dataAcquisitionType=DataAcquisitionType.DDA;
@@ -208,6 +211,12 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 			throw e;
 		}
 		return runStartTime;
+	}
+
+	/** Returns the model from the open reply without fetching metadata or determining acquisition structure. */
+	@API(status = API.Status.STABLE, since = "v26.10.20")
+	public Optional<String> getInstrumentModelIfKnown() {
+		return instrumentModel;
 	}
 
 	public Optional<Date> getRunStartTimeIfKnown() {
@@ -386,6 +395,7 @@ public final class ThermoRawFile implements StripeFileInterface, StructuredMetad
 		boolean interruptedAtEntry=Thread.currentThread().isInterrupted();
 		stub=null;
 		sessionId=null;
+		instrumentModel=Optional.empty();
 		channel=null;
 		try {
 			if (stubToClose!=null&&sessionIdToClose!=null&&channelToClose!=null) {

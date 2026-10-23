@@ -17,11 +17,22 @@ import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
 import org.searlelab.msrawjava.logging.LoggingProgressIndicator;
 import org.searlelab.msrawjava.io.thermo.ThermoRawFile;
 import org.searlelab.msrawjava.io.thermo.ThermoServerPool;
+import org.searlelab.msrawjava.io.tims.BrukerTIMSFile.UnsupportedTsfException;
 import org.searlelab.msrawjava.threading.ProcessingThreadPool;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 class RawFileConversionTest {
+	@Test
+	void tsfInputRetainsItsSpecificDiagnostic(@TempDir Path temp) throws Exception {
+		Path input=Files.createDirectory(temp.resolve("pasef-off.d"));
+		Files.createFile(input.resolve("analysis.tsf"));
+		ConversionOptions options=ConversionOptions.builder().outputType(OutputType.mgf).build();
+		UnsupportedTsfException error=assertThrows(UnsupportedTsfException.class,
+				() -> RawFileConversion.convert(ConversionRequest.toDirectory(input, temp, 1, options, null)));
+		assertTrue(error.getMessage().contains("PASEF-off / TSF files are not supported"));
+	}
+
 	@Test
 	void requestAndResultAreCreatedThroughFactories() {
 		assertEquals(0, ConversionRequest.class.getConstructors().length, "ConversionRequest constructor should not be public");

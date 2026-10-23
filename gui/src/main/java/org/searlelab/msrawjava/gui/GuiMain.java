@@ -1,5 +1,8 @@
 package org.searlelab.msrawjava.gui;
 
+import java.awt.Desktop;
+import java.util.Locale;
+
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
@@ -15,6 +18,15 @@ public class GuiMain {
 
 	public static void main(String[] args) {
 		LoggingConsoleDialog.installSystemCapture();
+		OpenFileDispatcher opens=new OpenFileDispatcher();
+		opens.submitArguments(args);
+		boolean mac=System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("mac");
+		// Register on the main thread, before startup dialogs or browser initialization.
+		boolean launcherEvents=opens.registerInstall4j(GuiMain.class.getClassLoader(), mac);
+		if (!launcherEvents&&Desktop.isDesktopSupported()) {
+			Desktop desktop=Desktop.getDesktop();
+			if (desktop.isSupported(Desktop.Action.APP_OPEN_FILE)) desktop.setOpenFileHandler(event -> opens.submit(event.getFiles()));
+		}
 		LookAndFeelManager.applyLookAndFeel(GUIPreferences.getLookAndFeelId(LookAndFeelManager.LAF_FLAT_LIGHT));
 		askProcessingQuestionIfNeeded();
 		ThermoServerPool.setProcessingThreadLimit(COREPreferences.getProcessingThreadLimit());
@@ -45,6 +57,7 @@ public class GuiMain {
 				}
 			});
 			app.setVisible(true);
+			opens.attach(app::openExternalFiles);
 		});
 	}
 
