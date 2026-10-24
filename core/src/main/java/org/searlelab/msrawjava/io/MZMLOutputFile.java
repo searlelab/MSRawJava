@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.searlelab.msrawjava.Version;
+import org.searlelab.msrawjava.io.mzml.InstrumentId;
+import org.searlelab.msrawjava.io.mzml.InstrumentModelCv;
 import org.searlelab.msrawjava.io.mzml.MzmlBinaryUtils;
 import org.searlelab.msrawjava.io.utils.StreamCopy;
 import org.searlelab.msrawjava.logging.Logger;
@@ -143,16 +145,17 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 				+" xsi:schemaLocation=\"http://psi.hupo.org/ms/mzml http://psi.hupo.org/ms/mzml/schema/mzML1.1.1.xsd\""+" version=\"1.1.1\">\n");
 
 		out.write("  <cvList count=\"2\">\n");
-		out.write("    <cv id=\"MS\" fullName=\"Proteomics Standards Initiative Mass Spectrometry Ontology\" version=\"4.1.136\" "
+		out.write("    <cv id=\"MS\" fullName=\"Proteomics Standards Initiative Mass Spectrometry Ontology\" version=\""+InstrumentModelCv.CV_VERSION+"\" "
 				+"URI=\"https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo\"/>\n");
 		out.write("    <cv id=\"UO\" fullName=\"Unit Ontology\" version=\"09:04:2014\" "
 				+"URI=\"https://raw.githubusercontent.com/bio-ontology-research-group/unit-ontology/master/unit.obo\"/>\n");
 		out.write("  </cvList>\n");
 
 		writeFileDescription();
-		writeReferenceableParamGroupList();
+		boolean thermo=InstrumentModelCv.isThermoMetadata(meta);
+		writeReferenceableParamGroupList(thermo);
 		writeSoftwareList();
-		writeInstrumentConfigurationList();
+		writeInstrumentConfigurationList(thermo);
 		writeDataProcessingList();
 
 		out.write("  <run id=\"run1\" defaultInstrumentConfigurationRef=\"IC1\">\n");
@@ -215,23 +218,25 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		}
 	}
 
-	private void writeReferenceableParamGroupList() throws IOException {
+	private void writeReferenceableParamGroupList(boolean thermo) throws IOException {
 		out.write("  <referenceableParamGroupList count=\"1\">\n");
 		out.write("    <referenceableParamGroup id=\"CommonInstrumentParams\">\n");
 
 		// Instrument family / model
 		String vendor=meta.getOrDefault("meta.InstrumentVendor", "");
-		String model=meta.getOrDefault("meta.InstrumentName", meta.getOrDefault("instrument.model", "")).toLowerCase(Locale.ROOT);
+		String modelName=InstrumentModelCv.modelName(meta).orElse("");
+		Optional<InstrumentId> model=InstrumentModelCv.find(modelName);
 
-		if (vendor.toLowerCase(Locale.ROOT).contains("bruker")||model.contains("tims")) {
-			// Bruker timsTOF series
-			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_BRUKER_TIMSTOF_SERIES+"\" name=\"Bruker Daltonics timsTOF series\" value=\"\"/>\n");
-		} else if (model.contains("orbitrap")||vendor.toLowerCase(Locale.ROOT).contains("thermo")) {
-			// Generic Thermo model bucket + serial
-			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_THERMO_INSTRUMENT_MODEL+"\" name=\"Thermo Electron instrument model\" value=\"\"/>\n");
+		if (model.isPresent()) {
+			InstrumentId term=model.get();
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+term.accession+"\" name=\""+escapeXml(term.name)+"\" value=\"\"/>\n");
+		} else if (modelName.isEmpty()&&thermo) {
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_THERMO_FISHER_INSTRUMENT_MODEL+"\" name=\"Thermo Fisher Scientific instrument model\" value=\"\"/>\n");
+		} else if (modelName.isEmpty()&&vendor.toLowerCase(Locale.ROOT).contains("bruker")) {
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_BRUKER_INSTRUMENT_MODEL+"\" name=\"Bruker Daltonics instrument model\" value=\"\"/>\n");
 		} else {
 			// Fallback: generic instrument model term
-			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_INSTRUMENT_MODEL+"\" name=\"instrument model\" value=\"\"/>\n");
+			out.write("      <cvParam cvRef=\"MS\" accession=\""+CV_INSTRUMENT_MODEL+"\" name=\"instrument model\" value=\""+escapeXml(modelName)+"\"/>\n");
 		}
 
 		// instrument serial number if present
@@ -262,40 +267,33 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		out.write("  </softwareList>\n");
 	}
 
-	private void writeInstrumentConfigurationList() throws IOException {
+	private void writeInstrumentConfigurationList(boolean thermo) throws IOException {
+		String modelName=InstrumentModelCv.modelName(meta).orElse("");
+		Optional<InstrumentId> model=InstrumentModelCv.find(modelName);
+		String modelLc=model.map(term -> term.name).orElse(modelName).toLowerCase(Locale.ROOT);
+		boolean astral=model.filter(term -> CV_ORBITRAP_ASTRAL.equals(term.accession)||CV_ORBITRAP_ASTRAL_ZOOM.equals(term.accession)).isPresent();
 		out.write("  <instrumentConfigurationList count=\"1\">\n");
 		out.write("    <instrumentConfiguration id=\"IC1\">\n");
 		out.write("      <referenceableParamGroupRef ref=\"CommonInstrumentParams\"/>\n");
-		out.write("      <componentList count=\"3\">\n");
+		out.write("      <componentList count=\""+(astral?6:3)+"\">\n");
 
 		// Source
 		out.write("        <source order=\"1\">\n");
 		out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_ELECTROSPRAY_IONIZATION+"\" name=\"electrospray ionization\" value=\"\"/>\n");
 		out.write("        </source>\n");
 
-		String vendorLc=meta.getOrDefault("meta.InstrumentVendor", "").toLowerCase(Locale.ROOT);
-		String modelLc=meta.getOrDefault("meta.InstrumentName", meta.getOrDefault("instrument.model", "")).toLowerCase(Locale.ROOT);
-		out.write("        <analyzer order=\"2\">\n");
-		if (vendorLc.contains("thermo")) {
-			if (modelLc.contains("orbitrap")) {
-				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_ORBITRAP+"\" name=\"orbitrap\" value=\"\"/>\n");
-			} else if (modelLc.contains("astral")) {
-				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_TIME_OF_FLIGHT+"\" name=\"time-of-flight\" value=\"\"/>\n");
-			} else if (modelLc.contains("stellar")) {
-				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_LINEAR_ION_TRAP+"\" name=\"linear ion trap\" value=\"\"/>\n");
-			}
+		if (astral) {
+			// Multi-analyzer descriptions are intentionally limited to Astral; other hybrids retain the best-effort single-analyzer mapping.
+			writeInstrumentComponent("analyzer", 2, CV_QUADRUPOLE, "quadrupole");
+			writeInstrumentComponent("analyzer", 3, CV_ORBITRAP, "orbitrap");
+			writeInstrumentComponent("analyzer", 4, CV_ASTRAL_ANALYZER, "asymmetric track lossless time-of-flight analyzer");
+			writeInstrumentComponent("detector", 5, CV_INDUCTIVE_DETECTOR, "inductive detector");
+			// Astral HDR photomultiplier: Thermo poster PO156-2024-EN, "Optimization of the Astral detection system".
+			// https://documents.thermofisher.com/TFS-Assets/CMD/posters/po-156-astral-detection-ion-sensitivity-proteome-po156-asms2024-en.pdf
+			writeInstrumentComponent("detector", 6, CV_PHOTOMULTIPLIER, "photomultiplier");
 		} else {
-			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_TIME_OF_FLIGHT+"\" name=\"time-of-flight\" value=\"\"/>\n");
+			writeSingleAnalyzerComponents(thermo, modelLc);
 		}
-		out.write("        </analyzer>\n");
-
-		out.write("        <detector order=\"3\">\n");
-		if (vendorLc.contains("thermo")||modelLc.contains("orbitrap")) {
-			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_INDUCTIVE_DETECTOR+"\" name=\"inductive detector\" value=\"\"/>\n");
-		} else {
-			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_MICROCHANNEL_PLATE_DETECTOR+"\" name=\"microchannel plate detector\" value=\"\"/>\n");
-		}
-		out.write("        </detector>\n");
 
 		out.write("      </componentList>\n");
 		if (meta.containsKey("meta.AcquisitionSoftware")) {
@@ -303,6 +301,42 @@ public class MZMLOutputFile implements OutputSpectrumFile {
 		}
 		out.write("    </instrumentConfiguration>\n");
 		out.write("  </instrumentConfigurationList>\n");
+	}
+
+	private void writeInstrumentComponent(String type, int order, String accession, String name) throws IOException {
+		out.write("        <"+type+" order=\""+order+"\">\n");
+		out.write("          <cvParam cvRef=\"MS\" accession=\""+accession+"\" name=\""+escapeXml(name)+"\" value=\"\"/>\n");
+		out.write("        </"+type+">\n");
+	}
+
+	private void writeSingleAnalyzerComponents(boolean thermo, String modelLc) throws IOException {
+		out.write("        <analyzer order=\"2\">\n");
+		if (thermo) {
+			if (modelLc.contains("stellar")) {
+				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_LINEAR_ION_TRAP+"\" name=\"linear ion trap\" value=\"\"/>\n");
+			} else if (modelLc.contains("orbitrap")||modelLc.contains("exactive")) {
+				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_ORBITRAP+"\" name=\"orbitrap\" value=\"\"/>\n");
+			} else {
+				out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_MASS_ANALYZER_TYPE+"\" name=\"mass analyzer type\" value=\"\"/>\n");
+			}
+		} else {
+			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_TIME_OF_FLIGHT+"\" name=\"time-of-flight\" value=\"\"/>\n");
+		}
+		out.write("        </analyzer>\n");
+
+		out.write("        <detector order=\"3\">\n");
+		if (thermo&&modelLc.contains("stellar")) {
+			// Stellar's photomultiplier: Thermo brochure BR002761, "Extended scale detector".
+			// https://documents.thermofisher.com/TFS-Assets/CMD/brochures/br-002761-ms-stellar-mass-spectrometer-br002761-en.pdf
+			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_PHOTOMULTIPLIER+"\" name=\"photomultiplier\" value=\"\"/>\n");
+		} else if (modelLc.contains("orbitrap")||modelLc.contains("exactive")) {
+			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_INDUCTIVE_DETECTOR+"\" name=\"inductive detector\" value=\"\"/>\n");
+		} else if (thermo) {
+			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_DETECTOR_TYPE+"\" name=\"detector type\" value=\"\"/>\n");
+		} else {
+			out.write("          <cvParam cvRef=\"MS\" accession=\""+CV_MICROCHANNEL_PLATE_DETECTOR+"\" name=\"microchannel plate detector\" value=\"\"/>\n");
+		}
+		out.write("        </detector>\n");
 	}
 
 	private void writeDataProcessingList() throws IOException {

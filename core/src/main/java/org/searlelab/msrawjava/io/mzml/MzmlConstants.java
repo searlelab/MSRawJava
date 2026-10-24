@@ -126,8 +126,16 @@ public final class MzmlConstants {
 	public static final String CV_INSTRUMENT_SERIAL_NUMBER="MS:1000529";
 	/** Thermo Electron instrument model */
 	public static final String CV_THERMO_INSTRUMENT_MODEL="MS:1000492";
+	/** Thermo Fisher Scientific instrument model */
+	public static final String CV_THERMO_FISHER_INSTRUMENT_MODEL="MS:1000483";
+	/** Bruker Daltonics instrument model */
+	public static final String CV_BRUKER_INSTRUMENT_MODEL="MS:1000122";
 	/** Bruker Daltonics timsTOF series */
 	public static final String CV_BRUKER_TIMSTOF_SERIES="MS:1003123";
+	/** Orbitrap Astral */
+	public static final String CV_ORBITRAP_ASTRAL="MS:1003378";
+	/** Orbitrap Astral Zoom */
+	public static final String CV_ORBITRAP_ASTRAL_ZOOM="MS:1003442";
 
 	// ---- Ion source ----
 
@@ -136,6 +144,12 @@ public final class MzmlConstants {
 
 	// ---- Mass analyzers ----
 
+	/** Mass analyzer type (generic) */
+	public static final String CV_MASS_ANALYZER_TYPE="MS:1000443";
+	/** Quadrupole */
+	public static final String CV_QUADRUPOLE="MS:1000081";
+	/** Asymmetric track lossless time-of-flight analyzer */
+	public static final String CV_ASTRAL_ANALYZER="MS:1003379";
 	/** Orbitrap */
 	public static final String CV_ORBITRAP="MS:1000484";
 	/** Time-of-flight */
@@ -147,6 +161,10 @@ public final class MzmlConstants {
 
 	// ---- Detectors ----
 
+	/** Detector type (generic) */
+	public static final String CV_DETECTOR_TYPE="MS:1000026";
+	/** Photomultiplier */
+	public static final String CV_PHOTOMULTIPLIER="MS:1000116";
 	/** Inductive detector */
 	public static final String CV_INDUCTIVE_DETECTOR="MS:1000624";
 	/** Microchannel plate detector */

@@ -23,6 +23,8 @@ import java.util.zip.Deflater;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
 import org.searlelab.msrawjava.io.mzml.InstrumentId;
 import org.searlelab.msrawjava.io.utils.DataAcquisitionType;
@@ -202,12 +204,12 @@ class MzmlFileTest {
 	@Test
 	void resolvesReferencedInstrumentModelsAndIgnoresSerialNumbers() throws Exception {
 		String xml="<mzML><referenceableParamGroupList count=\"1\"><referenceableParamGroup id=\"CommonInstrumentParams\">"
-				+"<cvParam accession=\"MS:1003029\" name=\"timsTOF Pro\"/>"
+				+"<cvParam accession=\"MS:1003005\" name=\"timsTOF Pro\"/>"
 				+"<cvParam accession=\"MS:1000529\" name=\"instrument serial number\" value=\"123\"/>"
 				+"</referenceableParamGroup></referenceableParamGroupList><instrumentConfigurationList count=\"2\">"
 				+"<instrumentConfiguration id=\"IC1\"><referenceableParamGroupRef ref=\"CommonInstrumentParams\"/>"
 				+"<componentList><analyzer order=\"1\"><cvParam name=\"time-of-flight\"/></analyzer></componentList></instrumentConfiguration>"
-				+"<instrumentConfiguration id=\"IC2\"><cvParam accession=\"MS:1000483\" name=\"Orbitrap Fusion\"/>"
+				+"<instrumentConfiguration id=\"IC2\"><cvParam accession=\"MS:1002416\" name=\"Orbitrap Fusion\"/>"
 				+"<referenceableParamGroupRef ref=\"CommonInstrumentParams\"/><cvParam accession=\"MS:1000529\" name=\"instrument serial number\"/>"
 				+"<componentList><analyzer order=\"1\"><cvParam name=\"orbitrap\"/></analyzer></componentList></instrumentConfiguration>"
 				+"</instrumentConfigurationList><run><spectrumList count=\"0\"/></run></mzML>";
@@ -234,6 +236,88 @@ class MzmlFileTest {
 		} finally {
 			reader.close();
 		}
+	}
+
+	@ParameterizedTest
+	@CsvSource({"MS:1000031, instrument model", "MS:1000492, Thermo Electron instrument model", "MS:1003123, Bruker Daltonics timsTOF series",
+			"MS:1000483, Thermo Fisher Scientific instrument model", "MS:1000122, Bruker Daltonics instrument model",
+			"MS:1000125, Thermo Finnigan instrument model", "MS:1000494, Thermo Scientific instrument model",
+			"MS:1000493, Finnigan MAT instrument model", "MS:1001547, Bruker Daltonics maXis series", "MS:1000697, Bruker Daltonics HCT Series"})
+	void legacyGenericInstrumentUsesPreservedMetadata(String accession, String name) throws Exception {
+		String xml=instrumentMetadataXml(accession, name, "", "Stellar");
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(writeMzml(xml));
+			InstrumentId id=reader.getInstrumentConfigurations().keySet().iterator().next();
+			assertEquals("Stellar", id.name);
+			assertEquals("MS:1003409", id.accession);
+			assertEquals("IC1", id.instrumentConfigurationId);
+			assertEquals(1, reader.getInstrumentConfigurations().get(id).size());
+			assertEquals("linear ion trap", reader.getInstrumentConfigurations().get(id).iterator().next().name);
+			// Opening another file must not reuse the previous file's fallback metadata.
+			reader.openFile(writeMzml(instrumentMetadataXml(accession, name, "", " ")));
+			assertEquals(name, reader.getInstrumentConfigurations().keySet().iterator().next().name);
+		} finally {
+			reader.close();
+		}
+	}
+
+	@ParameterizedTest
+	@CsvSource({"Exploris 480, MS:1003028, Orbitrap Exploris 480", "timsTOF Pro 2, MS:1003230, timsTOF Pro 2",
+			"Future model, MS:1000031, Future model"})
+	void legacyMetadataRestoresKnownAccessionsAndPreservesUnknownNames(String input, String accession, String name) throws Exception {
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(writeMzml(instrumentMetadataXml("MS:1000031", "instrument model", "", input)));
+			InstrumentId id=reader.getInstrumentConfigurations().keySet().iterator().next();
+			assertEquals(accession, id.accession);
+			assertEquals(name, id.name);
+			assertEquals("IC1", id.instrumentConfigurationId);
+			assertEquals(1, reader.getInstrumentConfigurations().get(id).size());
+		} finally {
+			reader.close();
+		}
+	}
+
+	@ParameterizedTest
+	@CsvSource({"MS:1003409, Stellar, ''", "MS:1000031, instrument model, Stellar"})
+	void specificCvModelTakesPrecedenceOverPreservedMetadata(String accession, String name, String value) throws Exception {
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(writeMzml(instrumentMetadataXml(accession, name, value, "Conflicting metadata")));
+			InstrumentId id=reader.getInstrumentConfigurations().keySet().iterator().next();
+			assertEquals("Stellar", id.name);
+			assertEquals(accession, id.accession);
+		} finally {
+			reader.close();
+		}
+	}
+
+	@ParameterizedTest
+	@CsvSource({"meta.InstrumentName, '  timsTOF Pro  '", "instrument.name, '  Stellar  '"})
+	void missingCvModelUsesNonBlankMetadataAliases(String key, String value) throws Exception {
+		String xml=instrumentMetadataXml("", "", "", " ").replace("<run>",
+				"<userParam name=\"msrawjava.metadata."+key+"\" value=\""+value+"\"/><run>");
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(writeMzml(xml));
+			assertEquals(value.trim(), reader.getInstrumentConfigurations().keySet().iterator().next().name);
+		} finally {
+			reader.close();
+		}
+	}
+
+	private static String instrumentMetadataXml(String accession, String name, String value, String metadataModel) {
+		return "<mzML><referenceableParamGroupList><referenceableParamGroup id=\"CommonInstrumentParams\">"
+				+"<cvParam accession=\""+accession+"\" name=\""+name+"\" value=\""+value+"\"/>"
+				+"<cvParam accession=\"MS:1000529\" name=\"instrument serial number\" value=\"P5\"/>"
+				+"</referenceableParamGroup></referenceableParamGroupList><instrumentConfigurationList>"
+				+"<instrumentConfiguration id=\"IC1\"><referenceableParamGroupRef ref=\"CommonInstrumentParams\"/>"
+				+"<componentList><analyzer order=\"1\"><cvParam name=\"linear ion trap\"/></analyzer></componentList>"
+				+"</instrumentConfiguration></instrumentConfigurationList>"
+				// Put the fallback after the configuration to verify resolution is independent of metadata order.
+				+"<userParam name=\"msrawjava.metadata.instrument.model\" value=\""+metadataModel+"\"/>"
+				+"<run><spectrumList count=\"0\"/></run></mzML>";
 	}
 
 	@Test

@@ -237,7 +237,7 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 					}
 				}
 				softwareAccessionIdToVersion=softwareBuilder.build();
-				instrumentConfigurations=instrumentBuilder.build();
+				instrumentConfigurations=resolveInstrumentMetadata(instrumentBuilder.build());
 			} finally {
 				reader.close();
 			}
@@ -256,8 +256,22 @@ public class MzmlFile implements StripeFileInterface, StructuredMetadataProvider
 
 	private static InstrumentId preferInstrumentModel(InstrumentId preferred, InstrumentId fallback) {
 		if (preferred==null) return fallback;
-		if ("instrument model".equalsIgnoreCase(preferred.name)&&fallback!=null) return fallback;
+		if (InstrumentModelCv.isGenericModel(preferred.name)&&fallback!=null) return fallback;
 		return preferred;
+	}
+
+	private ImmutableMultimap<InstrumentId, InstrumentComponent> resolveInstrumentMetadata(ImmutableMultimap<InstrumentId, InstrumentComponent> configurations) {
+		String name=InstrumentModelCv.modelName(metadata).orElse(null);
+		if (name==null) return configurations;
+		InstrumentId metadataModel=InstrumentModelCv.find(name).orElse(InstrumentId.builder().setAccession(MzmlConstants.CV_INSTRUMENT_MODEL).setName(name).build());
+		// Older exports stored the model only in metadata, leaving a generic CV term in the configuration.
+		ImmutableMultimap.Builder<InstrumentId, InstrumentComponent> resolved=ImmutableMultimap.builder();
+		for (InstrumentId id : configurations.keySet()) {
+			InstrumentId model=InstrumentModelCv.isGenericModel(id.name)?InstrumentId.builder().setInstrumentConfigurationId(id.instrumentConfigurationId)
+					.setAccession(metadataModel.accession).setName(metadataModel.name).build():id;
+			resolved.putAll(model, configurations.get(id));
+		}
+		return resolved.build();
 	}
 
 	private static String parentTag(ArrayDeque<String> tagStack) {

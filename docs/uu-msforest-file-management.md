@@ -51,6 +51,8 @@ File → Open, drag-and-drop, and OS associations navigate and select supported 
 - For Bruker, use trimmed `meta.InstrumentName`; leave missing values blank.
 - For EncyclopeDIA `.dia` files, prefer meaningful `meta.InstrumentName`, falling back to `instrument.model`. Trim values and leave missing, blank, or generic placeholders blank.
 - For mzML, resolve instrument-level parameter-group references by ID, including `CommonInstrumentParams`. Prefer an explicit instrument model over referenced metadata; prevent serial-number parameters from replacing it.
+- When the resolved mzML model is missing or a generic vendor/series term, fall back to saved `msrawjava.metadata.*` instrument metadata in `meta.InstrumentName`, `instrument.model`, then `instrument.name` order, skipping blank values. Use the bundled PSI-MS catalog (`instrument-models.tsv`, version 4.2.8) for canonical model names, accessions, and vendor/series classification; specific CV models retain precedence.
+- mzML exports use the same catalog for known Thermo and Bruker models. Unlisted names, including unknown timsTOF variants, retain their original text in the generic `MS:1000031` value and saved metadata rather than receiving an inferred family or specific-model accession.
 - Display meaningful mzML model names; leave generic “instrument model” placeholders blank. Join multiple distinct names in deterministic sorted order using `; `.
 - Insert Instrument after Vendor when an older saved layout lacks the new key. Preserve existing widths, sort keys, legacy numeric mappings, and subsequent user column placement.
 - Isolate instrument extraction failures so existing TIC and gradient previews can still complete.

@@ -1,0 +1,215 @@
+# PSI-MS 4.2.8 (2026-10-14): non-obsolete Thermo Fisher Scientific and Bruker Daltonics instrument terms.
+# Source: https://github.com/HUPO-PSI/psi-ms-CV/blob/master/psi-ms.obo (data-version: 4.2.8).
+# Includes descendants of MS:1000483 and MS:1000122, with their EXACT synonyms.
+# Columns: accession, canonical name, vendor ancestry (Thermo or Bruker), kind (family or model), optional exact synonyms (tab separated).
+MS:1000122	Bruker Daltonics instrument model	Bruker	family
+MS:1000125	Thermo Finnigan instrument model	Thermo	family
+MS:1000141	apex IV	Bruker	model
+MS:1000142	apex Q	Bruker	model
+MS:1000148	autoflex II	Bruker	model
+MS:1000149	autoflex TOF/TOF	Bruker	model
+MS:1000151	BioTOF II	Bruker	model
+MS:1000152	BioTOF-Q	Bruker	model
+MS:1000153	DELTA plusAdvantage	Thermo	model
+MS:1000154	DELTAplusXP	Thermo	model
+MS:1000156	esquire 4000	Bruker	model
+MS:1000157	esquire 6000	Bruker	model
+MS:1000160	HCT	Bruker	model
+MS:1000161	HCTplus	Bruker	model
+MS:1000167	LCQ Advantage	Thermo	model
+MS:1000168	LCQ Classic	Thermo	model
+MS:1000169	LCQ Deca XP Plus	Thermo	model
+MS:1000172	MAT253	Thermo	model
+MS:1000173	MAT900XP	Thermo	model
+MS:1000174	MAT900XP Trap	Thermo	model
+MS:1000175	MAT95XP	Thermo	model
+MS:1000176	MAT95XP Trap	Thermo	model
+MS:1000177	microflex	Bruker	model
+MS:1000178	microTOF LC	Bruker	model
+MS:1000179	neptune	Thermo	model
+MS:1000183	OmniFlex	Bruker	model
+MS:1000185	PolarisQ	Thermo	model
+MS:1000193	Surveyor MSQ	Thermo	model
+MS:1000196	TEMPUS TOF	Thermo	model
+MS:1000197	TRACE DSQ	Thermo	model
+MS:1000198	TRITON	Thermo	model
+MS:1000199	TSQ Quantum	Thermo	model
+MS:1000201	ultraflex	Bruker	model
+MS:1000202	ultraflex TOF/TOF	Bruker	model
+MS:1000447	LTQ	Thermo	model
+MS:1000448	LTQ FT	Thermo	model
+MS:1000449	LTQ Orbitrap	Thermo	model
+MS:1000450	LXQ	Thermo	model
+MS:1000483	Thermo Fisher Scientific instrument model	Thermo	family
+MS:1000492	Thermo Electron instrument model	Thermo	family
+MS:1000493	Finnigan MAT instrument model	Thermo	family
+MS:1000494	Thermo Scientific instrument model	Thermo	family
+MS:1000554	LCQ Deca	Thermo	model
+MS:1000555	LTQ Orbitrap Discovery	Thermo	model
+MS:1000556	LTQ Orbitrap XL	Thermo	model
+MS:1000557	LTQ FT Ultra	Thermo	model
+MS:1000558	GC Quantum	Thermo	model
+MS:1000578	LCQ Fleet	Thermo	model
+MS:1000622	Surveyor PDA	Thermo	model
+MS:1000623	Accela PDA	Thermo	model
+MS:1000634	DSQ	Thermo	model
+MS:1000635	ITQ 700	Thermo	model
+MS:1000636	ITQ 900	Thermo	model
+MS:1000637	ITQ 1100	Thermo	model
+MS:1000638	LTQ XL ETD	Thermo	model
+MS:1000639	LTQ Orbitrap XL ETD	Thermo	model
+MS:1000640	DFS	Thermo	model
+MS:1000641	DSQ II	Thermo	model
+MS:1000642	MALDI LTQ XL	Thermo	model
+MS:1000643	MALDI LTQ Orbitrap	Thermo	model
+MS:1000644	TSQ Quantum Access	Thermo	model
+MS:1000645	Element XR	Thermo	model
+MS:1000646	Element 2	Thermo	model
+MS:1000647	Element GD	Thermo	model
+MS:1000648	GC IsoLink	Thermo	model
+MS:1000649	Exactive	Thermo	model
+MS:1000695	apex ultra	Bruker	model
+MS:1000696	autoflex III smartbeam	Bruker	model
+MS:1000697	Bruker Daltonics HCT Series	Bruker	family
+MS:1000698	HCTultra	Bruker	model
+MS:1000699	HCTultra PTM	Bruker	model
+MS:1000700	HCTultra ETD II	Bruker	model
+MS:1000701	microflex LT	Bruker	model
+MS:1000702	micrOTOF	Bruker	model
+MS:1000703	micrOTOF-Q	Bruker	model
+MS:1000704	micrOTOF-Q II	Bruker	model
+MS:1000705	ultraflex III TOF/TOF	Bruker	model
+MS:1000743	TSQ Quantum Ultra AM	Thermo	model
+MS:1000748	SSQ 7000	Thermo	model
+MS:1000749	TSQ 7000	Thermo	model
+MS:1000750	TSQ	Thermo	model
+MS:1000751	TSQ Quantum Ultra	Thermo	model
+MS:1000854	LTQ XL	Thermo	model
+MS:1000855	LTQ Velos	Thermo	model
+MS:1000856	LTQ Velos/ETD	Thermo	model	LTQ Velos ETD
+MS:1001510	TSQ Vantage	Thermo	model
+MS:1001533	Bruker Daltonics esquire series	Bruker	family
+MS:1001534	Bruker Daltonics flex series	Bruker	family
+MS:1001535	Bruker Daltonics BioTOF series	Bruker	family
+MS:1001536	Bruker Daltonics micrOTOF series	Bruker	family
+MS:1001537	BioTOF	Bruker	model
+MS:1001538	BioTOF III	Bruker	model
+MS:1001539	UltroTOF-Q	Bruker	model
+MS:1001540	micrOTOF II	Bruker	model
+MS:1001541	maXis	Bruker	model
+MS:1001542	amaZon ETD	Bruker	model
+MS:1001543	microflex LRF	Bruker	model
+MS:1001544	ultrafleXtreme	Bruker	model
+MS:1001545	Bruker Daltonics amaZon series	Bruker	family
+MS:1001546	amaZon X	Bruker	model
+MS:1001547	Bruker Daltonics maXis series	Bruker	family
+MS:1001548	Bruker Daltonics solarix series	Bruker	family
+MS:1001549	solariX	Bruker	model
+MS:1001550	microflex II	Bruker	model
+MS:1001553	autoflex II TOF/TOF	Bruker	model
+MS:1001554	autoflex III TOF/TOF smartbeam	Bruker	model
+MS:1001555	autoflex	Bruker	model
+MS:1001556	Bruker Daltonics apex series	Bruker	family
+MS:1001742	LTQ Orbitrap Velos	Thermo	model
+MS:1001908	ISQ	Thermo	model
+MS:1001909	Velos Plus	Thermo	model
+MS:1001910	Orbitrap Elite	Thermo	model	LTQ Orbitrap Elite
+MS:1001911	Q Exactive	Thermo	model
+MS:1002077	impact	Bruker	model
+MS:1002279	maXis 4G	Bruker	model
+MS:1002280	compact	Bruker	model
+MS:1002293	Bruker Daltonics SCION series	Bruker	family
+MS:1002294	Bruker Daltonics EVOQ series	Bruker	family
+MS:1002295	SCION SQ	Bruker	model
+MS:1002296	SCION TQ	Bruker	model
+MS:1002297	EVOQ Elite	Bruker	model
+MS:1002298	EVOQ Qube	Bruker	model
+MS:1002299	micrOTOF-Q III	Bruker	model
+MS:1002300	amaZon Speed ETD	Bruker	model
+MS:1002301	amaZon Speed	Bruker	model
+MS:1002416	Orbitrap Fusion	Thermo	model
+MS:1002417	Orbitrap Fusion ETD	Thermo	model
+MS:1002418	TSQ Quantiva	Thermo	model
+MS:1002419	TSQ Endura	Thermo	model
+MS:1002523	Q Exactive HF	Thermo	model
+MS:1002525	TSQ 8000 Evo	Thermo	model
+MS:1002526	Exactive Plus	Thermo	model
+MS:1002634	Q Exactive Plus	Thermo	model
+MS:1002666	impact II	Bruker	model
+MS:1002667	impact HD	Bruker	model
+MS:1002732	Orbitrap Fusion Lumos	Thermo	model
+MS:1002835	LTQ Orbitrap Classic	Thermo	model
+MS:1002874	TSQ Altis	Thermo	model
+MS:1002875	TSQ Quantis	Thermo	model
+MS:1002876	TSQ 9000	Thermo	model
+MS:1002877	Q Exactive HF-X	Thermo	model
+MS:1002992	Orbitrap Exploris GC-MS	Thermo	model
+MS:1002993	Q Exactive Focus	Thermo	model
+MS:1002994	Orbitrap Excedion Pro	Thermo	model
+MS:1003004	maXis II	Bruker	model
+MS:1003005	timsTOF Pro	Bruker	model
+MS:1003028	Orbitrap Exploris 480	Thermo	model
+MS:1003029	Orbitrap Eclipse	Thermo	model
+MS:1003094	Orbitrap Exploris 240	Thermo	model
+MS:1003095	Orbitrap Exploris 120	Thermo	model
+MS:1003096	Orbitrap Velos Pro	Thermo	model	LTQ Orbitrap Velos Pro
+MS:1003112	Orbitrap ID-X	Thermo	model
+MS:1003122	rapifleX	Bruker	model
+MS:1003123	Bruker Daltonics timsTOF series	Bruker	family
+MS:1003124	timsTOF fleX	Bruker	model
+MS:1003229	timsTOF	Bruker	model
+MS:1003230	timsTOF Pro 2	Bruker	model
+MS:1003231	timsTOF SCP	Bruker	model
+MS:1003245	Q Exactive UHMR	Thermo	model
+MS:1003292	TSQ Altis Plus	Thermo	model
+MS:1003356	Orbitrap Ascend	Thermo	model
+MS:1003378	Orbitrap Astral	Thermo	model
+MS:1003383	timsTOF Ultra	Bruker	model
+MS:1003395	Q Exactive GC Orbitrap	Thermo	model
+MS:1003397	timsTOF fleX MALDI-2	Bruker	model
+MS:1003404	timsTOF HT	Bruker	model
+MS:1003409	Stellar	Thermo	model
+MS:1003411	Orbitrap IQ-X	Thermo	model
+MS:1003412	timsTOF Ultra 2	Bruker	model
+MS:1003423	Orbitrap Exploris GC 240	Thermo	model
+MS:1003442	Orbitrap Astral Zoom	Thermo	model
+MS:1003449	ISQ 7000	Thermo	model
+MS:1003459	APEX-Qe	Bruker	model
+MS:1003460	autoflex speed TOF/TOF	Bruker	model
+MS:1003461	esquire 3000	Bruker	model
+MS:1003462	maXis impact	Bruker	model
+MS:1003463	maXis impact HD	Bruker	model
+MS:1003464	maXis 3G	Bruker	model
+MS:1003465	solariX XR	Bruker	model
+MS:1003466	amaZon SL	Bruker	model
+MS:1003467	EVOQ DART-TQ+	Bruker	model
+MS:1003468	EVOQ LC-TQ	Bruker	model
+MS:1003469	EVOQ GC-TQ	Bruker	model
+MS:1003470	Toxtyper	Bruker	model
+MS:1003471	impact II VIP	Bruker	model
+MS:1003472	ecTOF	Bruker	model
+MS:1003473	autoflex maX	Bruker	model
+MS:1003474	rapifleX MALDI PharmaPulse	Bruker	model
+MS:1003475	smartfleX	Bruker	model
+MS:1003476	neofleX	Bruker	model
+MS:1003477	MALDI Biotyper	Bruker	model
+MS:1003478	scimaX	Bruker	model
+MS:1003479	timsMetabo	Bruker	model
+MS:1003480	timsUltra AIP	Bruker	model
+MS:1003481	timsOmni	Bruker	model
+MS:1003482	timsTOF MALDI PharmaPulse	Bruker	model
+MS:1003495	Velos Pro	Thermo	model
+MS:1003496	MALDI LTQ Orbitrap XL	Thermo	model
+MS:1003497	MALDI LTQ Orbitrap Discovery	Thermo	model
+MS:1003498	TSQ Quantum Access MAX	Thermo	model
+MS:1003499	LTQ Orbitrap Velos/ETD	Thermo	model
+MS:1003500	ISQ LT	Thermo	model
+MS:1003501	ITQ	Thermo	model
+MS:1003502	TSQ Quantum XLS	Thermo	model
+MS:1003503	TSQ 8000	Thermo	model
+MS:1003504	DeltaPlus IRMS	Thermo	model
+MS:1003554	ThermoQuest Voyager	Thermo	model
+MS:1003800	TSQ Certis	Thermo	model
+MS:1003987	Orbitrap Tribrid Apex	Thermo	model
+MS:1003990	Orbitrap Excedion	Thermo	model
+MS:1003995	timsMRMS	Bruker	model

@@ -8,10 +8,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.searlelab.msrawjava.io.mzml.InstrumentComponent;
+import org.searlelab.msrawjava.io.mzml.MzmlFile;
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.PrecursorScan;
 
@@ -169,5 +176,155 @@ class MZMLOutputFileTest {
 		assertTrue(xml.contains("name=\"msrawjava.metadata.totalPrecursorTIC\""), "Expected totalPrecursorTIC metadata userParam");
 		assertTrue(xml.contains("value=\"1852649200000\""), "Expected totalPrecursorTIC metadata value");
 		assertTrue(xml.contains("name=\"msrawjava.metadata.gradientLength\""), "Expected gradientLength metadata userParam");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"instrument.model", "meta.InstrumentName", "instrument.name"})
+	void writesStellarCvTermInCommonInstrumentParams(String key) throws Exception {
+		Path output=writeInstrumentMetadata(Map.of(key, "  Stellar  ", "instrument.serial_number", "P5"));
+		String xml=Files.readString(output);
+		String group=xml.substring(xml.indexOf("<referenceableParamGroup id=\"CommonInstrumentParams\">"),
+				xml.indexOf("</referenceableParamGroup>"));
+		assertTrue(group.contains("accession=\"MS:1003409\" name=\"Stellar\" value=\"\""));
+		assertTrue(group.contains("name=\"instrument serial number\" value=\"P5\""));
+		assertInstrumentModel(output, "Stellar");
+	}
+
+	@Test
+	void blankInstrumentNameFallsBackToModel() throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("meta.InstrumentName", " ", "instrument.model", "Stellar", "instrument.name", "other"));
+		assertTrue(Files.readString(output).contains("accession=\"MS:1003409\" name=\"Stellar\""));
+		assertInstrumentModel(output, "Stellar");
+	}
+
+	@Test
+	void unknownInstrumentModelIsEscapedAndPreservedInCommonParams() throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("instrument.model", "Test & \"model\""));
+		assertTrue(Files.readString(output).contains("accession=\"MS:1000031\" name=\"instrument model\" value=\"Test &amp; &quot;model&quot;\""));
+		assertInstrumentModel(output, "Test & \"model\"");
+	}
+
+	@ParameterizedTest
+	@CsvSource({"Exploris 480, MS:1003028, Orbitrap Exploris 480", "Orbitrap Astral Zoom, MS:1003442, Orbitrap Astral Zoom",
+			"Orbitrap Fusion Lumos, MS:1002732, Orbitrap Fusion Lumos", "Q Exactive HF-X, MS:1002877, Q Exactive HF-X",
+			"timsTOF Pro, MS:1003005, timsTOF Pro", "Bruker timsTOF Pro 2, MS:1003230, timsTOF Pro 2",
+			"timsTOF SCP, MS:1003231, timsTOF SCP", "timsTOF Ultra 2, MS:1003412, timsTOF Ultra 2"})
+	void writesSpecificInstrumentCvTermsAndRoundTripsCanonicalNames(String input, String accession, String name) throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("instrument.model", input));
+		String xml=Files.readString(output);
+		assertTrue(xml.contains("accession=\""+accession+"\" name=\""+name+"\" value=\"\""));
+		assertTrue(xml.contains("version=\"4.2.8\""));
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(output.toFile());
+			var models=reader.getInstrumentConfigurations().keySet();
+			assertEquals(1, models.size());
+			assertEquals(accession, models.iterator().next().accession);
+			assertEquals(name, models.iterator().next().name);
+		} finally {
+			reader.close();
+		}
+	}
+
+	@ParameterizedTest
+	@CsvSource({"Thermo Scientific, Orbitrap prototype", "Bruker, timsTOF Pro 20"})
+	void unknownModelKeepsItsNameEvenWhenVendorIsKnown(String vendor, String name) throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("meta.InstrumentVendor", vendor, "instrument.model", name));
+		assertTrue(Files.readString(output).contains("accession=\"MS:1000031\" name=\"instrument model\" value=\""+name+"\""));
+		assertInstrumentModel(output, name);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"Thermo Scientific, MS:1000483, Thermo Fisher Scientific instrument model",
+			"Bruker, MS:1000122, Bruker Daltonics instrument model"})
+	void missingModelFallsBackToVendorCvTerm(String vendor, String accession, String name) throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("meta.InstrumentVendor", vendor));
+		assertTrue(Files.readString(output).contains("accession=\""+accession+"\" name=\""+name+"\" value=\"\""));
+		assertInstrumentModel(output, name);
+	}
+
+	@Test
+	void missingThermoModelUsesTheSameVendorDetectionForHeaderAndComponents() throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("thermo.creation_date", "2024-04-10"));
+		assertTrue(Files.readString(output).contains("accession=\"MS:1000483\" name=\"Thermo Fisher Scientific instrument model\""));
+		assertInstrumentModel(output, "Thermo Fisher Scientific instrument model");
+		assertInstrumentComponent(output, InstrumentComponent.Type.ANALYZER, "MS:1000443", "mass analyzer type");
+		assertInstrumentComponent(output, InstrumentComponent.Type.DETECTOR, "MS:1000026", "detector type");
+	}
+
+	@ParameterizedTest
+	@CsvSource({"Stellar, MS:1000291, linear ion trap, MS:1000116, photomultiplier",
+			"Thermo Scientific Stellar, MS:1000291, linear ion trap, MS:1000116, photomultiplier",
+			"Exploris 480, MS:1000484, orbitrap, MS:1000624, inductive detector",
+			"Q Exactive HF-X, MS:1000484, orbitrap, MS:1000624, inductive detector",
+			"timsTOF Pro 2, MS:1000084, time-of-flight, MS:1000114, microchannel plate detector"})
+	void writesComponentsWithoutVendorMetadata(String model, String analyzerAccession, String analyzer, String detectorAccession, String detector) throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("instrument.model", model));
+		assertInstrumentComponent(output, InstrumentComponent.Type.ANALYZER, analyzerAccession, analyzer);
+		assertInstrumentComponent(output, InstrumentComponent.Type.DETECTOR, detectorAccession, detector);
+	}
+
+	@Test
+	void thermoMetadataPreventsGuessingTofForUnknownModels() throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("instrument.model", "Future Thermo model", "thermo.creation_date", "2024-04-10"));
+		assertInstrumentComponent(output, InstrumentComponent.Type.ANALYZER, "MS:1000443", "mass analyzer type");
+		assertInstrumentComponent(output, InstrumentComponent.Type.DETECTOR, "MS:1000026", "detector type");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"Astral", "Orbitrap Astral", "Astral Zoom", "Orbitrap Astral Zoom"})
+	void astralComponentsIncludeBothAcquisitionPaths(String model) throws Exception {
+		Path output=writeInstrumentMetadata(Map.of("instrument.model", model));
+		assertTrue(Files.readString(output).contains("<componentList count=\"6\">"));
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(output.toFile());
+			var components=new ArrayList<>(reader.getInstrumentConfigurations().values());
+			assertEquals(List.of("MS:1000073", "MS:1000081", "MS:1000484", "MS:1003379", "MS:1000624", "MS:1000116"),
+					components.stream().map(c -> c.accessionId).collect(Collectors.toList()));
+			assertEquals(List.of(1, 2, 3, 4, 5, 6), components.stream().map(c -> c.order).collect(Collectors.toList()));
+			assertEquals(List.of(InstrumentComponent.Type.SOURCE, InstrumentComponent.Type.ANALYZER, InstrumentComponent.Type.ANALYZER,
+					InstrumentComponent.Type.ANALYZER, InstrumentComponent.Type.DETECTOR, InstrumentComponent.Type.DETECTOR),
+					components.stream().map(c -> c.type).collect(Collectors.toList()));
+		} finally {
+			reader.close();
+		}
+	}
+
+	private void assertInstrumentComponent(Path output, InstrumentComponent.Type type, String accession, String name) throws Exception {
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(output.toFile());
+			var component=reader.getInstrumentConfigurations().values().stream().filter(c -> c.type==type).findFirst().orElseThrow();
+			assertEquals(accession, component.accessionId);
+			assertEquals(name, component.name);
+		} finally {
+			reader.close();
+		}
+	}
+
+	private Path writeInstrumentMetadata(Map<String, String> metadata) throws Exception {
+		Path output=tmp.resolve("instrument.mzML");
+		MZMLOutputFile writer=new MZMLOutputFile();
+		try {
+			writer.openFile();
+			writer.addMetadata(metadata);
+			writer.setFileName("test.raw", null);
+			writer.addSpectra(new ArrayList<>(), new ArrayList<>());
+			writer.saveAsFile(output.toFile());
+		} finally {
+			writer.close();
+		}
+		return output;
+	}
+
+	private void assertInstrumentModel(Path output, String expected) throws Exception {
+		MzmlFile reader=new MzmlFile();
+		try {
+			reader.openFile(output.toFile());
+			assertEquals(expected, reader.getInstrumentConfigurations().keySet().iterator().next().name);
+		} finally {
+			reader.close();
+		}
 	}
 }
