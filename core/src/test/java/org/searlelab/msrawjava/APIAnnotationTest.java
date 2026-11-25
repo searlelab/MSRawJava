@@ -166,6 +166,7 @@ class APIAnnotationTest {
 		assertStableConstructor(EncyclopeDIAFile.class);
 		assertStable(TIMSPeakPicker.class);
 		assertStableMethod(TIMSPeakPicker.class, "peakPickAcrossIMS", java.util.ArrayList.class);
+		assertExperimentalMethod(TIMSPeakPicker.class, "squashAcrossIMS", "v26.11.25", java.util.ArrayList.class);
 		assertStableField(RawFileStructureTools.class, "METADATA_DATA_ACQUISITION_TYPE");
 		assertStableField(RawFileStructureTools.class, "METADATA_IS_STAGGERED");
 		assertStableMethod(RawFileStructureTools.class, "isStaggered", Map.class);
@@ -300,6 +301,10 @@ class APIAnnotationTest {
 		assertStable(method(type, name, parameterTypes));
 	}
 
+	private static void assertExperimentalMethod(Class<?> type, String name, String since, Class<?>... parameterTypes) {
+		assertAPI(method(type, name, parameterTypes), API.Status.EXPERIMENTAL, since);
+	}
+
 	private static void assertStableField(Class<?> type, String name) {
 		try {
 			assertStable(type.getDeclaredField(name));
@@ -317,10 +322,14 @@ class APIAnnotationTest {
 	}
 
 	private static void assertAPI(AnnotatedElement element, API.Status status) {
+		assertAPI(element, status, SINCE);
+	}
+
+	private static void assertAPI(AnnotatedElement element, API.Status status, String since) {
 		API api=element.getAnnotation(API.class);
 		assertNotNull(api, "Missing @API on "+element);
 		assertEquals(status, api.status(), "Unexpected @API status on "+element);
-		assertEquals(SINCE, api.since(), "Unexpected @API since on "+element);
+		assertEquals(since, api.since(), "Unexpected @API since on "+element);
 	}
 
 	private static Method method(Class<?> type, String name, Class<?>... parameterTypes) {

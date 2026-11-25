@@ -1,6 +1,7 @@
 package org.searlelab.msrawjava.io.tims;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -11,6 +12,7 @@ import org.searlelab.msrawjava.model.PeakInterface;
 import org.searlelab.msrawjava.model.PeakWithIMS;
 
 import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.map.hash.TFloatIntHashMap;
 
 /**
  * TIMSPeakPicker implements ion-mobility–aware peak detection for timsTOF data, operating across the mobility dimension
@@ -70,6 +72,81 @@ public class TIMSPeakPicker {
 	public static final MassTolerance tolerance=new TIMSMassTolerance();
 	public static final float IM_TOL_PCT=3.0f;
 	public static final int MAX_PEAKS=10000;
+
+	/**
+	 * Greedily squashes an m/z window across all IMS values, without mobility filtering or fitting.
+	 * The input is sorted in place by natural order (m/z, IMS, intensity). Eligible points satisfy
+	 * {@code p.isAvailable() && p.intensity > 0f}; in particular, NaN intensity is excluded. Apexes are
+	 * selected in descending {@link PeakWithIMS.PeakIntensityComparator} order, breaking intensity
+	 * ties by descending m/z, then IMS. Each inclusive window is fixed at the original apex m/z plus
+	 * or minus {@code tolerance.getToleranceInMz(apex.mz, apex.mz)/2.0}.
+	 * <p>
+	 * All eligible points in the window are consumed with {@code turnOff()} and their intensities
+	 * summed in double precision, then cast once to float. Output m/z and IMS are intensity-weighted
+	 * means of only the consumed points satisfying {@code p.intensity >= 0.5f*apex.intensity}, with
+	 * the cutoff evaluated in float and all weighted arithmetic in double. The window and cutoff
+	 * are never recentered. Repeated references contribute once; distinct equal objects contribute
+	 * separately. Initially unavailable and nonpositive points retain their availability.
+	 * <p>
+	 * Returns at most {@link #MAX_PEAKS} new points in natural order. At the cap, all points not
+	 * consumed by the reported groups retain their availability. Sorting the input costs O(n log n),
+	 * and sorting u distinct intensity levels costs O(u log u). Exact-intensity buckets use expected
+	 * O(n) hashing without rounding intensities. Window scans depend on overlap; scratch space is O(n).
+	 *
+	 * @param mzSortedPeaks input points, sorted in place and consumed through their original references
+	 * @return squashed points sorted by natural order
+	 */
+	@API(status = API.Status.EXPERIMENTAL, since = "v26.11.25")
+	public static ArrayList<PeakWithIMS> squashAcrossIMS(ArrayList<PeakWithIMS> mzSortedPeaks) {
+		mzSortedPeaks.sort(null);
+		int[] nextMember=new int[mzSortedPeaks.size()];
+		// Zero intensity is ineligible; -1 terminates each exact-intensity bucket's member chain.
+		TFloatIntHashMap heads=new TFloatIntHashMap(Math.min(mzSortedPeaks.size(), 4096), 0.5f, 0f, -1);
+		int count=0;
+		for (int i=0; i<mzSortedPeaks.size(); i++) {
+			PeakWithIMS p=mzSortedPeaks.get(i);
+			if (p.isAvailable()&&p.intensity>0f) {
+				// Pushing in natural order makes ties descend by m/z, then IMS, without a second object sort.
+				nextMember[i]=heads.put(p.intensity, i);
+				count++;
+			}
+		}
+		float[] intensityLevels=heads.keys();
+		Arrays.sort(intensityLevels);
+		ArrayList<PeakWithIMS> out=new ArrayList<>(Math.min(count, MAX_PEAKS/10));
+		int level=intensityLevels.length-1, index=-1;
+		while (out.size()<MAX_PEAKS) {
+			if (index<0) {
+				if (level<0) break;
+				index=heads.get(intensityLevels[level--]);
+			}
+			PeakWithIMS apex=mzSortedPeaks.get(index);
+			index=nextMember[index];
+			if (!apex.isAvailable()) continue;
+			double halfWidth=tolerance.getToleranceInMz(apex.mz, apex.mz)/2.0;
+			int start=lowerBoundMz(mzSortedPeaks, apex.mz-halfWidth);
+			int end=upperBoundMz(mzSortedPeaks, apex.mz+halfWidth);
+			float halfMax=0.5f*apex.intensity;
+			double sum=0.0, weight=0.0, weightedMz=0.0, weightedIMS=0.0;
+			for (int i=start; i<end; i++) {
+				PeakWithIMS p=mzSortedPeaks.get(i);
+				if (p.isAvailable()&&p.intensity>0f) {
+					double intensity=p.intensity;
+					sum+=intensity;
+					if (p.intensity>=halfMax) {
+						weight+=intensity;
+						weightedMz+=intensity*p.mz;
+						weightedIMS+=intensity*p.ims;
+					}
+					p.turnOff();
+				}
+			}
+			if (sum>0.0) out.add(new PeakWithIMS(weightedMz/weight, (float)sum, (float)(weightedIMS/weight)));
+		}
+		// Exhausting the levels and members, rather than counting consumed list entries, also handles aliases.
+		out.sort(null);
+		return out;
+	}
 
 	/**
 	 * all peaks need to be "on", this will toggle some "off"
